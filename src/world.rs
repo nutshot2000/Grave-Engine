@@ -18,6 +18,17 @@ pub const BURNING: u8 = 1;
 /// still heats, burns and melts it, but never moves it.
 pub const OWNED: u8 = 2;
 
+/// An explosive cell went off here this frame (handled by `physics.rs`).
+#[derive(Clone, Copy, Debug)]
+pub struct Blast {
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub power: f32,
+    /// What the blast fills nearby air with (usually fire).
+    pub fire: Option<MatId>,
+}
+
 /// Room temperature, °C.
 pub const ROOM_TEMP: f32 = 20.0;
 
@@ -38,6 +49,8 @@ pub struct World {
     moved: Vec<u32>,
     pub frame: u32,
     pub ambient: f32,
+    /// Explosions that happened during the last step.
+    pub blasts: Vec<Blast>,
     rng: u32,
     // Scratch buffers, reused every frame.
     new_temp: Vec<f32>,
@@ -67,6 +80,7 @@ impl World {
             moved: vec![0; n],
             frame: 1,
             ambient: ROOM_TEMP,
+            blasts: Vec::new(),
             rng: 0x9E37_79B9,
             new_temp: vec![0.0; n],
             k: vec![0.0; n],
@@ -176,6 +190,11 @@ impl World {
         self.burn[i] = 0;
     }
 
+    /// Change a cell into another material, keeping its temperature.
+    pub fn transform(&mut self, mats: &Materials, i: usize, id: MatId) {
+        self.become_(mats, i, id);
+    }
+
     /// Swap two cells completely.
     pub fn swap_cells(&mut self, a: usize, b: usize) {
         self.swap(a, b);
@@ -209,6 +228,7 @@ impl World {
     /// Advance the simulation by one frame.
     pub fn step(&mut self, mats: &Materials) {
         self.frame = self.frame.wrapping_add(1).max(1);
+        self.blasts.clear();
         self.heat(mats);
         self.changes(mats);
         self.movement(mats);
@@ -319,6 +339,26 @@ impl World {
                     continue;
                 }
                 self.life[i] -= 1;
+            }
+
+            // Explosives go off as soon as they're hot enough. They carry their
+            // own oxygen, so they don't need air (buried gunpowder still blows).
+            if m.explosion_size > 0.0 {
+                if let Some(ignite) = m.catches_fire_at {
+                    if t >= ignite || self.flags[i] & BURNING != 0 {
+                        self.blasts.push(Blast {
+                            x: (i % self.w) as f32 + 0.5,
+                            y: (i / self.w) as f32 + 0.5,
+                            size: m.explosion_size,
+                            power: m.explosion_power,
+                            fire: m.gives_off,
+                        });
+                        let (into, bt) = (m.burns_into, m.burn_temperature);
+                        self.become_(mats, i, into);
+                        self.temp[i] = self.temp[i].max(bt);
+                        continue;
+                    }
+                }
             }
 
             // Burning.

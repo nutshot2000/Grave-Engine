@@ -1,0 +1,66 @@
+# Forces: weight, impacts, friction and explosions.
+size 512 288
+seed 9
+ambient -5                       # a cold day
+fill air
+rect stone 0 268 512 20          # ground
+
+# 1. SMASH: a heavy iron block dropped on a wooden bridge
+rect stone 20 200 10 68
+rect stone 110 200 10 68
+rect wood 30 200 80 4
+body rect iron 60 20 14 14
+
+# 2. SLIDE: a hill coated in slippery ice, with a wooden block on top
+rect stone 140 172 3 96
+rect stone 143 173 3 95
+rect stone 146 175 3 93
+rect stone 149 177 3 91
+rect stone 152 179 3 89
+rect stone 155 181 3 87
+rect stone 158 183 3 85
+rect stone 161 184 3 84
+rect stone 164 186 3 82
+rect stone 167 188 3 80
+rect stone 170 190 3 78
+rect stone 173 192 3 76
+rect stone 176 194 3 74
+rect stone 179 196 3 72
+rect stone 182 197 3 71
+rect stone 185 199 3 69
+rect stone 188 201 3 67
+rect stone 191 203 3 65
+rect stone 194 205 3 63
+rect stone 197 207 3 61
+rect stone 200 209 3 59
+rect stone 203 210 3 58
+rect stone 206 212 3 56
+rect stone 209 214 3 54
+rect stone 212 216 3 52
+rect stone 215 218 3 50
+rect stone 218 220 3 48
+rect stone 221 222 3 46
+rect stone 224 223 3 45
+rect stone 227 225 3 43
+rect stone 230 227 3 41
+rect stone 233 229 3 39
+rect stone 236 231 3 37
+rect stone 239 233 3 35
+rect stone 242 235 3 33
+rect stone 245 236 3 32
+rect stone 248 238 3 30
+rect stone 251 240 3 28
+line ice 140 170 250 238 4
+heat rect 130 150 130 120 -30     # a cold patch so the ice stays frozen
+body rect wood 141 152 10 10
+
+# 3. BOOM: gunpowder under some crates, next to a stone wall,
+#    lit by a slow-burning wooden fuse
+rect gunpowder 340 252 30 16
+rect wood 280 266 60 2           # the fuse
+heat rect 280 264 3 4 600        # light the end of the fuse
+object ../assets/crate.png 343 226
+body rect wood 372 240 10 12
+rect stone 400 170 12 98         # a stone wall
+rect wood 420 230 60 4           # a shelf beyond it
+rect wood 470 230 4 38

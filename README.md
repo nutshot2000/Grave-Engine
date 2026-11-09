@@ -77,6 +77,21 @@ Physics is done by [Rapier](https://rapier.rs). One cell is 10 cm.
 - Things float if they're lighter than the liquid they're in (wood on water) and sink
   if they're heavier (iron).
 
+## Forces: impacts, weight, friction and explosions
+
+Try `scenes/forces.txt`.
+
+- **Impacts and weight crack things.** Every hit's force comes from the physics, so
+  heavier and faster objects hit harder. If it beats a material's `toughness`, that
+  spot cracks: stone crumbles to gravel, wood splinters into flying pieces, and ice
+  shatters. Drop an iron block on a wooden bridge and it smashes through. A gentle
+  landing doesn't break anything.
+- **Friction and bounce** are per material. Things slide off ice, and grip stone.
+  Slopes are smooth, so blocks slide and carts roll downhill.
+- **Explosions.** Gunpowder goes off when it gets hot, even buried. The blast cracks
+  things, throws objects, scatters burning splinters and lights fires. Neighbouring
+  gunpowder sets off in a chain.
+
 ## Importing from Blender and images
 
 **Drag a file onto the window** to drop it in as an object (tick "Drop as fixed scenery"

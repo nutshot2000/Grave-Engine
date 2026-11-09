@@ -9,3 +9,4 @@ heat_capacity = 1
 melts_at = 1700
 melts_into = lava
 strength = 1
+friction = 0.7

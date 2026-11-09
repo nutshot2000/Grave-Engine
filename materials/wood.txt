@@ -14,3 +14,6 @@ burns_into_chance = 0.1         # only 1 in 10 burned cells leaves ash; the rest
 gives_off = fire
 gives_off_chance = 0.15
 strength = 50                    # can stick out 50 cells (5 m) from a support before it snaps
+toughness = 1500                 # how hard a hit it takes to crack (kN); it splinters
+friction = 0.6
+bounciness = 0.1

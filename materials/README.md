@@ -22,6 +22,20 @@ the file and line number.
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |
 | `strength` | Solids: how many cells it can stick out sideways (or hang down) from something holding it up before it snaps. Wood 50, stone 25, iron 150, ice 15. Standing on something solid counts as fully held up | 1 |
 
+## Forces
+
+| Key | What it means | Default |
+| --- | --- | --- |
+| `toughness` | How hard a hit (or how much weight) it takes to crack, in kilonewtons. Wood 1500, stone 5000, iron 30000, ice 300. `none` = never cracks | none |
+| `breaks_into` | What cracked cells turn into (stone cracks into gravel). Without it, cracked bits splinter into small flying pieces | none |
+| `friction` | How grippy it is, 0 to 1. Ice 0.03, wood 0.6, stone 0.8. The slipperier of two surfaces wins | 0.6 |
+| `bounciness` | How much things bounce off it, 0 (thud) to 1 (superball). The bouncier of two surfaces wins | 0.05 |
+| `explosion_size` | Explosives: blast radius in cells. Needs `catches_fire_at` (that's when it goes off) | 0 |
+| `explosion_power` | Explosives: how hard the blast hits at its centre, in kilonewtons. Fades with distance; cracks anything whose `toughness` it beats | 0 |
+
+A hit's force comes from the real physics: heavier and faster objects hit harder.
+Lots of explosive going off together makes one bigger blast.
+
 ## Heat
 
 | Key | What it means | Default |

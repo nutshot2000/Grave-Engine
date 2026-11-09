@@ -1,0 +1,17 @@
+# Gunpowder: explodes when it gets hot. It carries its own oxygen, so it
+# goes off even when buried. Blasts crack things by toughness, throw objects
+# around and set fires. Lots of it together makes a bigger bang.
+about = Explodes when heated. Handle with care.
+state = powder
+density = 1700
+color = #333236
+color_variation = 0.25
+conducts_heat = 0.2
+heat_capacity = 0.8
+catches_fire_at = 250
+burn_temperature = 1200
+burns_into = smoke
+gives_off = fire
+explosion_size = 10              # blast radius in cells
+explosion_power = 20000          # how hard the blast hits at the centre (kN)
+friction = 0.7

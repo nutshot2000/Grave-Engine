@@ -9,3 +9,6 @@ heat_capacity = 1
 melts_at = 1100
 melts_into = lava
 strength = 25
+toughness = 5000                 # very hard; cracks into gravel
+breaks_into = gravel
+friction = 0.8

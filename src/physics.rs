@@ -14,18 +14,37 @@
 //! 4. **Physics**: Rapier moves the objects (gravity, collisions, floating).
 //! 5. **Stamp**: write each object's cells back into the grid at its new
 //!    position and angle, pushing any liquid out of the way.
+//! 6. **Damage**: hard hits (and heavy loads) crack materials whose
+//!    `toughness` they beat, and explosions crack, fling and burn things.
+//!    Cracked cells turn into `breaks_into` (stone -> gravel) or splinter
+//!    into small loose pieces.
 //!
 //! Units: one cell is 10 cm, so a 10-cell crate is a metre wide.
 
 use crate::material::{MatId, Materials, State};
 use crate::world::{OWNED, World};
 use rapier2d::prelude::*;
+use std::collections::HashMap;
 
 /// Metres per cell.
 pub const CELL: f32 = 0.1;
 const CHUNK: usize = 32;
 const GRAVITY: f32 = 9.81;
 const DT: f32 = 1.0 / 60.0;
+/// How far (in cells) a straightened outline may stray from the pixel edge.
+const SMOOTHING: f32 = 0.9;
+/// Contacts softer than this (kN) are never checked for damage.
+const MIN_DAMAGE_KN: f32 = 50.0;
+/// At most this many hard contacts crack things per frame.
+const MAX_HITS_PER_TICK: usize = 24;
+/// New pieces ignore hits for this many frames while they settle.
+const SETTLE_TICKS: u32 = 8;
+/// Above this many objects, new splinters turn to dust instead.
+const MAX_OBJECTS: usize = 1500;
+/// How hard explosions shove objects (newton-seconds per kN per sqrt(cell)).
+const BLAST_PUSH: f32 = 0.012;
+/// The most speed a blast can give an object (metres per second).
+const BLAST_MAX_SPEED: f32 = 35.0;
 
 /// One cell of an object, with all its simulation state.
 #[derive(Clone, Copy, Debug)]
@@ -97,6 +116,9 @@ struct Body {
     handle: RigidBodyHandle,
     /// (world cell index, local cell index) written by the last stamp.
     stamped: Vec<(u32, u32)>,
+    /// The physics tick this object appeared (brand-new pieces don't crack
+    /// things while they settle).
+    born: u32,
 }
 
 struct Chunk {
@@ -239,7 +261,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new() };
+        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick };
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
         self.bodies.push(body);
@@ -258,9 +280,11 @@ impl Physics {
             let m = mats.get(mat);
             let col = ColliderBuilder::cuboid(rw as f32 * CELL / 2.0, rh as f32 * CELL / 2.0)
                 .translation(Vector::new(cx, cy))
+                .friction_combine_rule(CoefficientCombineRule::Min)
+                .restitution_combine_rule(CoefficientCombineRule::Max)
                 .density(m.density.max(50.0))
-                .friction(0.7)
-                .restitution(0.05);
+                .friction(m.friction)
+                .restitution(m.bounciness);
             self.colliders.insert_with_parent(col, body.handle, &mut self.set);
         }
         self.set[body.handle].wake_up(true);
@@ -441,6 +465,281 @@ impl Physics {
         for spec in new_specs {
             self.add(world, mats, spec);
         }
+
+        // 6. Damage: hard hits, heavy loads and explosions.
+        let mut pieces = self.impacts(world, mats);
+        pieces.extend(self.explosions(world, mats));
+        for spec in pieces {
+            self.add(world, mats, spec);
+        }
+    }
+
+    /// Which object owns each world cell right now.
+    fn owners(&self) -> HashMap<u32, usize> {
+        let mut m = HashMap::new();
+        for (n, b) in self.bodies.iter().enumerate() {
+            for &(wi, _) in &b.stamped {
+                m.insert(wi, n);
+            }
+        }
+        m
+    }
+
+    /// Look at every contact from this step. Where the push was harder than a
+    /// material's `toughness`, crack it there (both sides can crack).
+    fn impacts(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
+        // Gather the hard contacts first: total force of each touching pair (kN)
+        // and the patch of points where they touch (in cells).
+        let mut hits: Vec<(f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>)> = Vec::new();
+        for pair in self.narrow.contact_pairs() {
+            if !pair.has_any_active_contact() {
+                continue;
+            }
+            let (Some(c1), Some(c2)) = (self.colliders.get(pair.collider1), self.colliders.get(pair.collider2)) else {
+                continue;
+            };
+            let (b1, b2) = (c1.parent(), c2.parent());
+            // Brand-new pieces push hard while they settle: skip them for a moment.
+            let settling = |h: Option<RigidBodyHandle>| {
+                h.and_then(|h| self.bodies.iter().find(|b| b.handle == h))
+                    .is_some_and(|b| self.tick.wrapping_sub(b.born) < SETTLE_TICKS)
+            };
+            if settling(b1) || settling(b2) {
+                continue;
+            }
+            let pose = c1.position();
+            let (re, im) = (pose.rotation.re, pose.rotation.im);
+            let mut impulse = 0.0;
+            let mut patch = Vec::new();
+            for m in pair.solver_manifolds() {
+                for pt in &m.points {
+                    impulse += pt.data.impulse;
+                    let l = pt.local_p1;
+                    patch.push((
+                        (pose.translation.x + re * l.x - im * l.y) / CELL,
+                        (pose.translation.y + im * l.x + re * l.y) / CELL,
+                    ));
+                }
+            }
+            let force = impulse / DT / 1000.0;
+            if force >= MIN_DAMAGE_KN / 4.0 && !patch.is_empty() {
+                hits.push((force, patch, b1, b2));
+            }
+        }
+        if hits.is_empty() {
+            return Vec::new();
+        }
+        // One object landing across several pieces of ground is one hit.
+        let mut merged: Vec<(f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>)> = Vec::new();
+        for (f, patch, b1, b2) in hits {
+            match merged.iter_mut().find(|m| (m.2 == b1 && m.3 == b2) || (m.2 == b2 && m.3 == b1)) {
+                Some(m) => {
+                    m.0 += f;
+                    m.1.extend(patch);
+                }
+                None => merged.push((f, patch, b1, b2)),
+            }
+        }
+        let mut hits = merged;
+        hits.sort_by(|a, b| b.0.total_cmp(&a.0));
+        hits.truncate(MAX_HITS_PER_TICK);
+
+        let owners = self.owners();
+        let mut out = Vec::new();
+        for (force, patch, b1, b2) in hits {
+            if force < MIN_DAMAGE_KN {
+                continue;
+            }
+            // Points along the whole contact patch, about a cell apart.
+            let mut sorted = patch.clone();
+            sorted.sort_by(|a, b| (a.0 + a.1 * 0.001).total_cmp(&(b.0 + b.1 * 0.001)));
+            let mut samples = Vec::new();
+            for w in sorted.windows(2) {
+                let d = ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt();
+                let n = (d.ceil() as usize).clamp(1, 40);
+                for k in 0..n {
+                    let t = k as f32 / n as f32;
+                    samples.push((w[0].0 + (w[1].0 - w[0].0) * t, w[0].1 + (w[1].1 - w[0].1) * t));
+                }
+            }
+            samples.push(*sorted.last().unwrap());
+            samples.truncate(60);
+
+            for side in [b1, b2] {
+                let which = match side {
+                    Some(h) if h == self.ground => Which::Scenery,
+                    Some(h) => match self.bodies.iter().position(|b| b.handle == h) {
+                        Some(n) => Which::Body(n),
+                        None => continue,
+                    },
+                    None => continue,
+                };
+                let vel = match which {
+                    Which::Body(n) => {
+                        let v = self.set[self.bodies[n].handle].linvel();
+                        (v.x / CELL, v.y / CELL)
+                    }
+                    _ => (0.0, 0.0),
+                };
+                for &(px, py) in &samples {
+                    // The nearest cell on this side tells us what got hit.
+                    let Some(cell) = nearest_cell(world, mats, &owners, which, px, py, 2.0) else { continue };
+                    let Some(tough) = mats.get(world.mat[cell]).toughness else { continue };
+                    if force <= tough {
+                        continue;
+                    }
+                    let r = (1.5 + 2.0 * (force / tough).ln()).clamp(1.5, 7.0);
+                    let (cx, cy) = ((cell % world.w) as f32 + 0.5, (cell / world.w) as f32 + 0.5);
+                    out.extend(self.fracture(world, mats, &owners, which, cx, cy, r, |_| force, vel, 6.0));
+                }
+            }
+        }
+        out
+    }
+
+    /// Crack every breakable cell of `which` within `r` of (cx, cy) whose
+    /// `toughness` is beaten by `force_at(distance)`. Returns the splinters.
+    #[allow(clippy::too_many_arguments)]
+    fn fracture(
+        &mut self,
+        world: &mut World,
+        mats: &Materials,
+        owners: &HashMap<u32, usize>,
+        which: Which,
+        cx: f32,
+        cy: f32,
+        r: f32,
+        force_at: impl Fn(f32) -> f32,
+        vel: (f32, f32),
+        push: f32,
+    ) -> Vec<BodySpec> {
+        let mut splinters: HashMap<(i32, i32), Vec<usize>> = HashMap::new();
+        let ri = r.ceil() as i32;
+        for dy in -ri..=ri {
+            for dx in -ri..=ri {
+                let (x, y) = (cx as i32 + dx, cy as i32 + dy);
+                if !world.in_bounds(x, y) {
+                    continue;
+                }
+                let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+                if d > r {
+                    continue;
+                }
+                let i = world.idx(x as usize, y as usize);
+                if !which.matches(world, mats, owners, i) {
+                    continue;
+                }
+                let m = mats.get(world.mat[i]);
+                let Some(tough) = m.toughness else { continue };
+                if force_at(d) <= tough {
+                    continue;
+                }
+                match m.breaks_into {
+                    Some(into) => world.transform(mats, i, into),
+                    None => splinters.entry((x.div_euclid(3), y.div_euclid(3))).or_default().push(i),
+                }
+            }
+        }
+        // Splinters: small loose pieces flying outward.
+        let mut out = Vec::new();
+        for (_, piece) in splinters {
+            if self.bodies.len() + out.len() >= MAX_OBJECTS {
+                for i in piece {
+                    world.make_air(i); // too many pieces already: it's dust
+                }
+                continue;
+            }
+            let mut spec = self.detach(world, &piece);
+            let (dx, dy) = (spec.x - cx, spec.y - cy);
+            let len = (dx * dx + dy * dy).sqrt().max(0.5);
+            let jitter = 0.6 + (hash(piece[0] as u32 ^ self.tick) % 100) as f32 / 100.0;
+            spec.vx = vel.0 + dx / len * push * jitter;
+            spec.vy = vel.1 + dy / len * push * jitter;
+            spec.spin = ((hash(piece[0] as u32 ^ self.tick ^ 77) % 200) as f32 / 100.0 - 1.0) * 4.0;
+            out.push(spec);
+        }
+        out
+    }
+
+    /// Explosions from this frame: nearby ones merge into one bigger blast.
+    /// Each blast cracks things by toughness, throws objects, and heats and
+    /// lights everything around it.
+    fn explosions(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
+        if world.blasts.is_empty() {
+            return Vec::new();
+        }
+        // Merge blasts within 8 cells of each other.
+        let mut groups: HashMap<(i32, i32), (f32, f32, f32, f32, f32, Option<MatId>)> = HashMap::new();
+        for b in world.blasts.drain(..) {
+            let e = groups.entry(((b.x / 8.0) as i32, (b.y / 8.0) as i32)).or_insert((0.0, 0.0, 0.0, 0.0, 0.0, b.fire));
+            e.0 += b.x;
+            e.1 += b.y;
+            e.2 += 1.0;
+            e.3 = e.3.max(b.size);
+            e.4 = e.4.max(b.power);
+        }
+        let mut out = Vec::new();
+        for (_, (sx, sy, n, size, power, fire)) in groups {
+            let (cx, cy) = (sx / n, sy / n);
+            let r = (size * (1.0 + 0.35 * n.ln())).min(48.0);
+            let p0 = power * (1.0 + n.ln());
+            let force_at = move |d: f32| p0 * (1.0 - d / r).max(0.0).powi(2);
+
+            // Heat and fire.
+            let ri = r.ceil() as i32;
+            for dy in -ri..=ri {
+                for dx in -ri..=ri {
+                    let (x, y) = (cx as i32 + dx, cy as i32 + dy);
+                    if !world.in_bounds(x, y) {
+                        continue;
+                    }
+                    let d = ((dx * dx + dy * dy) as f32).sqrt();
+                    if d > r {
+                        continue;
+                    }
+                    let i = world.idx(x as usize, y as usize);
+                    let k = 1.0 - d / r;
+                    // A quick hot flash: enough to light things, not melt rock.
+                    world.temp[i] = world.temp[i].max((world.temp[i] + 350.0 * k * k).min(800.0));
+                    if let Some(f) = fire {
+                        let gas = mats.get(world.mat[i]).state == State::Gas && !world.is_owned(i);
+                        if gas && d < r * 0.7 && hash(i as u32 ^ self.tick) % 100 < 45 {
+                            world.transform(mats, i, f);
+                        }
+                    }
+                }
+            }
+
+            // Crack things (objects and scenery).
+            let owners = self.owners();
+            out.extend(self.fracture(world, mats, &owners, Which::Any, cx, cy, r, force_at, (0.0, 0.0), 40.0));
+            for spec in out.iter_mut() {
+                // Splinters near the centre fly faster.
+                let d = ((spec.x - cx).powi(2) + (spec.y - cy).powi(2)).sqrt();
+                let k = (1.0 - d / r).max(0.1);
+                spec.vx *= k;
+                spec.vy *= k;
+            }
+
+            // Shove objects away from the blast.
+            for b in &self.bodies {
+                let rb = &mut self.set[b.handle];
+                let c = rb.center_of_mass();
+                let (dx, dy) = (c.x / CELL - cx, c.y / CELL - cy);
+                let d = (dx * dx + dy * dy).sqrt();
+                let reach = r + (b.w.max(b.h) as f32) * 0.5;
+                if d >= reach {
+                    continue;
+                }
+                let p = force_at((d - (b.w.max(b.h) as f32) * 0.5).max(0.0));
+                let cells = b.cells.iter().filter(|c| c.is_some()).count() as f32;
+                let j = (p * cells.sqrt() * BLAST_PUSH).min(rb.mass() * BLAST_MAX_SPEED); // newton-seconds
+                let (ux, uy) = if d > 0.01 { (dx / d, dy / d) } else { (0.0, -1.0) };
+                rb.apply_impulse(Vector::new(ux * j, uy * j), true);
+                rb.apply_torque_impulse(j * 0.02 * if (b.handle.into_raw_parts().0 & 1) == 0 { 1.0 } else { -1.0 }, true);
+            }
+        }
+        out
     }
 
     /// Make a new spec for each piece of a broken object, moving like the original.
@@ -498,12 +797,12 @@ impl Physics {
                 let (x1, y1) = ((x0 + CHUNK).min(self.w), (y0 + CHUNK).min(self.h));
                 // Fingerprint of which cells are solid.
                 let mut sig: u64 = 0xcbf2_9ce4_8422_2325;
-                for y in y0..y1 {
-                    let mut bits: u64 = 0;
-                    for x in x0..x1 {
-                        bits = (bits << 1) | Self::is_terrain(world, mats, y * self.w + x) as u64;
+                for y in y0..(y1 + 1).min(self.h) {
+                    for x in x0..(x1 + 1).min(self.w) {
+                        let i = y * self.w + x;
+                        let v = if Self::is_terrain(world, mats, i) { world.mat[i] as u64 + 1 } else { 0 };
+                        sig = (sig ^ v).wrapping_mul(0x0100_0000_01b3);
                     }
-                    sig = (sig ^ bits).wrapping_mul(0x0100_0000_01b3);
                 }
                 let k = cy * self.cw + cx;
                 if self.chunks[k].sig == sig {
@@ -513,15 +812,65 @@ impl Physics {
                 for c in std::mem::take(&mut self.chunks[k].colliders) {
                     self.colliders.remove(c, &mut self.islands, &mut self.set, &mut self.soft, false);
                 }
-                let (cw, chh) = (x1 - x0, y1 - y0);
-                let ww = self.w;
-                for (x, y, rw, rh, _) in rects(cw, chh, |x, y| Self::is_terrain(world, mats, (y0 + y) * ww + x0 + x).then_some(())) {
-                    let col = ColliderBuilder::cuboid(rw as f32 * CELL / 2.0, rh as f32 * CELL / 2.0)
-                        .translation(Vector::new(
-                            (x0 + x) as f32 * CELL + rw as f32 * CELL / 2.0,
-                            (y0 + y) as f32 * CELL + rh as f32 * CELL / 2.0,
-                        ))
-                        .friction(0.8);
+                // Trace the outline of the ground (marching squares between cell
+                // centres), so slopes are smooth and things can slide and roll.
+                let solid = |x: usize, y: usize| -> Option<MatId> {
+                    let i = y * self.w + x;
+                    Self::is_terrain(world, mats, i).then(|| world.mat[i])
+                };
+                let mut by_mat: HashMap<MatId, Vec<((f32, f32), (f32, f32))>> = HashMap::new();
+                for sy in y0..y1.min(self.h - 1) {
+                    for sx in x0..x1.min(self.w - 1) {
+                        let (a, b, c, d) = (solid(sx, sy), solid(sx + 1, sy), solid(sx + 1, sy + 1), solid(sx, sy + 1));
+                        let case = (a.is_some() as u8) << 3 | (b.is_some() as u8) << 2 | (c.is_some() as u8) << 1 | d.is_some() as u8;
+                        if case == 0 || case == 15 {
+                            continue;
+                        }
+                        let (fx, fy) = (sx as f32, sy as f32);
+                        let top = (fx + 1.0, fy + 0.5);
+                        let right = (fx + 1.5, fy + 1.0);
+                        let bottom = (fx + 1.0, fy + 1.5);
+                        let left = (fx + 0.5, fy + 1.0);
+                        let segs: &[((f32, f32), (f32, f32))] = match case {
+                            1 | 14 => &[(left, bottom)],
+                            2 | 13 => &[(bottom, right)],
+                            3 | 12 => &[(left, right)],
+                            4 | 11 => &[(top, right)],
+                            6 | 9 => &[(top, bottom)],
+                            7 | 8 => &[(left, top)],
+                            5 => &[(left, top), (bottom, right)],
+                            10 => &[(top, right), (left, bottom)],
+                            _ => &[],
+                        };
+                        let mat = a.or(b).or(c).or(d).unwrap();
+                        by_mat.entry(mat).or_default().extend_from_slice(segs);
+                    }
+                }
+                for (mat, segs) in by_mat {
+                    let m = mats.get(mat);
+                    // Pixel slopes are tiny staircases; straighten them into
+                    // proper slopes (within a cell) so things slide and roll.
+                    let mut verts = Vec::new();
+                    let mut idx = Vec::new();
+                    for chain in chains(&segs) {
+                        let pts = simplify(&chain, SMOOTHING);
+                        for w in pts.windows(2) {
+                            let n = verts.len() as u32;
+                            verts.push(Vector::new(w[0].0 * CELL, w[0].1 * CELL));
+                            verts.push(Vector::new(w[1].0 * CELL, w[1].1 * CELL));
+                            idx.push([n, n + 1]);
+                        }
+                    }
+                    if idx.is_empty() {
+                        continue;
+                    }
+                    // The slipperier surface wins (anything slides on ice), and
+                    // the bouncier one does too.
+                    let col = ColliderBuilder::polyline(verts, Some(idx))
+                        .friction(m.friction)
+                        .restitution(m.bounciness)
+                        .friction_combine_rule(CoefficientCombineRule::Min)
+                        .restitution_combine_rule(CoefficientCombineRule::Max);
                     let h = self.colliders.insert_with_parent(col, self.ground, &mut self.set);
                     self.chunks[k].colliders.push(h);
                 }
@@ -779,6 +1128,9 @@ impl Physics {
                     return;
                 }
                 let cap = strength[world.mat[j] as usize];
+                // Attached straight to solid ground (a beam on a pillar): it
+                // reaches as far as its own material allows.
+                let s = if grounded[i] { cap.max(s) } else { s };
                 let v = if resting_on_me { cap.min(s) } else { cap.min(s.saturating_sub(1)) };
                 if v > left[j] {
                     left[j] = v;
@@ -886,7 +1238,7 @@ impl Physics {
     pub fn export(&self, world: &mut World) -> Vec<BodySpec> {
         let mut out = Vec::new();
         for b in &self.bodies {
-            let mut copy = Body { w: b.w, h: b.h, cells: b.cells.clone(), handle: b.handle, stamped: b.stamped.clone() };
+            let mut copy = Body { w: b.w, h: b.h, cells: b.cells.clone(), handle: b.handle, stamped: b.stamped.clone(), born: b.born };
             Self::read_back(&mut copy, world, false);
             let (x, y, angle) = self.pose(b);
             let rb = &self.set[b.handle];
@@ -919,6 +1271,117 @@ impl Physics {
         }
         *self = Physics::new(self.w, self.h);
     }
+}
+
+/// Join outline segments that share end points into chains of points.
+fn chains(segs: &[((f32, f32), (f32, f32))]) -> Vec<Vec<(f32, f32)>> {
+    use std::collections::VecDeque;
+    let key = |p: (f32, f32)| ((p.0 * 2.0).round() as i32, (p.1 * 2.0).round() as i32);
+    let mut at: HashMap<(i32, i32), Vec<usize>> = HashMap::new();
+    for (n, &(a, b)) in segs.iter().enumerate() {
+        at.entry(key(a)).or_default().push(n);
+        at.entry(key(b)).or_default().push(n);
+    }
+    let mut used = vec![false; segs.len()];
+    let mut out = Vec::new();
+    for start in 0..segs.len() {
+        if used[start] {
+            continue;
+        }
+        used[start] = true;
+        let mut chain: VecDeque<(f32, f32)> = VecDeque::from([segs[start].0, segs[start].1]);
+        // Grow the back end, then the front end, along unused segments.
+        for front in [false, true] {
+            loop {
+                let end = if front { chain[0] } else { chain[chain.len() - 1] };
+                let Some(n) = at[&key(end)].iter().copied().find(|&n| !used[n]) else { break };
+                used[n] = true;
+                let (p, q) = segs[n];
+                let other = if key(p) == key(end) { q } else { p };
+                if front {
+                    chain.push_front(other);
+                } else {
+                    chain.push_back(other);
+                }
+            }
+        }
+        out.push(chain.into_iter().collect());
+    }
+    out
+}
+
+/// Straighten a chain of points (Douglas-Peucker): drop points that are
+/// within `eps` cells of the straight line between their neighbours.
+fn simplify(pts: &[(f32, f32)], eps: f32) -> Vec<(f32, f32)> {
+    if pts.len() < 3 {
+        return pts.to_vec();
+    }
+    let (a, b) = (pts[0], pts[pts.len() - 1]);
+    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+    let len = (dx * dx + dy * dy).sqrt();
+    let mut far = (0.0, 0);
+    for (n, p) in pts.iter().enumerate().take(pts.len() - 1).skip(1) {
+        let d = if len < 1e-6 {
+            ((p.0 - a.0).powi(2) + (p.1 - a.1).powi(2)).sqrt()
+        } else {
+            ((p.0 - a.0) * dy - (p.1 - a.1) * dx).abs() / len
+        };
+        if d > far.0 {
+            far = (d, n);
+        }
+    }
+    if far.0 <= eps && len > 1e-6 {
+        return vec![a, b];
+    }
+    let mut left = simplify(&pts[..=far.1], eps);
+    let right = simplify(&pts[far.1..], eps);
+    left.pop();
+    left.extend(right);
+    left
+}
+
+/// Which cells a crack can affect.
+#[derive(Clone, Copy, PartialEq)]
+enum Which {
+    /// Fixed solid scenery.
+    Scenery,
+    /// One object's cells.
+    Body(usize),
+    /// Any solid: scenery or objects (explosions).
+    Any,
+}
+
+impl Which {
+    fn matches(self, world: &World, mats: &Materials, owners: &HashMap<u32, usize>, i: usize) -> bool {
+        match self {
+            Which::Scenery => !world.is_owned(i) && mats.get(world.mat[i]).state == State::Solid,
+            Which::Body(n) => owners.get(&(i as u32)) == Some(&n),
+            Which::Any => world.is_owned(i) || mats.get(world.mat[i]).state == State::Solid,
+        }
+    }
+}
+
+/// The closest cell of `which` to a point (in cells), within `reach`.
+fn nearest_cell(world: &World, mats: &Materials, owners: &HashMap<u32, usize>, which: Which, px: f32, py: f32, reach: f32) -> Option<usize> {
+    let ri = reach.ceil() as i32;
+    let mut best: Option<(f32, usize)> = None;
+    for dy in -ri..=ri {
+        for dx in -ri..=ri {
+            let (x, y) = (px as i32 + dx, py as i32 + dy);
+            if !world.in_bounds(x, y) {
+                continue;
+            }
+            let i = world.idx(x as usize, y as usize);
+            if !which.matches(world, mats, owners, i) {
+                continue;
+            }
+            let d = (x as f32 + 0.5 - px).powi(2) + (y as f32 + 0.5 - py).powi(2);
+            if d <= reach * reach && best.is_none_or(|(bd, _)| d < bd) {
+                best = Some((d, i));
+            }
+        }
+    }
+    best.map(|(_, i)| i)
 }
 
 /// Move a liquid cell out of an object's way: to the nearest open space

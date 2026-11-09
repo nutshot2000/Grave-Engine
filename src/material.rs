@@ -106,8 +106,22 @@ pub struct Material {
     pub decays_into: MatId,
     /// Liquids/gases: how far it can spread sideways per frame.
     pub flows: u8,
-    /// How tough it is. Used later for breaking and explosions.
+    /// Solids: how many cells it can stick out from a support before it snaps.
     pub strength: f32,
+    /// How hard a hit (or how much weight) it takes to crack, in kilonewtons.
+    /// `None` = it never cracks.
+    pub toughness: Option<f32>,
+    /// What cracked cells turn into (stone -> gravel). `None` = it splinters
+    /// into small loose pieces instead.
+    pub breaks_into: Option<MatId>,
+    /// How grippy it is for objects sliding on it (0 = ice-slick, 1 = rubbery).
+    pub friction: f32,
+    /// How much objects bounce off it (0 = thud, 1 = superball).
+    pub bounciness: f32,
+    /// Explosives: blast radius in cells when it goes off (0 = not explosive).
+    pub explosion_size: f32,
+    /// Explosives: how hard the blast hits at its centre, in kilonewtons.
+    pub explosion_power: f32,
     pub reactions: Vec<Reaction>,
     /// Where it was loaded from (None for built-ins).
     pub file: Option<PathBuf>,
@@ -146,6 +160,12 @@ impl Material {
             decays_into: AIR,
             flows: 4,
             strength: 1.0,
+            toughness: None,
+            breaks_into: None,
+            friction: 0.6,
+            bounciness: 0.05,
+            explosion_size: 0.0,
+            explosion_power: 0.0,
             reactions: Vec::new(),
             file: None,
         }
@@ -517,6 +537,12 @@ fn apply(
         "decays_into" | "turns_into" => m.decays_into = name_to_id(v, by_name)?,
         "flows" => m.flows = num(v)?.clamp(0.0, 16.0) as u8,
         "strength" => m.strength = num(v)?,
+        "toughness" => m.toughness = opt_num(v)?.map(|t| t.max(0.0)),
+        "breaks_into" => m.breaks_into = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
+        "friction" => m.friction = num(v)?.clamp(0.0, 2.0),
+        "bounciness" => m.bounciness = num(v)?.clamp(0.0, 1.0),
+        "explosion_size" => m.explosion_size = num(v)?.clamp(0.0, 64.0),
+        "explosion_power" => m.explosion_power = num(v)?.max(0.0),
         "reaction" | "reactions" | "reacts" => {
             for part in v.split(';').filter(|p| !p.trim().is_empty()) {
                 m.reactions.push(parse_reaction(part, by_name)?);

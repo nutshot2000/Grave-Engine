@@ -279,3 +279,74 @@ fn sand_still_holds_objects_up() {
     let b = s.physics.export(&mut s.world);
     assert!(b[0].y < 50.0, "the block should rest on top of the sand, at y={}", b[0].y);
 }
+
+#[test]
+fn heavy_fast_things_smash_through_wood() {
+    let m = mats();
+    let bridge = "size 120 120\nfill air\nrect stone 0 110 120 10\nrect stone 20 60 10 50\nrect stone 90 60 10 50\nrect wood 30 60 60 4\n";
+    // A light wooden block set down gently: the bridge holds.
+    let mut gentle = sim(&m, &format!("{bridge}body rect wood 55 50 8 8\n"));
+    let before = fixed_wood(&gentle, &m);
+    for _ in 0..200 {
+        gentle.step(&m);
+    }
+    assert_eq!(fixed_wood(&gentle, &m), before, "a gentle landing shouldn't break anything");
+    // A heavy iron block dropped from high up: it smashes through.
+    let mut smash = sim(&m, &format!("{bridge}body rect iron 52 2 14 14\n"));
+    for _ in 0..200 {
+        smash.step(&m);
+    }
+    assert!(fixed_wood(&smash, &m) < before - 20, "the bridge should be broken");
+    let iron = smash.physics.export(&mut smash.world).into_iter().find(|b| b.w == 14).unwrap();
+    assert!(iron.y > 90.0, "the iron block should end up on the ground, at y={}", iron.y);
+}
+
+#[test]
+fn gunpowder_explodes_even_when_buried() {
+    let m = mats();
+    // Gunpowder buried in stone (no air), heated: it still goes off,
+    // cracks the stone into gravel and throws the crate on top.
+    let mut s = sim(
+        &m,
+        "size 120 120\nfill air\nrect stone 0 80 120 40\nrect gunpowder 50 88 20 8\nbody rect wood 52 70 16 10\nheat rect 50 88 20 8 400\n",
+    );
+    for _ in 0..3 {
+        s.step(&m);
+    }
+    assert_eq!(count(&s, &m, "gunpowder"), 0, "it should all have gone off");
+    assert!(count(&s, &m, "gravel") > 30, "the stone around it should crack into gravel");
+    let crate_ = s.physics.export(&mut s.world).into_iter().max_by_key(|b| b.cell_count()).unwrap();
+    assert!(crate_.vy < -20.0, "the crate should be thrown upward, vy={}", crate_.vy);
+}
+
+#[test]
+fn explosions_set_each_other_off() {
+    let m = mats();
+    let mut s = sim(&m, "size 120 60\nfill air\nrect stone 0 50 120 10\nrect gunpowder 20 44 6 6\nrect gunpowder 34 44 6 6\nheat rect 20 44 6 6 400\n");
+    for _ in 0..30 {
+        s.step(&m);
+    }
+    assert_eq!(count(&s, &m, "gunpowder"), 0, "the second pile should be set off by the first");
+}
+
+#[test]
+fn ice_is_slippery() {
+    let m = mats();
+    // The same slope, once plain stone and once coated in ice. A wooden block
+    // set at the top slides much further on the ice.
+    let slope = |coat: &str| {
+        let mut t = String::from("size 200 100\nambient -20\nfill air\nrect stone 0 90 200 10\n");
+        for x in (10..150).step_by(2) {
+            let top = 30 + (x - 10) * 30 / 140 + 1;
+            t += &format!("rect stone {x} {top} 2 {}\n", 90 - top);
+        }
+        t += &format!("line {coat} 10 30 150 60 3\nheat rect 0 0 200 100 -20\nbody rect wood 14 18 8 8\n");
+        let mut s = sim(&m, &t);
+        for _ in 0..240 {
+            s.step(&m);
+        }
+        s.physics.export(&mut s.world)[0].x
+    };
+    let (on_stone, on_ice) = (slope("stone"), slope("ice"));
+    assert!(on_ice > on_stone + 40.0, "ice: {on_ice}, stone: {on_stone}");
+}

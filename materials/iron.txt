@@ -9,3 +9,5 @@ heat_capacity = 1
 melts_at = 1500
 melts_into = molten_iron
 strength = 150
+toughness = 30000                # almost nothing breaks it
+friction = 0.4
