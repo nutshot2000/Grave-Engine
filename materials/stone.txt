@@ -8,4 +8,4 @@ conducts_heat = 0.3
 heat_capacity = 1
 melts_at = 1100
 melts_into = lava
-strength = 10
+strength = 25

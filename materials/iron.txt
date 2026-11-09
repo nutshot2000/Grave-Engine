@@ -8,4 +8,4 @@ conducts_heat = 0.9
 heat_capacity = 1
 melts_at = 1500
 melts_into = molten_iron
-strength = 20
+strength = 150

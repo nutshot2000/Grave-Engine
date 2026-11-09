@@ -7,7 +7,8 @@
 //!    the object into separate pieces, each piece becomes its own object.
 //! 2. **Support**: if solid scenery lost cells (burned, melted, erased), any
 //!    piece that is no longer connected to the edge of the world (the ground)
-//!    breaks loose and becomes an object, so it falls.
+//!    breaks loose and becomes an object, so it falls. Overhangs that stick out
+//!    further than their material's `strength` snap off too.
 //! 3. **Terrain**: solid and powder cells that aren't objects become static
 //!    collision boxes (rebuilt per 32x32 chunk only when they change).
 //! 4. **Physics**: Rapier moves the objects (gravity, collisions, floating).
@@ -123,6 +124,9 @@ pub struct Physics {
     /// Flood-fill bookkeeping for the support check.
     mark: Vec<u32>,
     epoch: u32,
+    /// Scenery changed since the last strength check.
+    strength_dirty: bool,
+    tick: u32,
     cw: usize,
     ch: usize,
     w: usize,
@@ -210,6 +214,8 @@ impl Physics {
             solid_prev: Vec::new(),
             mark: vec![0; w * h],
             epoch: 0,
+            strength_dirty: true,
+            tick: 0,
             cw,
             ch,
             w,
@@ -610,21 +616,30 @@ impl Physics {
     fn collapse(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
         let n = world.w * world.h;
         let now: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
+        self.tick = self.tick.wrapping_add(1);
         if self.solid_prev.len() != n {
             self.solid_prev = now;
-            return Vec::new();
+            self.strength_dirty = true;
+            return self.snap_overhangs(world, mats);
         }
         let lost: Vec<usize> = (0..n).filter(|&i| self.solid_prev[i] && !now[i]).collect();
+        if lost.len() > 0 || (0..n).any(|i| now[i] && !self.solid_prev[i]) {
+            self.strength_dirty = true;
+        }
         self.solid_prev = now;
+        let mut out = Vec::new();
+        // Strength is checked a few times a second, not every frame.
+        if self.strength_dirty && self.tick % 4 == 0 {
+            out.extend(self.snap_overhangs(world, mats));
+        }
         if lost.is_empty() {
-            return Vec::new();
+            return out;
         }
 
         let (w, h) = (world.w, world.h);
         // Epoch marks: `seen` = visited this frame, `held` = known to be supported.
         self.epoch = self.epoch.wrapping_add(2).max(2);
         let (seen, held) = (self.epoch, self.epoch + 1);
-        let mut out = Vec::new();
         const MAX_FLOOD: usize = 40_000; // bigger than this: assume it's held up
 
         for &gone in &lost {
@@ -674,40 +689,145 @@ impl Physics {
                     continue;
                 }
                 // Cut loose: lift it out of the grid as an object.
-                let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
-                for &i in &piece {
-                    x0 = x0.min(i % w);
-                    y0 = y0.min(i / w);
-                    x1 = x1.max(i % w);
-                    y1 = y1.max(i / w);
-                }
-                let (pw, ph) = (x1 - x0 + 1, y1 - y0 + 1);
-                let mut cells = vec![None; pw * ph];
-                for &i in &piece {
-                    let (x, y) = (i % w, i / w);
-                    cells[(y - y0) * pw + (x - x0)] = Some(BodyCell {
-                        mat: world.mat[i],
-                        temp: world.temp[i],
-                        burn: world.burn[i],
-                        life: world.life[i],
-                        flags: world.flags[i],
-                        shade: world.shade[i],
-                    });
-                    world.make_air(i);
-                    self.solid_prev[i] = false;
-                }
-                out.push(BodySpec {
-                    w: pw,
-                    h: ph,
-                    cells,
-                    x: x0 as f32 + pw as f32 / 2.0,
-                    y: y0 as f32 + ph as f32 / 2.0,
-                    angle: 0.0,
-                    vx: 0.0,
-                    vy: 0.0,
-                    spin: 0.0,
-                });
+                out.push(self.detach(world, &piece));
             }
+        }
+        out
+    }
+
+    /// Lift a piece of scenery out of the grid and describe it as an object.
+    fn detach(&mut self, world: &mut World, piece: &[usize]) -> BodySpec {
+        let w = world.w;
+        let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+        for &i in piece {
+            x0 = x0.min(i % w);
+            y0 = y0.min(i / w);
+            x1 = x1.max(i % w);
+            y1 = y1.max(i / w);
+        }
+        let (pw, ph) = (x1 - x0 + 1, y1 - y0 + 1);
+        let mut cells = vec![None; pw * ph];
+        for &i in piece {
+            let (x, y) = (i % w, i / w);
+            cells[(y - y0) * pw + (x - x0)] = Some(BodyCell {
+                mat: world.mat[i],
+                temp: world.temp[i],
+                burn: world.burn[i],
+                life: world.life[i],
+                flags: world.flags[i],
+                shade: world.shade[i],
+            });
+            world.make_air(i);
+            if i < self.solid_prev.len() {
+                self.solid_prev[i] = false;
+            }
+        }
+        BodySpec {
+            w: pw,
+            h: ph,
+            cells,
+            x: x0 as f32 + pw as f32 / 2.0,
+            y: y0 as f32 + ph as f32 / 2.0,
+            angle: 0.0,
+            vx: 0.0,
+            vy: 0.0,
+            spin: 0.0,
+        }
+    }
+
+    /// Strength: how far each solid can stick out from what holds it up.
+    ///
+    /// Anything touching the edge of the world is held up fully, and so is
+    /// anything standing on a column that goes down to it (a wall on the ground).
+    /// From there, each step sideways or hanging underneath uses up one point,
+    /// things sitting on top carry the same points, and no cell can have more
+    /// points than its material's `strength`. Cells that run out snap off.
+    /// Pieces not connected to the edge at all are left alone here (see
+    /// `collapse`).
+    fn snap_overhangs(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
+        use std::collections::BinaryHeap;
+        self.strength_dirty = false;
+        let (w, h) = (world.w, world.h);
+        let n = w * h;
+        let strength: Vec<i32> = mats.list.iter().map(|m| m.strength.max(0.0).round() as i32).collect();
+        let scenery: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
+        let mut left = vec![i32::MIN; n];
+        let mut heap = BinaryHeap::new();
+        // Grounded: touching the edge, or standing on something grounded.
+        let mut grounded = vec![false; n];
+        for y in (0..h).rev() {
+            for x in 0..w {
+                let i = y * w + x;
+                let edge = x == 0 || y == 0 || x + 1 == w || y + 1 == h;
+                if scenery[i] && (edge || grounded[i + w]) {
+                    grounded[i] = true;
+                    left[i] = strength[world.mat[i] as usize];
+                    heap.push((left[i], i));
+                }
+            }
+        }
+        while let Some((s, i)) = heap.pop() {
+            if s < left[i] {
+                continue;
+            }
+            let (x, y) = (i % w, i / w);
+            let mut try_cell = |j: usize, resting_on_me: bool| {
+                if !scenery[j] {
+                    return;
+                }
+                let cap = strength[world.mat[j] as usize];
+                let v = if resting_on_me { cap.min(s) } else { cap.min(s.saturating_sub(1)) };
+                if v > left[j] {
+                    left[j] = v;
+                    heap.push((v, j));
+                }
+            };
+            if y > 0 {
+                try_cell(i - w, true); // the cell above rests on this one
+            }
+            if y + 1 < h {
+                try_cell(i + w, false); // hanging underneath
+            }
+            if x > 0 {
+                try_cell(i - 1, false);
+            }
+            if x + 1 < w {
+                try_cell(i + 1, false);
+            }
+        }
+        // Cells that ran out of strength (but are connected), grouped into pieces.
+        let mut out = Vec::new();
+        let mut done = vec![false; n];
+        for start in 0..n {
+            if done[start] || left[start] == i32::MIN || left[start] >= 0 {
+                continue;
+            }
+            let mut piece = vec![start];
+            let mut stack = vec![start];
+            done[start] = true;
+            while let Some(i) = stack.pop() {
+                let (x, y) = (i % w, i / w);
+                let mut visit = |j: usize| {
+                    if !done[j] && left[j] != i32::MIN && left[j] < 0 {
+                        done[j] = true;
+                        piece.push(j);
+                        stack.push(j);
+                    }
+                };
+                if x > 0 {
+                    visit(i - 1);
+                }
+                if x + 1 < w {
+                    visit(i + 1);
+                }
+                if y > 0 {
+                    visit(i - w);
+                }
+                if y + 1 < h {
+                    visit(i + w);
+                }
+            }
+            out.push(self.detach(world, &piece));
         }
         out
     }

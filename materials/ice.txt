@@ -10,4 +10,4 @@ heat_capacity = 2
 melts_at = 1
 melts_into = water
 puts_out_fire = yes
-strength = 3
+strength = 15

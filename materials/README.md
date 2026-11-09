@@ -19,7 +19,7 @@ the file and line number.
 | `color_variation` | How speckled each cell is, 0 to 1 | 0.06 |
 | `glow` | How much it lights up its surroundings, 0 to 1 | 0 |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |
-| `strength` | How tough it is (used later for breaking and explosions) | 1 |
+| `strength` | Solids: how many cells it can stick out sideways (or hang down) from something holding it up before it snaps. Wood 50, stone 25, iron 150, ice 15. Standing on something solid counts as fully held up | 1 |
 
 ## Heat
 

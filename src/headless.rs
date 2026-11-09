@@ -91,6 +91,7 @@ pub fn run(o: &Options) -> i32 {
         }
     }
     let elapsed = start.elapsed().as_secs_f64();
+    let specs = sim.physics.export(&mut sim.world);
     let world = &sim.world;
     if let Err(e) = shot(world, &mats, &mut r, &shot_path, o.scale, o.heat) {
         eprintln!("screenshot failed: {e}");
@@ -112,6 +113,27 @@ pub fn run(o: &Options) -> i32 {
     }
     println!("Temperature range: {tmin:.0}°C to {tmax:.0}°C");
     println!("Objects: {} at the start, {} now", objects_at_start, sim.physics.body_count());
+    for b in specs.iter().take(12) {
+        let mut names: Vec<(String, usize)> = Vec::new();
+        for c in b.cells.iter().flatten() {
+            let n = &mats.get(c.mat).name;
+            match names.iter_mut().find(|e| &e.0 == n) {
+                Some(e) => e.1 += 1,
+                None => names.push((n.clone(), 1)),
+            }
+        }
+        let what: Vec<String> = names.iter().map(|(n, c)| format!("{c} {n}")).collect();
+        println!(
+            "  object at ({:.0}, {:.0}), turned {:.0}°: {}",
+            b.x,
+            b.y,
+            b.angle.to_degrees(),
+            what.join(", ")
+        );
+    }
+    if specs.len() > 12 {
+        println!("  ...and {} more", specs.len() - 12);
+    }
     println!("Cells by material:");
     for (name, count, burning) in world.census(&mats) {
         if burning > 0 {

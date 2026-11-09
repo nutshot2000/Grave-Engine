@@ -71,6 +71,9 @@ Physics is done by [Rapier](https://rapier.rs). One cell is 10 cm.
   solid piece that's no longer connected to the ground (the edge of the world) breaks
   loose and falls. Burn the wall under a roof and the roof comes down. Things you paint
   floating in the air stay put until they're damaged.
+- **Overhangs snap.** Each material's `strength` is how far it can stick out from a
+  support: wood reaches 5 m (50 cells), iron 15 m. A beam that's too long breaks off
+  at that point, so buildings need posts, like real ones.
 - Things float if they're lighter than the liquid they're in (wood on water) and sink
   if they're heavier (iron).
 

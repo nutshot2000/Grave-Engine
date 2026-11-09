@@ -15,8 +15,10 @@ rect wood 300 190 8 78
 rect wood 170 186 138 6
 line wood 160 190 239 130 5
 line wood 318 190 239 130 5
-rect wood 178 230 52 4
-rect wood 250 230 50 4
+rect wood 236 192 6 76           # centre post holding up the ceiling
+rect wood 236 134 6 52           # king post holding up the roof peak
+rect wood 178 230 30 4
+rect wood 270 230 30 4
 
 # A fence
 rect wood 308 240 178 3

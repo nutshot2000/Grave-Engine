@@ -3,7 +3,13 @@ size 512 288
 seed 5
 fill air
 rect stone 0 268 512 20          # ground
-line stone 0 200 120 268 4       # a slope on the left
+line stone 0 200 120 268 4       # a slope on the left...
+rect stone 0 202 20 66           # ...with solid ground under it
+rect stone 20 213 20 55
+rect stone 40 224 20 44
+rect stone 60 236 20 32
+rect stone 80 247 20 21
+rect stone 100 258 20 10
 
 # A pond on the right
 rect stone 300 210 6 58

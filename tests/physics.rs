@@ -195,3 +195,62 @@ fn floating_scenery_stays_until_damaged() {
     s.step(&m);
     assert_eq!(s.physics.body_count(), 1, "once damaged, it falls");
 }
+
+/// Count wood cells that are still fixed scenery (not falling objects).
+fn fixed_wood(s: &Sim, m: &Materials) -> usize {
+    let id = m.id("wood").unwrap();
+    (0..s.world.mat.len()).filter(|&i| s.world.mat[i] == id && !s.world.is_owned(i)).count()
+}
+
+#[test]
+fn short_overhangs_hold() {
+    let m = mats();
+    let strength = m.get(m.id("wood").unwrap()).strength as usize;
+    // A wall with a shelf sticking out a bit less than wood's strength.
+    let text = format!("size 120 60\nfill air\nrect stone 0 50 120 10\nrect wood 10 10 4 40\nrect wood 14 20 {} 3\n", strength - 5);
+    let mut s = sim(&m, &text);
+    for _ in 0..60 {
+        s.step(&m);
+    }
+    assert_eq!(s.physics.body_count(), 0);
+}
+
+#[test]
+fn long_overhangs_snap_at_their_strength() {
+    let m = mats();
+    let strength = m.get(m.id("wood").unwrap()).strength as usize;
+    let reach = strength + 30;
+    let text = format!("size 160 60\nfill air\nrect stone 0 50 160 10\nrect wood 10 10 4 40\nrect wood 14 20 {reach} 3\n");
+    let mut s = sim(&m, &text);
+    let before = fixed_wood(&s, &m);
+    for _ in 0..60 {
+        s.step(&m);
+    }
+    assert_eq!(s.physics.body_count(), 1, "the far end should snap off");
+    // The wall and the first `strength` cells of the shelf stay.
+    assert_eq!(fixed_wood(&s, &m), before - (reach - strength) * 3);
+}
+
+#[test]
+fn burning_a_support_makes_the_overhang_snap() {
+    let m = mats();
+    // A beam held at both ends; each half is shorter than wood's strength.
+    let strength = m.get(m.id("wood").unwrap()).strength as usize;
+    let span = strength * 2 - 10;
+    let text = format!("size 200 60\nfill air\nrect stone 0 50 200 10\nrect wood 10 10 4 40\nrect wood {} 10 4 40\nrect wood 14 10 {span} 3\n", 14 + span);
+    let mut s = sim(&m, &text);
+    for _ in 0..20 {
+        s.step(&m);
+    }
+    assert_eq!(s.physics.body_count(), 0, "held at both ends, it stands");
+    // Remove the right-hand post (as if it burned away).
+    for y in 10..50 {
+        for x in 14 + span..18 + span {
+            s.world.set(&m, x, y, 0);
+        }
+    }
+    for _ in 0..20 {
+        s.step(&m);
+    }
+    assert!(s.physics.body_count() >= 1, "now it overhangs too far and snaps");
+}
