@@ -29,8 +29,8 @@ state = solid
 density = 700
 color = #7a4a26
 conducts_heat = 0.15
-catches_fire_at = 260
-burns_for = 160
+catches_fire_at = 300
+burns_for = 240
 burns_into = ash
 burns_into_chance = 0.1
 ```
