@@ -14,6 +14,9 @@
 use crate::material::{AIR, MatId, Materials, State};
 
 pub const BURNING: u8 = 1;
+/// This cell belongs to a rigid object (see `physics.rs`). The cell simulation
+/// still heats, burns and melts it, but never moves it.
+pub const OWNED: u8 = 2;
 
 /// Room temperature, °C.
 pub const ROOM_TEMP: f32 = 20.0;
@@ -159,6 +162,23 @@ impl World {
                 }
             }
         }
+    }
+
+    pub fn is_owned(&self, i: usize) -> bool {
+        self.flags[i] & OWNED != 0
+    }
+
+    /// Turn a cell into air, keeping its temperature.
+    pub fn make_air(&mut self, i: usize) {
+        self.mat[i] = AIR;
+        self.flags[i] = 0;
+        self.life[i] = 0;
+        self.burn[i] = 0;
+    }
+
+    /// Swap two cells completely.
+    pub fn swap_cells(&mut self, a: usize, b: usize) {
+        self.swap(a, b);
     }
 
     pub fn is_burning(&self, i: usize) -> bool {
@@ -309,10 +329,18 @@ impl World {
                     let mut air = [0usize; 4];
                     let mut n_air = 0;
                     let mut doused = false;
+                    let mut n_gas = 0;
                     for j in self.neighbours(i).into_iter().flatten() {
                         let nm = &ml[self.mat[j] as usize];
                         if nm.feeds_fire {
-                            air[n_air] = j;
+                            // Remember open gas cells first: flames only puff into those.
+                            if nm.state == State::Gas {
+                                air.copy_within(0..n_air, 1);
+                                air[0] = j;
+                                n_gas += 1;
+                            } else {
+                                air[n_air] = j;
+                            }
                             n_air += 1;
                         }
                         doused |= nm.puts_out_fire;
@@ -325,8 +353,8 @@ impl World {
                         self.burn[i] = ((m.burns_for as f32 * jitter) as u16).max(1);
                     } else {
                         if let Some(puff) = m.gives_off {
-                            if self.chance(m.gives_off_chance) {
-                                let j = air[self.rand() as usize % n_air];
+                            if n_gas > 0 && self.chance(m.gives_off_chance) {
+                                let j = air[self.rand() as usize % n_gas];
                                 let bt = m.burn_temperature;
                                 self.become_(mats, j, puff);
                                 self.temp[j] = self.temp[j].max(bt);
@@ -380,7 +408,7 @@ impl World {
             for xi in 0..w {
                 let x = if left_to_right { xi } else { w - 1 - xi };
                 let i = (y * w + x) as usize;
-                if self.moved[i] == frame {
+                if self.moved[i] == frame || self.flags[i] & OWNED != 0 {
                     continue;
                 }
                 let f = &fast[self.mat[i] as usize];
@@ -409,7 +437,7 @@ impl World {
     #[inline]
     fn can_sink(&self, fast: &[Fast], wi: f32, j: usize) -> bool {
         let s = fast[self.mat[j] as usize].state;
-        (s == State::Gas || s == State::Liquid) && self.weight(fast, j) < wi
+        (s == State::Gas || s == State::Liquid) && self.flags[j] & OWNED == 0 && self.weight(fast, j) < wi
     }
 
     /// Can a gas at `i` (weight `wi`) rise into `j`? Needs a clear difference
@@ -417,7 +445,7 @@ impl World {
     #[inline]
     fn can_rise(&self, fast: &[Fast], wi: f32, j: usize) -> bool {
         let s = fast[self.mat[j] as usize].state;
-        (s == State::Gas || s == State::Liquid) && wi < self.weight(fast, j) * 0.97
+        (s == State::Gas || s == State::Liquid) && self.flags[j] & OWNED == 0 && wi < self.weight(fast, j) * 0.97
     }
 
     fn swap(&mut self, a: usize, b: usize) {

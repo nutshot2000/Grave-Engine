@@ -71,25 +71,28 @@ pub fn run(o: &Options) -> i32 {
             return 2;
         }
     };
-    let (mut world, problems) = crate::scene::load(&text, &mats);
+    let loaded = crate::scene::load(&text, &mats, o.scene.parent());
+    let (mut sim, problems) = loaded.into_sim(&mats);
     for p in &problems {
         eprintln!("scene problem: {p}");
     }
+    let objects_at_start = sim.physics.body_count();
     let mut r = Renderer::default();
     let shot_path = o.shot.clone().unwrap_or_else(|| PathBuf::from("shots/out.png"));
     let start = std::time::Instant::now();
     for f in 1..=o.frames {
-        world.step(&mats);
+        sim.step(&mats);
         if let Some(every) = o.every.filter(|e| *e > 0) {
             if f % every == 0 && f != o.frames {
-                if let Err(e) = shot(&world, &mats, &mut r, &numbered(&shot_path, f), o.scale, o.heat) {
+                if let Err(e) = shot(&sim.world, &mats, &mut r, &numbered(&shot_path, f), o.scale, o.heat) {
                     eprintln!("screenshot failed: {e}");
                 }
             }
         }
     }
     let elapsed = start.elapsed().as_secs_f64();
-    if let Err(e) = shot(&world, &mats, &mut r, &shot_path, o.scale, o.heat) {
+    let world = &sim.world;
+    if let Err(e) = shot(world, &mats, &mut r, &shot_path, o.scale, o.heat) {
         eprintln!("screenshot failed: {e}");
         return 1;
     }
@@ -108,6 +111,7 @@ pub fn run(o: &Options) -> i32 {
         tmax = tmax.max(*t);
     }
     println!("Temperature range: {tmin:.0}°C to {tmax:.0}°C");
+    println!("Objects: {} at the start, {} now", objects_at_start, sim.physics.body_count());
     println!("Cells by material:");
     for (name, count, burning) in world.census(&mats) {
         if burning > 0 {

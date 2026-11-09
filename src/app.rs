@@ -3,8 +3,10 @@
 use eframe::egui::{self, Color32, Pos2, Rect, RichText, Sense, Stroke, TextureHandle, TextureOptions, Vec2};
 use grave_engine::material::{AIR, MatId, Materials};
 use grave_engine::render::{Renderer, View};
-use grave_engine::world::World;
+use grave_engine::import;
+use grave_engine::physics::BodySpec;
 use grave_engine::scene;
+use grave_engine::sim::{Sim, Snapshot};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
@@ -16,13 +18,15 @@ enum Tool {
     Erase,
     Heat,
     Cool,
+    /// Drag a box: everything solid inside becomes a loose object.
+    Object,
 }
 
 struct Sandbox {
     mats: Materials,
-    world: World,
+    sim: Sim,
     /// How things were when Play was last pressed. Reset goes back here.
-    snapshot: World,
+    snapshot: Snapshot,
     ran_since_snapshot: bool,
     playing: bool,
     speed: f32,
@@ -33,6 +37,10 @@ struct Sandbox {
     brush_mat: MatId,
     brush_size: i32,
     last_paint: Option<(i32, i32)>,
+    /// Where an Object-tool drag started.
+    box_start: Option<(i32, i32)>,
+    /// Dropped files land as fixed scenery instead of loose objects.
+    drop_static: bool,
     hover: Option<(usize, usize)>,
     scene_path: String,
     scene_stamp: Option<SystemTime>,
@@ -82,12 +90,11 @@ fn color32(c: [u8; 3]) -> Color32 {
 impl Sandbox {
     fn new(materials: PathBuf, scene_file: Option<PathBuf>) -> Self {
         let mats = Materials::load_dir(&materials);
-        let mut world = World::new(scene::DEFAULT_W, scene::DEFAULT_H);
-        world.fill(&mats, AIR);
+        let mut sim = Sim::empty(scene::DEFAULT_W, scene::DEFAULT_H, &mats);
         let brush_mat = mats.id("sand").unwrap_or(AIR);
         let mut app = Sandbox {
-            snapshot: world.clone(),
-            world,
+            snapshot: sim.snapshot(),
+            sim,
             mats,
             ran_since_snapshot: false,
             playing: false,
@@ -99,6 +106,8 @@ impl Sandbox {
             brush_mat,
             brush_size: 6,
             last_paint: None,
+            box_start: None,
+            drop_static: false,
             hover: None,
             scene_path: "scenes/my_scene.txt".into(),
             scene_stamp: None,
@@ -113,7 +122,7 @@ impl Sandbox {
             app.say(p);
         }
         let start = scene_file.or_else(|| {
-            let p = PathBuf::from("scenes/woodfire.txt");
+            let p = PathBuf::from("scenes/objects.txt");
             p.exists().then_some(p)
         });
         if let Some(p) = start {
@@ -136,9 +145,9 @@ impl Sandbox {
         let path = PathBuf::from(&self.scene_path);
         match std::fs::read_to_string(&path) {
             Ok(text) => {
-                let (world, problems) = scene::load(&text, &self.mats);
-                self.world = world;
-                self.snapshot = self.world.clone();
+                let (sim, problems) = scene::load(&text, &self.mats, path.parent()).into_sim(&self.mats);
+                self.sim = sim;
+                self.snapshot = self.sim.snapshot();
                 self.ran_since_snapshot = false;
                 self.playing = false;
                 self.scene_stamp = stamp(&path);
@@ -156,7 +165,8 @@ impl Sandbox {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        match std::fs::write(&path, scene::save(&self.world, &self.mats)) {
+        let snap = self.sim.snapshot();
+        match std::fs::write(&path, scene::save(&snap, &self.mats)) {
             Ok(()) => {
                 self.scene_stamp = stamp(&path);
                 self.say(format!("Saved {}", path.display()));
@@ -192,12 +202,12 @@ impl Sandbox {
 
     fn take_snapshot_if_fresh(&mut self) {
         if !self.ran_since_snapshot {
-            self.snapshot = self.world.clone();
+            self.snapshot = self.sim.snapshot();
         }
     }
 
     fn play(&mut self) {
-        self.snapshot = self.world.clone();
+        self.snapshot = self.sim.snapshot();
         self.ran_since_snapshot = false;
         self.playing = true;
         self.sim_clock = 0.0;
@@ -206,24 +216,69 @@ impl Sandbox {
     fn step_once(&mut self) {
         self.take_snapshot_if_fresh();
         let t = Instant::now();
-        self.world.step(&self.mats);
+        self.sim.step(&self.mats);
         self.sim_ms = self.sim_ms * 0.9 + t.elapsed().as_secs_f32() * 1000.0 * 0.1;
         self.ran_since_snapshot = true;
     }
 
     fn reset(&mut self) {
-        self.world = self.snapshot.clone();
+        self.sim = Sim::restore(&self.snapshot, &self.mats);
         self.ran_since_snapshot = false;
         self.playing = false;
+    }
+
+    /// Add an image or Blender model, centred on the mouse (or the top middle).
+    fn import_file(&mut self, path: &Path) {
+        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        if ext == "txt" {
+            self.scene_path = path.display().to_string();
+            self.load_scene();
+            return;
+        }
+        match import::load(path, &self.mats, None) {
+            Ok((shape, warnings)) => {
+                for w in warnings {
+                    self.say(w);
+                }
+                let (cx, cy) = match self.hover {
+                    Some((x, y)) => (x as f32, y as f32),
+                    None => (self.sim.world.w as f32 / 2.0, shape.h as f32 / 2.0 + 4.0),
+                };
+                if self.drop_static {
+                    let (x0, y0) = (cx as i32 - shape.w as i32 / 2, cy as i32 - shape.h as i32 / 2);
+                    for y in 0..shape.h {
+                        for x in 0..shape.w {
+                            if let Some(id) = shape.cells[y * shape.w + x] {
+                                let (wx, wy) = (x0 + x as i32, y0 + y as i32);
+                                if self.sim.world.in_bounds(wx, wy) {
+                                    self.sim.world.set(&self.mats, wx as usize, wy as usize, id);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    let spec = BodySpec::from_mats(shape.w, shape.h, &shape.cells, &self.mats, cx, cy);
+                    self.sim.physics.add(&mut self.sim.world, &self.mats, spec);
+                }
+                self.say(format!(
+                    "Added {} ({}x{} cells)",
+                    path.file_name().unwrap_or_default().to_string_lossy(),
+                    shape.w,
+                    shape.h
+                ));
+            }
+            Err(e) => self.say(e),
+        }
     }
 
     fn apply_brush(&mut self, x: i32, y: i32, tool: Tool) {
         let r = self.brush_size - 1;
         match tool {
-            Tool::Paint => self.world.paint_circle(&self.mats, x, y, r, self.brush_mat),
-            Tool::Erase => self.world.paint_circle(&self.mats, x, y, r, AIR),
-            Tool::Heat => self.world.heat_circle(x, y, r, 40.0),
-            Tool::Cool => self.world.heat_circle(x, y, r, -40.0),
+            Tool::Paint => self.sim.world.paint_circle(&self.mats, x, y, r, self.brush_mat),
+            Tool::Erase => self.sim.world.paint_circle(&self.mats, x, y, r, AIR),
+            Tool::Heat => self.sim.world.heat_circle(x, y, r, 40.0),
+            Tool::Cool => self.sim.world.heat_circle(x, y, r, -40.0),
+            Tool::Object => {}
         }
     }
 
@@ -280,8 +335,8 @@ impl Sandbox {
                 .on_hover_text("Empty everything")
                 .clicked()
             {
-                self.world.fill(&self.mats, AIR);
-                self.snapshot = self.world.clone();
+                self.sim = Sim::empty(self.sim.world.w, self.sim.world.h, &self.mats);
+                self.snapshot = self.sim.snapshot();
                 self.ran_since_snapshot = false;
                 self.playing = false;
             }
@@ -328,6 +383,7 @@ impl Sandbox {
                 (Tool::Erase, "Erase", "Turn things back into air (or right-click)"),
                 (Tool::Heat, "🔥 Heat", "Make things hotter"),
                 (Tool::Cool, "❄ Cool", "Make things colder"),
+                (Tool::Object, "📦 Make object", "Drag a box around something you painted: it becomes a loose object that falls, tumbles and breaks"),
             ] {
                 ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(16.0))
                     .on_hover_text(tip);
@@ -372,6 +428,10 @@ impl Sandbox {
             }
         });
         ui.separator();
+        ui.label(RichText::new("Import").strong());
+        ui.label(RichText::new("Drop a .png or Blender .glb file onto the sandbox to add it.").size(13.0));
+        ui.checkbox(&mut self.drop_static, "Drop as fixed scenery");
+        ui.separator();
         ui.label(RichText::new("Messages").strong());
         for (when, msg) in self.messages.iter().rev().take(5) {
             let age = when.elapsed().as_secs_f32();
@@ -383,14 +443,17 @@ impl Sandbox {
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if let Some((x, y)) = self.hover {
-                let i = self.world.idx(x, y);
-                let m = self.mats.get(self.world.mat[i]);
+                let i = self.sim.world.idx(x, y);
+                let m = self.mats.get(self.sim.world.mat[i]);
                 let mut state = m.state.to_string();
-                if self.world.is_burning(i) {
+                if self.sim.world.is_burning(i) {
                     state += ", burning";
                 }
+                if self.sim.world.is_owned(i) {
+                    state += ", object";
+                }
                 ui.label(RichText::new(m.name.replace('_', " ")).strong().size(16.0).color(color32(m.color).gamma_multiply(1.4)));
-                ui.label(RichText::new(format!("{:.0}°C", self.world.temp[i])).size(16.0));
+                ui.label(RichText::new(format!("{:.0}°C", self.sim.world.temp[i])).size(16.0));
                 ui.label(RichText::new(state).size(16.0));
                 ui.label(RichText::new(format!("at {x}, {y}")).weak());
             } else {
@@ -399,8 +462,13 @@ impl Sandbox {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(format!(
-                        "{:.0} fps · sim {:.1} ms · {}x{} · frame {}",
-                        self.fps, self.sim_ms, self.world.w, self.world.h, self.world.frame
+                        "{:.0} fps · sim {:.1} ms · {} objects · {}x{} · frame {}",
+                        self.fps,
+                        self.sim_ms,
+                        self.sim.physics.body_count(),
+                        self.sim.world.w,
+                        self.sim.world.h,
+                        self.sim.world.frame
                     ))
                     .weak(),
                 );
@@ -409,8 +477,8 @@ impl Sandbox {
     }
 
     fn canvas(&mut self, ui: &mut egui::Ui) {
-        let (w, h) = (self.world.w, self.world.h);
-        let rgba = self.renderer.draw(&self.world, &self.mats, self.view);
+        let (w, h) = (self.sim.world.w, self.sim.world.h);
+        let rgba = self.renderer.draw(&self.sim.world, &self.mats, self.view);
         let image = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
         match &mut self.texture {
             Some(t) if t.size() == [w, h] => t.set(image, TextureOptions::NEAREST),
@@ -434,7 +502,7 @@ impl Sandbox {
         self.hover = None;
         if let Some(p) = resp.hover_pos() {
             let (cx, cy) = to_cell(p);
-            if self.world.in_bounds(cx, cy) {
+            if self.sim.world.in_bounds(cx, cy) {
                 self.hover = Some((cx as usize, cy as usize));
             }
             // Brush outline.
@@ -443,6 +511,7 @@ impl Sandbox {
                 Tool::Erase => Color32::WHITE,
                 Tool::Heat => Color32::from_rgb(255, 120, 40),
                 Tool::Cool => Color32::from_rgb(100, 180, 255),
+                Tool::Object => Color32::from_rgb(255, 230, 120),
             };
             let r = (self.brush_size as f32 - 0.5).max(0.5) * scale;
             painter.circle_stroke(p, r, Stroke::new(1.5, col));
@@ -455,6 +524,27 @@ impl Sandbox {
         }
 
         let (primary, secondary) = ui.input(|i| (i.pointer.primary_down(), i.pointer.secondary_down()));
+        if self.tool == Tool::Object && !secondary {
+            let cell = resp.interact_pointer_pos().or(resp.hover_pos()).map(to_cell);
+            if primary && (resp.dragged() || resp.is_pointer_button_down_on()) {
+                if self.box_start.is_none() {
+                    self.box_start = cell;
+                }
+            }
+            if let (Some((sx, sy)), Some((cx, cy))) = (self.box_start, cell) {
+                let a = Pos2::new(rect.min.x + sx.min(cx) as f32 * scale, rect.min.y + sy.min(cy) as f32 * scale);
+                let b = Pos2::new(rect.min.x + (sx.max(cx) + 1) as f32 * scale, rect.min.y + (sy.max(cy) + 1) as f32 * scale);
+                painter.rect_stroke(Rect::from_two_pos(a, b), 0.0, Stroke::new(2.0, Color32::from_rgb(255, 230, 120)), egui::StrokeKind::Middle);
+                if !primary {
+                    let n = self.sim.physics.make_objects(&mut self.sim.world, &self.mats, sx, sy, cx, cy);
+                    self.say(if n == 0 { "Nothing solid in that box".to_string() } else { format!("Made {n} object(s)") });
+                    self.box_start = None;
+                }
+            } else if !primary {
+                self.box_start = None;
+            }
+            return;
+        }
         if (primary || secondary) && (resp.dragged() || resp.is_pointer_button_down_on()) {
             if let Some(p) = resp.interact_pointer_pos() {
                 let (cx, cy) = to_cell(p);
@@ -478,6 +568,10 @@ impl eframe::App for Sandbox {
         }
 
         self.check_files();
+        let dropped: Vec<PathBuf> = ui.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect());
+        for path in dropped {
+            self.import_file(&path);
+        }
 
         // Keyboard shortcuts (unless typing in a text box).
         if !ctx.egui_wants_keyboard_input() {

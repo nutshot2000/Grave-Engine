@@ -1,0 +1,26 @@
+# Objects: things that fall, tumble, float, sink, burn and break.
+size 512 288
+seed 5
+fill air
+rect stone 0 268 512 20          # ground
+line stone 0 200 120 268 4       # a slope on the left
+
+# A pond on the right
+rect stone 300 210 6 58
+rect stone 506 180 6 88
+rect water 306 228 200 40
+
+# Things dropped from the sky
+object ../assets/cart.glb 20 120               # a Blender model: wood, iron and stone
+object ../assets/crate.png 160 60              # an image: wood and iron
+object ../assets/crate.png 166 20 angle 20
+body rect wood 330 150 60 6                    # a plank: floats
+body rect iron 440 150 12 12                   # an iron block: sinks
+body circle stone 250 40 7                     # a boulder
+
+# A wooden beam lying across two stone pillars, over burning oil
+rect stone 190 230 8 38
+rect stone 270 230 8 38
+body rect wood 186 222 96 8
+rect oil 200 262 66 6
+heat circle 204 261 3 600

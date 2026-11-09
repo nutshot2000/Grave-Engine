@@ -57,6 +57,32 @@ Saved scenes also hold a character grid (one character per cell, with a `legend`
 See the top of [`src/scene.rs`](src/scene.rs) for the full format, and
 [`scenes/`](scenes/) for examples.
 
+## Objects and physics
+
+Painted things stay put, like scenery. **Objects** are solid things that fall, tumble,
+stack, float or sink, and break apart when pieces burn, melt or get cut off. They are
+still made of real material cells, so a wooden crate burns and an ice block melts.
+Physics is done by [Rapier](https://rapier.rs). One cell is 10 cm.
+
+- In the window: pick **📦 Make object** and drag a box around something you painted.
+- In a scene: `body rect wood 100 50 20 10` or `body circle stone 200 40 6`.
+- Things float if they're lighter than the liquid they're in (wood on water) and sink
+  if they're heavier (iron).
+
+## Importing from Blender and images
+
+**Drag a file onto the window** to drop it in as an object (tick "Drop as fixed scenery"
+to paint it in place instead). In a scene: `object ../assets/cart.glb 50 30`.
+
+- **Blender:** export as **glTF Binary (.glb)**. Grave Engine looks at it from the front
+  (numpad 1) and turns it into cells. **Name each Blender material after a Grave
+  material**: `wood`, `iron`, `Stone.001` and `old_wood_planks` all work. One Blender
+  metre is 10 cells (`scale 20` in a scene makes it bigger).
+  [`tools/make_cart_glb.py`](tools/make_cart_glb.py) builds the example cart.
+- **Images (.png):** each pixel becomes a cell, and transparent pixels are empty. Each colour
+  picks the material with the closest `color`, or you can add a `crate.colors.txt`
+  next to `crate.png` with lines like `#8b5a2b = wood`.
+
 ## For AI agents: headless mode
 
 Run a scene without a window and get a screenshot plus a report:
@@ -67,7 +93,7 @@ cargo run --release -- --run scenes/woodfire.txt --frames 600 --shot shots/out.p
 
 Options: `--every N` saves a picture every N frames, `--heat` saves the heat view,
 `--scale S` sets the picture size. The report lists the temperature range and how many
-cells of each material exist (and how many are burning). Problems in material or scene
+cells of each material exist (and how many are burning), plus how many objects there are. Problems in material or scene
 files are printed with file and line numbers, and the exit code is 3 if there were any.
 
 ## Tests
@@ -85,5 +111,5 @@ and steam, and scenes save and load correctly.
 1. ~~Sandbox~~ (done)
 2. Editor: inspector, select, move, rotate, scale, unlimited undo, rewind after Play
 3. A command channel so agents can drive the open editor
-4. Rigid, breakable objects; import images and Blender models
+4. ~~Rigid, breakable objects; import images and Blender models~~ (done: next, explosions and strength)
 5. Game layer: player, triggers, scripting, export

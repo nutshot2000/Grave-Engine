@@ -16,19 +16,102 @@
 //! grid 0 260                   # optional top-left corner, then one line per row
 //! ......SSSS......
 //! end
+//!
+//! # Objects: solid things that fall, tumble and break apart
+//! body rect wood 100 50 20 10        # material x y width height
+//! body circle stone 200 40 6         # material centre-x centre-y radius
+//! object assets/crate.png 300 20     # an image or Blender model (.png .glb .gltf), top-left at x y
+//! object assets/cart.glb 50 30 scale 12 static   # `static`: paint it in place instead
+//! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
+//! WWWW                               # then its cells using the legend
+//! W..W
+//! end
 //! ```
 
+use crate::import;
 use crate::material::{AIR, MatId, Materials};
+use crate::physics::BodySpec;
+use crate::sim::Snapshot;
 use crate::world::World;
 use std::collections::HashMap;
+use std::path::Path;
+
+/// Everything a scene file describes.
+pub struct Loaded {
+    pub world: World,
+    /// Objects (rigid bodies) to add.
+    pub bodies: Vec<BodySpec>,
+    /// Problems found, with line numbers. The rest of the scene still loads.
+    pub problems: Vec<String>,
+    /// Cells set by `heat` commands, re-applied to objects once they're placed.
+    pub heated: Vec<(usize, f32)>,
+}
+
+impl Loaded {
+    pub fn into_sim(self, mats: &Materials) -> (crate::sim::Sim, Vec<String>) {
+        let mut sim = crate::sim::Sim::new(self.world, self.bodies, mats);
+        for (i, t) in self.heated {
+            if sim.world.is_owned(i) {
+                sim.world.temp[i] = t;
+            }
+        }
+        (sim, self.problems)
+    }
+}
+
+/// Read rows of characters up to `end`, as material ids.
+fn read_rows<'a>(
+    lines: &mut impl Iterator<Item = (usize, &'a str)>,
+    legend: &mut HashMap<char, MatId>,
+    problems: &mut Vec<String>,
+) -> (Vec<Vec<Option<MatId>>>, bool) {
+    let mut rows = Vec::new();
+    for (_, row) in lines.by_ref() {
+        let row = row.trim_end();
+        if row.trim() == "end" {
+            return (rows, true);
+        }
+        let mut out = Vec::new();
+        for c in row.chars() {
+            out.push(match legend.get(&c) {
+                Some(&AIR) => None,
+                Some(&id) => Some(id),
+                None if c == ' ' => None,
+                None => {
+                    problems.push(format!("scene: no legend for `{c}`"));
+                    legend.insert(c, AIR);
+                    None
+                }
+            });
+        }
+        rows.push(out);
+    }
+    (rows, false)
+}
+
+fn rows_to_grid(rows: &[Vec<Option<MatId>>]) -> (usize, usize, Vec<Option<MatId>>) {
+    let w = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+    let h = rows.len();
+    let mut cells = vec![None; w * h];
+    for (y, r) in rows.iter().enumerate() {
+        for (x, c) in r.iter().enumerate() {
+            cells[y * w + x] = *c;
+        }
+    }
+    (w, h, cells)
+}
 
 pub const DEFAULT_W: usize = 512;
 pub const DEFAULT_H: usize = 288;
 
 /// Build a world from scene text. Problems are reported per line; the rest of
 /// the scene still loads.
-pub fn load(text: &str, mats: &Materials) -> (World, Vec<String>) {
+/// `base` is the folder that relative `object` file paths start from
+/// (usually the scene file's folder).
+pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
     let mut problems = Vec::new();
+    let mut bodies: Vec<BodySpec> = Vec::new();
+    let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
     let mut legend: HashMap<char, MatId> = HashMap::new();
     legend.insert('.', AIR);
@@ -147,6 +230,7 @@ pub fn load(text: &str, mats: &Materials) -> (World, Vec<String>) {
                                 }
                                 let i = w.idx(x as usize, y as usize);
                                 w.temp[i] = t;
+                                heated.push((i, t));
                             }
                         }
                     }
@@ -201,11 +285,110 @@ pub fn load(text: &str, mats: &Materials) -> (World, Vec<String>) {
                     problems.push(format!("scene line {line_no}: `grid` is missing its `end` line"));
                 }
             }
+            "body" => {
+                let shape = words.get(1).map(|s| s.to_lowercase()).unwrap_or_default();
+                if shape == "rect" || shape == "circle" {
+                    let count = if shape == "rect" { 4 } else { 3 };
+                    let r = words
+                        .get(2)
+                        .ok_or(format!("`body {shape}` needs a material"))
+                        .and_then(|m| mat(m))
+                        .and_then(|id| nums(3, count).map(|v| (id, v)));
+                    match r {
+                        Ok((id, v)) => {
+                            let (w, h, cells, cx, cy) = if shape == "rect" {
+                                let (w, h) = (v[2].max(1.0) as usize, v[3].max(1.0) as usize);
+                                (w, h, vec![Some(id); w * h], v[0] + w as f32 / 2.0, v[1] + h as f32 / 2.0)
+                            } else {
+                                let r = v[2].max(0.0) as i32;
+                                let d = (2 * r + 1) as usize;
+                                let mut cells = vec![None; d * d];
+                                for y in -r..=r {
+                                    for x in -r..=r {
+                                        if x * x + y * y <= r * r + r / 2 {
+                                            cells[((y + r) as usize) * d + (x + r) as usize] = Some(id);
+                                        }
+                                    }
+                                }
+                                (d, d, cells, v[0] + 0.5, v[1] + 0.5)
+                            };
+                            bodies.push(BodySpec::from_mats(w, h, &cells, mats, cx, cy));
+                        }
+                        Err(e) => err(e),
+                    }
+                } else {
+                    match nums(1, 2) {
+                        Ok(v) => {
+                            let angle = words.get(3).and_then(|a| a.parse::<f32>().ok()).unwrap_or(0.0);
+                            let (rows, ended) = read_rows(&mut lines, &mut legend, &mut problems);
+                            if !ended {
+                                problems.push(format!("scene line {line_no}: `body` is missing its `end` line"));
+                            }
+                            let (w, h, cells) = rows_to_grid(&rows);
+                            let mut spec = BodySpec::from_mats(w, h, &cells, mats, v[0], v[1]);
+                            spec.angle = angle.to_radians();
+                            if spec.cell_count() > 0 {
+                                bodies.push(spec);
+                            }
+                        }
+                        Err(_) => err("use `body rect wood x y w h`, `body circle wood x y r`, or `body x y angle` + rows + `end`".into()),
+                    }
+                }
+            }
+            "object" => {
+                let Some(file) = words.get(1) else {
+                    err("use `object file.png x y` (also .glb / .gltf)".into());
+                    continue;
+                };
+                let pos = nums(2, 2);
+                let rest: Vec<String> = words.iter().skip(4).map(|w| w.to_lowercase()).collect();
+                let is_static = rest.iter().any(|w| w == "static");
+                let opt = |key: &str| -> Option<f32> {
+                    rest.iter().position(|w| w == key).and_then(|i| rest.get(i + 1)).and_then(|v| v.parse().ok())
+                };
+                let path = match base.map(|b| b.join(file)) {
+                    Some(p) if p.exists() => p,
+                    _ => Path::new(file).to_path_buf(),
+                };
+                match pos.and_then(|v| import::load(&path, mats, opt("scale")).map(|r| (v, r))) {
+                    Ok((v, (shape, warnings))) => {
+                        for w in warnings {
+                            problems.push(format!("scene line {line_no}: {w}"));
+                        }
+                        let (x0, y0) = (v[0], v[1]);
+                        if is_static {
+                            let w = ensure(&mut world, mats);
+                            for y in 0..shape.h {
+                                for x in 0..shape.w {
+                                    if let Some(id) = shape.cells[y * shape.w + x] {
+                                        let (wx, wy) = (x0 as i32 + x as i32, y0 as i32 + y as i32);
+                                        if w.in_bounds(wx, wy) {
+                                            w.set(mats, wx as usize, wy as usize, id);
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            let mut spec = BodySpec::from_mats(
+                                shape.w,
+                                shape.h,
+                                &shape.cells,
+                                mats,
+                                x0 + shape.w as f32 / 2.0,
+                                y0 + shape.h as f32 / 2.0,
+                            );
+                            spec.angle = opt("angle").unwrap_or(0.0).to_radians();
+                            bodies.push(spec);
+                        }
+                    }
+                    Err(e) => err(e),
+                }
+            }
             _ => err(format!("unknown command `{cmd}`")),
         }
     }
     let world = ensure(&mut world, mats).clone();
-    (world, problems)
+    Loaded { world, bodies, problems, heated }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -237,7 +420,8 @@ pub fn line_shape(w: &mut World, mats: &Materials, x1: i32, y1: i32, x2: i32, y2
 
 /// Write a world out as scene text (materials as a character grid).
 /// Temperatures aren't saved: cells start at their material's normal temperature.
-pub fn save(world: &World, mats: &Materials) -> String {
+pub fn save(snap: &Snapshot, mats: &Materials) -> String {
+    let world = &snap.world;
     let mut chars: HashMap<MatId, char> = HashMap::new();
     let mut used: Vec<char> = vec!['.'];
     chars.insert(AIR, '.');
@@ -245,6 +429,9 @@ pub fn save(world: &World, mats: &Materials) -> String {
         .chars()
         .collect();
     let mut present: Vec<MatId> = world.mat.clone();
+    for b in &snap.bodies {
+        present.extend(b.cells.iter().flatten().map(|c| c.mat));
+    }
     present.sort_unstable();
     present.dedup();
     let mut out = String::new();
@@ -276,10 +463,24 @@ pub fn save(world: &World, mats: &Materials) -> String {
     out.push_str("grid\n");
     for y in 0..world.h {
         for x in 0..world.w {
-            out.push(chars[&world.mat[world.idx(x, y)]]);
+            let i = world.idx(x, y);
+            out.push(if world.is_owned(i) { '.' } else { chars[&world.mat[i]] });
         }
         out.push('\n');
     }
     out.push_str("end\n");
+    if !snap.bodies.is_empty() {
+        out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");
+    }
+    for b in &snap.bodies {
+        out.push_str(&format!("body {:.2} {:.2} {:.1}\n", b.x, b.y, b.angle.to_degrees()));
+        for y in 0..b.h {
+            for x in 0..b.w {
+                out.push(b.cells[y * b.w + x].map(|c| chars[&c.mat]).unwrap_or('.'));
+            }
+            out.push('\n');
+        }
+        out.push_str("end\n");
+    }
     out
 }

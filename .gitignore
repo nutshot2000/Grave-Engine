@@ -2,3 +2,4 @@
 /shots
 *.png
 !docs/*.png
+!assets/*.png

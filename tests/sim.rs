@@ -199,10 +199,12 @@ fn oil_floats_on_water() {
 fn scenes_round_trip() {
     let m = mats();
     let text = "size 32 16\nfill air\nrect stone 0 12 32 4\ncircle water 10 6 3\nline wood 20 2 30 10 1\n";
-    let (w, problems) = scene::load(text, &m);
+    let l = scene::load(text, &m, None);
+    let (w, problems) = (l.world, l.problems);
     assert!(problems.is_empty(), "{problems:?}");
-    let saved = scene::save(&w, &m);
-    let (w2, problems) = scene::load(&saved, &m);
+    let saved = scene::save(&grave_engine::sim::Snapshot { world: w.clone(), bodies: vec![] }, &m);
+    let l2 = scene::load(&saved, &m, None);
+    let (w2, problems) = (l2.world, l2.problems);
     assert!(problems.is_empty(), "{problems:?}");
     assert_eq!(w.mat, w2.mat);
 }
@@ -210,7 +212,7 @@ fn scenes_round_trip() {
 #[test]
 fn scene_problems_are_reported() {
     let m = mats();
-    let (_, problems) = scene::load("size 32 16\nrect stoen 0 0 4 4\nwobble\n", &m);
+    let problems = scene::load("size 32 16\nrect stoen 0 0 4 4\nwobble\n", &m, None).problems;
     assert_eq!(problems.len(), 2, "{problems:?}");
 }
 
@@ -221,7 +223,7 @@ fn bundled_scenes_load_cleanly() {
     for e in std::fs::read_dir(dir).unwrap() {
         let p = e.unwrap().path();
         if p.extension().is_some_and(|x| x == "txt") {
-            let (_, problems) = scene::load(&std::fs::read_to_string(&p).unwrap(), &m);
+            let problems = scene::load(&std::fs::read_to_string(&p).unwrap(), &m, p.parent()).problems;
             assert!(problems.is_empty(), "{}: {problems:?}", p.display());
         }
     }
