@@ -1,0 +1,11 @@
+# Iron: heavy metal. Conducts heat very well. Melts at 1500 degrees.
+about = Strong metal. Conducts heat well.
+state = solid
+density = 7870
+color = #8a8f99
+color_variation = 0.05
+conducts_heat = 0.9
+heat_capacity = 1
+melts_at = 1500
+melts_into = molten_iron
+strength = 20

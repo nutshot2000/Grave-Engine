@@ -1,0 +1,11 @@
+# Stone: solid rock. Melts into lava if you get it hot enough.
+about = Solid rock.
+state = solid
+density = 2600
+color = #6b6670
+color_variation = 0.12
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1100
+melts_into = lava
+strength = 10

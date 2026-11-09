@@ -1,0 +1,11 @@
+# Sand: falls and piles up.
+about = Falls and piles up.
+state = powder
+density = 1600
+color = #d8c07a
+color_variation = 0.1
+conducts_heat = 0.15
+heat_capacity = 1
+melts_at = 1700
+melts_into = lava
+strength = 1

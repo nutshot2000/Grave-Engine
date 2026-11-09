@@ -1,0 +1,13 @@
+# Ice: frozen water. Melts above 1 degree.
+about = Frozen water.
+state = solid
+density = 917
+color = #a9d8f0
+color_variation = 0.06
+temperature = -15
+conducts_heat = 0.5
+heat_capacity = 2
+melts_at = 1
+melts_into = water
+puts_out_fire = yes
+strength = 3

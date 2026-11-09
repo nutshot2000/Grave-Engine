@@ -1,0 +1,16 @@
+# Oil: floats on water, catches fire easily and burns hot and fast.
+about = Floats on water. Very flammable.
+state = liquid
+density = 900
+color = #4a3a1c
+color_variation = 0.05
+conducts_heat = 0.3
+heat_capacity = 1
+catches_fire_at = 180
+burns_for = 60
+burn_temperature = 900
+burns_into = smoke
+gives_off = fire
+gives_off_chance = 0.5
+flows = 6
+strength = 0

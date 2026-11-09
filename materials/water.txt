@@ -1,0 +1,15 @@
+# Water: flows, freezes into ice, boils into steam, puts out fires.
+about = Flows. Freezes, boils, puts out fire.
+state = liquid
+density = 1000
+color = #2a5fbf
+color_variation = 0.04
+conducts_heat = 0.4
+heat_capacity = 4
+freezes_at = -1
+freezes_into = ice
+boils_at = 100
+boils_into = steam
+puts_out_fire = yes
+flows = 8
+strength = 0

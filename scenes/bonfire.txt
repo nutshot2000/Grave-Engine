@@ -1,0 +1,33 @@
+# Bonfire: a wooden hut, a log pile and an oil pool, with a hot spark to light it.
+size 512 288
+seed 7
+fill air
+rect stone 0 268 512 20          # ground
+rect stone 0 0 6 288             # left wall
+rect stone 506 0 6 288           # right wall
+
+# A pool of oil floating on water, in a stone basin
+rect stone 40 230 120 38
+rect air 46 230 108 38
+rect water 46 252 108 16
+rect oil 46 240 108 12
+
+# A wooden hut in the middle
+rect wood 200 200 6 68
+rect wood 290 200 6 68
+line wood 190 202 248 160 6
+line wood 306 202 248 160 6
+rect wood 214 250 70 6
+rect sand 214 256 70 12
+
+# A log pile on the right
+rect wood 360 240 100 28
+rect wood 380 220 60 20
+
+# An iron beam resting on a stone pillar, with ice on top
+rect stone 470 200 30 68
+rect iron 330 196 170 4
+rect ice 470 180 30 16
+
+# Light it: a hot spot on the oil
+heat circle 60 238 4 600

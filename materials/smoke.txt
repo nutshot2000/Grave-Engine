@@ -1,0 +1,12 @@
+# Smoke: rises and fades away.
+about = Rises and fades away.
+state = gas
+density = 1.1
+color = #3a3638
+color_variation = 0.15
+conducts_heat = 0.05
+heat_capacity = 0.5
+cools_off = 0.03
+lifetime = 90
+decays_into = air
+flows = 3

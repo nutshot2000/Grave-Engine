@@ -1,0 +1,13 @@
+# Molten iron: liquid metal. Sets iron again below 1450 degrees.
+about = Liquid metal.
+state = liquid
+density = 7000
+color = #ffb040
+color_variation = 0.1
+glow = 0.9
+temperature = 1600
+conducts_heat = 0.8
+heat_capacity = 1
+freezes_at = 1450
+freezes_into = iron
+flows = 2

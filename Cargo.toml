@@ -1,0 +1,19 @@
+[package]
+name = "grave-engine"
+version = "0.1.0"
+edition = "2024"
+description = "A small 2D material-simulation engine and editor. Everything is plain text."
+license = "MIT"
+
+[dependencies]
+eframe = "0.37"
+png = "0.18"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+debug = false

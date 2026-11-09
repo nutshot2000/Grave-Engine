@@ -1,0 +1,8 @@
+# Ash: what's left after wood burns.
+about = What's left after wood burns.
+state = powder
+density = 600
+color = #55504c
+color_variation = 0.15
+conducts_heat = 0.1
+heat_capacity = 0.8

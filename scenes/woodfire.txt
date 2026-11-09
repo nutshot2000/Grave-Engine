@@ -1,0 +1,35 @@
+# Wood fire test: a spark lights an oil puddle, which sets a wooden house,
+# a fence and a tree on fire.
+size 512 288
+seed 3
+fill air
+rect stone 0 268 512 20
+
+# Oil puddle in a shallow dip, touching the house
+rect air 20 262 150 6
+rect oil 20 262 150 6
+
+# A wooden house
+rect wood 170 190 8 78
+rect wood 300 190 8 78
+rect wood 170 186 138 6
+line wood 160 190 239 130 5
+line wood 318 190 239 130 5
+rect wood 200 230 30 4
+rect wood 250 230 30 4
+
+# A fence
+rect wood 308 240 178 3
+rect wood 308 255 178 3
+rect wood 335 236 4 32
+rect wood 365 236 4 32
+rect wood 395 236 4 32
+rect wood 425 236 4 32
+rect wood 455 236 4 32
+
+# A tree
+rect wood 486 170 8 98
+circle wood 490 150 18
+
+# The spark
+heat circle 24 260 3 700

@@ -1,0 +1,13 @@
+# Steam: hot water vapour. Rises, cools, and rains back down as water.
+about = Rises, cools and turns back into water.
+state = gas
+density = 0.6
+color = #c8ccd4
+color_variation = 0.1
+temperature = 110
+conducts_heat = 0.08
+heat_capacity = 1
+cools_off = 0.004
+condenses_at = 90
+condenses_into = water
+flows = 3

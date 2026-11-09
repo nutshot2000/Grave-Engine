@@ -1,0 +1,15 @@
+# Fire: a short-lived, very hot flame. It's what burning things puff out.
+about = A short-lived flame. Very hot.
+state = gas
+density = 0.3
+color = #ff8a1e
+color_variation = 0.3
+glow = 1
+temperature = 900
+stays_at = 900
+conducts_heat = 0.6
+heat_capacity = 0.5
+lifetime = 40
+decays_into = smoke
+flows = 1
+feeds_fire = yes

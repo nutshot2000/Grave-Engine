@@ -1,0 +1,15 @@
+# Lava: molten rock. Glows, sets things on fire, cools into stone.
+about = Molten rock. Cools into stone.
+state = liquid
+density = 2600
+color = #ff5a10
+color_variation = 0.15
+glow = 0.9
+temperature = 1200
+conducts_heat = 0.25
+heat_capacity = 1
+freezes_at = 800
+freezes_into = stone
+flows = 2
+strength = 0
+reaction = water -> stone + steam, chance 0.2
