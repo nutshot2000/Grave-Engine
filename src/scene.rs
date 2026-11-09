@@ -5,6 +5,8 @@
 //! # A little test scene
 //! size 512 288                 # width height (cells)
 //! seed 7                       # random seed (same seed = same result)
+//! wind 3                       # steady wind in m/s (+ blows right, - left)
+//! turbulence 1                 # how swirly the air is (0 still, 1 normal, 3 stormy)
 //! fill air
 //! rect stone 0 270 512 18      # material x y width height
 //! circle water 100 200 20      # material centre-x centre-y radius
@@ -164,6 +166,14 @@ pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
             },
             "seed" => match nums(1, 1) {
                 Ok(v) => ensure(&mut world, mats).seed(v[0] as u32),
+                Err(e) => err(e),
+            },
+            "wind" => match nums(1, 1) {
+                Ok(v) => ensure(&mut world, mats).wind = v[0].clamp(-50.0, 50.0),
+                Err(e) => err(e),
+            },
+            "turbulence" => match nums(1, 1) {
+                Ok(v) => ensure(&mut world, mats).turbulence = v[0].clamp(0.0, 10.0),
                 Err(e) => err(e),
             },
             "ambient" => match nums(1, 1) {
@@ -439,6 +449,12 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     out.push_str(&format!("size {} {}\n", world.w, world.h));
     if world.ambient != crate::world::ROOM_TEMP {
         out.push_str(&format!("ambient {}\n", world.ambient));
+    }
+    if world.wind != 0.0 {
+        out.push_str(&format!("wind {}\n", world.wind));
+    }
+    if world.turbulence != 1.0 {
+        out.push_str(&format!("turbulence {}\n", world.turbulence));
     }
     for id in present {
         if id == AIR {

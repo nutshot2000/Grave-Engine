@@ -247,3 +247,47 @@ fn saving_with_lots_of_materials_round_trips() {
     assert!(l.problems.is_empty(), "{:?}", l.problems);
     assert_eq!(l.world.mat, w.mat);
 }
+
+/// Average x position and horizontal spread of the smoke.
+fn smoke_shape(w: &World, m: &Materials) -> (f32, f32) {
+    let id = m.id("smoke").unwrap();
+    let xs: Vec<f32> = (0..w.mat.len()).filter(|&i| w.mat[i] == id).map(|i| (i % w.w) as f32).collect();
+    let n = xs.len().max(1) as f32;
+    let mean = xs.iter().sum::<f32>() / n;
+    let spread = (xs.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / n).sqrt();
+    (mean, spread)
+}
+
+fn smoky(m: &Materials, settings: &str) -> World {
+    // A steady source of hot smoke in the middle of an open space.
+    let text = format!("size 200 120\n{settings}\nfill air\nrect stone 0 110 200 10\n");
+    let mut w = scene::load(&text, m, None).world;
+    let smoke = m.id("smoke").unwrap();
+    for f in 0..240 {
+        if f < 120 {
+            for x in 96..104 {
+                w.set(m, x, 105, smoke);
+                let i = w.idx(x, 105);
+                w.temp[i] = 400.0;
+            }
+        }
+        w.step(m);
+    }
+    w
+}
+
+#[test]
+fn wind_blows_smoke_downwind() {
+    let m = mats();
+    let (calm, _) = smoke_shape(&smoky(&m, "wind 0"), &m);
+    let (windy, _) = smoke_shape(&smoky(&m, "wind 4"), &m);
+    assert!(windy > calm + 20.0, "smoke should drift right: calm at x={calm}, windy at x={windy}");
+}
+
+#[test]
+fn smoke_billows_out_instead_of_a_straight_column() {
+    let m = mats();
+    let (_, still) = smoke_shape(&smoky(&m, "turbulence 0"), &m);
+    let (_, swirly) = smoke_shape(&smoky(&m, "turbulence 1"), &m);
+    assert!(swirly > still * 1.3, "swirling air should spread the smoke out: still {still}, swirly {swirly}");
+}

@@ -95,6 +95,18 @@ Physics is done by [Rapier](https://rapier.rs). One cell is 10 cm.
 - Things float if they're lighter than the liquid they're in (wood on water) and sink
   if they're heavier (iron).
 
+## Air currents and wind
+
+The air has gently swirling currents everywhere, so smoke, steam and flames billow,
+curl and drift instead of rising in straight columns. Hot smoke rises; once it cools
+it hangs and spreads. Gases blown into walls slide up and over them. Two scene
+settings control the air:
+
+```text
+wind 3          # steady wind in m/s (+ blows right, - left)
+turbulence 1    # how swirly the air is (0 still, 1 normal, 3 stormy)
+```
+
 ## Forces: impacts, weight, friction and explosions
 
 Try `scenes/forces.txt`.

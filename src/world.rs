@@ -29,6 +29,31 @@ pub struct Blast {
     pub fire: Option<MatId>,
 }
 
+/// Air currents are worked out on a grid this many cells apart.
+const FLOW_GRID: usize = 8;
+
+/// Smooth random noise in 3D (x, y, time), roughly 0..1.
+fn value_noise(x: f32, y: f32, t: f32) -> f32 {
+    fn h(x: i32, y: i32, z: i32) -> f32 {
+        let mut n = (x as u32).wrapping_mul(0x8da6_b343) ^ (y as u32).wrapping_mul(0xd816_3841) ^ (z as u32).wrapping_mul(0xcb1a_b31f);
+        n ^= n >> 13;
+        n = n.wrapping_mul(0x5bd1_e995);
+        n ^= n >> 15;
+        (n & 0xffff) as f32 / 65535.0
+    }
+    let (x0, y0, z0) = (x.floor(), y.floor(), t.floor());
+    let s = |v: f32| v * v * (3.0 - 2.0 * v);
+    let (fx, fy, fz) = (s(x - x0), s(y - y0), s(t - z0));
+    let (ix, iy, iz) = (x0 as i32, y0 as i32, z0 as i32);
+    let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let layer = |z: i32| {
+        let a = lerp(h(ix, iy, z), h(ix + 1, iy, z), fx);
+        let b = lerp(h(ix, iy + 1, z), h(ix + 1, iy + 1, z), fx);
+        lerp(a, b, fy)
+    };
+    lerp(layer(iz), layer(iz + 1), fz)
+}
+
 /// Room temperature, °C.
 pub const ROOM_TEMP: f32 = 20.0;
 
@@ -51,6 +76,13 @@ pub struct World {
     pub ambient: f32,
     /// Explosions that happened during the last step.
     pub blasts: Vec<Blast>,
+    /// Steady wind blowing gases sideways, in metres per second (+ = right).
+    pub wind: f32,
+    /// How swirly the air is (0 = still, 1 = normal, 3 = stormy).
+    pub turbulence: f32,
+    /// Air currents for this frame, on a coarse grid (cells per frame).
+    flow: Vec<(f32, f32)>,
+    flow_w: usize,
     rng: u32,
     // Scratch buffers, reused every frame.
     new_temp: Vec<f32>,
@@ -81,6 +113,10 @@ impl World {
             frame: 1,
             ambient: ROOM_TEMP,
             blasts: Vec::new(),
+            wind: 0.0,
+            turbulence: 1.0,
+            flow: Vec::new(),
+            flow_w: 0,
             rng: 0x9E37_79B9,
             new_temp: vec![0.0; n],
             k: vec![0.0; n],
@@ -433,7 +469,50 @@ impl World {
 
     // ------------------------------------------------------------ movement --
 
+    /// Work out this frame's air currents: slowly drifting swirls (curl of a
+    /// smooth noise field, so the air goes round in eddies instead of
+    /// piling up), plus the wind.
+    fn update_flow(&mut self) {
+        let (gw, gh) = (self.w / FLOW_GRID + 3, self.h / FLOW_GRID + 3);
+        let t = self.frame as f32 / 300.0;
+        // Smooth noise at each grid node (two sizes of swirl).
+        let mut n = vec![0.0f32; gw * gh];
+        for gy in 0..gh {
+            for gx in 0..gw {
+                let (fx, fy) = (gx as f32, gy as f32);
+                n[gy * gw + gx] = value_noise(fx * 0.28, fy * 0.28, t) + 0.5 * value_noise(fx * 0.7 + 31.0, fy * 0.7 + 17.0, t * 1.7);
+            }
+        }
+        let wind = self.wind * 10.0 / 60.0; // m/s -> cells per frame (10 cells per metre, 60 fps)
+        let k = 1.6 * self.turbulence;
+        self.flow.clear();
+        self.flow.resize(gw * gh, (wind, 0.0));
+        for gy in 1..gh - 1 {
+            for gx in 1..gw - 1 {
+                let dndy = (n[(gy + 1) * gw + gx] - n[(gy - 1) * gw + gx]) * 0.5;
+                let dndx = (n[gy * gw + gx + 1] - n[gy * gw + gx - 1]) * 0.5;
+                self.flow[gy * gw + gx] = (wind + dndy * k, -dndx * k);
+            }
+        }
+        self.flow_w = gw;
+    }
+
+    /// The air current at a cell (cells per frame), smoothly blended.
+    #[inline]
+    fn flow_at(&self, x: i32, y: i32) -> (f32, f32) {
+        let (fx, fy) = (x as f32 / FLOW_GRID as f32 + 1.0, y as f32 / FLOW_GRID as f32 + 1.0);
+        let (gx, gy) = (fx as usize, fy as usize);
+        let (tx, ty) = (fx - gx as f32, fy - gy as f32);
+        let w = self.flow_w;
+        let at = |gx: usize, gy: usize| self.flow[gy * w + gx];
+        let (a, b, c, d) = (at(gx, gy), at(gx + 1, gy), at(gx, gy + 1), at(gx + 1, gy + 1));
+        let top = (a.0 + (b.0 - a.0) * tx, a.1 + (b.1 - a.1) * tx);
+        let bot = (c.0 + (d.0 - c.0) * tx, c.1 + (d.1 - c.1) * tx);
+        (top.0 + (bot.0 - top.0) * ty, top.1 + (bot.1 - top.1) * ty)
+    }
+
     fn movement(&mut self, mats: &Materials) {
+        self.update_flow();
         let fast: Vec<Fast> = mats
             .list
             .iter()
@@ -559,9 +638,51 @@ impl World {
         }
     }
 
+    /// Can a gas be pushed into `j` by the air currents? (Swaps with other gases.)
+    #[inline]
+    fn can_drift(&self, fast: &[Fast], i: usize, j: usize) -> bool {
+        fast[self.mat[j] as usize].state == State::Gas && self.flags[j] & OWNED == 0 && self.mat[j] != self.mat[i]
+    }
+
     fn move_gas(&mut self, fast: &[Fast], x: i32, y: i32, flows: i32) {
         let i = y as usize * self.w + x as usize;
+        // Smoke, steam and flames get carried around by the air currents.
+        // (Plain air moving through plain air would change nothing.)
+        if self.mat[i] != AIR {
+            let (u, v) = self.flow_at(x, y);
+            if self.chance(u.abs().min(0.9)) {
+                let dir = if u > 0.0 { 1 } else { -1 };
+                // Blown into something solid? The air goes up and over it.
+                for (dx, dy) in [(dir, 0), (dir, -1), (0, -1)] {
+                    let (nx, ny) = (x + dx, y + dy);
+                    if self.in_bounds(nx, ny) {
+                        let j = ny as usize * self.w + nx as usize;
+                        if self.can_drift(fast, i, j) {
+                            self.swap(i, j);
+                            return;
+                        }
+                        if fast[self.mat[j] as usize].state == State::Gas {
+                            break; // open air, just the same gas: nothing to do
+                        }
+                    }
+                }
+            }
+            if self.chance(v.abs().min(0.9)) {
+                let ny = y + if v > 0.0 { 1 } else { -1 };
+                if self.in_bounds(x, ny) {
+                    let j = ny as usize * self.w + x as usize;
+                    if self.can_drift(fast, i, j) {
+                        self.swap(i, j);
+                        return;
+                    }
+                }
+            }
+        }
         let wi = self.weight(fast, i);
+        // Rising isn't perfectly steady, so plumes break up.
+        if self.rand() % 8 == 0 {
+            return;
+        }
         let d = if self.rand() & 1 == 0 { 1 } else { -1 };
         for (dx, dy) in [(0, -1), (d, -1), (-d, -1)] {
             let (nx, ny) = (x + dx, y + dy);

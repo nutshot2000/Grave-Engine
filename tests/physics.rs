@@ -76,7 +76,8 @@ fn wood_floats_and_iron_sinks() {
 #[test]
 fn burning_objects_fall_apart() {
     let m = mats();
-    let mut s = sim(&m, "size 80 100\nfill air\nrect stone 0 90 80 10\nbody rect wood 20 60 40 6\nheat rect 20 60 40 6 600\n");
+    // Plenty of open air: in a small sealed box the smoke would smother it.
+    let mut s = sim(&m, "size 240 160\nfill air\nrect stone 0 150 240 10\nbody rect wood 100 120 40 6\nheat rect 100 120 40 6 600\n");
     let wood_before = count(&s, &m, "wood");
     for _ in 0..900 {
         s.step(&m);
