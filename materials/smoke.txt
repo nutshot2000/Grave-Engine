@@ -7,7 +7,7 @@ color_variation = 0.15
 conducts_heat = 0.05
 heat_capacity = 0.5
 cools_off = 0.012
-lifetime = 220
+lifetime = 170
 decays_into = air
 flows = 3
 # A smoke cell is really smoky air: still mostly air, so fires keep burning in it.

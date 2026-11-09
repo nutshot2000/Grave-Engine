@@ -10,6 +10,7 @@ catches_fire_at = 180
 burns_for = 60
 burn_temperature = 900
 burns_into = smoke
+burns_into_chance = 0.3
 gives_off = fire
 gives_off_chance = 0.5
 flows = 6

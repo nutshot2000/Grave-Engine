@@ -104,6 +104,9 @@ pub struct Material {
     pub lifetime: Option<u16>,
     /// ...and then turns into this.
     pub decays_into: MatId,
+    /// Chance (0..1) that it turns into `decays_into` when it runs out; otherwise
+    /// it just becomes air (a flame only sometimes leaves smoke).
+    pub decays_into_chance: f32,
     /// Liquids/gases: how far it can spread sideways per frame.
     pub flows: u8,
     /// Solids: how many cells it can stick out from a support before it snaps.
@@ -158,6 +161,7 @@ impl Material {
             condenses: None,
             lifetime: None,
             decays_into: AIR,
+            decays_into_chance: 1.0,
             flows: 4,
             strength: 1.0,
             toughness: None,
@@ -535,6 +539,7 @@ fn apply(
             m.lifetime = opt_num(v)?.map(|x| x.clamp(1.0, 60000.0) as u16)
         }
         "decays_into" | "turns_into" => m.decays_into = name_to_id(v, by_name)?,
+        "decays_into_chance" => m.decays_into_chance = num(v)?.clamp(0.0, 1.0),
         "flows" => m.flows = num(v)?.clamp(0.0, 16.0) as u8,
         "strength" => m.strength = num(v)?,
         "toughness" => m.toughness = opt_num(v)?.map(|t| t.max(0.0)),

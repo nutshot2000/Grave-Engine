@@ -370,7 +370,7 @@ impl World {
             // Short-lived things (fire, smoke) run out.
             if m.lifetime.is_some() {
                 if self.life[i] <= 1 {
-                    let into = m.decays_into;
+                    let into = if self.chance(m.decays_into_chance) { m.decays_into } else { AIR };
                     self.become_(mats, i, into);
                     continue;
                 }

@@ -11,5 +11,6 @@ conducts_heat = 0.6
 heat_capacity = 0.5
 lifetime = 40
 decays_into = smoke
+decays_into_chance = 0.3          # only some flames leave smoke behind
 flows = 1
 feeds_fire = yes
