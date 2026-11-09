@@ -20,6 +20,24 @@ cargo run --release
 - Hover over anything to see its material, temperature and state at the bottom.
 - **Save** and **Load** scenes, or pick one from **Scenes...**.
 
+## Editing
+
+- **👆 Select** (V): click an object, or drag a box. A box picks up the objects
+  inside it, or, if there are none, an area of scenery.
+- **Move** by dragging. Objects are held still while you drag them, even during
+  Play. **Turn** with the round handle (hold Shift for 15° steps) and **resize**
+  with the square corner handle.
+- **The Inspector** (right) shows what's selected in plain words: what it's made
+  of, its mass, position, angle, speed and temperature. You can edit all of them.
+  It also has buttons to flip, quarter-turn, resize, change material, duplicate,
+  copy, delete, turn scenery into objects, or freeze objects into scenery.
+- **Undo / Redo** (Ctrl+Z / Ctrl+Y) cover everything: painting, moving, deleting,
+  importing, clearing, loading. Only what changed is stored, so there's no
+  practical limit.
+- **Keys:** Delete, Ctrl+C / X / V (pastes at the mouse), Ctrl+D duplicate,
+  Q / E turn 15°, F flip, Esc deselect, Shift+click to add to the selection,
+  B for the brush.
+
 ## Materials are text files
 
 Each file in [`materials/`](materials/) is one material. Here's wood:
@@ -132,7 +150,7 @@ and steam, and scenes save and load correctly.
 ## What's next
 
 1. ~~Sandbox~~ (done)
-2. Editor: inspector, select, move, rotate, scale, unlimited undo, rewind after Play
+2. Editor: ~~select, move, rotate, scale, inspector, undo~~ (done); next, rewind after Play and templates
 3. A command channel so agents can drive the open editor
 4. ~~Rigid, breakable objects; import images and Blender models~~ (done: next, explosions and strength)
 5. Game layer: player, triggers, scripting, export

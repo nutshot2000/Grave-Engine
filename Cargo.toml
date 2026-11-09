@@ -19,3 +19,6 @@ opt-level = 3
 
 [profile.release]
 debug = false
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["eframe"] }

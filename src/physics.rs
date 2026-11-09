@@ -130,6 +130,9 @@ struct Body {
     dirty: bool,
     /// It's a piece that just broke off something (briefly unbreakable).
     shard: bool,
+    /// Stable name for the editor (survives moves and edits; pieces that
+    /// break off get new ids).
+    id: u64,
 }
 
 struct Chunk {
@@ -139,6 +142,7 @@ struct Chunk {
 
 pub struct Physics {
     bodies: Vec<Body>,
+    next_id: u64,
     set: RigidBodySet,
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
@@ -231,6 +235,7 @@ impl Physics {
         params.dt = DT;
         Physics {
             bodies: Vec::new(),
+            next_id: 1,
             set,
             colliders,
             impulse_joints: ImpulseJointSet::new(),
@@ -262,7 +267,7 @@ impl Physics {
 
     /// Add an object and put it into the world straight away. If it was put
     /// inside solid ground, it's moved up until it's clear.
-    pub fn add(&mut self, world: &mut World, mats: &Materials, mut spec: BodySpec) {
+    pub fn add(&mut self, world: &mut World, mats: &Materials, mut spec: BodySpec) -> Option<u64> {
         let overlap = |spec: &BodySpec| -> usize {
             let (c, s) = (spec.angle.cos(), spec.angle.sin());
             let mut n = 0;
@@ -288,13 +293,13 @@ impl Physics {
                 }
             }
         }
-        self.add_raw(world, mats, spec);
+        self.add_raw(world, mats, spec)
     }
 
     /// Add an object exactly where its spec says (pieces of broken things).
-    fn add_raw(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) {
+    fn add_raw(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) -> Option<u64> {
         if spec.cell_count() == 0 {
-            return;
+            return None;
         }
         let rb = RigidBodyBuilder::dynamic()
             .translation(Vector::new(spec.x * CELL, spec.y * CELL))
@@ -303,10 +308,13 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false };
+        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, id: self.next_id };
+        self.next_id += 1;
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
+        let id = body.id;
         self.bodies.push(body);
+        Some(id)
     }
 
     fn build_colliders(&mut self, body: &mut Body, mats: &Materials) {
@@ -1397,6 +1405,98 @@ impl Physics {
         n
     }
 
+    // ------------------------------------------------------------ editing --
+
+    /// Ids of all objects.
+    pub fn ids(&self) -> Vec<u64> {
+        self.bodies.iter().map(|b| b.id).collect()
+    }
+
+    fn find(&self, id: u64) -> Option<usize> {
+        self.bodies.iter().position(|b| b.id == id)
+    }
+
+    /// Which object (if any) is drawn at this world cell.
+    pub fn id_at(&self, world: &World, x: usize, y: usize) -> Option<u64> {
+        let wi = world.idx(x, y) as u32;
+        if !world.is_owned(wi as usize) {
+            return None;
+        }
+        self.bodies.iter().find(|b| b.stamped.iter().any(|&(w, _)| w == wi)).map(|b| b.id)
+    }
+
+    /// The current state of one object.
+    pub fn spec_of(&self, world: &World, id: u64) -> Option<BodySpec> {
+        let n = self.find(id)?;
+        let b = &self.bodies[n];
+        let mut cells = b.cells.clone();
+        for &(wi, li) in &b.stamped {
+            let (wi, li) = (wi as usize, li as usize);
+            if let Some(c) = cells[li].as_mut() {
+                if world.is_owned(wi) && world.mat[wi] == c.mat {
+                    c.temp = world.temp[wi];
+                    c.burn = world.burn[wi];
+                    c.life = world.life[wi];
+                    c.flags = world.flags[wi] & !OWNED;
+                }
+            }
+        }
+        let (x, y, angle) = self.pose(b);
+        let rb = &self.set[b.handle];
+        Some(BodySpec {
+            w: b.w,
+            h: b.h,
+            cells,
+            x,
+            y,
+            angle,
+            vx: rb.linvel().x / CELL,
+            vy: rb.linvel().y / CELL,
+            spin: rb.angvel(),
+        })
+    }
+
+    /// Mass in kilograms.
+    pub fn mass(&self, id: u64) -> Option<f32> {
+        self.find(id).map(|n| self.set[self.bodies[n].handle].mass())
+    }
+
+    /// Take an object out of the world entirely. Returns what it was.
+    pub fn remove(&mut self, world: &mut World, id: u64) -> Option<BodySpec> {
+        let spec = self.spec_of(world, id)?;
+        let n = self.find(id)?;
+        let mut b = self.bodies.remove(n);
+        Self::read_back(&mut b, world, true);
+        self.set.remove(
+            b.handle,
+            &mut self.islands,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+            &mut self.soft,
+            true,
+        );
+        Some(spec)
+    }
+
+    /// Change an object: move it, turn it, resize it, recolour it... `change`
+    /// gets its current state to edit; the object keeps its id. Returns false
+    /// if there's no such object (or the change left it empty).
+    pub fn edit(&mut self, world: &mut World, mats: &Materials, id: u64, change: impl FnOnce(&mut BodySpec)) -> bool {
+        let Some(mut spec) = self.remove(world, id) else { return false };
+        change(&mut spec);
+        let before = self.next_id;
+        self.next_id = id;
+        let added = self.add_raw(world, mats, spec);
+        self.next_id = before;
+        if let Some(b) = self.bodies.last_mut() {
+            if added.is_some() {
+                b.born = self.tick.wrapping_sub(SETTLE_TICKS); // edits aren't "new pieces"
+            }
+        }
+        added.is_some()
+    }
+
     /// Material files changed: rebuild collision shapes so new densities,
     /// friction and bounce take effect.
     pub fn materials_changed(&mut self, mats: &Materials) {
@@ -1424,6 +1524,7 @@ impl Physics {
                 born: b.born,
                 dirty: false,
                 shard: false,
+                id: b.id,
             };
             Self::read_back(&mut copy, world, false);
             let (x, y, angle) = self.pose(b);
