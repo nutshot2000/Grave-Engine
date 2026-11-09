@@ -315,8 +315,8 @@ fn gunpowder_explodes_even_when_buried() {
     }
     assert_eq!(count(&s, &m, "gunpowder"), 0, "it should all have gone off");
     assert!(count(&s, &m, "gravel") > 30, "the stone around it should crack into gravel");
-    let crate_ = s.physics.export(&mut s.world).into_iter().max_by_key(|b| b.cell_count()).unwrap();
-    assert!(crate_.vy < -20.0, "the crate should be thrown upward, vy={}", crate_.vy);
+    let fastest_up = s.physics.export(&mut s.world).into_iter().map(|b| b.vy).fold(0.0f32, f32::min);
+    assert!(fastest_up < -20.0, "pieces of the crate should be thrown upward, fastest vy={fastest_up}");
 }
 
 #[test]
@@ -349,4 +349,32 @@ fn ice_is_slippery() {
     };
     let (on_stone, on_ice) = (slope("stone"), slope("ice"));
     assert!(on_ice > on_stone + 40.0, "ice: {on_ice}, stone: {on_stone}");
+}
+
+#[test]
+fn blasts_splinter_objects_too() {
+    let m = mats();
+    // A wooden box sitting right next to a gunpowder charge.
+    let mut s = sim(
+        &m,
+        "size 120 80\nfill air\nrect stone 0 70 120 10\nrect gunpowder 40 64 20 6\nbody rect wood 42 44 16 20\nheat rect 40 64 20 6 400\n",
+    );
+    let wood_before = 16 * 20;
+    for _ in 0..30 {
+        s.step(&m);
+    }
+    let bodies = s.physics.export(&mut s.world);
+    let biggest = bodies.iter().map(|b| b.cell_count()).max().unwrap_or(0);
+    assert!(biggest < wood_before - 20, "the box should lose chunks, biggest piece {biggest} of {wood_before}");
+    assert!(bodies.len() > 3, "and throw splinters: {} objects", bodies.len());
+}
+
+#[test]
+fn objects_placed_inside_the_ground_pop_out() {
+    let m = mats();
+    let s = sim(&m, "size 100 60\nfill air\nrect stone 0 50 100 10\nbody rect stone 40 45 10 10\n");
+    let mut s = s;
+    let b = s.physics.export(&mut s.world);
+    assert!(b[0].y <= 45.5, "should sit on top of the ground, centre y={}", b[0].y);
+    assert_eq!(count(&s, &m, "stone"), 1000 + 100, "all of it should be visible");
 }

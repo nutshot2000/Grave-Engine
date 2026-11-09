@@ -119,6 +119,8 @@ struct Body {
     /// The physics tick this object appeared (brand-new pieces don't crack
     /// things while they settle).
     born: u32,
+    /// Cells were cut out of it directly (splinters): rebuild or split it.
+    dirty: bool,
 }
 
 struct Chunk {
@@ -249,8 +251,39 @@ impl Physics {
         self.bodies.len()
     }
 
-    /// Add an object and put it into the world straight away.
-    pub fn add(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) {
+    /// Add an object and put it into the world straight away. If it was put
+    /// inside solid ground, it's moved up until it's clear.
+    pub fn add(&mut self, world: &mut World, mats: &Materials, mut spec: BodySpec) {
+        let overlap = |spec: &BodySpec| -> usize {
+            let (c, s) = (spec.angle.cos(), spec.angle.sin());
+            let mut n = 0;
+            for (k, cell) in spec.cells.iter().enumerate() {
+                if cell.is_none() {
+                    continue;
+                }
+                let lx = (k % spec.w) as f32 + 0.5 - spec.w as f32 / 2.0;
+                let ly = (k / spec.w) as f32 + 0.5 - spec.h as f32 / 2.0;
+                let (dx, dy) = rot(c, s, lx, ly);
+                let (x, y) = ((spec.x + dx).floor() as i32, (spec.y + dy).floor() as i32);
+                if world.in_bounds(x, y) && Self::is_terrain(world, mats, world.idx(x as usize, y as usize)) {
+                    n += 1;
+                }
+            }
+            n
+        };
+        if overlap(&spec) > 0 {
+            for _ in 0..(spec.h + world.h) {
+                spec.y -= 1.0;
+                if overlap(&spec) == 0 || spec.y < -(spec.h as f32) {
+                    break;
+                }
+            }
+        }
+        self.add_raw(world, mats, spec);
+    }
+
+    /// Add an object exactly where its spec says (pieces of broken things).
+    fn add_raw(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) {
         if spec.cell_count() == 0 {
             return;
         }
@@ -261,7 +294,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick };
+        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false };
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
         self.bodies.push(body);
@@ -382,7 +415,8 @@ impl Physics {
         let mut bodies = std::mem::take(&mut self.bodies);
         let mut changed = Vec::new();
         for (n, b) in bodies.iter_mut().enumerate() {
-            if Self::read_back(b, world, true) {
+            if Self::read_back(b, world, true) || b.dirty {
+                b.dirty = false;
                 changed.push(n);
             }
         }
@@ -463,14 +497,14 @@ impl Physics {
         }
         self.bodies = bodies;
         for spec in new_specs {
-            self.add(world, mats, spec);
+            self.add_raw(world, mats, spec);
         }
 
         // 6. Damage: hard hits, heavy loads and explosions.
         let mut pieces = self.impacts(world, mats);
         pieces.extend(self.explosions(world, mats));
         for spec in pieces {
-            self.add(world, mats, spec);
+            self.add_raw(world, mats, spec);
         }
     }
 
@@ -490,7 +524,9 @@ impl Physics {
     fn impacts(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
         // Gather the hard contacts first: total force of each touching pair (kN)
         // and the patch of points where they touch (in cells).
-        let mut hits: Vec<(f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>)> = Vec::new();
+        let mut hits: Vec<Hit> = Vec::new();
+        let index: HashMap<RigidBodyHandle, usize> =
+            self.bodies.iter().enumerate().map(|(n, b)| (b.handle, n)).collect();
         for pair in self.narrow.contact_pairs() {
             if !pair.has_any_active_contact() {
                 continue;
@@ -501,8 +537,8 @@ impl Physics {
             let (b1, b2) = (c1.parent(), c2.parent());
             // Brand-new pieces push hard while they settle: skip them for a moment.
             let settling = |h: Option<RigidBodyHandle>| {
-                h.and_then(|h| self.bodies.iter().find(|b| b.handle == h))
-                    .is_some_and(|b| self.tick.wrapping_sub(b.born) < SETTLE_TICKS)
+                h.and_then(|h| index.get(&h))
+                    .is_some_and(|&n| self.tick.wrapping_sub(self.bodies[n].born) < SETTLE_TICKS)
             };
             if settling(b1) || settling(b2) {
                 continue;
@@ -530,7 +566,7 @@ impl Physics {
             return Vec::new();
         }
         // One object landing across several pieces of ground is one hit.
-        let mut merged: Vec<(f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>)> = Vec::new();
+        let mut merged: Vec<Hit> = Vec::new();
         for (f, patch, b1, b2) in hits {
             match merged.iter_mut().find(|m| (m.2 == b1 && m.3 == b2) || (m.2 == b2 && m.3 == b1)) {
                 Some(m) => {
@@ -568,8 +604,8 @@ impl Physics {
             for side in [b1, b2] {
                 let which = match side {
                     Some(h) if h == self.ground => Which::Scenery,
-                    Some(h) => match self.bodies.iter().position(|b| b.handle == h) {
-                        Some(n) => Which::Body(n),
+                    Some(h) => match index.get(&h) {
+                        Some(&n) => Which::Body(n),
                         None => continue,
                     },
                     None => continue,
@@ -649,6 +685,15 @@ impl Physics {
                 }
                 continue;
             }
+            for &i in &piece {
+                if let Some(&n) = owners.get(&(i as u32)) {
+                    let b = &mut self.bodies[n];
+                    if let Some(&(_, li)) = b.stamped.iter().find(|&&(wi, _)| wi as usize == i) {
+                        b.cells[li as usize] = None;
+                        b.dirty = true;
+                    }
+                }
+            }
             let mut spec = self.detach(world, &piece);
             let (dx, dy) = (spec.x - cx, spec.y - cy);
             let len = (dx * dx + dy * dy).sqrt().max(0.5);
@@ -712,8 +757,9 @@ impl Physics {
 
             // Crack things (objects and scenery).
             let owners = self.owners();
+            let first = out.len();
             out.extend(self.fracture(world, mats, &owners, Which::Any, cx, cy, r, force_at, (0.0, 0.0), 40.0));
-            for spec in out.iter_mut() {
+            for spec in out[first..].iter_mut() {
                 // Splinters near the centre fly faster.
                 let d = ((spec.x - cx).powi(2) + (spec.y - cy).powi(2)).sqrt();
                 let k = (1.0 - d / r).max(0.1);
@@ -975,7 +1021,7 @@ impl Physics {
             return self.snap_overhangs(world, mats);
         }
         let lost: Vec<usize> = (0..n).filter(|&i| self.solid_prev[i] && !now[i]).collect();
-        if lost.len() > 0 || (0..n).any(|i| now[i] && !self.solid_prev[i]) {
+        if !lost.is_empty() || (0..n).any(|i| now[i] && !self.solid_prev[i]) {
             self.strength_dirty = true;
         }
         self.solid_prev = now;
@@ -1066,7 +1112,7 @@ impl Physics {
                 temp: world.temp[i],
                 burn: world.burn[i],
                 life: world.life[i],
-                flags: world.flags[i],
+                flags: world.flags[i] & !OWNED,
                 shade: world.shade[i],
             });
             world.make_air(i);
@@ -1234,11 +1280,33 @@ impl Physics {
         n
     }
 
+    /// Material files changed: rebuild collision shapes so new densities,
+    /// friction and bounce take effect.
+    pub fn materials_changed(&mut self, mats: &Materials) {
+        for c in self.chunks.iter_mut() {
+            c.sig = 0;
+        }
+        let mut bodies = std::mem::take(&mut self.bodies);
+        for b in bodies.iter_mut() {
+            self.build_colliders(b, mats);
+        }
+        self.bodies = bodies;
+        self.strength_dirty = true;
+    }
+
     /// Current state of every object (for saving and Reset).
     pub fn export(&self, world: &mut World) -> Vec<BodySpec> {
         let mut out = Vec::new();
         for b in &self.bodies {
-            let mut copy = Body { w: b.w, h: b.h, cells: b.cells.clone(), handle: b.handle, stamped: b.stamped.clone(), born: b.born };
+            let mut copy = Body {
+                w: b.w,
+                h: b.h,
+                cells: b.cells.clone(),
+                handle: b.handle,
+                stamped: b.stamped.clone(),
+                born: b.born,
+                dirty: false,
+            };
             Self::read_back(&mut copy, world, false);
             let (x, y, angle) = self.pose(b);
             let rb = &self.set[b.handle];
@@ -1339,6 +1407,10 @@ fn simplify(pts: &[(f32, f32)], eps: f32) -> Vec<(f32, f32)> {
     left.extend(right);
     left
 }
+
+/// A hard contact: total force (kN), the touching points (cells), and the two
+/// things touching (the ground or an object).
+type Hit = (f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>);
 
 /// Which cells a crack can affect.
 #[derive(Clone, Copy, PartialEq)]

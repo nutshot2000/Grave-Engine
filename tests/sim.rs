@@ -230,3 +230,20 @@ fn bundled_scenes_load_cleanly() {
         }
     }
 }
+
+#[test]
+fn saving_with_lots_of_materials_round_trips() {
+    // More materials than letters and digits, so odd legend characters get used.
+    let names: Vec<String> = (0..80).map(|i| format!("m{i:02}")).collect();
+    let texts: Vec<(String, String)> = names.iter().map(|n| (n.clone(), "state = solid\n".to_string())).collect();
+    let refs: Vec<(&str, &str)> = texts.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let m = Materials::from_texts(&refs);
+    let mut w = World::new(80, 8);
+    for (x, n) in names.iter().enumerate() {
+        w.set(&m, x, 0, m.id(n).unwrap());
+    }
+    let saved = scene::save(&grave_engine::sim::Snapshot { world: w.clone(), bodies: vec![] }, &m);
+    let l = scene::load(&saved, &m, None);
+    assert!(l.problems.is_empty(), "{:?}", l.problems);
+    assert_eq!(l.world.mat, w.mat);
+}

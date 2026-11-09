@@ -425,7 +425,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     let mut chars: HashMap<MatId, char> = HashMap::new();
     let mut used: Vec<char> = vec!['.'];
     chars.insert(AIR, '.');
-    let pool: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&*+=?@$~^"
+    let pool: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%&*+=?@$~^!:;<>/|()[]{}-_,"
         .chars()
         .collect();
     let mut present: Vec<MatId> = world.mat.clone();

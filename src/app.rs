@@ -37,6 +37,8 @@ struct Sandbox {
     brush_mat: MatId,
     brush_size: i32,
     last_paint: Option<(i32, i32)>,
+    /// Mouse-wheel movement not yet turned into brush size steps.
+    scroll_acc: f32,
     /// Where an Object-tool drag started.
     box_start: Option<(i32, i32)>,
     /// Dropped files land as fixed scenery instead of loose objects.
@@ -106,6 +108,7 @@ impl Sandbox {
             brush_mat,
             brush_size: 6,
             last_paint: None,
+            scroll_acc: 0.0,
             box_start: None,
             drop_static: false,
             hover: None,
@@ -183,6 +186,7 @@ impl Sandbox {
         self.last_file_check = Instant::now();
         if self.mats.changed_on_disk() {
             self.mats.reload();
+            self.sim.physics.materials_changed(&self.mats);
             if self.mats.problems.is_empty() {
                 self.say("Materials reloaded");
             } else {
@@ -443,7 +447,7 @@ impl Sandbox {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if let Some((x, y)) = self.hover {
+            if let Some((x, y)) = self.hover.filter(|&(x, y)| self.sim.world.in_bounds(x as i32, y as i32)) {
                 let i = self.sim.world.idx(x, y);
                 let m = self.mats.get(self.sim.world.mat[i]);
                 let mut state = m.state.to_string();
@@ -517,10 +521,11 @@ impl Sandbox {
             let r = (self.brush_size as f32 - 0.5).max(0.5) * scale;
             painter.circle_stroke(p, r, Stroke::new(1.5, col));
 
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                let step = if scroll > 0.0 { 1 } else { -1 };
+            self.scroll_acc += ui.input(|i| i.smooth_scroll_delta.y);
+            while self.scroll_acc.abs() >= 30.0 {
+                let step = self.scroll_acc.signum() as i32;
                 self.brush_size = (self.brush_size + step).clamp(1, 40);
+                self.scroll_acc -= 30.0 * step as f32;
             }
         }
 
