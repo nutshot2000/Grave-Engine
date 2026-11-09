@@ -1,0 +1,11 @@
+# Gravel: crumbly cooled lava. Falls and piles up like sand, melts back into lava.
+about = Cooled lava rubble. Falls like sand.
+state = powder
+density = 2200
+color = #4d4850
+color_variation = 0.18
+conducts_heat = 0.25
+heat_capacity = 1
+melts_at = 1100
+melts_into = lava
+strength = 3

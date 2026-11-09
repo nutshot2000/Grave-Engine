@@ -1,0 +1,26 @@
+# Elements: lava pours onto ice and water, iron bar heated at one end, sand pile.
+size 512 288
+seed 11
+fill air
+rect stone 0 268 512 20
+rect stone 0 0 6 288
+rect stone 506 0 6 288
+
+# Lava in a stone cup, about to spill onto a pond
+rect stone 60 120 80 8
+rect stone 60 70 8 58
+rect lava 68 80 60 40
+rect stone 150 230 200 38
+rect air 156 230 188 32
+rect water 156 238 188 24
+rect ice 156 232 60 6
+
+# An iron bar with one end in a small lava pit
+rect stone 470 236 36 32
+rect lava 476 236 24 26
+rect iron 380 200 110 6
+rect iron 484 206 6 40
+rect stone 380 206 8 62
+
+# Sand to play with
+circle sand 440 120 18
