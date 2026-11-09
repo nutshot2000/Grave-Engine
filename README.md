@@ -32,6 +32,7 @@ conducts_heat = 0.15
 catches_fire_at = 260
 burns_for = 160
 burns_into = ash
+burns_into_chance = 0.1
 ```
 
 **Edit a file while the sandbox is running and it updates instantly.** Add a new

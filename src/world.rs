@@ -362,7 +362,7 @@ impl World {
                             }
                         }
                         if self.burn[i] <= 1 {
-                            let into = m.burns_into;
+                            let into = if self.chance(m.burns_into_chance) { m.burns_into } else { AIR };
                             self.become_(mats, i, into);
                             continue;
                         }

@@ -83,6 +83,9 @@ pub struct Material {
     pub burn_temperature: f32,
     /// What's left when it finishes burning.
     pub burns_into: MatId,
+    /// Chance (0..1) that a burned-out cell leaves `burns_into` behind; otherwise it
+    /// burns away completely (wood leaves a little ash, not a pile the size of the wood).
+    pub burns_into_chance: f32,
     /// What it puffs out while burning (into neighbouring air).
     pub gives_off: Option<MatId>,
     /// Chance per frame of puffing out `gives_off`.
@@ -127,6 +130,7 @@ impl Material {
             burns_for: 100,
             burn_temperature: 800.0,
             burns_into: AIR,
+            burns_into_chance: 1.0,
             gives_off: None,
             gives_off_chance: 0.1,
             feeds_fire: false,
@@ -487,6 +491,7 @@ fn apply(
         "burns_for" => m.burns_for = num(v)?.clamp(1.0, 60000.0) as u16,
         "burn_temperature" | "burns_at" => m.burn_temperature = num(v)?,
         "burns_into" => m.burns_into = name_to_id(v, by_name)?,
+        "burns_into_chance" => m.burns_into_chance = num(v)?.clamp(0.0, 1.0),
         "gives_off" => {
             *gives_off_set = true;
             m.gives_off = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) };

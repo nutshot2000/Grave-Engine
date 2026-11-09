@@ -90,7 +90,7 @@ fn wood_needs_air_to_burn() {
 }
 
 #[test]
-fn burning_wood_turns_to_ash_and_spreads() {
+fn burning_wood_spreads_and_leaves_a_little_ash() {
     let m = mats();
     // Tall enough that smoke doesn't fill the room and choke the fire.
     let mut w = World::new(30, 80);
@@ -106,7 +106,9 @@ fn burning_wood_turns_to_ash_and_spreads() {
     }
     let census = w.census(&m);
     let ash = census.iter().find(|c| c.0 == "ash").map(|c| c.1).unwrap_or(0);
-    assert!(ash >= 15, "fire should spread along the plank and leave ash: {census:?}");
+    let wood = census.iter().find(|c| c.0 == "wood").map(|c| c.1).unwrap_or(0);
+    assert!(wood <= 5, "fire should spread along the whole plank: {census:?}");
+    assert!(ash >= 1 && ash <= 10, "only a little ash should be left from 30 wood: {census:?}");
 }
 
 #[test]

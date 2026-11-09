@@ -10,6 +10,7 @@ catches_fire_at = 260
 burns_for = 160
 burn_temperature = 1000
 burns_into = ash
+burns_into_chance = 0.1         # only 1 in 10 burned cells leaves ash; the rest burns away
 gives_off = fire
 gives_off_chance = 0.25
 strength = 4

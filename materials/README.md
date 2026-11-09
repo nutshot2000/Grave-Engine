@@ -42,6 +42,7 @@ so wood and air insulate and iron spreads heat quickly.
 | `burns_for` | How many frames it burns | 100 |
 | `burn_temperature` | How hot it burns | 800 |
 | `burns_into` | What's left afterwards (`none` means air) | air |
+| `burns_into_chance` | Chance (0 to 1) that a burned cell leaves `burns_into` behind; otherwise it burns away completely. Wood is 0.1, so a burned house leaves a little ash, not a house-sized pile | 1 |
 | `gives_off` | What it puffs into nearby air while burning | fire |
 | `gives_off_chance` | Chance per frame of puffing | 0.1 |
 | `feeds_fire` | `yes` if things can burn next to it (air and flames do) | no |
