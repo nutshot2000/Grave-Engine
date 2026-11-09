@@ -113,7 +113,7 @@ pub fn run(o: &Options) -> i32 {
     }
     println!("Temperature range: {tmin:.0}°C to {tmax:.0}°C");
     println!("Objects: {} at the start, {} now", objects_at_start, sim.physics.body_count());
-    for b in specs.iter().take(12) {
+    for b in specs.iter().take(40) {
         let mut names: Vec<(String, usize)> = Vec::new();
         for c in b.cells.iter().flatten() {
             let n = &mats.get(c.mat).name;
@@ -123,16 +123,18 @@ pub fn run(o: &Options) -> i32 {
             }
         }
         let what: Vec<String> = names.iter().map(|(n, c)| format!("{c} {n}")).collect();
+        let speed = (b.vx * b.vx + b.vy * b.vy).sqrt() * crate::physics::CELL;
         println!(
-            "  object at ({:.0}, {:.0}), turned {:.0}°: {}",
+            "  object at ({:.0}, {:.0}), turned {:.0}°, moving {:.1} m/s: {}",
             b.x,
             b.y,
             b.angle.to_degrees(),
+            speed,
             what.join(", ")
         );
     }
-    if specs.len() > 12 {
-        println!("  ...and {} more", specs.len() - 12);
+    if specs.len() > 40 {
+        println!("  ...and {} more", specs.len() - 40);
     }
     println!("Cells by material:");
     for (name, count, burning) in world.census(&mats) {

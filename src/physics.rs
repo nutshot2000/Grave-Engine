@@ -39,6 +39,13 @@ const MIN_DAMAGE_KN: f32 = 50.0;
 const MAX_HITS_PER_TICK: usize = 24;
 /// New pieces ignore hits for this many frames while they settle.
 const SETTLE_TICKS: u32 = 8;
+/// Pieces that just broke off can't be broken again for this many frames.
+const FRESH_TICKS: u32 = 20;
+/// Hits break things into chunks this many times bigger than blasts do
+/// (a plank snaps into a few pieces rather than crumbling).
+const IMPACT_CHUNKS: f32 = 2.5;
+/// Broken bits smaller than this (cells) are glued onto a neighbouring piece.
+const MIN_PIECE: usize = 6;
 /// Above this many objects, new splinters turn to dust instead.
 const MAX_OBJECTS: usize = 1500;
 /// How hard explosions shove objects (newton-seconds per kN per sqrt(cell)).
@@ -121,6 +128,8 @@ struct Body {
     born: u32,
     /// Cells were cut out of it directly (splinters): rebuild or split it.
     dirty: bool,
+    /// It's a piece that just broke off something (briefly unbreakable).
+    shard: bool,
 }
 
 struct Chunk {
@@ -294,7 +303,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false };
+        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false };
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
         self.bodies.push(body);
@@ -505,6 +514,9 @@ impl Physics {
         pieces.extend(self.explosions(world, mats));
         for spec in pieces {
             self.add_raw(world, mats, spec);
+            if let Some(b) = self.bodies.last_mut() {
+                b.shard = true;
+            }
         }
     }
 
@@ -626,7 +638,7 @@ impl Physics {
                     }
                     let r = (1.5 + 2.0 * (force / tough).ln()).clamp(1.5, 7.0);
                     let (cx, cy) = ((cell % world.w) as f32 + 0.5, (cell / world.w) as f32 + 0.5);
-                    out.extend(self.fracture(world, mats, &owners, which, cx, cy, r, |_| force, vel, 6.0));
+                    out.extend(self.fracture(world, mats, &owners, which, cx, cy, r, |_| force, vel, 6.0, IMPACT_CHUNKS));
                 }
             }
         }
@@ -648,8 +660,10 @@ impl Physics {
         force_at: impl Fn(f32) -> f32,
         vel: (f32, f32),
         push: f32,
+        coarse: f32,
     ) -> Vec<BodySpec> {
-        let mut splinters: HashMap<(i32, i32), Vec<usize>> = HashMap::new();
+        // Cells that break into loose pieces, with how much the hit beat them by.
+        let mut breaking: Vec<(usize, f32)> = Vec::new();
         let ri = r.ceil() as i32;
         for dy in -ri..=ri {
             for dx in -ri..=ri {
@@ -665,6 +679,14 @@ impl Physics {
                 if !which.matches(world, mats, owners, i) {
                     continue;
                 }
+                // Pieces that only just broke off can't be broken again yet
+                // (otherwise a chain of blasts grinds them into dust).
+                if let Some(&n) = owners.get(&(i as u32)) {
+                    let b = &self.bodies[n];
+                    if b.shard && self.tick.wrapping_sub(b.born) < FRESH_TICKS {
+                        continue;
+                    }
+                }
                 let m = mats.get(world.mat[i]);
                 let Some(tough) = m.toughness else { continue };
                 if force_at(d) <= tough {
@@ -672,13 +694,108 @@ impl Physics {
                 }
                 match m.breaks_into {
                     Some(into) => world.transform(mats, i, into),
-                    None => splinters.entry((x.div_euclid(3), y.div_euclid(3))).or_default().push(i),
+                    None => breaking.push((i, force_at(d) / tough)),
                 }
             }
         }
-        // Splinters: small loose pieces flying outward.
+        // Break into jagged chunks rather than dust: each broken cell joins the
+        // nearest of some scattered "crack centres". Harder hits (compared with
+        // the material's toughness) scatter the centres closer together, so
+        // they make smaller pieces. Pieces never mix different objects.
+        let seed = self.tick.wrapping_mul(2654435761);
+        let mut groups: HashMap<(usize, u8, i32, i32), Vec<usize>> = HashMap::new();
+        for &(i, ratio) in &breaking {
+            let tier: u8 = if ratio > 30.0 { 0 } else if ratio > 6.0 { 1 } else { 2 };
+            let spacing = [4.0f32, 6.5, 10.0][tier as usize] * coarse;
+            let (x, y) = ((i % world.w) as f32 + 0.5, (i / world.w) as f32 + 0.5);
+            let (gx, gy) = ((x / spacing).floor() as i32, (y / spacing).floor() as i32);
+            let mut best = (f32::MAX, gx, gy);
+            for oy in -1..=1 {
+                for ox in -1..=1 {
+                    let (sx, sy) = (gx + ox, gy + oy);
+                    let h = hash((sx as u32).wrapping_mul(73856093) ^ (sy as u32).wrapping_mul(19349663) ^ seed ^ tier as u32);
+                    let jx = (h & 0xffff) as f32 / 65535.0;
+                    let jy = (h >> 16) as f32 / 65535.0;
+                    let (px, py) = ((sx as f32 + jx) * spacing, (sy as f32 + jy) * spacing);
+                    let d = (px - x).powi(2) + (py - y).powi(2);
+                    if d < best.0 {
+                        best = (d, sx, sy);
+                    }
+                }
+            }
+            let owner = owners.get(&(i as u32)).copied().unwrap_or(usize::MAX);
+            groups.entry((owner, tier, best.1, best.2)).or_default().push(i);
+        }
+        // A chunk can come out in separate bits (a crack centre's area wraps
+        // around a hole): each connected bit is its own piece.
+        let mut pieces: Vec<Vec<usize>> = Vec::new();
+        for (_, cells) in groups {
+            let set: std::collections::HashSet<usize> = cells.iter().copied().collect();
+            let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+            for &start in &cells {
+                if !seen.insert(start) {
+                    continue;
+                }
+                let mut piece = vec![start];
+                let mut stack = vec![start];
+                while let Some(i) = stack.pop() {
+                    let (x, y) = (i % world.w, i / world.w);
+                    let mut near = Vec::with_capacity(4);
+                    if x > 0 { near.push(i - 1); }
+                    if x + 1 < world.w { near.push(i + 1); }
+                    if y > 0 { near.push(i - world.w); }
+                    if y + 1 < world.h { near.push(i + world.w); }
+                    for j in near {
+                        if set.contains(&j) && seen.insert(j) {
+                            piece.push(j);
+                            stack.push(j);
+                        }
+                    }
+                }
+                pieces.push(piece);
+            }
+        }
+        // Glue tiny offcuts onto a neighbouring piece, so things break into
+        // chunks with a few crumbs, not a cloud of single pixels.
+        let mut which_piece: HashMap<usize, usize> = HashMap::new();
+        for (n, p) in pieces.iter().enumerate() {
+            for &i in p {
+                which_piece.insert(i, n);
+            }
+        }
+        for n in 0..pieces.len() {
+            if pieces[n].is_empty() || pieces[n].len() >= MIN_PIECE {
+                continue;
+            }
+            let mut target = None;
+            'find: for &i in &pieces[n] {
+                let (x, y) = (i % world.w, i / world.w);
+                for (ok, j) in [(x > 0, i.wrapping_sub(1)), (x + 1 < world.w, i + 1), (y > 0, i.wrapping_sub(world.w)), (y + 1 < world.h, i + world.w)] {
+                    if !ok {
+                        continue;
+                    }
+                    if let Some(&m) = which_piece.get(&j) {
+                        let same_owner = owners.get(&(i as u32)) == owners.get(&(j as u32));
+                        if m != n && same_owner && !pieces[m].is_empty() {
+                            target = Some(m);
+                            break 'find;
+                        }
+                    }
+                }
+            }
+            if let Some(m) = target {
+                let moved = std::mem::take(&mut pieces[n]);
+                for &i in &moved {
+                    which_piece.insert(i, m);
+                }
+                pieces[m].extend(moved);
+            }
+        }
+        pieces.retain(|p| !p.is_empty());
+
+        // Pieces fly outward from the hit.
         let mut out = Vec::new();
-        for (_, piece) in splinters {
+        for piece in pieces {
             if self.bodies.len() + out.len() >= MAX_OBJECTS {
                 for i in piece {
                     world.make_air(i); // too many pieces already: it's dust
@@ -758,11 +875,11 @@ impl Physics {
             // Crack things (objects and scenery).
             let owners = self.owners();
             let first = out.len();
-            out.extend(self.fracture(world, mats, &owners, Which::Any, cx, cy, r, force_at, (0.0, 0.0), 40.0));
+            out.extend(self.fracture(world, mats, &owners, Which::Any, cx, cy, r, force_at, (0.0, 0.0), BLAST_MAX_SPEED / CELL * 0.8, 1.0));
             for spec in out[first..].iter_mut() {
                 // Splinters near the centre fly faster.
                 let d = ((spec.x - cx).powi(2) + (spec.y - cy).powi(2)).sqrt();
-                let k = (1.0 - d / r).max(0.1);
+                let k = (1.0 - d / r).clamp(0.25, 1.0);
                 spec.vx *= k;
                 spec.vy *= k;
             }
@@ -1306,6 +1423,7 @@ impl Physics {
                 stamped: b.stamped.clone(),
                 born: b.born,
                 dirty: false,
+                shard: false,
             };
             Self::read_back(&mut copy, world, false);
             let (x, y, angle) = self.pose(b);
