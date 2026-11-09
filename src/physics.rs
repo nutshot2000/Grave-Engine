@@ -302,7 +302,9 @@ impl Physics {
                 if world.is_owned(wi) {
                     continue; // overlapping another object
                 }
-                match mats.get(world.mat[wi]).state {
+                let under = mats.get(world.mat[wi]);
+                match under.state {
+                    _ if under.crushable => {} // crushed to nothing
                     State::Solid | State::Powder => continue, // terrain wins
                     State::Liquid => push_liquid_up(world, mats, wx, wy),
                     State::Gas => {}
@@ -484,7 +486,8 @@ impl Physics {
     }
 
     fn is_terrain(world: &World, mats: &Materials, i: usize) -> bool {
-        !world.is_owned(i) && matches!(mats.get(world.mat[i]).state, State::Solid | State::Powder)
+        let m = mats.get(world.mat[i]);
+        !world.is_owned(i) && !m.crushable && matches!(m.state, State::Solid | State::Powder)
     }
 
     fn update_terrain(&mut self, world: &World, mats: &Materials) {

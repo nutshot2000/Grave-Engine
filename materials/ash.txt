@@ -8,3 +8,5 @@ conducts_heat = 0.1
 heat_capacity = 0.8
 # Ash is loose and porous, so air still gets through to whatever is burning underneath.
 feeds_fire = yes
+# Ash is so light that anything falling on it crushes it to nothing.
+crushable = yes

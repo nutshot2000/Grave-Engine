@@ -94,6 +94,8 @@ pub struct Material {
     pub feeds_fire: bool,
     /// Does it put out fires it touches? (Water does.)
     pub puts_out_fire: bool,
+    /// Falling objects crush it to nothing instead of landing on it (ash).
+    pub crushable: bool,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -135,6 +137,7 @@ impl Material {
             gives_off_chance: 0.1,
             feeds_fire: false,
             puts_out_fire: false,
+            crushable: false,
             melts: None,
             boils: None,
             freezes: None,
@@ -499,6 +502,7 @@ fn apply(
         "gives_off_chance" => m.gives_off_chance = num(v)?.clamp(0.0, 1.0),
         "feeds_fire" => m.feeds_fire = yes_no(v)?,
         "puts_out_fire" => m.puts_out_fire = yes_no(v)?,
+        "crushable" => m.crushable = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,
         "boils_at" => set_at(&mut m.boils, v)?,

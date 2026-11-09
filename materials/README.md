@@ -18,6 +18,7 @@ the file and line number.
 | `color` | `#rrggbb` or `r g b` | pink |
 | `color_variation` | How speckled each cell is, 0 to 1 | 0.06 |
 | `glow` | How much it lights up its surroundings, 0 to 1 | 0 |
+| `crushable` | `yes` if falling objects crush it to nothing instead of landing on it (ash is) | no |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |
 | `strength` | Solids: how many cells it can stick out sideways (or hang down) from something holding it up before it snaps. Wood 50, stone 25, iron 150, ice 15. Standing on something solid counts as fully held up | 1 |
 

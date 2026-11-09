@@ -254,3 +254,28 @@ fn burning_a_support_makes_the_overhang_snap() {
     }
     assert!(s.physics.body_count() >= 1, "now it overhangs too far and snaps");
 }
+
+#[test]
+fn falling_objects_crush_ash() {
+    let m = mats();
+    // A deep ash pile on the ground, and a wooden block dropped on it.
+    let mut s = sim(&m, "size 60 80\nfill air\nrect stone 0 70 60 10\nrect ash 0 50 60 20\nbody rect wood 20 5 10 6\n");
+    let ash_before = count(&s, &m, "ash");
+    for _ in 0..300 {
+        s.step(&m);
+    }
+    let b = s.physics.export(&mut s.world);
+    assert!(b[0].y > 64.0, "the block should crush through the ash to the ground, at y={}", b[0].y);
+    assert!(count(&s, &m, "ash") < ash_before - 40, "ash under it should be gone");
+}
+
+#[test]
+fn sand_still_holds_objects_up() {
+    let m = mats();
+    let mut s = sim(&m, "size 60 80\nfill air\nrect stone 0 70 60 10\nrect sand 0 50 60 20\nbody rect wood 20 5 10 6\n");
+    for _ in 0..300 {
+        s.step(&m);
+    }
+    let b = s.physics.export(&mut s.world);
+    assert!(b[0].y < 50.0, "the block should rest on top of the sand, at y={}", b[0].y);
+}
