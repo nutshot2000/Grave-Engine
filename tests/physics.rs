@@ -161,3 +161,37 @@ fn blender_material_names_are_forgiving() {
     assert_eq!(import::material_from_name("Molten Iron", &m), m.id("molten_iron"));
     assert_eq!(import::material_from_name("Plastic", &m), None);
 }
+
+#[test]
+fn scenery_falls_when_its_support_is_gone() {
+    let m = mats();
+    // A post standing on the ground, holding up a plank.
+    let mut s = sim(&m, "size 60 60\nfill air\nrect stone 0 50 60 10\nrect wood 28 20 4 30\nrect wood 10 16 40 4\n");
+    s.step(&m);
+    assert_eq!(s.physics.body_count(), 0, "everything is held up at the start");
+    // Cut the post (like it burning through).
+    for x in 28..32 {
+        for y in 40..44 {
+            s.world.set(&m, x, y, 0);
+        }
+    }
+    for _ in 0..120 {
+        s.step(&m);
+    }
+    assert_eq!(s.physics.body_count(), 1, "the top of the post and the plank should break loose together");
+    let b = s.physics.export(&mut s.world);
+    assert!(b[0].y > 30.0, "and fall, now at y={}", b[0].y);
+}
+
+#[test]
+fn floating_scenery_stays_until_damaged() {
+    let m = mats();
+    let mut s = sim(&m, "size 60 60\nfill air\nrect stone 0 50 60 10\nrect stone 20 10 20 4\n");
+    for _ in 0..30 {
+        s.step(&m);
+    }
+    assert_eq!(s.physics.body_count(), 0, "a painted floating platform stays put");
+    s.world.set(&m, 20, 10, 0);
+    s.step(&m);
+    assert_eq!(s.physics.body_count(), 1, "once damaged, it falls");
+}

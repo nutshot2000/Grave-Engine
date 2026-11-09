@@ -67,6 +67,10 @@ Physics is done by [Rapier](https://rapier.rs). One cell is 10 cm.
 
 - In the window: pick **📦 Make object** and drag a box around something you painted.
 - In a scene: `body rect wood 100 50 20 10` or `body circle stone 200 40 6`.
+- **Painted solids need support.** When something burns, melts or gets erased, any
+  solid piece that's no longer connected to the ground (the edge of the world) breaks
+  loose and falls. Burn the wall under a roof and the roof comes down. Things you paint
+  floating in the air stay put until they're damaged.
 - Things float if they're lighter than the liquid they're in (wood on water) and sink
   if they're heavier (iron).
 

@@ -5,10 +5,13 @@
 //! 1. **Read back**: copy each object's cells out of the grid. Cells that have
 //!    changed (burned to ash, melted, erased) leave the object. If that splits
 //!    the object into separate pieces, each piece becomes its own object.
-//! 2. **Terrain**: solid and powder cells that aren't objects become static
+//! 2. **Support**: if solid scenery lost cells (burned, melted, erased), any
+//!    piece that is no longer connected to the edge of the world (the ground)
+//!    breaks loose and becomes an object, so it falls.
+//! 3. **Terrain**: solid and powder cells that aren't objects become static
 //!    collision boxes (rebuilt per 32x32 chunk only when they change).
-//! 3. **Physics**: Rapier moves the objects (gravity, collisions, floating).
-//! 4. **Stamp**: write each object's cells back into the grid at its new
+//! 4. **Physics**: Rapier moves the objects (gravity, collisions, floating).
+//! 5. **Stamp**: write each object's cells back into the grid at its new
 //!    position and angle, pushing any liquid out of the way.
 //!
 //! Units: one cell is 10 cm, so a 10-cell crate is a metre wide.
@@ -115,6 +118,11 @@ pub struct Physics {
     params: IntegrationParameters,
     ground: RigidBodyHandle,
     chunks: Vec<Chunk>,
+    /// Which cells were fixed solid scenery last frame (to spot ones that went away).
+    solid_prev: Vec<bool>,
+    /// Flood-fill bookkeeping for the support check.
+    mark: Vec<u32>,
+    epoch: u32,
     cw: usize,
     ch: usize,
     w: usize,
@@ -199,6 +207,9 @@ impl Physics {
             params,
             ground,
             chunks: (0..cw * ch).map(|_| Chunk { sig: 0, colliders: Vec::new() }).collect(),
+            solid_prev: Vec::new(),
+            mark: vec![0; w * h],
+            epoch: 0,
             cw,
             ch,
             w,
@@ -370,7 +381,10 @@ impl Physics {
         }
         self.bodies = keep;
 
-        // 2. Terrain colliders for whatever changed.
+        // 2. Scenery that lost its support breaks loose.
+        new_specs.extend(self.collapse(world, mats));
+
+        // 3. Terrain colliders for whatever changed.
         self.update_terrain(world, mats);
 
         // 3. Floating and drag in liquids, then step the physics.
@@ -582,6 +596,120 @@ impl Physics {
         }
         let force = n as f32 * CELL * CELL * rho * GRAVITY;
         Some((force, Vector::new(sx / n as f32 * CELL, sy / n as f32 * CELL)))
+    }
+
+    fn is_scenery(world: &World, mats: &Materials, i: usize) -> bool {
+        !world.is_owned(i) && mats.get(world.mat[i]).state == State::Solid
+    }
+
+    /// Find solid scenery that just lost its connection to the edge of the
+    /// world, lift it out of the grid, and return it as new objects.
+    ///
+    /// Only pieces next to a cell that disappeared this frame are checked, so
+    /// things painted floating in the air stay put until they're damaged.
+    fn collapse(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
+        let n = world.w * world.h;
+        let now: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
+        if self.solid_prev.len() != n {
+            self.solid_prev = now;
+            return Vec::new();
+        }
+        let lost: Vec<usize> = (0..n).filter(|&i| self.solid_prev[i] && !now[i]).collect();
+        self.solid_prev = now;
+        if lost.is_empty() {
+            return Vec::new();
+        }
+
+        let (w, h) = (world.w, world.h);
+        // Epoch marks: `seen` = visited this frame, `held` = known to be supported.
+        self.epoch = self.epoch.wrapping_add(2).max(2);
+        let (seen, held) = (self.epoch, self.epoch + 1);
+        let mut out = Vec::new();
+        const MAX_FLOOD: usize = 40_000; // bigger than this: assume it's held up
+
+        for &gone in &lost {
+            let (gx, gy) = (gone % w, gone / w);
+            let mut starts = Vec::with_capacity(4);
+            if gx > 0 { starts.push(gone - 1); }
+            if gx + 1 < w { starts.push(gone + 1); }
+            if gy > 0 { starts.push(gone - w); }
+            if gy + 1 < h { starts.push(gone + w); }
+            for start in starts {
+                if !self.solid_prev[start] || self.mark[start] == seen || self.mark[start] == held {
+                    continue;
+                }
+                // Flood the connected piece; stop early if it reaches support.
+                let mut piece = vec![start];
+                let mut stack = vec![start];
+                self.mark[start] = seen;
+                let mut supported = false;
+                while let Some(i) = stack.pop() {
+                    let (x, y) = (i % w, i / w);
+                    if x == 0 || y == 0 || x + 1 == w || y + 1 == h || piece.len() > MAX_FLOOD {
+                        supported = true;
+                        break;
+                    }
+                    for j in [i - 1, i + 1, i - w, i + w] {
+                        if !self.solid_prev[j] {
+                            continue;
+                        }
+                        if self.mark[j] == held {
+                            supported = true;
+                            break;
+                        }
+                        if self.mark[j] != seen {
+                            self.mark[j] = seen;
+                            piece.push(j);
+                            stack.push(j);
+                        }
+                    }
+                    if supported {
+                        break;
+                    }
+                }
+                if supported {
+                    for &i in &piece {
+                        self.mark[i] = held;
+                    }
+                    continue;
+                }
+                // Cut loose: lift it out of the grid as an object.
+                let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+                for &i in &piece {
+                    x0 = x0.min(i % w);
+                    y0 = y0.min(i / w);
+                    x1 = x1.max(i % w);
+                    y1 = y1.max(i / w);
+                }
+                let (pw, ph) = (x1 - x0 + 1, y1 - y0 + 1);
+                let mut cells = vec![None; pw * ph];
+                for &i in &piece {
+                    let (x, y) = (i % w, i / w);
+                    cells[(y - y0) * pw + (x - x0)] = Some(BodyCell {
+                        mat: world.mat[i],
+                        temp: world.temp[i],
+                        burn: world.burn[i],
+                        life: world.life[i],
+                        flags: world.flags[i],
+                        shade: world.shade[i],
+                    });
+                    world.make_air(i);
+                    self.solid_prev[i] = false;
+                }
+                out.push(BodySpec {
+                    w: pw,
+                    h: ph,
+                    cells,
+                    x: x0 as f32 + pw as f32 / 2.0,
+                    y: y0 as f32 + ph as f32 / 2.0,
+                    angle: 0.0,
+                    vx: 0.0,
+                    vy: 0.0,
+                    spin: 0.0,
+                });
+            }
+        }
+        out
     }
 
     /// Turn every solid or powder cell inside a rectangle into objects
