@@ -436,7 +436,8 @@ impl Sandbox {
         for (when, msg) in self.messages.iter().rev().take(5) {
             let age = when.elapsed().as_secs_f32();
             let alpha = (1.0 - (age - 8.0) / 4.0).clamp(0.35, 1.0);
-            ui.label(RichText::new(msg).size(13.0).color(Color32::from_white_alpha((alpha * 255.0) as u8)));
+            let col = ui.visuals().text_color().gamma_multiply(alpha);
+            ui.label(RichText::new(msg).size(13.0).color(col));
         }
     }
 
