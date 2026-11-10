@@ -9,3 +9,6 @@ noita_gdc_talk_clean_transcript.md
 
 # Third-party asset packs: check their licence before committing
 /textures/
+
+# Your own material settings (personal experiments)
+/materials/my_settings/

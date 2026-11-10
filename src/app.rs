@@ -3,7 +3,7 @@
 use eframe::egui::{self, Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, Stroke, TextureHandle, TextureOptions, Vec2};
 use grave_engine::edit::{self, Clip, History, Region, Timeline, Transform};
 use grave_engine::import;
-use grave_engine::material::{AIR, MatId, Materials};
+use grave_engine::material::{AIR, MatId, Materials, State};
 use grave_engine::physics::{BodySpec, CELL, GROUND, JointKind, Motor};
 use grave_engine::render::{Renderer, View};
 use grave_engine::scene;
@@ -148,6 +148,8 @@ struct Sandbox {
     /// Where the right-click menu was opened (cells).
     menu_at: Option<(f32, f32)>,
     show_done_notes: bool,
+    /// The material whose settings window is open.
+    mat_settings: Option<MatId>,
 }
 
 /// The note box: where it goes, the text so far, and which note it is
@@ -267,6 +269,7 @@ impl Sandbox {
             note_draft: None,
             menu_at: None,
             show_done_notes: false,
+            mat_settings: None,
         };
         for p in app.mats.problems.clone() {
             app.say(p);
@@ -408,6 +411,15 @@ impl Sandbox {
             self.note_draft = Some(NoteDraft { x, y, text: String::new(), editing: None, focused: false });
             ui.close();
         }
+        // The material right here (an object's cell, or scenery).
+        let (cx, cy) = (x.floor() as i32, y.floor() as i32);
+        if self.sim.world.in_bounds(cx, cy) {
+            let m = self.sim.world.mat[self.sim.world.idx(cx as usize, cy as usize)];
+            if m != AIR && ui.button(format!("⚙ {} settings", self.mats.get(m).name.replace('_', " "))).clicked() {
+                self.mat_settings = Some(m);
+                ui.close();
+            }
+        }
         if let Some(id) = object {
             if let Some(m) = self.material_menu(ui, "🎨 Change material to") {
                 self.selection = Selection::Objects(vec![id]);
@@ -512,6 +524,174 @@ impl Sandbox {
             self.save_notes();
         } else if !cancel && !save {
             self.note_draft = Some(d); // still writing
+        }
+    }
+
+    /// A material's settings, as sliders. Your changes go in
+    /// materials/my_settings/NAME.txt over the defaults (materials/NAME.txt).
+    fn material_settings_window(&mut self, ctx: &egui::Context) {
+        let Some(id) = self.mat_settings else { return };
+        if id as usize >= self.mats.list.len() {
+            self.mat_settings = None;
+            return;
+        }
+        let cur = self.mats.get(id).clone();
+        let def = self.mats.default_of(id).clone();
+        let changed = |key: &str| cur.custom.iter().any(|k| k == key);
+        // (key in the file, value) to set, or None to go back to the default.
+        let edits: std::cell::RefCell<Vec<(String, String, Option<String>)>> = Default::default();
+        let mut reset_all = false;
+        let mut open = true;
+        let name = cur.name.replace('_', " ");
+        egui::Window::new(format!("⚙ {name} settings")).open(&mut open).default_width(380.0).resizable(true).show(ctx, |ui| {
+            ui.label(RichText::new(&cur.about).italics());
+            ui.label(
+                RichText::new(format!(
+                    "Changes apply straight away. They're kept in materials/my_settings/{}.txt; the defaults stay in materials/{}.txt. Hover a slider to see its default.",
+                    cur.name, cur.name
+                ))
+                .size(12.0)
+                .weak(),
+            );
+            egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
+                let num = |ui: &mut egui::Ui, key: &str, label: &str, help: &str, now: f32, was: f32, range: std::ops::RangeInclusive<f32>, log: bool| {
+                    ui.horizontal(|ui| {
+                        ui.add_sized([150.0, 20.0], egui::Label::new(label)).on_hover_text(help);
+                        let mut v = now;
+                        let slider = egui::Slider::new(&mut v, range).logarithmic(log);
+                        if ui.add(slider).on_hover_text(format!("{help}\nDefault: {}", nice_num(was))).changed() {
+                            let reset = (v - was).abs() <= f32::EPSILON.max(was.abs() * 1e-4);
+                            edits.borrow_mut().push((key.to_string(), key.to_string(), (!reset).then(|| nice_num(v))));
+                        }
+                        if changed(key) && ui.small_button("↺").on_hover_text(format!("Back to the default: {}", nice_num(was))).clicked() {
+                            edits.borrow_mut().push((key.to_string(), key.to_string(), None));
+                        }
+                    });
+                };
+                ui.heading("Look");
+                ui.horizontal(|ui| {
+                    ui.add_sized([150.0, 20.0], egui::Label::new("Colour")).on_hover_text("Its colour (when it has no texture, and for its button)");
+                    let mut c = cur.color;
+                    if ui.color_edit_button_srgb(&mut c).changed() {
+                        let v = format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
+                        edits.borrow_mut().push(("color".into(), "color".into(), (c != def.color).then_some(v)));
+                    }
+                    if changed("color") && ui.small_button("↺").clicked() {
+                        edits.borrow_mut().push(("color".into(), "color".into(), None));
+                    }
+                });
+                num(ui, "color_variation", "Speckle", "How much each cell's shade varies", cur.color_variation, def.color_variation, 0.0..=1.0, false);
+                num(ui, "glow", "Glow", "How much light it gives off", cur.glow, def.glow, 0.0..=2.0, false);
+
+                ui.heading("Weight and movement");
+                num(ui, "density", "Weight (kg/m³)", "Heavier things sink below lighter ones. Water is 1000", cur.density, def.density, 1.0..=20000.0, true);
+                num(ui, "friction", "Grip", "How much things grip it (ice 0.02, rubber 1.2)", cur.friction, def.friction, 0.0..=2.0, false);
+                num(ui, "bounciness", "Bounce", "How much things bounce off it (0 none, 1 perfect)", cur.bounciness, def.bounciness, 0.0..=1.0, false);
+                num(ui, "launch", "Bounce pad (m/s)", "Flings anything landing on it upwards this fast (0 = off)", cur.launch, def.launch, 0.0..=40.0, false);
+                if cur.state == State::Powder {
+                    num(ui, "slides", "Slides down piles", "How readily it slides down the side of a pile (1 = dry sand)", cur.slides, def.slides, 0.0..=1.0, false);
+                }
+                if matches!(cur.state, State::Liquid | State::Gas) {
+                    num(ui, "flows", "Flows", "How far it spreads sideways each frame", cur.flows as f32, def.flows as f32, 0.0..=16.0, false);
+                }
+
+                ui.heading("Heat");
+                num(ui, "temperature", "Starts at (°C)", "Its temperature when painted", cur.temperature, def.temperature, -100.0..=3000.0, false);
+                num(ui, "conducts_heat", "Conducts heat", "How quickly heat passes through it (0..1)", cur.conducts_heat, def.conducts_heat, 0.0..=1.0, false);
+                num(ui, "heat_capacity", "Heat capacity", "How much heat it takes to warm up (water 4)", cur.heat_capacity, def.heat_capacity, 0.05..=10.0, true);
+                num(ui, "cools_off", "Cools off", "How quickly it drifts back to room temperature by itself", cur.cools_off, def.cools_off, 0.0..=0.1, false);
+                for (key, label, now, was) in [
+                    ("melts_at", "Melts at (°C)", cur.melts.map(|c| c.at), def.melts.map(|c| c.at)),
+                    ("boils_at", "Boils at (°C)", cur.boils.map(|c| c.at), def.boils.map(|c| c.at)),
+                    ("freezes_at", "Freezes at (°C)", cur.freezes.map(|c| c.at), def.freezes.map(|c| c.at)),
+                    ("condenses_at", "Condenses at (°C)", cur.condenses.map(|c| c.at), def.condenses.map(|c| c.at)),
+                ] {
+                    if let Some(now) = now.filter(|v| v.is_finite()) {
+                        num(ui, key, label, "Turns into something else past this temperature", now, was.unwrap_or(now), -273.0..=4000.0, false);
+                    }
+                }
+
+                if cur.catches_fire_at.is_some() {
+                    ui.heading("Fire");
+                    let (now, was) = (cur.catches_fire_at.unwrap(), def.catches_fire_at.unwrap_or(cur.catches_fire_at.unwrap()));
+                    num(ui, "catches_fire_at", "Catches fire at (°C)", "Bursts into flame past this temperature, if it touches air", now, was, 0.0..=2000.0, false);
+                    num(ui, "burns_for", "Burns for (frames)", "How long it burns before it's gone (60 = a second)", cur.burns_for as f32, def.burns_for as f32, 1.0..=6000.0, true);
+                    num(ui, "burn_temperature", "Burns at (°C)", "How hot its flames are", cur.burn_temperature, def.burn_temperature, 100.0..=3000.0, false);
+                    num(ui, "burns_into_chance", "Leaves ash", "Chance each burnt cell leaves what it burns into (ash)", cur.burns_into_chance, def.burns_into_chance, 0.0..=1.0, false);
+                    num(ui, "gives_off_chance", "Smoke and flames", "How often burning puffs out fire or smoke", cur.gives_off_chance, def.gives_off_chance, 0.0..=1.0, false);
+                }
+
+                ui.heading("Strength");
+                if cur.state == State::Solid {
+                    num(ui, "strength", "Overhang strength", "How far it can stick out from a support before snapping", cur.strength, def.strength, 0.0..=500.0, false);
+                }
+                if let Some(t) = cur.toughness {
+                    num(ui, "toughness", "Toughness (kN)", "How hard a hit it takes to crack it", t, def.toughness.unwrap_or(t), 10.0..=100_000.0, true);
+                }
+                if cur.explosion_size > 0.0 {
+                    ui.heading("Explosion");
+                    num(ui, "explosion_size", "Blast radius (cells)", "How far its explosion reaches", cur.explosion_size, def.explosion_size, 1.0..=64.0, false);
+                    num(ui, "explosion_power", "Blast power (kN)", "How hard the blast hits at its centre", cur.explosion_power, def.explosion_power, 100.0..=200_000.0, true);
+                }
+
+                if !cur.reactions.is_empty() {
+                    ui.heading("Reactions");
+                    for r in &cur.reactions {
+                        let (with, me, other) = (self.mats.get(r.with).name.clone(), self.mats.get(r.me_into).name.clone(), self.mats.get(r.other_into).name.clone());
+                        let was = def.reactions.iter().find(|d| d.with == r.with).map_or(r.chance, |d| d.chance);
+                        let key = format!("reaction:{with}");
+                        ui.horizontal(|ui| {
+                            ui.add_sized([150.0, 20.0], egui::Label::new(format!("With {}", with.replace('_', " "))))
+                                .on_hover_text(format!("Touching {with}: this becomes {me} and the {with} becomes {other}. How likely, each frame."));
+                            let mut c = r.chance;
+                            if ui.add(egui::Slider::new(&mut c, 0.0001..=1.0).logarithmic(true)).on_hover_text(format!("Default: {}", nice_num(was))).changed() {
+                                let value = format!("{with} -> {me} + {other}, chance {}", nice_num(c));
+                                edits.borrow_mut().push((key.clone(), "reaction".into(), ((c - was).abs() > 1e-6).then_some(value)));
+                            }
+                            if changed(&key) && ui.small_button("↺").on_hover_text(format!("Back to the default: {}", nice_num(was))).clicked() {
+                                edits.borrow_mut().push((key.clone(), "reaction".into(), None));
+                            }
+                        });
+                    }
+                }
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                let any = !cur.custom.is_empty();
+                if ui.add_enabled(any, egui::Button::new("↺ Reset all to default")).on_hover_text("Forget all your changes to this material").clicked() {
+                    reset_all = true;
+                }
+                if any {
+                    ui.label(RichText::new(format!("{} changed", cur.custom.len())).size(13.0).weak());
+                } else {
+                    ui.label(RichText::new("All defaults").size(13.0).weak());
+                }
+            });
+        });
+        if !open {
+            self.mat_settings = None;
+        }
+        let edits = edits.into_inner();
+        if edits.is_empty() && !reset_all {
+            return;
+        }
+        let mut pairs = if reset_all { Vec::new() } else { self.mats.my_settings(&cur.name) };
+        for (ckey, file_key, value) in edits {
+            pairs.retain(|(k, v)| grave_engine::material::custom_key(k, v) != ckey);
+            if let Some(v) = value {
+                pairs.push((file_key, v));
+            }
+        }
+        match self.mats.save_my_settings(&cur.name, &pairs) {
+            Ok(()) => {
+                self.mats.reload();
+                self.sim.physics.materials_changed(&self.mats);
+                self.renderer.reload_textures();
+                if reset_all {
+                    self.say(format!("{name}: back to the defaults"));
+                }
+            }
+            Err(e) => self.say(format!("Couldn't save the settings: {e}")),
         }
     }
 
@@ -1189,12 +1369,20 @@ impl Sandbox {
                 if let Some(c) = m.freezes {
                     tip += &format!("\nFreezes at {}°C", c.at);
                 }
-                if ui.add(b).on_hover_text(tip).clicked() {
+                tip += "\n\nRight-click: its settings (sliders)";
+                let r = ui.add(b).on_hover_text(tip);
+                if r.clicked() {
                     self.brush_mat = id;
                     self.tool = Tool::Paint;
                 }
+                if r.secondary_clicked() {
+                    self.mat_settings = Some(id);
+                }
             }
         });
+        if ui.button(format!("⚙ {} settings", self.mats.get(self.brush_mat).name.replace('_', " "))).on_hover_text("Play with this material's settings (or right-click any material)").clicked() {
+            self.mat_settings = Some(self.brush_mat);
+        }
         ui.separator();
         ui.label(RichText::new("Templates").strong());
         if self.templates.list.is_empty() {
@@ -2331,6 +2519,13 @@ impl Sandbox {
     }
 }
 
+/// A number for a settings file: no more decimals than it needs.
+fn nice_num(v: f32) -> String {
+    let s = format!("{v:.4}");
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    if s == "-0" { "0".into() } else { s.to_string() }
+}
+
 fn nice_mass(kg: f32) -> String {
     if kg >= 1000.0 { format!("{:.1} tonnes", kg / 1000.0) } else { format!("{kg:.0} kg") }
 }
@@ -2404,6 +2599,7 @@ impl eframe::App for Sandbox {
             .frame(egui::Frame::NONE.fill(Color32::from_rgb(10, 10, 14)))
             .show(ui, |ui| self.canvas(ui));
         self.note_window(&ctx);
+        self.material_settings_window(&ctx);
 
         // Inspector number drags etc. become one undo step once the mouse is let go.
         let mouse_down = ctx.input(|i| i.pointer.any_down());
@@ -2758,6 +2954,26 @@ body rect wood 40 60 20 10
         if std::env::var("GRAVE_KEEP_TEST_NOTES").is_err() {
             let _ = std::fs::remove_dir_all(&dir);
         }
+    }
+
+    #[test]
+    fn right_click_a_material_opens_its_settings() {
+        let mut h = editor();
+        // Right-click a material in the list (one near the top, so it's on screen).
+        let b = h.get_all_by_label("brick").next().unwrap().rect().center();
+        right_click(&mut h, b);
+        h.run_steps(2);
+        assert_eq!(h.state().mat_settings, h.state().mats.id("brick"));
+        assert!(h.query_by_label_contains("brick settings").is_some(), "the window is open");
+        assert!(h.query_by_label_contains("Reset all to default").is_some());
+        // Or the ⚙ button for the brush material.
+        h.state_mut().mat_settings = None;
+        h.state_mut().brush_mat = h.state().mats.id("sand").unwrap();
+        h.run_steps(2);
+        h.get_by_label_contains("⚙ sand settings").click();
+        h.run_steps(2);
+        assert_eq!(h.state().mat_settings, h.state().mats.id("sand"));
+        assert!(h.query_by_label_contains("With water").is_some(), "sand's thirst for water is a setting");
     }
 
     #[test]

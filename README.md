@@ -104,6 +104,24 @@ There are no special cases like "fire burns wood". Wood burns because it got hot
 than its `catches_fire_at` while touching air. Water boils because it passed its
 `boils_at`. One set of rules covers every material.
 
+### Play with any material's settings
+
+Right-click a material in the list (or press **⚙ … settings** under it, or
+right-click something in the world and pick its ⚙ settings) to open its
+settings: sliders for colour, glow, weight, grip, bounce, bounce-pad launch,
+how powders slide and liquids flow, heat (melting, boiling, freezing points),
+fire (when it catches, how long it burns, how hot), strength and toughness,
+explosions, and how likely each reaction is (like sand soaking up water).
+
+- Changes apply straight away, even while it's playing.
+- Hover a slider to see the default. Anything you've changed gets a **↺**
+  button to put it back, and **Reset all to default** forgets every change
+  to that material.
+- Your changes are kept separately in `materials/my_settings/NAME.txt` (only
+  the settings you changed), laid over the defaults in `materials/NAME.txt`,
+  which are never touched. Delete a file there to reset that material. The
+  folder isn't uploaded to git, so experiment freely.
+
 ## Scenes are text files too
 
 ```text

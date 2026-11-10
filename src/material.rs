@@ -136,6 +136,8 @@ pub struct Material {
     /// Explosives: how hard the blast hits at its centre, in kilonewtons.
     pub explosion_power: f32,
     pub reactions: Vec<Reaction>,
+    /// Keys your own settings (`materials/my_settings/NAME.txt`) changed.
+    pub custom: Vec<String>,
     /// A picture tiled across everything made of this material (instead of
     /// the flat `color`). Relative paths start in the materials folder.
     pub texture: Option<PathBuf>,
@@ -187,6 +189,7 @@ impl Material {
             explosion_size: 0.0,
             explosion_power: 0.0,
             reactions: Vec::new(),
+            custom: Vec::new(),
             texture: None,
             file: None,
         }
@@ -217,7 +220,15 @@ pub struct Materials {
     pub problems: Vec<String>,
     pub dir: Option<PathBuf>,
     stamp: Vec<(PathBuf, Option<SystemTime>)>,
+    /// Every material as its own file has it, before your settings: what
+    /// "reset to default" goes back to. Same ids as `list`.
+    pub defaults: Vec<Material>,
 }
+
+/// Your own material settings live in this folder inside the materials
+/// folder: one small file per material with only the keys you changed,
+/// laid over the material's own file. Delete one to go back to defaults.
+pub const MY_SETTINGS: &str = "my_settings";
 
 /// Raw text of one file before names are turned into ids.
 struct Raw {
@@ -236,6 +247,7 @@ impl Materials {
             problems: Vec::new(),
             dir: Some(dir.clone()),
             stamp: Vec::new(),
+            defaults: Vec::new(),
         };
         m.reload();
         m
@@ -249,12 +261,14 @@ impl Materials {
             problems: Vec::new(),
             dir: None,
             stamp: Vec::new(),
+            defaults: Vec::new(),
         };
         let raws = texts
             .iter()
             .map(|(name, text)| parse_raw(name, None, text, &mut m.problems))
             .collect();
         m.build(raws);
+        m.defaults = m.list.clone();
         m
     }
 
@@ -292,8 +306,75 @@ impl Materials {
                 Err(e) => self.problems.push(format!("{}: can't read ({e})", f.display())),
             }
         }
+        // The defaults first (what reset goes back to)...
+        let names: Vec<String> = self.list.iter().map(|m| m.name.clone()).collect();
+        let mut base = Materials { list: self.list.clone(), by_name: HashMap::new(), problems: Vec::new(), dir: None, stamp: Vec::new(), defaults: Vec::new() };
+        base.build(raws.iter().map(|r| Raw { name: r.name.clone(), file: r.file.clone(), pairs: r.pairs.clone() }).collect());
+        // ...then your settings on top.
+        let mut custom_keys: HashMap<String, Vec<String>> = HashMap::new();
+        let settings = dir.join(MY_SETTINGS);
+        if let Ok(rd) = std::fs::read_dir(&settings) {
+            let mut files: Vec<PathBuf> = rd.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|x| x == "txt")).collect();
+            files.sort();
+            for f in files {
+                let Ok(text) = std::fs::read_to_string(&f) else { continue };
+                let stem = f.file_stem().unwrap_or_default().to_string_lossy().to_lowercase();
+                let extra = parse_raw(&stem, Some(f.clone()), &text, &mut self.problems);
+                match raws.iter_mut().find(|r| r.name == stem) {
+                    Some(r) => {
+                        custom_keys.insert(stem.clone(), extra.pairs.iter().map(|(_, k, v)| custom_key(k, v)).collect());
+                        r.pairs.extend(extra.pairs);
+                    }
+                    None => self.problems.push(format!("{}: there's no material called `{stem}`", f.display())),
+                }
+            }
+        }
         self.stamp = stamps(&dir);
         self.build(raws);
+        for m in self.list.iter_mut() {
+            m.custom = custom_keys.remove(&m.name).unwrap_or_default();
+        }
+        // (Ids match: both builds start from the same names.)
+        let _ = names;
+        self.defaults = base.list;
+        self.defaults.resize_with(self.list.len(), || Material::blank("missing"));
+    }
+
+    /// The material as its own file has it (before your settings).
+    pub fn default_of(&self, id: MatId) -> &Material {
+        self.defaults.get(id as usize).unwrap_or_else(|| self.get(id))
+    }
+
+    /// Your settings for a material: (key, value) lines, as in its file.
+    pub fn my_settings(&self, name: &str) -> Vec<(String, String)> {
+        let Some(dir) = &self.dir else { return Vec::new() };
+        let Ok(text) = std::fs::read_to_string(dir.join(MY_SETTINGS).join(format!("{name}.txt"))) else { return Vec::new() };
+        let mut probs = Vec::new();
+        parse_raw(name, None, &text, &mut probs).pairs.into_iter().map(|(_, k, v)| (k, v)).collect()
+    }
+
+    /// Save your settings for a material (no settings = back to defaults:
+    /// the file is removed). Reload to see them.
+    pub fn save_my_settings(&self, name: &str, pairs: &[(String, String)]) -> std::io::Result<()> {
+        let Some(dir) = &self.dir else { return Ok(()) };
+        let folder = dir.join(MY_SETTINGS);
+        let file = folder.join(format!("{name}.txt"));
+        if pairs.is_empty() {
+            if file.exists() {
+                std::fs::remove_file(&file)?;
+            }
+            return Ok(());
+        }
+        std::fs::create_dir_all(&folder)?;
+        let mut text = format!(
+            "# Your own settings for {name}: they're laid over materials/{name}.txt.\n\
+             # Change them in the editor (right-click a material > Settings), or here.\n\
+             # Delete this file to go back to the defaults.\n"
+        );
+        for (k, v) in pairs {
+            text += &format!("{k} = {v}\n");
+        }
+        std::fs::write(&file, text)
     }
 
     /// True if any file in the materials folder was added, removed or changed
@@ -369,16 +450,31 @@ impl Materials {
 }
 
 fn stamps(dir: &Path) -> Vec<(PathBuf, Option<SystemTime>)> {
-    let mut v: Vec<_> = std::fs::read_dir(dir)
-        .map(|rd| {
-            rd.filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().is_some_and(|x| x == "txt"))
-                .map(|e| (e.path(), e.metadata().and_then(|m| m.modified()).ok()))
-                .collect()
-        })
-        .unwrap_or_default();
+    let list = |d: &Path| -> Vec<(PathBuf, Option<SystemTime>)> {
+        std::fs::read_dir(d)
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().is_some_and(|x| x == "txt"))
+                    .map(|e| (e.path(), e.metadata().and_then(|m| m.modified()).ok()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mut v = list(dir);
+    v.extend(list(&dir.join(MY_SETTINGS)));
     v.sort();
     v
+}
+
+/// How a setting is named in `Material::custom`: the key, or for a
+/// reaction `reaction:OTHER` (one per material touched).
+pub fn custom_key(key: &str, value: &str) -> String {
+    if matches!(key, "reaction" | "reactions" | "reacts") {
+        let with = value.split("->").next().unwrap_or("").trim().to_lowercase();
+        format!("reaction:{with}")
+    } else {
+        key.to_string()
+    }
 }
 
 /// Strip a comment: a line starting with `#`, or ` # ...` after a value.
@@ -581,7 +677,13 @@ fn apply(
         "explosion_power" => m.explosion_power = num(v)?.max(0.0),
         "reaction" | "reactions" | "reacts" => {
             for part in v.split(';').filter(|p| !p.trim().is_empty()) {
-                m.reactions.push(parse_reaction(part, by_name)?);
+                let r = parse_reaction(part, by_name)?;
+                // One reaction per material touched: a later line (your
+                // settings, say) replaces an earlier one.
+                match m.reactions.iter_mut().find(|e| e.with == r.with) {
+                    Some(e) => *e = r,
+                    None => m.reactions.push(r),
+                }
             }
         }
         _ => return Err(format!("unknown key `{key}` (see materials/README.md)")),
