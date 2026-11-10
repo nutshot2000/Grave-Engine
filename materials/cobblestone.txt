@@ -1,0 +1,15 @@
+# Cobblestone: stones set into a paved floor or road. Tough, like stone.
+about = Paved stones. Tough; cracks into gravel.
+state = solid
+density = 2500
+color = #8d9cb4
+color_variation = 0.05
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1100
+melts_into = lava
+strength = 25
+toughness = 5000
+breaks_into = gravel
+friction = 0.85
+texture = textures/cobblestone.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

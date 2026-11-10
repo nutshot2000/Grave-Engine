@@ -14,3 +14,4 @@ strength = 15
 toughness = 300                  # brittle: shatters easily
 friction = 0.03                  # very slippery
 bounciness = 0.1
+texture = textures/ice.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

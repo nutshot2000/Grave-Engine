@@ -10,3 +10,4 @@ melts_at = 1100
 melts_into = lava
 strength = 3
 friction = 0.9
+texture = textures/gravel.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

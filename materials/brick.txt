@@ -1,0 +1,16 @@
+# Brick: fired clay bricks with mortar. Strong for building, but a hard
+# knock knocks bricks out (they crumble into gravel). Doesn't burn.
+about = Brick wall. Sturdy; hard knocks crumble it to gravel.
+state = solid
+density = 1900
+color = #bf5c41
+color_variation = 0.05
+conducts_heat = 0.25
+heat_capacity = 1.1
+melts_at = 1600
+melts_into = lava
+strength = 30
+toughness = 3500
+breaks_into = gravel
+friction = 0.8
+texture = textures/brick.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

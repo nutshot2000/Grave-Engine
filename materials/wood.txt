@@ -17,4 +17,4 @@ strength = 50                    # can stick out 50 cells (5 m) from a support b
 toughness = 1500                 # how hard a hit it takes to crack (kN); it splinters
 friction = 0.6
 bounciness = 0.1
-texture = textures/wood.png          # a tiling picture used to draw it (see materials/textures)
+texture = textures/wood.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

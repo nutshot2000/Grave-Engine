@@ -10,3 +10,4 @@ melts_at = 1700
 melts_into = lava
 strength = 1
 friction = 0.7
+texture = textures/sand.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

@@ -1,5 +1,5 @@
-# Rock: natural boulder rock with a photo texture (Rock023 from the Godot
-# dayz-clone project; ambientCG, CC0). Behaves like stone.
+# Rock: natural boulder rock (the rock models came from the Godot
+# dayz-clone project; tile by piiixl). Behaves like stone.
 about = Natural rock. Hard; cracks into gravel.
 state = solid
 density = 2650
@@ -13,4 +13,4 @@ strength = 25
 toughness = 5500
 breaks_into = gravel
 friction = 0.85
-texture = textures/rock.png
+texture = textures/rock.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

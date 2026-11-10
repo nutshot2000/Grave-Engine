@@ -288,15 +288,18 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
   `crate.colors.txt` next to `crate.png` with lines like `#8b5a2b = wood`.
 - **Material looks:** a material file can say `texture = textures/wood.png`, and
   everything made of it is drawn with that picture tiled across it. The pattern
-  moves and turns with objects. Wood, stone and iron have textures to start with
-  ([`tools/make_material_textures.py`](tools/make_material_textures.py) makes them);
-  drop in your own pictures any time.
+  moves and turns with objects. Stone, rock, dirt, gravel, sand, wood, iron,
+  ice, lava, brick and cobblestone use pixel-art tiles from **"Textures" by
+  piiixl** (https://piiixl.itch.io/textures; free for commercial use, credit
+  appreciated; see `materials/textures/CREDITS.md`). Only the tiles in use
+  are included, not the pack. Drop in your own pictures any time: small
+  seamless tiles (16 or 32 px) look best, since one pixel is one cell.
 
 ### Brought over from old projects
 
-- `scenes/imported.txt`: the rock models and ground/rock textures from an old
-  Godot project (`dayz-clone`). The textures became the `dirt` and `rock`
-  materials (ambientCG, CC0), and the models stand in the landscape with
+- `scenes/imported.txt`: the rock models from an old Godot project
+  (`dayz-clone`), standing in a landscape of the `dirt` and `rock` materials
+  (added for it), with
   `object ... material rock`, which makes a whole model out of one material.
 - `scenes/machine.txt`: the "Cascade Engine" Rube Goldberg machine from an
   old Unreal/Blender project. Blender exported it without its 200 m studio

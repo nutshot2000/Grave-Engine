@@ -12,4 +12,4 @@ strength = 25
 toughness = 5000                 # very hard; cracks into gravel
 breaks_into = gravel
 friction = 0.8
-texture = textures/stone.png          # a tiling picture used to draw it (see materials/textures)
+texture = textures/stone.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
