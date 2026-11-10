@@ -140,6 +140,7 @@ struct Fast {
     state: State,
     density: f32,
     flows: u8,
+    slides: f32,
 }
 
 impl World {
@@ -739,7 +740,7 @@ impl World {
         let fast: Vec<Fast> = mats
             .list
             .iter()
-            .map(|m| Fast { state: m.state, density: m.density, flows: m.flows })
+            .map(|m| Fast { state: m.state, density: m.density, flows: m.flows, slides: m.slides })
             .collect();
         let (w, h) = (self.w as i32, self.h as i32);
         let frame = self.frame;
@@ -818,6 +819,11 @@ impl World {
         let i = y as usize * self.w + x as usize;
         let wi = self.weight(fast, i);
         if self.try_sink(fast, i, wi, x, y + 1) {
+            return;
+        }
+        // Sliding down the side of the pile (damp, sticky powders rarely do).
+        let slides = fast[self.mat[i] as usize].slides;
+        if slides < 1.0 && !self.chance(slides) {
             return;
         }
         let d = if self.rand() & 1 == 0 { 1 } else { -1 };

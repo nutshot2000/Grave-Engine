@@ -1,0 +1,24 @@
+# Wet and dry sand. Sand slowly soaks up water that touches it and turns
+# darker; wet sand clumps (it holds steep shapes), its damp creeps into dry
+# sand, and it dries out in the air (or straight away with heat).
+size 320 180
+seed 8
+fill air
+rect stone 0 170 320 10
+
+# 1. The sea against a sandy beach: the shore soaks up water and darkens
+rect sand 0 140 150 30
+rect water 0 110 45 30
+rect sand 45 125 105 15
+# 2. A bucket of water poured onto the dry beach: it soaks in where it lands
+rect water 100 70 16 30
+
+# 3. A sandcastle in wet sand (left) and the same in dry sand (right)
+rect wet_sand 165 125 56 45
+rect wet_sand 170 95 12 30
+rect wet_sand 204 95 12 30
+rect wet_sand 186 110 14 15
+rect sand 245 125 56 45
+rect sand 250 95 12 30
+rect sand 284 95 12 30
+rect sand 266 110 14 15

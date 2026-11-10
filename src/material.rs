@@ -115,6 +115,10 @@ pub struct Material {
     pub decays_into_chance: f32,
     /// Liquids/gases: how far it can spread sideways per frame.
     pub flows: u8,
+    /// Powders: how readily it slides down the side of a pile, 0..1 (1 =
+    /// dry sand's 45° slopes; damp sand slides rarely, so it holds steep
+    /// shapes).
+    pub slides: f32,
     /// Solids: how many cells it can stick out from a support before it snaps.
     pub strength: f32,
     /// How hard a hit (or how much weight) it takes to crack, in kilonewtons.
@@ -174,6 +178,7 @@ impl Material {
             decays_into: AIR,
             decays_into_chance: 1.0,
             flows: 4,
+            slides: 1.0,
             strength: 1.0,
             toughness: None,
             breaks_into: None,
@@ -555,6 +560,7 @@ fn apply(
         "decays_into" | "turns_into" => m.decays_into = name_to_id(v, by_name)?,
         "decays_into_chance" => m.decays_into_chance = num(v)?.clamp(0.0, 1.0),
         "flows" => m.flows = num(v)?.clamp(0.0, 16.0) as u8,
+        "slides" => m.slides = num(v)?.clamp(0.0, 1.0),
         "strength" => m.strength = num(v)?,
         "toughness" => m.toughness = opt_num(v)?.map(|t| t.max(0.0)),
         "breaks_into" => m.breaks_into = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },

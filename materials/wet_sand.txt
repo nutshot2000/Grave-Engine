@@ -1,0 +1,19 @@
+# Wet sand: sand that has soaked up water. Darker, heavier and clumpy (it
+# holds steep shapes: sandcastles!). Its damp spreads slowly into dry sand
+# next to it, its surface dries out in the air, and heat dries it at once.
+about = Damp sand. Clumps; dries out in the air or with heat.
+state = powder
+density = 1900
+color = #6e5f38
+color_variation = 0.1
+conducts_heat = 0.35
+heat_capacity = 1.6
+boils_at = 100
+boils_into = sand
+strength = 2
+friction = 0.9
+slides = 0.002                   # rarely slides: holds steep slopes
+puts_out_fire = yes
+texture = textures/wet_sand.png  # the sand tile, darkened (tile by piiixl)
+reaction = sand -> sand + wet_sand, chance 0.015    # the damp creeps into dry sand
+reaction = air -> sand + air, chance 0.0004          # the surface slowly dries out

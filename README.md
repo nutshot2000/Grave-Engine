@@ -165,6 +165,17 @@ Try `scenes/forces.txt`.
   things, throws objects, scatters burning splinters and lights fires. Neighbouring
   gunpowder sets off in a chain.
 
+## Wet sand
+
+Try `scenes/beach.txt`. Sand slowly soaks up water that touches it (the
+water is used up) and turns into darker **wet sand**. Wet sand is clumpy:
+it holds steep shapes, so you can build a sandcastle that stands, while the
+same castle in dry sand slumps into a heap. Its damp creeps slowly into dry
+sand next to it, its surface dries out in the air over time, and heat (fire,
+lava, the Heat tool) dries it straight away. All of it is in the material
+files: a `reaction` on sand, and `slides` (how readily a powder slides down a
+pile) on wet sand.
+
 ## Flying pixels: blasts and splashes
 
 Try `scenes/splash.txt`.
