@@ -204,7 +204,7 @@ fn scenes_round_trip() {
     let l = scene::load(text, &m, None);
     let (w, problems) = (l.world, l.problems);
     assert!(problems.is_empty(), "{problems:?}");
-    let saved = scene::save(&grave_engine::sim::Snapshot { world: w.clone(), bodies: vec![] }, &m);
+    let saved = scene::save(&grave_engine::sim::Snapshot::of_world(w.clone()), &m);
     let l2 = scene::load(&saved, &m, None);
     let (w2, problems) = (l2.world, l2.problems);
     assert!(problems.is_empty(), "{problems:?}");
@@ -242,7 +242,7 @@ fn saving_with_lots_of_materials_round_trips() {
     for (x, n) in names.iter().enumerate() {
         w.set(&m, x, 0, m.id(n).unwrap());
     }
-    let saved = scene::save(&grave_engine::sim::Snapshot { world: w.clone(), bodies: vec![] }, &m);
+    let saved = scene::save(&grave_engine::sim::Snapshot::of_world(w.clone()), &m);
     let l = scene::load(&saved, &m, None);
     assert!(l.problems.is_empty(), "{:?}", l.problems);
     assert_eq!(l.world.mat, w.mat);

@@ -24,6 +24,7 @@
 //! body circle stone 200 40 6         # material centre-x centre-y radius
 //! object assets/crate.png 300 20     # an image or Blender model (.png .glb .gltf), top-left at x y
 //! object assets/cart.glb 50 30 scale 12 static   # `static`: paint it in place instead
+//! place crate 200 60 angle 15 material iron flip   # a copy of templates/crate.txt
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
 //! W..W
@@ -47,11 +48,13 @@ pub struct Loaded {
     pub problems: Vec<String>,
     /// Cells set by `heat` commands, re-applied to objects once they're placed.
     pub heated: Vec<(usize, f32)>,
+    /// For each object in `bodies`: the template it's a copy of, if any.
+    pub instances: Vec<Option<crate::template::Instance>>,
 }
 
 impl Loaded {
     pub fn into_sim(self, mats: &Materials) -> (crate::sim::Sim, Vec<String>) {
-        let mut sim = crate::sim::Sim::new(self.world, self.bodies, mats);
+        let mut sim = crate::sim::Sim::new_with(self.world, self.bodies, self.instances, mats);
         for (i, t) in self.heated {
             if sim.world.is_owned(i) {
                 sim.world.temp[i] = t;
@@ -111,8 +114,15 @@ pub const DEFAULT_H: usize = 288;
 /// `base` is the folder that relative `object` file paths start from
 /// (usually the scene file's folder).
 pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
+    load_part(text, mats, base, true)
+}
+
+/// `load`, optionally refusing `place` (template files can't place templates).
+pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bool) -> Loaded {
     let mut problems = Vec::new();
     let mut bodies: Vec<BodySpec> = Vec::new();
+    let mut placed: Vec<(usize, crate::template::Instance)> = Vec::new();
+    let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
     let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
     let mut legend: HashMap<char, MatId> = HashMap::new();
@@ -345,6 +355,55 @@ pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
                     }
                 }
             }
+            "place" => {
+                use crate::template;
+                if !allow_place {
+                    err("templates can't place other templates".into());
+                    continue;
+                }
+                let Some(name) = words.get(1).map(|n| n.to_lowercase()) else {
+                    err("use `place crate x y` (a template from the templates folder)".into());
+                    continue;
+                };
+                let pos = match nums(2, 2) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err(e);
+                        continue;
+                    }
+                };
+                let mut rest: Vec<&str> = words.iter().skip(4).copied().collect();
+                let mut angle = 0.0f32;
+                if rest.first().is_some_and(|w| w.eq_ignore_ascii_case("angle")) {
+                    angle = rest.get(1).and_then(|a| a.parse().ok()).unwrap_or(0.0);
+                    rest.drain(..rest.len().min(2));
+                }
+                let (changes, bad) = template::parse_changes(&rest);
+                if !bad.is_empty() {
+                    err(format!("didn't understand `{}` (use material NAME, flip, flipv, turn, scale N)", bad.join(" ")));
+                }
+                if !template_cache.contains_key(&name) {
+                    match template::find(&name, base).ok_or(format!("there's no template called `{name}` in a templates folder")).and_then(|p| template::load_file(&p, mats)) {
+                        Ok(t) => {
+                            template_cache.insert(name.clone(), t);
+                        }
+                        Err(e) => {
+                            err(e);
+                            continue;
+                        }
+                    }
+                }
+                let t = &template_cache[&name];
+                let mut spec = template::build(&t.shape, &changes, mats);
+                spec.x = pos[0];
+                spec.y = pos[1];
+                spec.angle = angle.to_radians();
+                spec.vx = 0.0;
+                spec.vy = 0.0;
+                spec.spin = 0.0;
+                placed.push((bodies.len(), template::Instance { template: name, changes }));
+                bodies.push(spec);
+            }
             "object" => {
                 let Some(file) = words.get(1) else {
                     err("use `object file.png x y` (also .glb / .gltf)".into());
@@ -398,7 +457,11 @@ pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
         }
     }
     let world = ensure(&mut world, mats).clone();
-    Loaded { world, bodies, problems, heated }
+    let mut instances = vec![None; bodies.len()];
+    for (i, inst) in placed {
+        instances[i] = Some(inst);
+    }
+    Loaded { world, bodies, problems, heated, instances }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -488,7 +551,25 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if !snap.bodies.is_empty() {
         out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");
     }
-    for b in &snap.bodies {
+    for (n, b) in snap.bodies.iter().enumerate() {
+        if let Some(Some(inst)) = snap.instances.get(n) {
+            // Still exactly its template (plus changes)? Save it as one line.
+            let fits = crate::template::find(&inst.template, None)
+                .and_then(|p| crate::template::load_file(&p, mats).ok())
+                .is_some_and(|t| crate::template::matches(b, &crate::template::build(&t.shape, &inst.changes, mats)));
+            if fits {
+                let changes: Vec<String> = inst.changes.iter().map(|c| c.to_words()).collect();
+                out.push_str(&format!(
+                    "place {} {:.2} {:.2} angle {:.1} {}\n",
+                    inst.template,
+                    b.x,
+                    b.y,
+                    b.angle.to_degrees(),
+                    changes.join(" ")
+                ));
+                continue;
+            }
+        }
         out.push_str(&format!("body {:.2} {:.2} {:.1}\n", b.x, b.y, b.angle.to_degrees()));
         for y in 0..b.h {
             for x in 0..b.w {

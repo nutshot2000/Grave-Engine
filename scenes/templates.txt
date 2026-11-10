@@ -1,0 +1,19 @@
+# Templates: copies of reusable objects from the templates folder, some with
+# their own changes. Edit templates/crate.txt (or use "Update template from
+# this" in the editor) and every crate updates.
+size 512 288
+seed 4
+fill air
+rect stone 0 268 512 20
+
+place crate 100 255
+place crate 125 255 material iron
+place crate 112 230 flip
+place crate 112 205 scale 0.5
+
+place plank 280 262
+place plank 280 254 material ice
+place plank 280 246 material stone
+
+place cart 380 252
+place cart 460 252 material iron flip

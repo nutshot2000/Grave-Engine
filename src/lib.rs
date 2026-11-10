@@ -8,6 +8,7 @@ pub mod headless;
 pub mod import;
 pub mod physics;
 pub mod sim;
+pub mod template;
 pub mod material;
 pub mod render;
 pub mod scene;

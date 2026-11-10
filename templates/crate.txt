@@ -1,0 +1,2 @@
+# Template: crate. A wooden crate with iron bands, from an image.
+object ../assets/crate.png 0 0

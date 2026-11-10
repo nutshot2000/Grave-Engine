@@ -6,6 +6,7 @@
 use crate::material::{AIR, MatId, Materials, State};
 use crate::physics::{BodyCell, BodySpec};
 use crate::sim::{Sim, Snapshot};
+use crate::template::Instance;
 use crate::world::{OWNED, World};
 
 /// A rectangle of cells, corners included.
@@ -275,6 +276,8 @@ struct Step {
     whole: Option<(Snapshot, Snapshot)>,
     bodies_before: Vec<BodySpec>,
     bodies_after: Vec<BodySpec>,
+    links_before: Vec<Option<Instance>>,
+    links_after: Vec<Option<Instance>>,
 }
 
 /// Undo and redo for everything the editor does.
@@ -324,7 +327,15 @@ impl History {
         self.last_touch = None;
         let after = sim.snapshot();
         let step = if before.world.mat.len() != after.world.mat.len() {
-            Step { label, cells: Vec::new(), whole: Some((before, after)), bodies_before: Vec::new(), bodies_after: Vec::new() }
+            Step {
+                label,
+                cells: Vec::new(),
+                whole: Some((before, after)),
+                bodies_before: Vec::new(),
+                bodies_after: Vec::new(),
+                links_before: Vec::new(),
+                links_after: Vec::new(),
+            }
         } else {
             let mut cells = Vec::new();
             for i in 0..after.world.mat.len() {
@@ -333,10 +344,22 @@ impl History {
                     cells.push((i as u32, a, b));
                 }
             }
-            if cells.is_empty() && before.bodies.len() == after.bodies.len() && same_bodies(&before.bodies, &after.bodies) {
+            if cells.is_empty()
+                && before.bodies.len() == after.bodies.len()
+                && same_bodies(&before.bodies, &after.bodies)
+                && before.instances == after.instances
+            {
                 return; // nothing actually changed
             }
-            Step { label, cells, whole: None, bodies_before: before.bodies, bodies_after: after.bodies }
+            Step {
+                label,
+                cells,
+                whole: None,
+                bodies_before: before.bodies,
+                bodies_after: after.bodies,
+                links_before: before.instances,
+                links_after: after.instances,
+            }
         };
         self.undo.push(step);
         if self.undo.len() > MAX_STEPS {
@@ -414,6 +437,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
         }
     }
     snap.bodies = if forward { step.bodies_after.clone() } else { step.bodies_before.clone() };
+    snap.instances = if forward { step.links_after.clone() } else { step.links_before.clone() };
     for b in snap.bodies.iter_mut() {
         b.vx = 0.0;
         b.vy = 0.0;
@@ -457,6 +481,7 @@ struct Moment {
     keyframe: Option<Vec<CellState>>,
     cells: Vec<(u32, CellState)>,
     bodies: Vec<BodySpec>,
+    links: Vec<Option<Instance>>,
 }
 
 /// Records what happens during Play so you can scrub back to any moment.
@@ -544,7 +569,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies }
+            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies, links: snap.instances }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -561,7 +586,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies }
+            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies, links: snap.instances }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -601,6 +626,7 @@ impl Timeline {
         }
         snap.world.frame = m.frame;
         snap.bodies = m.bodies.clone();
+        snap.instances = m.links.clone();
         *sim = Sim::restore(&snap, mats);
         true
     }

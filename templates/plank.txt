@@ -1,0 +1,2 @@
+# Template: plank. A long wooden plank.
+body rect wood 0 0 40 4

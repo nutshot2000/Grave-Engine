@@ -38,6 +38,28 @@ cargo run --release
   Q / E turn 15°, F flip, Esc deselect, Shift+click to add to the selection,
   B for the brush.
 
+### Rewind
+
+Everything that happens during Play is recorded. Drag the **⏪ Rewind** slider under
+the world back to any moment. Press Play from there and it carries on from that
+moment.
+
+### Templates
+
+Reusable objects live as text files in [`templates/`](templates/) (`crate`, `plank`
+and `cart` to start with). Pick one under **Templates** on the left, then click in
+the world to place copies. Each copy can have its own changes (another material,
+flipped, resized), which it remembers. Edit the template, or press **Update template
+from this** on a copy, and every copy updates live, keeping its own changes. Select
+any object and use **Save template** to make your own. A copy that gets burned or
+broken goes its own way and is no longer linked.
+
+In scenes, a copy is one line (see `scenes/templates.txt`):
+
+```text
+place crate 125 255 angle 15 material iron flip scale 2
+```
+
 ## Materials are text files
 
 Each file in [`materials/`](materials/) is one material. Here's wood:
@@ -165,8 +187,7 @@ The goal: one reusable engine for any kind of game (racing, shooters, action
 RPGs...), where any material works on any surface.
 
 1. ~~Sandbox~~ (done)
-2. Editor: ~~select, move, rotate, scale, inspector, undo~~ (done); rewind after
-   Play and templates (in progress)
+2. ~~Editor: select, move, rotate, scale, inspector, undo, rewind, templates~~ (done)
 3. Joints, motors and springs (hinges, axles, suspension) plus a rubber material:
    first test game, a hill-climb racer
 4. Game layer: player, input, camera follow, triggers, scripting, health

@@ -8,6 +8,7 @@ use grave_engine::physics::{BodySpec, CELL};
 use grave_engine::render::{Renderer, View};
 use grave_engine::scene;
 use grave_engine::sim::{Sim, Snapshot};
+use grave_engine::template::{self, Change, Templates};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
@@ -25,6 +26,8 @@ enum Tool {
     Cool,
     /// Drag a box: everything solid inside becomes a loose object.
     Object,
+    /// Click to place copies of the chosen template.
+    Place,
 }
 
 /// What's selected.
@@ -70,6 +73,11 @@ struct Sandbox {
     history: History,
     /// Recording of the last Play, for rewinding.
     timeline: Timeline,
+    templates: Templates,
+    /// The template the Place tool puts down.
+    place_template: Option<String>,
+    /// Name typed for "Save as template".
+    template_name: String,
     /// The moment we rewound to (None = at the end, live).
     rewind_pos: Option<usize>,
     /// How things were when Play was last pressed. Reset goes back here.
@@ -168,6 +176,9 @@ impl Sandbox {
             mats,
             history: History::new(),
             timeline: Timeline::new(),
+            templates: Templates::default(),
+            place_template: None,
+            template_name: String::new(),
             rewind_pos: None,
             ran_since_snapshot: false,
             playing: false,
@@ -197,6 +208,10 @@ impl Sandbox {
             canvas_at: (Pos2::ZERO, 1.0),
         };
         for p in app.mats.problems.clone() {
+            app.say(p);
+        }
+        app.templates = Templates::load_dir("templates", &app.mats);
+        for p in app.templates.problems.clone() {
             app.say(p);
         }
         let start = scene_file.or_else(|| {
@@ -366,9 +381,26 @@ impl Sandbox {
         self.clipboard = saved;
     }
 
+    /// Selected copies of templates remember this as one of their own changes.
+    fn note_change(&mut self, c: Change) {
+        for id in self.selected_ids() {
+            if let Some(inst) = self.sim.instances.get_mut(&id) {
+                inst.changes.push(c.clone());
+            }
+        }
+    }
+
     fn transform_selection(&mut self, t: Transform, label: &str) {
         match self.selection.clone() {
-            Selection::Objects(_) => self.edit_objects(label, |b| edit::transform_body(b, t)),
+            Selection::Objects(ids) => {
+                let mats = Materials::clone(&self.mats);
+                self.change(label, |app| {
+                    for id in ids {
+                        app.sim.physics.edit(&mut app.sim.world, &mats, id, |b| edit::transform_body(b, t));
+                    }
+                    app.note_change(Change::Transform(t));
+                });
+            }
             Selection::Area(r) => {
                 let mut out = r;
                 self.change(label, |app| out = edit::transform_region(&mut app.sim.world, r, t));
@@ -441,6 +473,14 @@ impl Sandbox {
                     self.say(p);
                 }
             }
+        }
+        if self.templates.changed_on_disk() {
+            self.templates.reload(&self.mats);
+            for p in self.templates.problems.clone() {
+                self.say(p);
+            }
+            let n = template::refresh(&mut self.sim, &self.templates, &self.mats);
+            self.say(format!("Templates reloaded: {n} cop{} updated", if n == 1 { "y" } else { "ies" }));
         }
         if let Some(old) = self.scene_stamp {
             let path = PathBuf::from(&self.scene_path);
@@ -555,7 +595,7 @@ impl Sandbox {
             Tool::Erase => self.sim.world.paint_circle(&self.mats, x, y, r, AIR),
             Tool::Heat => self.sim.world.heat_circle(x, y, r, 40.0),
             Tool::Cool => self.sim.world.heat_circle(x, y, r, -40.0),
-            Tool::Select | Tool::Object => {}
+            Tool::Select | Tool::Object | Tool::Place => {}
         }
     }
 
@@ -673,6 +713,7 @@ impl Sandbox {
                 (Tool::Heat, "🔥 Heat", "Make things hotter"),
                 (Tool::Cool, "❄ Cool", "Make things colder"),
                 (Tool::Object, "📦 Make object", "Drag a box around something you painted: it becomes a loose object that falls, tumbles and breaks"),
+                (Tool::Place, "🧩 Place", "Click to place copies of the chosen template"),
             ] {
                 ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(16.0)).on_hover_text(tip);
             }
@@ -712,6 +753,21 @@ impl Sandbox {
                 if ui.add(b).on_hover_text(tip).clicked() {
                     self.brush_mat = id;
                     self.tool = Tool::Paint;
+                }
+            }
+        });
+        ui.separator();
+        ui.label(RichText::new("Templates").strong());
+        if self.templates.list.is_empty() {
+            ui.label(RichText::new("None yet: select an object and press Save as template.").size(13.0).weak());
+        }
+        ui.horizontal_wrapped(|ui| {
+            let names: Vec<String> = self.templates.list.iter().map(|t| t.name.clone()).collect();
+            for name in names {
+                let on = self.tool == Tool::Place && self.place_template.as_deref() == Some(name.as_str());
+                if ui.selectable_label(on, name.replace('_', " ")).on_hover_text("Click, then click in the world to place copies").clicked() {
+                    self.place_template = Some(name);
+                    self.tool = Tool::Place;
                 }
             }
         });
@@ -931,14 +987,96 @@ impl Sandbox {
             self.freeze_selection();
         }
         self.shape_buttons(ui);
+        ui.separator();
+        self.template_section(ui, id, &b);
+    }
+
+    fn template_section(&mut self, ui: &mut egui::Ui, id: u64, b: &BodySpec) {
+        match self.sim.instances.get(&id).cloned() {
+            Some(inst) => {
+                ui.label(RichText::new(format!("🧩 Copy of template \"{}\"", inst.template.replace('_', " "))).strong());
+                if inst.changes.is_empty() {
+                    ui.label(RichText::new("Exactly like the template.").weak());
+                } else {
+                    ui.label("Its own changes:");
+                    for c in &inst.changes {
+                        ui.label(format!("   • {}", c.describe()));
+                    }
+                }
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Reset to template").on_hover_text("Undo this copy's own changes").clicked() {
+                        if let Some(t) = self.templates.get(&inst.template).cloned() {
+                            self.change("reset to template", |app| {
+                                app.sim.physics.edit(&mut app.sim.world, &app.mats, id, |s| {
+                                    s.w = t.shape.w;
+                                    s.h = t.shape.h;
+                                    s.cells = t.shape.cells.clone();
+                                });
+                                if let Some(i) = app.sim.instances.get_mut(&id) {
+                                    i.changes.clear();
+                                }
+                            });
+                        }
+                    }
+                    if ui.button("Update template from this").on_hover_text("Make the template look like this copy: every copy updates").clicked() {
+                        let dir = self.templates.dir().to_path_buf();
+                        match template::save(&dir, &inst.template, b, &self.mats) {
+                            Ok(_) => {
+                                self.change("update template", |app| {
+                                    if let Some(i) = app.sim.instances.get_mut(&id) {
+                                        i.changes.clear();
+                                    }
+                                });
+                                self.say(format!("Template {} updated", inst.template));
+                            }
+                            Err(e) => self.say(e),
+                        }
+                    }
+                    if ui.button("Unlink").on_hover_text("Make it a normal object (template changes won't affect it)").clicked() {
+                        self.change("unlink", |app| {
+                            app.sim.instances.remove(&id);
+                        });
+                    }
+                });
+            }
+            None => {
+                ui.label(RichText::new("Save as template").strong());
+                ui.label(RichText::new("Reuse this object: place copies from the Templates list.").size(13.0).weak());
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.template_name).hint_text("name, e.g. crate").desired_width(140.0));
+                    if ui.button("💾 Save template").clicked() {
+                        let dir = self.templates.dir().to_path_buf();
+                        let name = template::clean_name(&self.template_name);
+                        match name.ok_or("Type a name first".to_string()).and_then(|n| template::save(&dir, &n, b, &self.mats).map(|_| n)) {
+                            Ok(n) => {
+                                self.templates.reload(&self.mats);
+                                let link = n.clone();
+                                self.change("save as template", |app| {
+                                    app.sim.instances.insert(id, template::Instance { template: link, changes: Vec::new() });
+                                });
+                                self.say(format!("Saved template {n}"));
+                                self.template_name.clear();
+                            }
+                            Err(e) => self.say(e),
+                        }
+                    }
+                });
+            }
+        }
     }
 
     fn recolor_selection(&mut self, to: MatId) {
         let name = self.mats.get(to).name.clone();
         match self.selection.clone() {
-            Selection::Objects(_) => {
+            Selection::Objects(ids) => {
                 let mats = Materials::clone(&self.mats);
-                self.edit_objects(&format!("change to {name}"), move |b| edit::recolor(&mut b.cells, &mats, to));
+                let mname = name.clone();
+                self.change(&format!("change to {name}"), |app| {
+                    for id in ids {
+                        app.sim.physics.edit(&mut app.sim.world, &mats, id, |b| edit::recolor(&mut b.cells, &mats, to));
+                    }
+                    app.note_change(Change::Material(mname));
+                });
             }
             Selection::Area(r) => self.change(&format!("change to {name}"), |app| {
                 let mut clip = edit::copy_region(&app.sim.world, r);
@@ -1078,7 +1216,15 @@ impl Sandbox {
                     _ => SELECT_COLOR,
                 };
                 let r = (self.brush_size as f32 - 0.5).max(0.5) * scale;
-                if self.tool != Tool::Object {
+                if self.tool == Tool::Place {
+                    if let Some(t) = self.place_template.as_ref().and_then(|n| self.templates.get(n)) {
+                        // Ghost outline of where the copy will go.
+                        let (cx, cy) = to_cells(p);
+                        let ghost = BodySpec { x: cx, y: cy, angle: 0.0, ..t.shape.clone() };
+                        let pts: Vec<Pos2> = corners(&ghost, 1.0).iter().map(|&c| to_screen(c)).collect();
+                        painter.add(egui::Shape::closed_line(pts, Stroke::new(1.5, SELECT_COLOR.gamma_multiply(0.7))));
+                    }
+                } else if self.tool != Tool::Object {
                     painter.circle_stroke(p, r, Stroke::new(1.5, col));
                 }
                 self.scroll_acc += ui.input(|i| i.smooth_scroll_delta.y);
@@ -1106,6 +1252,22 @@ impl Sandbox {
                     }
                     Tool::Select => self.start_select_drag(p, cell, cf, shift, &to_screen),
                     Tool::Object => Drag::MakeObject(cell),
+                    Tool::Place => {
+                        let name = self.place_template.clone();
+                        match name.and_then(|n| self.templates.get(&n).cloned()) {
+                            Some(t) => {
+                                let mut new_id = None;
+                                self.change(&format!("place {}", t.name), |app| {
+                                    new_id = template::place(&mut app.sim, &t, cf.0, cf.1, &app.mats);
+                                });
+                                if let Some(id) = new_id {
+                                    self.selection = Selection::Objects(vec![id]);
+                                }
+                            }
+                            None => self.say("Pick a template in the Templates list first"),
+                        }
+                        Drag::Paint
+                    }
                     t => {
                         let label = match t {
                             Tool::Paint => "paint",
@@ -1124,6 +1286,11 @@ impl Sandbox {
         // ---- continue / finish it
         match self.drag {
             Drag::None => {}
+            Drag::Paint if self.tool == Tool::Place && !secondary => {
+                if released {
+                    self.drag = Drag::None;
+                }
+            }
             Drag::Paint => {
                 if let Some(p) = pointer {
                     let (cx, cy) = to_cell(p);
@@ -1744,5 +1911,37 @@ body rect wood 40 60 20 10
         h.state_mut().play();
         h.state_mut().step_once();
         assert!(h.state().timeline.len() <= 3);
+    }
+
+    #[test]
+    fn save_a_template_then_place_copies() {
+        let mut h = editor();
+        let dir = std::env::temp_dir().join(format!("grave_ui_templates_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mats = Materials::clone(&h.state().mats);
+        h.state_mut().templates = Templates::load_dir(&dir, &mats);
+        h.key_press(Key::V);
+        { let p = at(&h, 50.0, 65.0); press(&mut h, p, true); }
+        { let p = at(&h, 50.0, 65.0); press(&mut h, p, false); }
+        h.state_mut().template_name = "box".into();
+        h.get_by_label("💾 Save template").click();
+        h.run_steps(3);
+        assert!(dir.join("box.txt").exists(), "the template file was written");
+        assert_eq!(h.state().sim.instances.len(), 1, "the object is now a copy of it");
+        // Place two more copies.
+        h.state_mut().place_template = Some("box".into());
+        h.state_mut().tool = Tool::Place;
+        for x in [100.0, 130.0] {
+            let p = at(&h, x, 30.0);
+            press(&mut h, p, true);
+            press(&mut h, p, false);
+        }
+        assert_eq!(h.state().sim.physics.body_count(), 3);
+        assert_eq!(h.state().sim.instances.len(), 3);
+        // Make the last one iron: only that copy changes, and it remembers it.
+        let iron = h.state().mats.id("iron").unwrap();
+        h.state_mut().recolor_selection(iron);
+        let changed = h.state().sim.instances.values().filter(|i| !i.changes.is_empty()).count();
+        assert_eq!(changed, 1);
     }
 }

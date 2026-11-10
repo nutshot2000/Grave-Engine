@@ -1,0 +1,2 @@
+# Template: cart. The Blender cart.
+object ../assets/cart.glb 0 0

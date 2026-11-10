@@ -143,6 +143,8 @@ struct Chunk {
 pub struct Physics {
     bodies: Vec<Body>,
     next_id: u64,
+    /// Objects that lost cells (burned, chipped, broke) during the last update.
+    damaged: Vec<u64>,
     set: RigidBodySet,
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
@@ -236,6 +238,7 @@ impl Physics {
         Physics {
             bodies: Vec::new(),
             next_id: 1,
+            damaged: Vec::new(),
             set,
             colliders,
             impulse_joints: ImpulseJointSet::new(),
@@ -437,10 +440,12 @@ impl Physics {
         // 1. Read back and lift every object out of the grid.
         let mut bodies = std::mem::take(&mut self.bodies);
         let mut changed = Vec::new();
+        self.damaged.clear();
         for (n, b) in bodies.iter_mut().enumerate() {
             if Self::read_back(b, world, true) || b.dirty {
                 b.dirty = false;
                 changed.push(n);
+                self.damaged.push(b.id);
             }
         }
         // Objects that lost cells may have split into pieces.
@@ -1412,6 +1417,11 @@ impl Physics {
     }
 
     // ------------------------------------------------------------ editing --
+
+    /// Objects that lost cells (burned, chipped, broke) in the last update.
+    pub fn damaged(&self) -> &[u64] {
+        &self.damaged
+    }
 
     /// Ids of all objects.
     pub fn ids(&self) -> Vec<u64> {
