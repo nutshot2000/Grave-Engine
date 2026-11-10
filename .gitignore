@@ -8,4 +8,4 @@ noita_gdc_talk_clean_transcript.md
 !materials/textures/*.png
 
 # Third-party asset packs: check their licence before committing
-textures/
+/textures/
