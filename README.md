@@ -364,6 +364,13 @@ The tests check the core rules: heat spreads, wood catches fire past its thresho
 (and only when it touches air), water freezes and boils, lava plus water makes stone
 and steam, and scenes save and load correctly.
 
+## Known limits
+
+- A big load of sand dumped right on the player buries them for a few
+  seconds (they run low on breath), then the physics pushes them out with a
+  jolt that throws them a few metres up. The player can't dig out yet.
+- Wood grain always runs the same way, even along horizontal beams.
+
 ## What's next
 
 The goal: one reusable engine for any kind of game (racing, shooters, action
