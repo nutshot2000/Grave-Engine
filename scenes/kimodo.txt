@@ -1,0 +1,36 @@
+# The obstacle course again, with a character animated by NVIDIA Kimodo
+# from plain sentences (see assets/characters/kimodo/character.txt).
+# Walk with A / D (or the arrow keys), jump with W (or the up arrow).
+# In water, hold W to swim up; at the edge, W jumps you out.
+# Mind the campfire, the lava and the deep water: they all hurt.
+# (A jump is about 1.5 m = 15 cells high.)
+size 768 288
+seed 3
+fill air
+rect stone 0 268 768 20              # ground
+
+player 30 268 look kimodo zoom 3
+
+# Steps up to a ledge
+rect stone 90 260 20 8
+rect stone 110 252 20 16
+rect stone 130 244 40 24
+# A gap to jump (fall in and you can still climb out)
+rect stone 170 256 18 12
+rect stone 188 244 52 24
+# A pond: deep enough to go under (watch your breath)
+rect water 240 248 90 20
+rect stone 330 244 30 24
+# A crate to climb up to the high shelf
+body rect wood 392 256 14 12
+rect stone 416 244 60 24
+# A campfire: jump over it
+rect wood 504 262 12 6
+heat rect 504 262 12 6 600
+# A lava pit to jump over
+rect stone 560 258 10 10
+rect lava 570 258 30 10
+rect stone 600 258 10 10
+heat rect 570 258 30 10 1100
+# A powder keg: heat it with the Heat tool (from a safe distance!)
+rect gunpowder 690 260 8 8

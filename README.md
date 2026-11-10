@@ -212,6 +212,17 @@ in Blender by `tools/make_hero_in_blender.py` and rendered to
   animation and writes `assets/characters/knight/`. File names pick the
   animation: idle, walk/run, jump, fall, swim/tread, die/death. Missing ones
   fall back to idle. The script is `tools/fbx_to_character.py`.
+- **From a sentence, with NVIDIA Kimodo** (text-to-motion, runs offline on
+  the CPU): `scenes/kimodo.txt` uses `look kimodo`, whose six animations were
+  generated from sentences like "A person walks forward at a steady, relaxed
+  pace, swinging their arms" (the prompts are in its `character.txt`, and the
+  raw motions in `assets/motions/`). `tools/kimodo_to_character.py` builds a
+  body that fits Kimodo's 30-joint skeleton, poses it from each motion, cuts
+  looping animations into one seamless cycle, trims jumps to the take-off,
+  and renders everything side-on:
+  `blender -b --factory-startup -P tools/kimodo_to_character.py -- assets/motions assets/characters/kimodo`.
+  Kimodo itself isn't part of the engine (its models are about 6 GB); only
+  the animations it made are. Each 4-second clip took about a minute.
 - **The Blender script** builds the hero in its own scene ("Grave Engine
   hero"), so it's there to tweak: change colours or poses, then run it again
   to re-render every frame.

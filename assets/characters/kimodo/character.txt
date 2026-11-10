@@ -1,0 +1,18 @@
+# Animated by Kimodo (NVIDIA, text-to-motion) and rendered by tools/kimodo_to_character.py
+frame = 256
+figure = 194.4            # how tall the character stands in a picture (pixels)
+feet = 234.7              # the row its feet are on
+faces = right
+die = 45 frames, 14.8 fps
+fall = 21 frames, 15.0 fps, loop
+idle = 15 frames, 15.0 fps, loop
+jump = 8 frames, 14.0 fps
+swim = 18 frames, 14.6 fps, loop
+walk = 48 frames, 14.1 fps, loop
+# Prompts:
+#   die: A person is hit, stumbles backward and collapses onto the ground, lying still.
+#   fall: A person waves both arms wildly above their head in panic, knees bent, kicking their legs.
+#   idle: A person stands upright, idle, looking straight ahead with their arms relaxed at their sides, breathing calmly.
+#   jump: A person crouches, then jumps up and forward.
+#   swim: A person swims face down, sweeping their arms forward and out in a breaststroke and kicking their legs.
+#   walk: A person walks forward at a steady, relaxed pace, swinging their arms.

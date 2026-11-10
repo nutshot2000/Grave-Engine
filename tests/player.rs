@@ -199,3 +199,15 @@ fn the_blender_hero_look_loads_and_its_outline_is_its_body() {
     let text = scene::save(&s.snapshot(), &m);
     assert!(text.contains("look hero"), "{text}");
 }
+
+#[test]
+fn the_kimodo_character_has_every_animation() {
+    // Made from sentences by NVIDIA's Kimodo (tools/kimodo_to_character.py).
+    let m = mats();
+    let s = sim(&m, &format!("{FLAT}player 50 110 look kimodo\n"));
+    let look = s.physics.actor_status()[0].look.clone().expect("kimodo look loaded");
+    for anim in ["idle", "walk", "jump", "fall", "swim", "die"] {
+        let a = look.anims.get(anim).unwrap_or_else(|| panic!("{anim}"));
+        assert!(a.frames.len() >= 6, "{anim}: {} frames", a.frames.len());
+    }
+}
