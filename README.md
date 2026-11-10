@@ -204,6 +204,14 @@ in Blender by `tools/make_hero_in_blender.py` and rendered to
   count and speed (see `src/look.rs`). The pictures can come from Blender,
   any 3D package, hand-drawn sprite sheets or AI tools. Then write
   `player x y look NAME`.
+- **From Mixamo (or any rigged FBX):** download one FBX per animation into a
+  folder, then run
+  `grave-engine --make-character path/to/folder --name knight`. Blender (in
+  the background) imports them, turns the character side-on facing right,
+  keeps it in place over its hips (the engine does the moving), renders every
+  animation and writes `assets/characters/knight/`. File names pick the
+  animation: idle, walk/run, jump, fall, swim/tread, die/death. Missing ones
+  fall back to idle. The script is `tools/fbx_to_character.py`.
 - **The Blender script** builds the hero in its own scene ("Grave Engine
   hero"), so it's there to tweak: change colours or poses, then run it again
   to re-render every frame.

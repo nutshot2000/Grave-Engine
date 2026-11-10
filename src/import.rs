@@ -591,3 +591,40 @@ fn via_blender(path: &Path) -> Result<PathBuf, String> {
     }
     Ok(out)
 }
+
+/// The Blender script that turns animated FBX files into a character.
+const FBX_TO_CHARACTER: &str = include_str!("../tools/fbx_to_character.py");
+
+/// Turn a folder of animated FBX files (e.g. downloaded from Mixamo: one per
+/// animation, named Idle, Walking, Jumping, Falling, Swimming, Dying...) into
+/// a character look in `out` (frames + character.txt), using Blender.
+/// Returns Blender's report of what it made.
+pub fn make_character(input: &Path, out: &Path) -> Result<String, String> {
+    let blender = find_blender().ok_or("this needs Blender installed (or set GRAVE_BLENDER to blender.exe)")?;
+    let script = std::env::temp_dir().join(format!("grave_fbx_to_character_{}.py", std::process::id()));
+    std::fs::write(&script, FBX_TO_CHARACTER).map_err(|e| e.to_string())?;
+    let result = std::process::Command::new(&blender)
+        .arg("-b")
+        .arg("--factory-startup")
+        .arg("-P")
+        .arg(&script)
+        .arg("--")
+        .arg(input)
+        .arg(out)
+        .output();
+    let _ = std::fs::remove_file(&script);
+    let output = result.map_err(|e| format!("couldn't run Blender: {e}"))?;
+    let text = String::from_utf8_lossy(&output.stdout).to_string() + &String::from_utf8_lossy(&output.stderr);
+    let report: Vec<&str> = text
+        .lines()
+        .filter(|l| l.starts_with("rendered ") || l.starts_with("skipping ") || l.starts_with("character written") || l.contains("Error") || l.starts_with("usage") || l.starts_with("no .fbx") || l.starts_with("none of"))
+        .collect();
+    if !out.join("character.txt").is_file() {
+        let why = if report.is_empty() { text.trim().to_string() } else { report.join("
+") };
+        return Err(format!("Blender didn't make the character:
+{why}"));
+    }
+    Ok(report.join("
+"))
+}

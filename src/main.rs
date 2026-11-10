@@ -21,6 +21,13 @@ Headless (no window), for agents and scripts:
       --jump          hold the player's jump
       --player-view N screenshot just N cells across around the player
       --materials DIR use a different materials folder (default materials)
+
+Characters:
+  grave-engine --make-character DOWNLOADS/knight [--name knight]
+      turn a folder of animated .fbx files (e.g. from Mixamo: Idle.fbx,
+      Walking.fbx, Jumping.fbx, Falling Idle.fbx, Treading Water.fbx,
+      Dying.fbx) into assets/characters/NAME, using Blender. Then use it
+      in a scene with `player x y look NAME`.
 ";
 
 fn main() {
@@ -36,6 +43,8 @@ fn main() {
     let mut walk = 0.0f32;
     let mut jump = false;
     let mut player_view = 0usize;
+    let mut make_character: Option<PathBuf> = None;
+    let mut name: Option<String> = None;
     let mut materials = PathBuf::from("materials");
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -59,12 +68,33 @@ fn main() {
             "--throttle" => throttle = val("--throttle").parse().unwrap_or(0.0),
             "--walk" => walk = val("--walk").parse().unwrap_or(0.0),
             "--jump" => jump = true,
+            "--make-character" => make_character = Some(PathBuf::from(val("--make-character"))),
+            "--name" => name = Some(val("--name")),
             "--player-view" => player_view = val("--player-view").parse().unwrap_or(0),
             "--materials" => materials = PathBuf::from(val("--materials")),
             other if !other.starts_with('-') => scene = Some(PathBuf::from(other)),
             other => {
                 eprintln!("unknown option {other}\n\n{HELP}");
                 std::process::exit(2);
+            }
+        }
+    }
+    if let Some(input) = make_character {
+        let name = name.unwrap_or_else(|| {
+            let n = input.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            n.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect()
+        });
+        let out = PathBuf::from("assets/characters").join(&name);
+        println!("Making character `{name}` from {} with Blender (this takes a minute)...", input.display());
+        match grave_engine::import::make_character(&input, &out) {
+            Ok(report) => {
+                println!("{report}");
+                println!("Done: {}. Use it with `player x y look {name}`.", out.display());
+                return;
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
             }
         }
     }
