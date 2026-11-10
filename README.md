@@ -161,8 +161,25 @@ and steam, and scenes save and load correctly.
 
 ## What's next
 
+The goal: one reusable engine for any kind of game (racing, shooters, action
+RPGs...), where any material works on any surface.
+
 1. ~~Sandbox~~ (done)
-2. Editor: ~~select, move, rotate, scale, inspector, undo~~ (done); next, rewind after Play and templates
-3. A command channel so agents can drive the open editor
-4. ~~Rigid, breakable objects; import images and Blender models~~ (done: next, explosions and strength)
-5. Game layer: player, triggers, scripting, export
+2. Editor: ~~select, move, rotate, scale, inspector, undo~~ (done); rewind after
+   Play and templates (in progress)
+3. Joints, motors and springs (hinges, axles, suspension) plus a rubber material:
+   first test game, a hill-climb racer
+4. Game layer: player, input, camera follow, triggers, scripting, health
+5. Big worlds: 64x64 chunks that only update what's moving, run on several CPU
+   cores in a checkerboard pattern, and stream to disk far from the camera
+6. Flying pixels: liquids and powders knocked loose by objects and blasts fly as
+   particles and splash back into the world
+7. Coatings: things get covered in what they touch (oily wood burns faster, wet
+   tyres slip, icy roads), shown with small icons so players see why
+8. Projectiles, rays and top-down mode: second test game, a destructible shooter
+9. Material looks (texture patterns) and sounds (metal clang, wood thud)
+10. An agent command channel to drive the open editor, then export
+11. Level-design guard rails: anchored or indestructible materials so levels
+    don't all end up as rubble
+
+Ideas for 5, 6, 7 and 11 come from Petri Purho's GDC talk on Noita's engine.
