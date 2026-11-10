@@ -144,6 +144,13 @@ Try `scenes/forces.txt`.
   things, throws objects, scatters burning splinters and lights fires. Neighbouring
   gunpowder sets off in a chain.
 
+## Camera
+
+The mouse wheel zooms in and out around the pointer, middle-drag pans, and **⤢ Fit**
+(or Home) shows the whole world. **📷 Follow** keeps the camera on the selected
+object (or the car), and so does `follow car zoom 3` in a scene. Shift + wheel
+changes the brush size.
+
 ## Joints, motors and driving
 
 Try `scenes/racer.txt`: press Play and drive with **→ / D** (ahead) and **← / A**
@@ -216,8 +223,7 @@ RPGs...), where any material works on any surface.
 
 1. ~~Sandbox~~ (done)
 2. ~~Editor: select, move, rotate, scale, inspector, undo, rewind, templates~~ (done)
-3. ~~Joints, motors and springs plus a rubber material: a hill-climb racer~~ (done;
-   next for it: a camera that follows the car through a longer world)
+3. ~~Joints, motors and springs, rubber, a hill-climb racer, a follow camera~~ (done)
 4. Game layer: player, input, camera follow, triggers, scripting, health
 5. Big worlds: 64x64 chunks that only update what's moving, run on several CPU
    cores in a checkerboard pattern, and stream to disk far from the camera

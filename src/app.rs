@@ -130,6 +130,11 @@ struct Sandbox {
     sim_ms: f32,
     /// Where the world is drawn on screen (top-left) and how big a cell is.
     canvas_at: (Pos2, f32),
+    /// Camera: centre (cells) and zoom (screen pixels per cell). None = show
+    /// the whole world.
+    cam: Option<(f32, f32, f32)>,
+    /// Mouse-wheel movement not yet turned into zoom steps.
+    zoom_acc: f32,
 }
 
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
@@ -230,6 +235,8 @@ impl Sandbox {
             fps: 60.0,
             sim_ms: 0.0,
             canvas_at: (Pos2::ZERO, 1.0),
+            cam: None,
+            zoom_acc: 0.0,
         };
         for p in app.mats.problems.clone() {
             app.say(p);
@@ -405,6 +412,34 @@ impl Sandbox {
         self.clipboard = saved;
     }
 
+    fn fit_view(&mut self) {
+        self.cam = None;
+        self.sim.follow = None;
+    }
+
+    /// Follow the selected object, or else whatever a `drive` motor is
+    /// attached to (the car).
+    fn start_following(&mut self) {
+        let pick = self.selected_ids().first().copied().or_else(|| {
+            self.sim
+                .physics
+                .joints()
+                .into_iter()
+                .find(|j| j.motor.as_ref().is_some_and(|m| m.drive))
+                .map(|j| j.a)
+                .filter(|&a| a != GROUND)
+        });
+        match pick {
+            Some(id) => {
+                self.sim.follow = Some(id);
+                if self.sim.zoom <= 0.0 {
+                    self.sim.zoom = 3.0;
+                }
+            }
+            None => self.say("Select an object to follow first"),
+        }
+    }
+
     /// Selected copies of templates remember this as one of their own changes.
     fn note_change(&mut self, c: Change) {
         for id in self.selected_ids() {
@@ -456,6 +491,7 @@ impl Sandbox {
                 self.playing = false;
                 self.selection = Selection::None;
                 self.hover = None;
+                self.cam = None;
                 self.scene_stamp = stamp(&path);
                 self.say(format!("Loaded {}", path.display()));
                 for p in problems {
@@ -693,6 +729,19 @@ impl Sandbox {
                 self.selection = Selection::None;
             }
             ui.separator();
+            if ui.button(big("⤢ Fit")).on_hover_text("Show the whole world (Home). Mouse wheel zooms, middle-drag pans.").clicked() {
+                self.fit_view();
+            }
+            let following = self.sim.follow.is_some();
+            let mut on = following;
+            if ui.toggle_value(&mut on, big("📷 Follow")).on_hover_text("Keep the camera on the selected object (or the car)").changed() {
+                if on {
+                    self.start_following();
+                } else {
+                    self.sim.follow = None;
+                }
+            }
+            ui.separator();
             ui.toggle_value(&mut self.view.heat, big("🌡 Heat view"))
                 .on_hover_text("Show temperature: blue is cold, red/yellow/white is hot (H)");
             ui.separator();
@@ -769,7 +818,7 @@ impl Sandbox {
             }).size(13.0).weak());
         }
         ui.add_space(4.0);
-        ui.label("Brush size (mouse wheel)");
+        ui.label("Brush size (Shift + mouse wheel)");
         ui.add(egui::Slider::new(&mut self.brush_size, 1..=40));
         ui.separator();
         ui.heading("Materials");
@@ -1037,6 +1086,16 @@ impl Sandbox {
             self.freeze_selection();
         }
         self.shape_buttons(ui);
+        if self.sim.follow == Some(id) {
+            if ui.button("📷 Stop following").clicked() {
+                self.sim.follow = None;
+            }
+        } else if ui.button("📷 Follow with the camera").clicked() {
+            self.sim.follow = Some(id);
+            if self.sim.zoom <= 0.0 {
+                self.sim.zoom = 3.0;
+            }
+        }
         let joints = self.sim.physics.joints_of(id);
         if !joints.is_empty() {
             ui.separator();
@@ -1248,16 +1307,73 @@ impl Sandbox {
         }
         let tex = self.texture.as_ref().unwrap();
 
-        // Fit the grid in the space we have, keeping its shape.
+        // The camera: by default the whole world fits; zoomed in, it shows part
+        // of it (and can follow an object).
         let avail = ui.available_size();
-        let scale = (avail.x / w as f32).min(avail.y / h as f32).max(0.1);
-        let size = Vec2::new(w as f32 * scale, h as f32 * scale);
+        let fit = (avail.x / w as f32).min(avail.y / h as f32).max(0.05);
         let (outer, _) = ui.allocate_exact_size(avail, Sense::hover());
-        let rect = Rect::from_center_size(outer.center(), size);
+        if let Some(id) = self.sim.follow {
+            if let Some(b) = self.sim.physics.spec_of(&self.sim.world, id) {
+                let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
+                let cam = self.cam.get_or_insert((b.x, b.y, fit * zoom));
+                let k = if self.playing { 0.12 } else { 0.35 };
+                cam.0 += (b.x - cam.0) * k;
+                cam.1 += (b.y - cam.1) * k;
+                cam.2 += (fit * zoom - cam.2) * 0.2;
+            }
+        }
+        let (mut cx, mut cy, scale) = match self.cam {
+            Some((x, y, s)) => (x, y, s.clamp(fit, fit * 40.0)),
+            None => (w as f32 / 2.0, h as f32 / 2.0, fit),
+        };
+        // Don't scroll past the edges of the world.
+        let (hw, hh) = (outer.width() / scale / 2.0, outer.height() / scale / 2.0);
+        cx = if hw * 2.0 >= w as f32 { w as f32 / 2.0 } else { cx.clamp(hw, w as f32 - hw) };
+        cy = if hh * 2.0 >= h as f32 { h as f32 / 2.0 } else { cy.clamp(hh, h as f32 - hh) };
+        if self.cam.is_some() {
+            self.cam = Some((cx, cy, scale));
+        }
+        let rect = Rect::from_min_size(outer.center() - Vec2::new(cx * scale, cy * scale), Vec2::new(w as f32 * scale, h as f32 * scale));
         self.canvas_at = (rect.min, scale);
-        let resp = ui.interact(rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
+        let resp = ui.interact(outer, ui.scope_id().with("canvas"), Sense::click_and_drag());
         let painter = ui.painter_at(outer);
         painter.image(tex.id(), rect, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+
+        // Mouse wheel zooms around the pointer (Shift + wheel: brush size).
+        // Middle mouse drag pans.
+        if let Some(p) = resp.hover_pos() {
+            let (shift, wheel, middle, delta) = ui.input(|i| {
+                (i.modifiers.shift, i.smooth_scroll_delta.y + i.smooth_scroll_delta.x, i.pointer.middle_down(), i.pointer.delta())
+            });
+            if shift {
+                self.scroll_acc += wheel;
+                while self.scroll_acc.abs() >= 30.0 {
+                    let step = self.scroll_acc.signum() as i32;
+                    self.brush_size = (self.brush_size + step).clamp(1, 40);
+                    self.scroll_acc -= 30.0 * step as f32;
+                }
+            } else if wheel != 0.0 {
+                self.zoom_acc += wheel;
+                while self.zoom_acc.abs() >= 30.0 {
+                    let step = self.zoom_acc.signum();
+                    self.zoom_acc -= 30.0 * step;
+                    let (_, _, s0) = self.cam.unwrap_or((cx, cy, fit));
+                    let s1 = (s0 * 1.2f32.powf(step)).clamp(fit, fit * 40.0);
+                    // Keep the cell under the pointer where it is.
+                    let under = ((p.x - rect.min.x) / scale, (p.y - rect.min.y) / scale);
+                    let off = p - outer.center();
+                    self.cam = Some((under.0 - off.x / s1, under.1 - off.y / s1, s1));
+                    if self.sim.follow.is_some() {
+                        self.sim.zoom = s1 / fit;
+                    }
+                }
+            }
+            if middle && delta != Vec2::ZERO {
+                let (x, y, s0) = self.cam.unwrap_or((cx, cy, scale));
+                self.cam = Some((x - delta.x / s0, y - delta.y / s0, s0));
+                self.sim.follow = None;
+            }
+        }
 
         let to_cells = |p: Pos2| -> (f32, f32) { ((p.x - rect.min.x) / scale, (p.y - rect.min.y) / scale) };
         let to_cell = |p: Pos2| -> (i32, i32) {
@@ -1298,12 +1414,6 @@ impl Sandbox {
                     }
                 } else if self.tool != Tool::Object {
                     painter.circle_stroke(p, r, Stroke::new(1.5, col));
-                }
-                self.scroll_acc += ui.input(|i| i.smooth_scroll_delta.y);
-                while self.scroll_acc.abs() >= 30.0 {
-                    let step = self.scroll_acc.signum() as i32;
-                    self.brush_size = (self.brush_size + step).clamp(1, 40);
-                    self.scroll_acc -= 30.0 * step as f32;
                 }
             }
         }
@@ -1742,6 +1852,9 @@ impl Sandbox {
         if !plain {
             return;
         }
+        if ctx.input(|i| i.key_pressed(Key::Home)) {
+            self.fit_view();
+        }
         let (space, h, r, q, e, f, v, b) = ctx.input(|i| {
             (
                 i.key_pressed(Key::Space),
@@ -2122,5 +2235,38 @@ body rect wood 40 60 20 10
         h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
         h.run_steps(3);
         assert_eq!(h.state().sim.physics.joints().len(), 0, "undo removes it");
+    }
+
+    #[test]
+    fn wheel_zooms_and_follow_keeps_the_object_in_view() {
+        let mut h = editor();
+        let fit = h.state().canvas_at.1;
+        let p = at(&h, 100.0, 60.0);
+        h.event(Event::PointerMoved(p));
+        h.event(Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: Vec2::new(0.0, 120.0), modifiers: Modifiers::NONE, phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown });
+        h.run_steps(4);
+        assert!(h.state().canvas_at.1 > fit * 1.5, "zoomed in: {} -> {}", fit, h.state().canvas_at.1);
+        // Follow the plank and push it to the far right: the camera goes with it.
+        let id = h.state().sim.physics.ids()[0];
+        h.state_mut().sim.follow = Some(id);
+        {
+            let app = h.state_mut();
+            let mats = Materials::clone(&app.mats);
+            app.sim.physics.edit(&mut app.sim.world, &mats, id, |b| b.x = 170.0);
+        }
+        h.run_steps(40);
+        let (min, s) = h.state().canvas_at;
+        let screen_x = min.x + 170.0 * s;
+        let centre = h.state().canvas_at.0.x; // world left edge on screen
+        assert!(screen_x > centre, "sanity");
+        // The object should be near the middle of the canvas, not off to the side.
+        let b = object(&h);
+        let sx = min.x + b.x * s;
+        let left = h.state().cam.unwrap();
+        assert!((b.x - left.0).abs() < 25.0, "camera centre {} should be near the object at {} (screen x {sx})", left.0, b.x);
+        // Fit shows everything again.
+        h.key_press(Key::Home);
+        h.run_steps(2);
+        assert!(h.state().cam.is_none() && h.state().sim.follow.is_none());
     }
 }

@@ -280,6 +280,8 @@ struct Step {
     links_after: Vec<Option<Instance>>,
     joints_before: Vec<crate::physics::JointSpec>,
     joints_after: Vec<crate::physics::JointSpec>,
+    follow_before: Option<u64>,
+    follow_after: Option<u64>,
 }
 
 /// Undo and redo for everything the editor does.
@@ -339,6 +341,8 @@ impl History {
                 links_after: Vec::new(),
                 joints_before: Vec::new(),
                 joints_after: Vec::new(),
+                follow_before: None,
+                follow_after: None,
             }
         } else {
             let mut cells = Vec::new();
@@ -353,6 +357,7 @@ impl History {
                 && same_bodies(&before.bodies, &after.bodies)
                 && before.instances == after.instances
                 && before.joints == after.joints
+                && before.follow == after.follow
             {
                 return; // nothing actually changed
             }
@@ -366,6 +371,8 @@ impl History {
                 links_after: after.instances,
                 joints_before: before.joints,
                 joints_after: after.joints,
+                follow_before: before.follow,
+                follow_after: after.follow,
             }
         };
         self.undo.push(step);
@@ -446,6 +453,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
     snap.bodies = if forward { step.bodies_after.clone() } else { step.bodies_before.clone() };
     snap.instances = if forward { step.links_after.clone() } else { step.links_before.clone() };
     snap.joints = if forward { step.joints_after.clone() } else { step.joints_before.clone() };
+    snap.follow = if forward { step.follow_after } else { step.follow_before };
     for b in snap.bodies.iter_mut() {
         b.vx = 0.0;
         b.vy = 0.0;
@@ -491,6 +499,7 @@ struct Moment {
     bodies: Vec<BodySpec>,
     links: Vec<Option<Instance>>,
     joints: Vec<crate::physics::JointSpec>,
+    follow: Option<u64>,
 }
 
 /// Records what happens during Play so you can scrub back to any moment.
@@ -578,7 +587,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies, links: snap.instances, joints: snap.joints }
+            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -595,7 +604,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies, links: snap.instances, joints: snap.joints }
+            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -637,6 +646,7 @@ impl Timeline {
         snap.bodies = m.bodies.clone();
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();
+        snap.follow = m.follow;
         *sim = Sim::restore(&snap, mats);
         true
     }

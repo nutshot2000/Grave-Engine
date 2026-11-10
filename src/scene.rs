@@ -32,6 +32,7 @@
 //! wheel car back at 100 210 spring 60 damping 4 travel 3 motor 2 strength 4 drive
 //! weld car cargo at 120 200                # glued together
 //! rope lamp ground at 50 40 to 50 10 length 30
+//! follow car zoom 3                  # the camera follows `car`, 3 times closer than the whole world
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
 //! W..W
@@ -59,6 +60,8 @@ pub struct Loaded {
     pub instances: Vec<Option<crate::template::Instance>>,
     /// Joints to make once the objects exist.
     pub joints: Vec<PendingJoint>,
+    /// The object the camera follows, and how close (0 = editor decides).
+    pub follow: Option<(usize, f32)>,
 }
 
 /// One end of a joint in a scene: the ground, or object number N in `bodies`.
@@ -127,6 +130,10 @@ impl Loaded {
             }
         }
         let mut sim = sim;
+        if let Some((n, zoom)) = self.follow {
+            sim.follow = ids.get(n).copied().flatten();
+            sim.zoom = zoom;
+        }
         let problems_out = problems;
         for (i, t) in self.heated {
             if sim.world.is_owned(i) {
@@ -197,6 +204,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut placed: Vec<(usize, crate::template::Instance)> = Vec::new();
     let mut names: HashMap<String, usize> = HashMap::new();
     let mut joints: Vec<PendingJoint> = Vec::new();
+    let mut follow: Option<(usize, f32)> = None;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
     let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
@@ -436,6 +444,18 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 }
                 _ => err("`name` goes right after an object: `name crate1`".into()),
             },
+            "follow" => match words.get(1).map(|w| w.to_lowercase()).and_then(|w| names.get(&w).copied()) {
+                Some(n) => {
+                    let zoom = words
+                        .iter()
+                        .position(|w| w.eq_ignore_ascii_case("zoom"))
+                        .and_then(|i| words.get(i + 1))
+                        .and_then(|z| z.parse::<f32>().ok())
+                        .unwrap_or(0.0);
+                    follow = Some((n, zoom.clamp(0.0, 20.0)));
+                }
+                None => err("use `follow NAME [zoom Z]` with a named object".into()),
+            },
             "hinge" | "wheel" | "weld" | "rope" => {
                 use crate::physics::{JointKind, Motor};
                 let end = |w: Option<&&str>| -> Result<End, String> {
@@ -582,7 +602,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints }
+    Loaded { world, bodies, problems, heated, instances, joints, follow }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -673,7 +693,10 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");
     }
     // Objects that joints refer to get names.
-    let named: std::collections::HashSet<u64> = snap.joints.iter().flat_map(|j| [j.a, j.b]).collect();
+    let mut named: std::collections::HashSet<u64> = snap.joints.iter().flat_map(|j| [j.a, j.b]).collect();
+    if let Some(f) = snap.follow {
+        named.insert(f);
+    }
     let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
@@ -740,6 +763,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         }
         out.push_str(&line);
         out.push('\n');
+    }
+    if let Some(f) = snap.follow {
+        out.push_str(&format!("\nfollow obj{f} zoom {}\n", snap.zoom));
     }
     out
 }

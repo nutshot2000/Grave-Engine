@@ -391,7 +391,7 @@ impl Physics {
         let cells = &body.cells;
         if body.round {
             // One smooth circle, made of the most common material.
-            let mut count: HashMap<MatId, usize> = HashMap::new();
+            let mut count: std::collections::BTreeMap<MatId, usize> = Default::default();
             for c in cells.iter().flatten() {
                 *count.entry(c.mat).or_default() += 1;
             }
@@ -803,7 +803,7 @@ impl Physics {
         // the material's toughness) scatter the centres closer together, so
         // they make smaller pieces. Pieces never mix different objects.
         let seed = self.tick.wrapping_mul(2654435761);
-        let mut groups: HashMap<(usize, u8, i32, i32), Vec<usize>> = HashMap::new();
+        let mut groups: std::collections::BTreeMap<(usize, u8, i32, i32), Vec<usize>> = Default::default();
         for &(i, ratio) in &breaking {
             let tier: u8 = if ratio > 30.0 { 0 } else if ratio > 6.0 { 1 } else { 2 };
             let spacing = [4.0f32, 6.5, 10.0][tier as usize] * coarse;
@@ -931,7 +931,7 @@ impl Physics {
             return Vec::new();
         }
         // Merge blasts within 8 cells of each other.
-        let mut groups: HashMap<(i32, i32), (f32, f32, f32, f32, f32, Option<MatId>)> = HashMap::new();
+        let mut groups: std::collections::BTreeMap<(i32, i32), (f32, f32, f32, f32, f32, Option<MatId>)> = Default::default();
         for b in world.blasts.drain(..) {
             let e = groups.entry(((b.x / 8.0) as i32, (b.y / 8.0) as i32)).or_insert((0.0, 0.0, 0.0, 0.0, 0.0, b.fire));
             e.0 += b.x;
@@ -1081,7 +1081,7 @@ impl Physics {
                     let i = y * self.w + x;
                     Self::is_terrain(world, mats, i).then(|| world.mat[i])
                 };
-                let mut by_mat: HashMap<MatId, Vec<((f32, f32), (f32, f32))>> = HashMap::new();
+                let mut by_mat: std::collections::BTreeMap<MatId, Vec<((f32, f32), (f32, f32))>> = Default::default();
                 for sy in y0..y1.min(self.h - 1) {
                     for sx in x0..x1.min(self.w - 1) {
                         let (a, b, c, d) = (solid(sx, sy), solid(sx + 1, sy), solid(sx + 1, sy + 1), solid(sx, sy + 1));

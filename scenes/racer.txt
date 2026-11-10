@@ -1,6 +1,7 @@
-# Hill climb: drive with → / D (ahead) and ← / A (reverse) while playing.
-# A wooden car with two rubber wheels on sprung, motorised axles.
-size 1024 288
+# Hill climb: press Play and drive with → / D (ahead) and ← / A (reverse).
+# The camera follows the car. Hills, a jump, a wobbly bridge, a lava pit
+# to clear, and the finish post.
+size 2048 288
 seed 2
 fill air
 rect stone 0 236 4 52
@@ -99,37 +100,37 @@ rect stone 368 202 4 86
 rect stone 372 203 4 85
 rect stone 376 203 4 85
 rect stone 380 204 4 84
-rect stone 384 203 4 85
-rect stone 388 203 4 85
-rect stone 392 203 4 85
-rect stone 396 203 4 85
-rect stone 400 203 4 85
-rect stone 404 203 4 85
-rect stone 408 204 4 84
-rect stone 412 204 4 84
-rect stone 416 204 4 84
-rect stone 420 204 4 84
-rect stone 424 205 4 83
-rect stone 428 205 4 83
-rect stone 432 205 4 83
-rect stone 436 205 4 83
-rect stone 440 205 4 83
-rect stone 444 204 4 84
-rect stone 448 204 4 84
-rect stone 452 203 4 85
-rect stone 456 203 4 85
-rect stone 460 202 4 86
-rect stone 464 201 4 87
-rect stone 468 199 4 89
+rect stone 384 205 4 83
+rect stone 388 206 4 82
+rect stone 392 207 4 81
+rect stone 396 208 4 80
+rect stone 400 209 4 79
+rect stone 404 209 4 79
+rect stone 408 209 4 79
+rect stone 412 209 4 79
+rect stone 416 209 4 79
+rect stone 420 209 4 79
+rect stone 424 209 4 79
+rect stone 428 209 4 79
+rect stone 432 209 4 79
+rect stone 436 208 4 80
+rect stone 440 208 4 80
+rect stone 444 207 4 81
+rect stone 448 207 4 81
+rect stone 452 206 4 82
+rect stone 456 205 4 83
+rect stone 460 203 4 85
+rect stone 464 202 4 86
+rect stone 468 200 4 88
 rect stone 472 286 4 2
 rect stone 476 286 4 2
 rect stone 480 286 4 2
 rect stone 484 286 4 2
 rect stone 488 286 4 2
-rect stone 492 286 4 2
-rect stone 496 286 4 2
-rect stone 500 286 4 2
-rect stone 504 286 4 2
+rect stone 492 227 4 61
+rect stone 496 227 4 61
+rect stone 500 226 4 62
+rect stone 504 226 4 62
 rect stone 508 226 4 62
 rect stone 512 226 4 62
 rect stone 516 227 4 61
@@ -175,59 +176,59 @@ rect stone 672 212 4 76
 rect stone 676 212 4 76
 rect stone 680 211 4 77
 rect stone 684 211 4 77
-rect stone 688 211 4 77
-rect stone 692 211 4 77
-rect stone 696 211 4 77
-rect stone 700 212 4 76
-rect stone 704 212 4 76
-rect stone 708 212 4 76
-rect stone 712 212 4 76
-rect stone 716 212 4 76
-rect stone 720 212 4 76
-rect stone 724 212 4 76
-rect stone 728 212 4 76
-rect stone 732 212 4 76
-rect stone 736 212 4 76
-rect stone 740 211 4 77
-rect stone 744 211 4 77
-rect stone 748 210 4 78
-rect stone 752 209 4 79
-rect stone 756 209 4 79
-rect stone 760 208 4 80
-rect stone 764 207 4 81
-rect stone 768 206 4 82
-rect stone 772 205 4 83
-rect stone 776 204 4 84
-rect stone 780 204 4 84
-rect stone 784 203 4 85
-rect stone 788 202 4 86
-rect stone 792 202 4 86
-rect stone 796 202 4 86
-rect stone 800 202 4 86
-rect stone 804 202 4 86
-rect stone 808 202 4 86
-rect stone 812 203 4 85
-rect stone 816 203 4 85
-rect stone 820 204 4 84
-rect stone 824 205 4 83
-rect stone 828 207 4 81
-rect stone 832 208 4 80
-rect stone 836 209 4 79
-rect stone 840 211 4 77
-rect stone 844 212 4 76
-rect stone 848 214 4 74
-rect stone 852 215 4 73
-rect stone 856 217 4 71
-rect stone 860 218 4 70
-rect stone 864 220 4 68
-rect stone 868 221 4 67
-rect stone 872 222 4 66
-rect stone 876 223 4 65
-rect stone 880 224 4 64
-rect stone 884 225 4 63
-rect stone 888 226 4 62
-rect stone 892 226 4 62
-rect stone 896 226 4 62
+rect stone 688 212 4 76
+rect stone 692 213 4 75
+rect stone 696 214 4 74
+rect stone 700 215 4 73
+rect stone 704 216 4 72
+rect stone 708 216 4 72
+rect stone 712 217 4 71
+rect stone 716 218 4 70
+rect stone 720 219 4 69
+rect stone 724 220 4 68
+rect stone 728 221 4 67
+rect stone 732 222 4 66
+rect stone 736 222 4 66
+rect stone 740 223 4 65
+rect stone 744 224 4 64
+rect stone 748 225 4 63
+rect stone 752 226 4 62
+rect stone 756 227 4 61
+rect stone 760 286 4 2
+rect stone 764 286 4 2
+rect stone 768 286 4 2
+rect stone 772 286 4 2
+rect stone 776 286 4 2
+rect stone 780 286 4 2
+rect stone 784 286 4 2
+rect stone 788 286 4 2
+rect stone 792 286 4 2
+rect stone 796 286 4 2
+rect stone 800 286 4 2
+rect stone 804 286 4 2
+rect stone 808 286 4 2
+rect stone 812 286 4 2
+rect stone 816 286 4 2
+rect stone 820 286 4 2
+rect stone 824 286 4 2
+rect stone 828 286 4 2
+rect stone 832 286 4 2
+rect stone 836 286 4 2
+rect stone 840 286 4 2
+rect stone 844 286 4 2
+rect stone 848 286 4 2
+rect stone 852 286 4 2
+rect stone 856 286 4 2
+rect stone 860 286 4 2
+rect stone 864 286 4 2
+rect stone 868 286 4 2
+rect stone 872 286 4 2
+rect stone 876 286 4 2
+rect stone 880 228 4 60
+rect stone 884 228 4 60
+rect stone 888 228 4 60
+rect stone 892 228 4 60
+rect stone 896 228 4 60
 rect stone 900 226 4 62
 rect stone 904 226 4 62
 rect stone 908 226 4 62
@@ -259,12 +260,307 @@ rect stone 1008 236 4 52
 rect stone 1012 237 4 51
 rect stone 1016 237 4 51
 rect stone 1020 237 4 51
+rect stone 1024 237 4 51
+rect stone 1028 236 4 52
+rect stone 1032 235 4 53
+rect stone 1036 235 4 53
+rect stone 1040 234 4 54
+rect stone 1044 232 4 56
+rect stone 1048 231 4 57
+rect stone 1052 230 4 58
+rect stone 1056 228 4 60
+rect stone 1060 227 4 61
+rect stone 1064 225 4 63
+rect stone 1068 224 4 64
+rect stone 1072 222 4 66
+rect stone 1076 221 4 67
+rect stone 1080 219 4 69
+rect stone 1084 218 4 70
+rect stone 1088 217 4 71
+rect stone 1092 216 4 72
+rect stone 1096 215 4 73
+rect stone 1100 214 4 74
+rect stone 1104 214 4 74
+rect stone 1108 213 4 75
+rect stone 1112 213 4 75
+rect stone 1116 213 4 75
+rect stone 1120 212 4 76
+rect stone 1124 212 4 76
+rect stone 1128 213 4 75
+rect stone 1132 213 4 75
+rect stone 1136 213 4 75
+rect stone 1140 213 4 75
+rect stone 1144 213 4 75
+rect stone 1148 213 4 75
+rect stone 1152 213 4 75
+rect stone 1156 213 4 75
+rect stone 1160 213 4 75
+rect stone 1164 213 4 75
+rect stone 1168 213 4 75
+rect stone 1172 212 4 76
+rect stone 1176 212 4 76
+rect stone 1180 211 4 77
+rect stone 1184 210 4 78
+rect stone 1188 209 4 79
+rect stone 1192 208 4 80
+rect stone 1196 207 4 81
+rect stone 1200 206 4 82
+rect stone 1204 206 4 82
+rect stone 1208 205 4 83
+rect stone 1212 204 4 84
+rect stone 1216 203 4 85
+rect stone 1220 202 4 86
+rect stone 1224 202 4 86
+rect stone 1228 201 4 87
+rect stone 1232 201 4 87
+rect stone 1236 201 4 87
+rect stone 1240 201 4 87
+rect stone 1244 202 4 86
+rect stone 1248 202 4 86
+rect stone 1252 203 4 85
+rect stone 1256 204 4 84
+rect stone 1260 205 4 83
+rect stone 1264 206 4 82
+rect stone 1268 208 4 80
+rect stone 1272 208 4 80
+rect stone 1276 208 4 80
+rect stone 1280 208 4 80
+rect stone 1284 208 4 80
+rect stone 1288 208 4 80
+rect stone 1292 208 4 80
+rect stone 1296 208 4 80
+rect stone 1300 207 4 81
+rect stone 1304 207 4 81
+rect stone 1308 207 4 81
+rect stone 1312 206 4 82
+rect stone 1316 205 4 83
+rect stone 1320 204 4 84
+rect stone 1324 203 4 85
+rect stone 1328 202 4 86
+rect stone 1332 200 4 88
+rect stone 1336 199 4 89
+rect stone 1340 280 4 8
+rect stone 1344 280 4 8
+rect stone 1348 280 4 8
+rect stone 1352 280 4 8
+rect stone 1356 280 4 8
+rect stone 1360 280 4 8
+rect stone 1364 280 4 8
+rect stone 1368 280 4 8
+rect stone 1372 280 4 8
+rect stone 1376 280 4 8
+rect stone 1380 280 4 8
+rect stone 1384 280 4 8
+rect stone 1388 280 4 8
+rect stone 1392 226 4 62
+rect stone 1396 227 4 61
+rect stone 1400 228 4 60
+rect stone 1404 229 4 59
+rect stone 1408 230 4 58
+rect stone 1412 231 4 57
+rect stone 1416 232 4 56
+rect stone 1420 233 4 55
+rect stone 1424 234 4 54
+rect stone 1428 234 4 54
+rect stone 1432 235 4 53
+rect stone 1436 236 4 52
+rect stone 1440 237 4 51
+rect stone 1444 237 4 51
+rect stone 1448 237 4 51
+rect stone 1452 237 4 51
+rect stone 1456 237 4 51
+rect stone 1460 237 4 51
+rect stone 1464 236 4 52
+rect stone 1468 236 4 52
+rect stone 1472 235 4 53
+rect stone 1476 234 4 54
+rect stone 1480 233 4 55
+rect stone 1484 231 4 57
+rect stone 1488 230 4 58
+rect stone 1492 228 4 60
+rect stone 1496 227 4 61
+rect stone 1500 225 4 63
+rect stone 1504 224 4 64
+rect stone 1508 222 4 66
+rect stone 1512 221 4 67
+rect stone 1516 220 4 68
+rect stone 1520 219 4 69
+rect stone 1524 217 4 71
+rect stone 1528 216 4 72
+rect stone 1532 216 4 72
+rect stone 1536 215 4 73
+rect stone 1540 214 4 74
+rect stone 1544 214 4 74
+rect stone 1548 214 4 74
+rect stone 1552 214 4 74
+rect stone 1556 214 4 74
+rect stone 1560 214 4 74
+rect stone 1564 214 4 74
+rect stone 1568 214 4 74
+rect stone 1572 214 4 74
+rect stone 1576 214 4 74
+rect stone 1580 214 4 74
+rect stone 1584 214 4 74
+rect stone 1588 214 4 74
+rect stone 1592 214 4 74
+rect stone 1596 214 4 74
+rect stone 1600 213 4 75
+rect stone 1604 213 4 75
+rect stone 1608 212 4 76
+rect stone 1612 212 4 76
+rect stone 1616 211 4 77
+rect stone 1620 210 4 78
+rect stone 1624 209 4 79
+rect stone 1628 208 4 80
+rect stone 1632 207 4 81
+rect stone 1636 206 4 82
+rect stone 1640 205 4 83
+rect stone 1644 204 4 84
+rect stone 1648 203 4 85
+rect stone 1652 202 4 86
+rect stone 1656 202 4 86
+rect stone 1660 201 4 87
+rect stone 1664 201 4 87
+rect stone 1668 201 4 87
+rect stone 1672 201 4 87
+rect stone 1676 201 4 87
+rect stone 1680 202 4 86
+rect stone 1684 202 4 86
+rect stone 1688 203 4 85
+rect stone 1692 204 4 84
+rect stone 1696 205 4 83
+rect stone 1700 206 4 82
+rect stone 1704 208 4 80
+rect stone 1708 209 4 79
+rect stone 1712 211 4 77
+rect stone 1716 212 4 76
+rect stone 1720 214 4 74
+rect stone 1724 215 4 73
+rect stone 1728 216 4 72
+rect stone 1732 218 4 70
+rect stone 1736 219 4 69
+rect stone 1740 220 4 68
+rect stone 1744 221 4 67
+rect stone 1748 222 4 66
+rect stone 1752 223 4 65
+rect stone 1756 223 4 65
+rect stone 1760 224 4 64
+rect stone 1764 224 4 64
+rect stone 1768 224 4 64
+rect stone 1772 224 4 64
+rect stone 1776 224 4 64
+rect stone 1780 224 4 64
+rect stone 1784 224 4 64
+rect stone 1788 224 4 64
+rect stone 1792 224 4 64
+rect stone 1796 224 4 64
+rect stone 1800 224 4 64
+rect stone 1804 224 4 64
+rect stone 1808 224 4 64
+rect stone 1812 224 4 64
+rect stone 1816 224 4 64
+rect stone 1820 225 4 63
+rect stone 1824 225 4 63
+rect stone 1828 226 4 62
+rect stone 1832 226 4 62
+rect stone 1836 227 4 61
+rect stone 1840 227 4 61
+rect stone 1844 228 4 60
+rect stone 1848 228 4 60
+rect stone 1852 229 4 59
+rect stone 1856 229 4 59
+rect stone 1860 230 4 58
+rect stone 1864 231 4 57
+rect stone 1868 231 4 57
+rect stone 1872 232 4 56
+rect stone 1876 232 4 56
+rect stone 1880 233 4 55
+rect stone 1884 233 4 55
+rect stone 1888 234 4 54
+rect stone 1892 234 4 54
+rect stone 1896 235 4 53
+rect stone 1900 236 4 52
+rect stone 1904 236 4 52
+rect stone 1908 236 4 52
+rect stone 1912 236 4 52
+rect stone 1916 236 4 52
+rect stone 1920 236 4 52
+rect stone 1924 236 4 52
+rect stone 1928 236 4 52
+rect stone 1932 236 4 52
+rect stone 1936 236 4 52
+rect stone 1940 236 4 52
+rect stone 1944 236 4 52
+rect stone 1948 236 4 52
+rect stone 1952 236 4 52
+rect stone 1956 236 4 52
+rect stone 1960 236 4 52
+rect stone 1964 236 4 52
+rect stone 1968 236 4 52
+rect stone 1972 236 4 52
+rect stone 1976 236 4 52
+rect stone 1980 236 4 52
+rect stone 1984 236 4 52
+rect stone 1988 236 4 52
+rect stone 1992 236 4 52
+rect stone 1996 236 4 52
+rect stone 2000 236 4 52
+rect stone 2004 236 4 52
+rect stone 2008 236 4 52
+rect stone 2012 236 4 52
+rect stone 2016 236 4 52
+rect stone 2020 236 4 52
+rect stone 2024 236 4 52
+rect stone 2028 236 4 52
+rect stone 2032 236 4 52
+rect stone 2036 236 4 52
+rect stone 2040 236 4 52
+rect stone 2044 236 4 52
+rect lava 1340 270 52 10                  # the lava pit
+
+# A wobbly bridge: wooden planks hinged end to end, pinned at both sides
+body rect wood 758 226 12 3
+name plank0
+body rect wood 770 226 12 3
+name plank1
+body rect wood 782 226 12 3
+name plank2
+body rect wood 794 226 12 3
+name plank3
+body rect wood 806 226 12 3
+name plank4
+body rect wood 818 226 12 3
+name plank5
+body rect wood 830 226 12 3
+name plank6
+body rect wood 842 226 12 3
+name plank7
+body rect wood 854 226 12 3
+name plank8
+body rect wood 866 226 12 3
+name plank9
+hinge ground plank0 at 759 227
+hinge plank0 plank1 at 770 227
+hinge plank1 plank2 at 782 227
+hinge plank2 plank3 at 794 227
+hinge plank3 plank4 at 806 227
+hinge plank4 plank5 at 818 227
+hinge plank5 plank6 at 830 227
+hinge plank6 plank7 at 842 227
+hinge plank7 plank8 at 854 227
+hinge plank8 plank9 at 866 227
+hinge plank9 ground at 877 227
+
+
+# The finish post
+rect iron 1990 196 4 40
+rect iron 1990 196 16 8
 
 # The car: a wooden body, a heavy iron engine at the front (so it doesn't
 # flip over backwards), a cab, and two rubber wheels on sprung, motorised axles.
 body rect wood 20 210 64 5
 name car
-body rect iron 70 202 12 8
+body rect iron 74 204 8 6
 name engine
 weld car engine
 body rect wood 38 199 16 11
@@ -274,5 +570,6 @@ body circle rubber 30 221 6
 name back
 body circle rubber 74 221 6
 name front
-wheel car back spring 60 damping 12 travel 3 motor 2 strength 12 drive
-wheel car front spring 60 damping 12 travel 3 motor 2 strength 12 drive
+wheel car back spring 60 damping 12 travel 3 motor 4 strength 25 drive
+wheel car front spring 60 damping 12 travel 3 motor 4 strength 25 drive
+follow car zoom 3

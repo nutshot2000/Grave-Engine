@@ -379,3 +379,18 @@ fn objects_placed_inside_the_ground_pop_out() {
     assert!(b[0].y <= 45.5, "should sit on top of the ground, centre y={}", b[0].y);
     assert_eq!(count(&s, &m, "stone"), 1000 + 100, "all of it should be visible");
 }
+
+#[test]
+fn the_same_scene_always_plays_out_the_same() {
+    // Agents rely on this: a headless run must be repeatable.
+    let m = mats();
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes/forces.txt")).unwrap();
+    let run = || {
+        let (mut s, _) = scene::load(&text, &m, Some(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes")))).into_sim(&m);
+        for _ in 0..700 {
+            s.step(&m);
+        }
+        (s.world.mat.clone(), s.physics.body_count())
+    };
+    assert!(run() == run(), "two runs of the same scene differ");
+}

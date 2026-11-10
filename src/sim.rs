@@ -11,6 +11,11 @@ pub struct Sim {
     pub physics: Physics,
     /// Objects that are copies of a template, by object id.
     pub instances: HashMap<u64, Instance>,
+    /// The object the camera follows, if any.
+    pub follow: Option<u64>,
+    /// How close the following camera is (times closer than showing the
+    /// whole world). 0 = the editor decides.
+    pub zoom: f32,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -23,12 +28,15 @@ pub struct Snapshot {
     /// Joints, with `a` and `b` meaning "object number N+1 in `bodies`"
     /// (0 = the ground).
     pub joints: Vec<JointSpec>,
+    /// The object the camera follows (number N+1 in `bodies`), and how close.
+    pub follow: Option<u64>,
+    pub zoom: f32,
 }
 
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0 }
     }
 }
 
@@ -41,7 +49,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0 };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -85,6 +93,12 @@ impl Sim {
             let alive: std::collections::HashSet<u64> = self.physics.ids().into_iter().collect();
             self.instances.retain(|id, _| alive.contains(id));
         }
+        // The followed object is gone (broke apart, burned up): stop following.
+        if let Some(id) = self.follow {
+            if self.physics.spec_of(&self.world, id).is_none() {
+                self.follow = None;
+            }
+        }
     }
 
     pub fn snapshot(&mut self) -> Snapshot {
@@ -107,20 +121,21 @@ impl Sim {
                 Some(j)
             })
             .collect();
+        let follow = self.follow.and_then(index);
         let mut world = self.world.clone();
         for i in 0..world.mat.len() {
             if world.is_owned(i) {
                 world.make_air(i);
             }
         }
-        Snapshot { world, bodies, instances, joints }
+        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let world = snap.world.clone();
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {
@@ -131,6 +146,7 @@ impl Sim {
             new_ids.push(id);
         }
         sim.add_joints(&snap.joints, &new_ids, mats);
+        sim.follow = snap.follow.filter(|&n| n > 0).and_then(|n| new_ids.get(n as usize - 1).copied().flatten());
         sim
     }
 }
