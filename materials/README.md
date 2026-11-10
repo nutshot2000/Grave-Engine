@@ -17,6 +17,7 @@ the file and line number.
 | `density` | kg per m³. Heavier things sink below lighter ones. Hot gases get lighter. | 1000 |
 | `color` | `#rrggbb` or `r g b` | pink |
 | `color_variation` | How speckled each cell is, 0 to 1 | 0.06 |
+| `texture` | A picture tiled across everything made of it (e.g. `textures/wood.png`, relative to this folder). Without one, `color` and `color_variation` are used | none |
 | `glow` | How much it lights up its surroundings, 0 to 1 | 0 |
 | `crushable` | `yes` if falling objects crush it to nothing instead of landing on it (ash is) | no |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |

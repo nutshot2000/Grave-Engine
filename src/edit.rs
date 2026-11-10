@@ -251,10 +251,11 @@ struct CellState {
     life: u16,
     flags: u8,
     shade: u8,
+    tex: u16,
 }
 
 fn state(w: &World, i: usize) -> CellState {
-    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i] }
+    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i], tex: w.tex[i] }
 }
 
 fn restore_state(w: &mut World, i: usize, s: CellState) {
@@ -264,6 +265,7 @@ fn restore_state(w: &mut World, i: usize, s: CellState) {
     w.life[i] = s.life;
     w.flags[i] = s.flags;
     w.shade[i] = s.shade;
+    w.tex[i] = s.tex;
 }
 
 /// One undoable step: only the cells that changed, plus the objects before

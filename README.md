@@ -182,16 +182,30 @@ Headless runs can hold the drive controls too: `--throttle 1`.
 ## Importing from Blender and images
 
 **Drag a file onto the window** to drop it in as an object (tick "Drop as fixed scenery"
-to paint it in place instead). In a scene: `object ../assets/cart.glb 50 30`.
+to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
 
-- **Blender:** export as **glTF Binary (.glb)**. Grave Engine looks at it from the front
-  (numpad 1) and turns it into cells. **Name each Blender material after a Grave
-  material**: `wood`, `iron`, `Stone.001` and `old_wood_planks` all work. One Blender
-  metre is 10 cells (`scale 20` in a scene makes it bigger).
-  [`tools/make_cart_glb.py`](tools/make_cart_glb.py) builds the example cart.
-- **Images (.png):** each pixel becomes a cell, and transparent pixels are empty. Each colour
-  picks the material with the closest `color`, or you can add a `crate.colors.txt`
-  next to `crate.png` with lines like `#8b5a2b = wood`.
+- **3D models:** `.glb`, `.gltf` and `.obj` load directly. `.fbx` and `.blend` load
+  through Blender: the engine quietly asks Blender to convert them, so it needs to be
+  installed (or set `GRAVE_BLENDER` to its path). The model is seen from the front
+  (numpad 1), and one metre is 10 cells (`scale 20` in a scene makes it bigger).
+  Each part becomes:
+  1. the Grave material it's **named** after (`wood`, `Stone.001` and
+     `old_wood_planks` all work), or else
+  2. the closest materials to its **texture**'s colours, pixel by pixel, or else
+  3. the closest material to its plain **colour**.
+
+  Colours only pick solid materials that survive room temperature (never ice).
+  [`tools/make_tower_in_blender.py`](tools/make_tower_in_blender.py) builds the
+  textured watchtower in `scenes/imports.txt`; it was made in a running Blender
+  through its MCP connection.
+- **Images:** `.png`, `.jpg`, `.bmp` and `.tga`. Each pixel becomes a cell, and
+  transparent pixels are empty. Colours pick the closest material, or you can add a
+  `crate.colors.txt` next to `crate.png` with lines like `#8b5a2b = wood`.
+- **Material looks:** a material file can say `texture = textures/wood.png`, and
+  everything made of it is drawn with that picture tiled across it. The pattern
+  moves and turns with objects. Wood, stone and iron have textures to start with
+  ([`tools/make_material_textures.py`](tools/make_material_textures.py) makes them);
+  drop in your own pictures any time.
 
 ## For AI agents: headless mode
 
@@ -232,7 +246,7 @@ RPGs...), where any material works on any surface.
 7. Coatings: things get covered in what they touch (oily wood burns faster, wet
    tyres slip, icy roads), shown with small icons so players see why
 8. Projectiles, rays and top-down mode: second test game, a destructible shooter
-9. Material looks (texture patterns) and sounds (metal clang, wood thud)
+9. ~~Material looks (texture patterns)~~ (done) and sounds (metal clang, wood thud)
 10. An agent command channel to drive the open editor, then export
 11. Level-design guard rails: anchored or indestructible materials so levels
     don't all end up as rubble

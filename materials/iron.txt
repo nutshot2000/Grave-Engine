@@ -11,3 +11,4 @@ melts_into = molten_iron
 strength = 150
 toughness = 30000                # almost nothing breaks it
 friction = 0.4
+texture = textures/iron.png          # a tiling picture used to draw it (see materials/textures)

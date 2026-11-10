@@ -1,0 +1,12 @@
+# The same watchtower, built in Blender (tools/make_tower_in_blender.py) and
+# exported as .glb and .obj (an .fbx copy is in assets/ too: drop it on the
+# window to import it through Blender). Stone and wood come from the
+# Blender material names; the roof's colours come from its texture picture;
+# the flag's colour from its paint.
+size 256 144
+fill air
+rect stone 0 130 256 14
+object ../assets/tower.glb 20 70
+name glb
+object ../assets/tower.obj 100 70
+name obj

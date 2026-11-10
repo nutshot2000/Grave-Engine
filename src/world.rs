@@ -54,6 +54,12 @@ fn value_noise(x: f32, y: f32, t: f32) -> f32 {
     lerp(layer(iz), layer(iz + 1), fz)
 }
 
+/// Pack a texture position into a cell's `tex`.
+#[inline]
+pub fn pack_tex(x: usize, y: usize) -> u16 {
+    (x as u16 & 0xff) | ((y as u16 & 0xff) << 8)
+}
+
 /// Room temperature, °C.
 pub const ROOM_TEMP: f32 = 20.0;
 
@@ -70,6 +76,10 @@ pub struct World {
     pub flags: Vec<u8>,
     /// Per-cell random number for colour speckle.
     pub shade: Vec<u8>,
+    /// Where in its material's texture picture each cell is (x in the low
+    /// byte, y in the high byte). Scenery uses its world position; objects
+    /// use their position within the object, so patterns move with them.
+    pub tex: Vec<u16>,
     /// The frame a cell last moved in (so nothing moves twice per frame).
     moved: Vec<u32>,
     pub frame: u32,
@@ -109,6 +119,7 @@ impl World {
             burn: vec![0; n],
             flags: vec![0; n],
             shade: vec![0; n],
+            tex: (0..n).map(|i| pack_tex(i % w, i / w)).collect(),
             moved: vec![0; n],
             frame: 1,
             ambient: ROOM_TEMP,
@@ -165,6 +176,7 @@ impl World {
         self.become_(mats, i, id);
         self.temp[i] = t;
         self.shade[i] = self.rand() as u8;
+        self.tex[i] = pack_tex(x, y);
     }
 
     /// Change a cell's material, keeping its temperature.
@@ -574,6 +586,7 @@ impl World {
         self.burn.swap(a, b);
         self.flags.swap(a, b);
         self.shade.swap(a, b);
+        self.tex.swap(a, b);
         self.moved[a] = self.frame;
         self.moved[b] = self.frame;
     }

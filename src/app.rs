@@ -526,6 +526,7 @@ impl Sandbox {
         if self.mats.changed_on_disk() {
             self.mats.reload();
             self.sim.physics.materials_changed(&self.mats);
+            self.renderer.reload_textures();
             if self.mats.problems.is_empty() {
                 self.say("Materials reloaded");
             } else {
@@ -872,7 +873,7 @@ impl Sandbox {
         });
         ui.separator();
         ui.label(RichText::new("Import").strong());
-        ui.label(RichText::new("Drop a .png or Blender .glb file onto the sandbox to add it.").size(13.0));
+        ui.label(RichText::new("Drop an image or 3D model onto the world to add it (.png .jpg .glb .obj .fbx .blend).").size(13.0));
         ui.checkbox(&mut self.drop_static, "Drop as fixed scenery");
         ui.separator();
         ui.label(RichText::new("Messages").strong());

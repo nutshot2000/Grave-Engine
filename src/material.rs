@@ -126,6 +126,9 @@ pub struct Material {
     /// Explosives: how hard the blast hits at its centre, in kilonewtons.
     pub explosion_power: f32,
     pub reactions: Vec<Reaction>,
+    /// A picture tiled across everything made of this material (instead of
+    /// the flat `color`). Relative paths start in the materials folder.
+    pub texture: Option<PathBuf>,
     /// Where it was loaded from (None for built-ins).
     pub file: Option<PathBuf>,
 }
@@ -171,6 +174,7 @@ impl Material {
             explosion_size: 0.0,
             explosion_power: 0.0,
             reactions: Vec::new(),
+            texture: None,
             file: None,
         }
     }
@@ -547,6 +551,17 @@ fn apply(
         "friction" => m.friction = num(v)?.clamp(0.0, 2.0),
         "bounciness" => m.bounciness = num(v)?.clamp(0.0, 1.0),
         "explosion_size" => m.explosion_size = num(v)?.clamp(0.0, 64.0),
+        "texture" => {
+            m.texture = if is_none(v) {
+                None
+            } else {
+                let p = PathBuf::from(v.trim());
+                Some(match (&m.file, p.is_relative()) {
+                    (Some(f), true) => f.parent().map(|d| d.join(&p)).unwrap_or(p),
+                    _ => p,
+                })
+            }
+        }
         "explosion_power" => m.explosion_power = num(v)?.max(0.0),
         "reaction" | "reactions" | "reacts" => {
             for part in v.split(';').filter(|p| !p.trim().is_empty()) {

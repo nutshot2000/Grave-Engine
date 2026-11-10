@@ -13,6 +13,8 @@ pub struct View {
 /// Reusable buffers for drawing.
 #[derive(Default)]
 pub struct Renderer {
+    /// Material textures, loaded the first time they're needed.
+    textures: std::collections::HashMap<std::path::PathBuf, Option<crate::import::Picture>>,
     light: Vec<[f32; 3]>,
     tmp: Vec<[f32; 3]>,
     scratch: Vec<[f32; 3]>,
@@ -81,7 +83,21 @@ fn hash(a: u32) -> u32 {
 }
 
 impl Renderer {
+    /// Forget loaded textures (material files changed).
+    pub fn reload_textures(&mut self) {
+        self.textures.clear();
+    }
+
     pub fn draw(&mut self, world: &World, mats: &Materials, view: View) -> &[u8] {
+        // Load any textures not seen yet.
+        let pics: Vec<Option<crate::import::Picture>> = mats
+            .list
+            .iter()
+            .map(|m| {
+                let p = m.texture.as_ref()?;
+                self.textures.entry(p.clone()).or_insert_with(|| crate::import::Picture::open(p).ok()).clone()
+            })
+            .collect();
         let n = world.w * world.h;
         self.light.resize(n, [0.0; 3]);
         self.tmp.resize(n, [0.0; 3]);
@@ -94,7 +110,15 @@ impl Renderer {
             let m = mats.get(world.mat[i]);
             let t = world.temp[i];
             let shade = (world.shade[i] as f32 / 255.0) * 2.0 - 1.0;
-            let mut col = c3(m.color);
+            let mut col = match &pics[world.mat[i] as usize] {
+                Some(p) => {
+                    let t = world.tex[i];
+                    let (x, y) = ((t & 0xff) as usize % p.w, (t >> 8) as usize % p.h);
+                    let o = (y * p.w + x) * 4;
+                    [p.rgba[o] as f32, p.rgba[o + 1] as f32, p.rgba[o + 2] as f32]
+                }
+                None => c3(m.color),
+            };
             let mut emit = [0.0f32; 3];
 
             if view.heat {

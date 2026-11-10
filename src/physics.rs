@@ -478,6 +478,7 @@ impl Physics {
                 world.life[wi] = cell.life;
                 world.flags[wi] = cell.flags | OWNED;
                 world.shade[wi] = cell.shade;
+                world.tex[wi] = crate::world::pack_tex(li, lj);
                 body.stamped.push((wi as u32, local as u32));
             }
         }
