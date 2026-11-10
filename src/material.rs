@@ -96,6 +96,9 @@ pub struct Material {
     pub puts_out_fire: bool,
     /// Falling objects crush it to nothing instead of landing on it (ash).
     pub crushable: bool,
+    /// It's a metal: imported parts marked metallic (glTF / Blender
+    /// "Metallic") only turn into metals, and other parts never do.
+    pub metal: bool,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -158,6 +161,7 @@ impl Material {
             feeds_fire: false,
             puts_out_fire: false,
             crushable: false,
+            metal: false,
             melts: None,
             boils: None,
             freezes: None,
@@ -531,6 +535,7 @@ fn apply(
         "feeds_fire" => m.feeds_fire = yes_no(v)?,
         "puts_out_fire" => m.puts_out_fire = yes_no(v)?,
         "crushable" => m.crushable = yes_no(v)?,
+        "metal" => m.metal = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,
         "boils_at" => set_at(&mut m.boils, v)?,

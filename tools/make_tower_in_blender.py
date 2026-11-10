@@ -78,7 +78,7 @@ box("Flag", (0.3, 0, 4.6), (0.5, 0.05, 0.3), flag)
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(filepath=os.path.join(ASSETS, "tower.glb"), export_format="GLB", use_selection=True)
-bpy.ops.wm.obj_export(filepath=os.path.join(ASSETS, "tower.obj"), export_selected_objects=True, path_mode="RELATIVE")
+bpy.ops.wm.obj_export(filepath=os.path.join(ASSETS, "tower.obj"), export_selected_objects=True, path_mode="RELATIVE", export_pbr_extensions=True)
 bpy.ops.export_scene.fbx(filepath=os.path.join(ASSETS, "tower.fbx"), use_selection=True, path_mode="COPY", embed_textures=True)
 
 bpy.context.window.scene = old_scene

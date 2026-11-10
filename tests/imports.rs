@@ -24,11 +24,13 @@ fn the_blender_tower_imports_from_glb_and_obj_alike() {
     let (glb, w1) = import::load(&asset("tower.glb"), &m, None).unwrap();
     let (obj, w2) = import::load(&asset("tower.obj"), &m, None).unwrap();
     assert!(w1.is_empty() && w2.is_empty(), "{w1:?} {w2:?}");
-    for name in ["stone", "wood", "iron"] {
+    for name in ["stone", "wood"] {
         let (a, b) = (count(&glb, &m, name), count(&obj, &m, name));
         assert!(a > 20, "{name}: {a}");
         assert!((a as i32 - b as i32).abs() <= 4, "{name}: glb {a} vs obj {b}");
     }
+    // The roof's grey stripes aren't metallic in Blender, so they're not iron.
+    assert_eq!(count(&glb, &m, "iron") + count(&obj, &m, "iron"), 0);
     assert_eq!(count(&glb, &m, "ice"), 0, "paint colours never pick things that melt at room temperature");
 }
 
@@ -95,4 +97,18 @@ fn an_object_can_be_made_all_of_one_material() {
     let solid: Vec<u16> = loaded.world.mat.iter().copied().filter(|&c| c != 0).collect();
     assert!(solid.len() > 300, "the Godot rock came in: {} cells", solid.len());
     assert!(solid.iter().all(|&c| c == rock), "and it's all rock");
+}
+
+#[test]
+fn metallic_parts_become_metals_and_others_dont() {
+    let m = mats();
+    let (shape, _) = import::load(&asset("imported/cascade/cascade.glb"), &m, None).unwrap();
+    // The machine is brass, chrome and enamelled metal, plus some ceramic.
+    assert!(count(&shape, &m, "brass") > 500, "brass parts (named brass)");
+    assert!(count(&shape, &m, "iron") > 500, "chrome and enamel are metallic: iron");
+    for not_metal in ["wood", "rubber"] {
+        assert_eq!(count(&shape, &m, not_metal), 0, "no metallic part turns into {not_metal}");
+    }
+    // Ordinary pictures don't say, so grey can still be iron.
+    assert!(m.get(m.id("iron").unwrap()).metal && !m.get(m.id("stone").unwrap()).metal);
 }

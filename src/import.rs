@@ -59,8 +59,8 @@ pub fn load(path: &Path, mats: &Materials, scale: Option<f32>) -> Result<(Shape,
 /// to the imported file), otherwise the material with the closest `color`.
 struct ColorMap {
     mapping: Vec<([u8; 3], MatId)>,
-    candidates: Vec<([u8; 3], MatId)>,
-    cache: HashMap<[u8; 3], MatId>,
+    candidates: Vec<([u8; 3], MatId, bool)>,
+    cache: HashMap<([u8; 3], Option<bool>), MatId>,
 }
 
 impl ColorMap {
@@ -99,13 +99,15 @@ impl ColorMap {
                     && m.freezes.is_none_or(|c| c.at < crate::world::ROOM_TEMP - 15.0)
                     && m.lifetime.is_none()
             })
-            .map(|(i, m)| (m.color, i as MatId))
+            .map(|(i, m)| (m.color, i as MatId, m.metal))
             .collect();
         ColorMap { mapping, candidates, cache: HashMap::new() }
     }
 
-    fn pick(&mut self, c: [u8; 3]) -> MatId {
-        if let Some(&m) = self.cache.get(&c) {
+    /// `metal`: Some(true) = the part is metallic (pick a metal), Some(false)
+    /// = it isn't (don't), None = don't know (pictures).
+    fn pick(&mut self, c: [u8; 3], metal: Option<bool>) -> MatId {
+        if let Some(&m) = self.cache.get(&(c, metal)) {
             return m;
         }
         let dist = |a: [u8; 3], b: [u8; 3]| -> i32 { (0..3).map(|k| (a[k] as i32 - b[k] as i32).pow(2)).sum() };
@@ -114,10 +116,17 @@ impl ColorMap {
             .iter()
             .filter(|(mc, _)| dist(*mc, c) <= 40 * 40)
             .min_by_key(|(mc, _)| dist(*mc, c))
-            .or_else(|| self.candidates.iter().min_by_key(|(mc, _)| dist(*mc, c)))
             .map(|&(_, m)| m)
+            .or_else(|| {
+                let fits = |is_metal: bool| metal.is_none_or(|want| want == is_metal);
+                let best = |only_fitting: bool| {
+                    self.candidates.iter().filter(|(_, _, is_metal)| !only_fitting || fits(*is_metal)).min_by_key(|(mc, _, _)| dist(*mc, c)).map(|&(_, m, _)| m)
+                };
+                // (No metals at all? Then the closest colour of anything.)
+                best(true).or_else(|| best(false))
+            })
             .unwrap_or(AIR);
-        self.cache.insert(c, m);
+        self.cache.insert((c, metal), m);
         m
     }
 }
@@ -159,7 +168,7 @@ fn load_image(path: &Path, mats: &Materials, scale: usize) -> Result<(Shape, Vec
             if pic.rgba[o + 3] < 128 {
                 continue;
             }
-            let m = colors.pick([pic.rgba[o], pic.rgba[o + 1], pic.rgba[o + 2]]);
+            let m = colors.pick([pic.rgba[o], pic.rgba[o + 1], pic.rgba[o + 2]], None);
             for dy in 0..scale {
                 for dx in 0..scale {
                     cells[(y * scale + dy) * sw + x * scale + dx] = Some(m);
@@ -197,10 +206,10 @@ pub fn material_from_name(name: &str, mats: &Materials) -> Option<MatId> {
 enum Paint {
     /// Named after a Grave material.
     Mat(MatId),
-    /// A plain colour.
-    Color([u8; 3]),
+    /// A plain colour (and whether the part is metallic, if known).
+    Color([u8; 3], Option<bool>),
     /// A texture picture (index into the pictures list), tinted.
-    Texture(usize, [f32; 3]),
+    Texture(usize, [f32; 3], Option<bool>),
 }
 
 struct Tri {
@@ -270,14 +279,14 @@ fn rasterize(tris: &[Tri], pictures: &[Picture], colors: &mut ColorMap, per_metr
                 }
                 let mat = match &t.paint {
                     Paint::Mat(m) => Some(*m),
-                    Paint::Color(c) => Some(colors.pick(*c)),
-                    Paint::Texture(k, tint) => {
+                    Paint::Color(c, metal) => Some(colors.pick(*c, *metal)),
+                    Paint::Texture(k, tint, metal) => {
                         let u = w0 * t.uv[0][0] + w1 * t.uv[1][0] + w2 * t.uv[2][0];
                         let v = w0 * t.uv[0][1] + w1 * t.uv[1][1] + w2 * t.uv[2][1];
                         let (c, alpha) = pictures[*k].sample(u, v);
                         (alpha >= 128).then(|| {
                             let c = [0, 1, 2].map(|j| (c[j] as f32 * tint[j]).clamp(0.0, 255.0) as u8);
-                            colors.pick(c)
+                            colors.pick(c, *metal)
                         })
                     }
                 };
@@ -295,12 +304,12 @@ fn rasterize(tris: &[Tri], pictures: &[Picture], colors: &mut ColorMap, per_metr
                 let z = (a.2 + b.2 + c.2) / 3.0;
                 let mat = match &t.paint {
                     Paint::Mat(m) => Some(*m),
-                    Paint::Color(c) => Some(colors.pick(*c)),
-                    Paint::Texture(k, tint) => {
+                    Paint::Color(c, metal) => Some(colors.pick(*c, *metal)),
+                    Paint::Texture(k, tint, metal) => {
                         let u = (t.uv[0][0] + t.uv[1][0] + t.uv[2][0]) / 3.0;
                         let v = (t.uv[0][1] + t.uv[1][1] + t.uv[2][1]) / 3.0;
                         let (c, alpha) = pictures[*k].sample(u, v);
-                        (alpha >= 128).then(|| colors.pick([0, 1, 2].map(|j| (c[j] as f32 * tint[j]).clamp(0.0, 255.0) as u8)))
+                        (alpha >= 128).then(|| colors.pick([0, 1, 2].map(|j| (c[j] as f32 * tint[j]).clamp(0.0, 255.0) as u8), *metal))
                     }
                 };
                 if let (Some(m), true) = (mat, z > depth[i]) {
@@ -327,16 +336,16 @@ fn to_u8(c: [f32; 3]) -> [u8; 3] {
 
 /// Decide how a part is coloured in. Plain white with no texture and an
 /// unknown name: stone, with a warning.
-fn choose_paint(name: &str, color: [f32; 3], texture: Option<usize>, mats: &Materials, unknown: &mut Vec<String>) -> Paint {
+fn choose_paint(name: &str, color: [f32; 3], texture: Option<usize>, metal: Option<bool>, mats: &Materials, unknown: &mut Vec<String>) -> Paint {
     if let Some(id) = material_from_name(name, mats) {
         return Paint::Mat(id);
     }
     if let Some(k) = texture {
-        return Paint::Texture(k, color);
+        return Paint::Texture(k, color, metal);
     }
     let white = color.iter().all(|&c| c > 0.97);
-    if !white {
-        return Paint::Color(to_u8(color));
+    if !white || metal == Some(true) {
+        return Paint::Color(to_u8(color), metal);
     }
     if !unknown.contains(&name.to_string()) {
         unknown.push(name.to_string());
@@ -430,6 +439,7 @@ fn load_gltf(path: &Path, mats: &Materials, per_metre: f32) -> Result<(Shape, Ve
                 material.name().unwrap_or(""),
                 [f[0], f[1], f[2]],
                 tex.map(|t| t.texture().source().index()),
+                Some(pbr.metallic_factor() >= 0.5),
                 mats,
                 &mut unknown,
             );
@@ -483,7 +493,9 @@ fn load_obj(path: &Path, mats: &Materials, per_metre: f32) -> Result<(Shape, Vec
                 }
             });
             let d = m.diffuse.unwrap_or([1.0, 1.0, 1.0]);
-            choose_paint(&m.name, [d[0], d[1], d[2]], tex, mats, &mut unknown)
+            // OBJ's PBR extension: `Pm` is how metallic it is.
+            let metal = m.unknown_param.get("Pm").and_then(|v| v.trim().parse::<f32>().ok()).map(|pm| pm >= 0.5);
+            choose_paint(&m.name, [d[0], d[1], d[2]], tex, metal, mats, &mut unknown)
         })
         .collect();
     let fallback = mats.id("stone").unwrap_or(AIR);

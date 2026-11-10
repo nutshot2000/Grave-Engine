@@ -11,4 +11,5 @@ melts_into = molten_iron
 strength = 150
 toughness = 30000                # almost nothing breaks it
 friction = 0.4
+metal = yes                      # imported metallic parts can become iron
 texture = textures/iron.png          # a tiling picture used to draw it (see materials/textures)

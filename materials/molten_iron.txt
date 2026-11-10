@@ -11,3 +11,4 @@ heat_capacity = 1
 freezes_at = 1450
 freezes_into = iron
 flows = 2
+metal = yes

@@ -289,8 +289,9 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
   `object ... material rock`, which makes a whole model out of one material.
 - `scenes/machine.txt`: the "Cascade Engine" Rube Goldberg machine from an
   old Unreal/Blender project. Blender exported it without its 200 m studio
-  floor, and the engine picked materials by colour (brass came out as wood,
-  chrome as iron, enamel as rubber).
+  floor. The brass parts are named brass, so they became the new `brass`
+  material; chrome and the enamelled base are metallic in Blender, so they
+  became iron; the ceramic became stone. Nothing in it burns.
 - Unreal's own `.uasset` files can't be read outside Unreal: export them to
   FBX from the Unreal editor first.
 

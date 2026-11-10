@@ -1,0 +1,15 @@
+# Brass: a golden metal (copper and zinc). Softer than iron and melts
+# sooner. Shiny machine parts, fittings, bells.
+about = Golden metal. Conducts heat well; melts at 930 degrees.
+state = solid
+density = 8500
+color = #c9a24a
+color_variation = 0.06
+conducts_heat = 0.8
+heat_capacity = 1
+melts_at = 930
+melts_into = molten_brass
+strength = 90
+toughness = 15000
+friction = 0.35
+metal = yes
