@@ -151,3 +151,37 @@ fn joining_in_code() {
     let b = &s.physics.export(&mut s.world)[0];
     assert!(b.spin.abs() > 1.0, "a motorised hinge keeps it turning, spin {}", b.spin);
 }
+
+#[test]
+fn breakable_weld_releases_under_load_and_roundtrips() {
+    let m=mats();
+    let text="size 80 120\nfill air\nbody rect iron 30 20 6 6\ndepth 0.02\nname weight\nweld ground weight break 0.01\n";
+    let mut weak=sim(&m,text);
+    let snap=weak.snapshot();
+    assert_eq!(snap.bodies[0].depth,0.02);
+    assert_eq!(snap.joints[0].break_force,Some(0.01));
+    let encoded=scene::save(&snap,&m);
+    let mut restored=sim(&m,&encoded);
+    assert_eq!(restored.snapshot().bodies[0].depth,0.02);
+    assert_eq!(restored.physics.joints()[0].break_force,Some(0.01));
+    let mut strong=sim(&m,&text.replace("break 0.01","break 1000"));
+    for _ in 0..45 {weak.step(&m);restored.step(&m);strong.step(&m);}
+    assert!(weak.physics.joints().is_empty());
+    assert!(restored.physics.joints().is_empty());
+    assert_eq!(strong.physics.joints().len(),1);
+    let b=weak.physics.spec_of(&weak.world,1).unwrap();
+    assert!(b.y>30. && b.vy>20.,"released body must fall with momentum: {b:?}");
+}
+
+#[test]
+fn depth_changes_mass_without_changing_material_and_survives_fragments() {
+    let m=mats();
+    let mut thin=sim(&m,"size 100 100\nfill air\nbody rect iron 20 10 20 6\ndepth 0.02\n");
+    let thick=sim(&m,"size 100 100\nfill air\nbody rect iron 20 10 20 6\n");
+    assert!((thin.physics.mass(1).unwrap()/thick.physics.mass(1).unwrap()-0.02).abs()<0.0001);
+    assert!(thin.physics.spec_of(&thin.world,1).unwrap().cells.iter().flatten().all(|c|c.mat==m.id("iron").unwrap()));
+    for y in 10..16 {for x in 29..31 {thin.world.set(&m,x,y,0);}}
+    thin.step(&m);
+    assert_eq!(thin.physics.body_count(),2);
+    for id in thin.physics.ids(){assert_eq!(thin.physics.spec_of(&thin.world,id).unwrap().depth,0.02);}
+}

@@ -28,11 +28,13 @@
 //! place crate 200 60 angle 15 material iron flip   # a copy of templates/crate.txt
 //! name crate1                       # give the last object a name (for joints)
 //!
+//! depth 0.02                       # previous body thickness in metres (default 1)
 //! # Joints between named objects (or `ground`); `at x y` is where, default the second's centre
 //! hinge door ground at 40 100 motor 0.5 strength 2 # a pin; optional motor (turns/s, kN·m)
 //! wheel car back at 100 210 spring 60 damping 4 travel 3 motor 2 strength 4 drive
 //! weld car cargo at 120 200                # glued together
 //! rope lamp ground at 50 40 to 50 10 length 30
+//! weld car cargo break 25           # optional attachment failure load in kN
 //! follow car zoom 3                  # the camera follows `car`, 3 times closer than the whole world
 //! player 40 260 look hero zoom 3     # the player, feet at x y; `look` = assets/characters/hero
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
@@ -87,6 +89,7 @@ pub struct PendingJoint {
     /// Rope: the other end's position.
     pub to: Option<(f32, f32)>,
     pub motor: Option<crate::physics::Motor>,
+    pub break_force: Option<f32>,
 }
 
 impl Loaded {
@@ -132,6 +135,8 @@ impl Loaded {
             };
             if !sim.physics.join(mats, a, b, kind, at, to, j.motor) {
                 problems.push("scene: couldn't make a joint".into());
+            } else if let Some(force) = j.break_force {
+                if !sim.physics.set_joint_break_force(a, b, force) { problems.push("scene: break force must be finite and positive".into()); }
             }
         }
         let mut sim = sim;
@@ -453,6 +458,12 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     }
                 }
             }
+            "depth" => {
+                match words.get(1).and_then(|s|s.parse::<f32>().ok()) {
+                    Some(d) if d.is_finite() && d > 0.0 && d <= 10.0 && !bodies.is_empty() => bodies.last_mut().unwrap().depth = d,
+                    _ => err("depth needs a preceding body and a thickness in metres (0 < depth <= 10)".into()),
+                }
+            }
             "player" => {
                 let opt = |key: &str| words.iter().position(|w| w.eq_ignore_ascii_case(key)).and_then(|i| words.get(i + 1));
                 let material = opt("material").map(|s| s.to_string()).unwrap_or_else(|| "flesh".into());
@@ -530,7 +541,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     strength: val("strength").unwrap_or(2.0),
                     drive: rest.iter().any(|w| w == "drive"),
                 });
-                joints.push(PendingJoint { a, b, kind, at: pair("at"), to: pair("to"), motor });
+                joints.push(PendingJoint { a, b, kind, at: pair("at"), to: pair("to"), motor, break_force: val("break") });
             }
             "place" => {
                 use crate::template;
@@ -767,6 +778,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
                     b.angle.to_degrees(),
                     changes.join(" ")
                 ));
+                if b.depth != 1.0 {out.push_str(&format!("depth {}\n",b.depth));}
                 out.push_str(&name_line(n));
                 continue;
             }
@@ -779,6 +791,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             out.push('\n');
         }
         out.push_str("end\n");
+        if b.depth != 1.0 { out.push_str(&format!("depth {}\n", b.depth)); }
         out.push_str(&name_line(n));
     }
     if !snap.joints.is_empty() {
@@ -814,6 +827,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         if let Some(m) = &j.motor {
             line += &format!(" motor {} strength {}{}", m.speed, m.strength, if m.drive { " drive" } else { "" });
         }
+        if let Some(force) = j.break_force { line += &format!(" break {force}"); }
         out.push_str(&line);
         out.push('\n');
     }

@@ -39,9 +39,16 @@ const ACTOR_TAG: u128 = 2;
 /// Loose powder (sand, gravel) only holds characters up from below, like a
 /// one-way platform: you stand on a dune, but sand piled on or around you
 /// can't trap you or (when it overlaps you) fling you out.
-struct OneWayPowder;
+struct OneWayPowder { assemblies: HashMap<RigidBodyHandle, u64> }
 
 impl PhysicsHooks for OneWayPowder {
+    fn filter_contact_pair(&self, ctx: &PairFilterContext) -> Option<SolverFlags> {
+        if let (Some(a), Some(b)) = (ctx.rigid_body1, ctx.rigid_body2) {
+            if self.assemblies.get(&a).is_some_and(|root| self.assemblies.get(&b) == Some(root)) { return None; }
+        }
+        Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
+    }
+
     fn modify_solver_contacts(&self, ctx: &mut ContactModificationContext) {
         let (c1, c2) = (&ctx.colliders[ctx.collider1], &ctx.colliders[ctx.collider2]);
         let (actor_first, other) = if c1.user_data == ACTOR_TAG {
@@ -140,6 +147,8 @@ pub struct JointSpec {
     /// own unrotated frame; for the ground, in world cells).
     pub anchor_a: (f32, f32),
     pub anchor_b: (f32, f32),
+    /// Optional joint failure load in kN. None keeps the joint unbreakable.
+    pub break_force: Option<f32>,
     pub motor: Option<Motor>,
 }
 
@@ -163,6 +172,8 @@ pub struct BodyCell {
 /// restore them (for Reset).
 #[derive(Clone, Debug)]
 pub struct BodySpec {
+    /// Physical depth in metres, perpendicular to the 2D world.
+    pub depth: f32,
     pub w: usize,
     pub h: usize,
     /// `w * h` cells, row by row, `None` = empty.
@@ -195,7 +206,7 @@ impl BodySpec {
                 })
             })
             .collect();
-        BodySpec { w, h, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 }
+        BodySpec { depth: 1.0, w, h, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 }
     }
 
     pub fn cell_count(&self) -> usize {
@@ -212,6 +223,7 @@ fn hash(a: u32) -> u32 {
 }
 
 struct Body {
+    depth: f32,
     w: usize,
     h: usize,
     cells: Vec<Option<BodyCell>>,
@@ -434,7 +446,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
+        let mut body = Body { depth: spec.depth, w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
         self.next_id += 1;
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
@@ -466,7 +478,7 @@ impl Physics {
                 let col = ColliderBuilder::ball(r)
                     .friction_combine_rule(CoefficientCombineRule::Min)
                     .restitution_combine_rule(CoefficientCombineRule::Max)
-                    .density(density.max(50.0))
+                    .density(density.max(50.0) * body.depth)
                     .friction(m.friction)
                     .restitution(m.bounciness);
                 self.colliders.insert_with_parent(col, body.handle, &mut self.set);
@@ -482,7 +494,7 @@ impl Physics {
                 .translation(Vector::new(cx, cy))
                 .friction_combine_rule(CoefficientCombineRule::Min)
                 .restitution_combine_rule(CoefficientCombineRule::Max)
-                .density(m.density.max(50.0))
+                .density(m.density.max(50.0) * body.depth)
                 .friction(m.friction)
                 .restitution(m.bounciness);
             self.colliders.insert_with_parent(col, body.handle, &mut self.set);
@@ -677,6 +689,29 @@ impl Physics {
         }
         let blasts = world.blasts.clone();
         self.actors_think(world, mats, &blasts);
+        // Welded vehicle parts must not fight each other through internal collisions.
+        // Recompute each frame so released parts collide normally on the next step.
+        let mut roots: HashMap<u64,u64> = self.bodies.iter().map(|b|(b.id,b.id)).collect();
+        for _ in 0..self.joints.len() {
+            let mut changed=false;
+            for j in &self.joints {
+                if j.spec.a==GROUND || j.spec.b==GROUND || !matches!(j.spec.kind,JointKind::Weld|JointKind::Wheel{..}) {continue;}
+                if let (Some(&a),Some(&b))=(roots.get(&j.spec.a),roots.get(&j.spec.b)) {
+                    if a!=b {let root=a.min(b);for value in roots.values_mut(){if *value==a || *value==b {*value=root;}}changed=true;}
+                }
+            }
+            if !changed {break;}
+        }
+        let hooks=OneWayPowder {assemblies:self.bodies.iter().map(|b|(b.handle,roots[&b.id])).collect()};
+        for b in &self.bodies {for h in self.set[b.handle].colliders() {
+            let Some(c)=self.colliders.get(*h) else {continue};
+            let old=c.active_hooks();
+            let root=roots[&b.id];
+            let grouped=roots.values().filter(|v|**v==root).count()>1;
+            let new=if grouped {old | ActiveHooks::FILTER_CONTACT_PAIRS} else {old & !ActiveHooks::FILTER_CONTACT_PAIRS};
+            // Mutating unchanged colliders invalidates cached contacts and friction.
+            if new!=old {if let Some(c)=self.colliders.get_mut(*h) {c.set_active_hooks(new);}}
+        }}
         self.pipeline.step(
             Vector::new(0.0, GRAVITY),
             &self.params,
@@ -689,9 +724,11 @@ impl Physics {
             &mut self.multibody_joints,
             &mut self.soft,
             &mut self.ccd,
-            &OneWayPowder,
+            &hooks,
             &(),
         );
+
+        self.break_overloaded_joints();
 
         // 4. Put everything back into the grid (new pieces too).
         let mut bodies = std::mem::take(&mut self.bodies);
@@ -1173,6 +1210,7 @@ impl Physics {
             let (px, py) = (cx + dx, cy + dy);
             let v = rb.velocity_at_point(Vector::new(px * CELL, py * CELL));
             out.push(BodySpec {
+                depth: b.depth,
                 w,
                 h,
                 cells,
@@ -1385,7 +1423,7 @@ impl Physics {
         if n == 0 {
             return None;
         }
-        let force = n as f32 * CELL * CELL * rho * GRAVITY;
+        let force = n as f32 * CELL * CELL * rho * GRAVITY * b.depth;
         Some((force, Vector::new(sx / n as f32 * CELL, sy / n as f32 * CELL)))
     }
 
@@ -1508,6 +1546,7 @@ impl Physics {
             }
         }
         BodySpec {
+            depth: 1.0,
             w: pw,
             h: ph,
             cells,
@@ -1662,7 +1701,7 @@ impl Physics {
             }
             let cx = (x0 + px0) as f32 + pw as f32 / 2.0;
             let cy = (y0 + py0) as f32 + ph as f32 / 2.0;
-            self.add(world, mats, BodySpec { w: pw, h: ph, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 });
+            self.add(world, mats, BodySpec { depth: 1.0, w: pw, h: ph, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 });
         }
         n
     }
@@ -1693,7 +1732,7 @@ impl Physics {
                 if !self.bodies[n].round {
                     let mut b = std::mem::replace(
                         &mut self.bodies[n],
-                        Body { w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                        Body { depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                     );
                     b.round = true;
                     self.build_colliders(&mut b, mats);
@@ -1762,7 +1801,28 @@ impl Physics {
             Some((c * dx + s * dy, -s * dx + c * dy))
         };
         let (Some(anchor_a), Some(anchor_b)) = (local(self, a, at), local(self, b, at_b.unwrap_or(at))) else { return false };
-        self.insert_joint(mats, JointSpec { a, b, kind, anchor_a, anchor_b, motor })
+        self.insert_joint(mats, JointSpec { a, b, kind, anchor_a, anchor_b, motor, break_force: None })
+    }
+
+    /// Set a joint failure load (kN). Invalid or non-positive values are rejected.
+    pub fn set_joint_break_force(&mut self, a: u64, b: u64, force: f32) -> bool {
+        if !force.is_finite() || force <= 0.0 { return false; }
+        let Some(j) = self.joints.iter_mut().find(|j| (j.spec.a == a && j.spec.b == b) || (j.spec.a == b && j.spec.b == a)) else { return false };
+        j.spec.break_force = Some(force);
+        true
+    }
+
+    /// Release overloaded attachments after solving; detached bodies keep momentum.
+    fn break_overloaded_joints(&mut self) {
+        let (gone, keep): (Vec<_>, Vec<_>) = std::mem::take(&mut self.joints).into_iter().partition(|j| {
+            let Some(limit) = j.spec.break_force else { return false };
+            self.impulse_joints.get(j.handle).is_some_and(|joint| {
+                let f = joint.impulses[0].hypot(joint.impulses[1]) / DT / 1000.0;
+                f > limit
+            })
+        });
+        for j in gone { self.impulse_joints.remove(j.handle, true); }
+        self.joints = keep;
     }
 
     /// All joints.
@@ -1814,6 +1874,31 @@ impl Physics {
                     joint.data.set_motor_max_force(JointAxis::AngX, motor_force(m, throttle));
                 }
             }
+        }
+    }
+
+    /// Apply a bounded angular acceleration to an object (radians/s²).
+    /// Useful for rider balance and other game controls; keeps joints intact.
+    pub fn steer_rotation(&mut self, id: u64, acceleration: f32, max_speed: f32) {
+        if !acceleration.is_finite() || !max_speed.is_finite() { return; }
+        let Some(n) = self.find(id) else { return };
+        let root = &self.set[self.bodies[n].handle];
+        let delta = (root.angvel() + acceleration * DT).clamp(-max_speed.abs(), max_speed.abs()) - root.angvel();
+        let mut rigid = std::collections::BTreeSet::from([id]);
+        for _ in 0..self.joints.len() { for j in &self.joints {
+            if matches!(j.spec.kind, JointKind::Weld) && j.spec.a != GROUND && j.spec.b != GROUND && (rigid.contains(&j.spec.a)||rigid.contains(&j.spec.b)) {
+                rigid.insert(j.spec.a);rigid.insert(j.spec.b);
+            }
+        }}
+        let mut assembly=rigid.clone();
+        for j in &self.joints {if matches!(j.spec.kind,JointKind::Wheel{..}) && rigid.contains(&j.spec.a) {assembly.insert(j.spec.b);}}
+        let handles: Vec<_> = self.bodies.iter().filter(|b|assembly.contains(&b.id)).map(|b|(b.handle,rigid.contains(&b.id))).collect();
+        let mass: f32 = handles.iter().map(|(h,_)|self.set[*h].mass()).sum();
+        let centre = handles.iter().fold(Vector::ZERO, |v,(h,_)|v+self.set[*h].center_of_mass()*self.set[*h].mass())/mass.max(0.001);
+        for (h,is_rigid) in handles {
+            let rb=&mut self.set[h];let p=rb.center_of_mass()-centre;
+            rb.set_linvel(rb.linvel()+Vector::new(-p.y,p.x)*delta,true);
+            if is_rigid {rb.set_angvel(rb.angvel()+delta,true);}
         }
     }
 
@@ -1875,6 +1960,7 @@ impl Physics {
         let (x, y, angle) = self.pose(b);
         let rb = &self.set[b.handle];
         Some(BodySpec {
+            depth: b.depth,
             w: b.w,
             h: b.h,
             cells,
@@ -1933,7 +2019,7 @@ impl Physics {
                 let n = self.bodies.len() - 1;
                 let mut b = std::mem::replace(
                     &mut self.bodies[n],
-                    Body { w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                    Body { depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                 );
                 b.round = true;
                 self.build_colliders(&mut b, mats);
@@ -1965,6 +2051,7 @@ impl Physics {
         let mut out = Vec::new();
         for b in &self.bodies {
             let mut copy = Body {
+                depth: b.depth,
                 w: b.w,
                 h: b.h,
                 cells: b.cells.clone(),
@@ -1980,6 +2067,7 @@ impl Physics {
             let (x, y, angle) = self.pose(b);
             let rb = &self.set[b.handle];
             out.push(BodySpec {
+                depth: b.depth,
                 w: b.w,
                 h: b.h,
                 cells: copy.cells,
