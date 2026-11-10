@@ -363,6 +363,13 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
 
 ## For AI agents: headless mode
 
+**AI agents: start with [AGENTS.md](AGENTS.md)**: how the engine works,
+where everything lives, the workflows (notes, characters, Blender, Kimodo,
+imports, material settings) and how to check your work. `tools/check.sh`
+(or `tools\check.ps1` on Windows) builds, runs every test and screenshots
+every scene into `shots/check/` in one go.
+
+
 Run a scene without a window and get a screenshot plus a report:
 
 ```bash
