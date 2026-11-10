@@ -107,7 +107,7 @@ impl Look {
                             count = num(&part).map(|c| c as usize);
                         }
                     }
-                    let Some(count) = count else {
+                    let Some(count) = count.filter(|c| *c > 0) else {
                         return Err(format!("{} line {}: use `{anim} = 8 frames, 10 fps, loop`", file.display(), n + 1));
                     };
                     wanted.push((anim.to_string(), count, fps, looping));

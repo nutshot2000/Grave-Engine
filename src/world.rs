@@ -239,8 +239,10 @@ impl World {
 
     /// Paint a filled circle of material.
     pub fn paint_circle(&mut self, mats: &Materials, cx: i32, cy: i32, r: i32, id: MatId) {
-        for y in cy - r..=cy + r {
-            for x in cx - r..=cx + r {
+        let r = r.clamp(0, 8192);
+        let (x0, x1, y0, y1) = self.clip(cx - r, cx + r, cy - r, cy + r);
+        for y in y0..=y1 {
+            for x in x0..=x1 {
                 let (dx, dy) = (x - cx, y - cy);
                 if dx * dx + dy * dy <= r * r + r / 2 && self.in_bounds(x, y) {
                     self.set(mats, x as usize, y as usize, id);
@@ -251,8 +253,10 @@ impl World {
 
     /// Add heat (or remove it, with a negative amount) in a circle.
     pub fn heat_circle(&mut self, cx: i32, cy: i32, r: i32, amount: f32) {
-        for y in cy - r..=cy + r {
-            for x in cx - r..=cx + r {
+        let r = r.clamp(0, 8192);
+        let (x0, x1, y0, y1) = self.clip(cx - r, cx + r, cy - r, cy + r);
+        for y in y0..=y1 {
+            for x in x0..=x1 {
                 let (dx, dy) = (x - cx, y - cy);
                 if dx * dx + dy * dy <= r * r + r / 2 && self.in_bounds(x, y) {
                     let i = self.idx(x as usize, y as usize);
@@ -260,6 +264,12 @@ impl World {
                 }
             }
         }
+    }
+
+    /// A box (inclusive) cut down to the world, so loops never visit
+    /// millions of cells outside it. (May come out empty: x0 > x1.)
+    pub fn clip(&self, x0: i32, x1: i32, y0: i32, y1: i32) -> (i32, i32, i32, i32) {
+        (x0.max(0), x1.min(self.w as i32 - 1), y0.max(0), y1.min(self.h as i32 - 1))
     }
 
     pub fn is_owned(&self, i: usize) -> bool {
@@ -340,6 +350,9 @@ impl World {
     /// Returns false if it can't fly (a gas, part of an object, or too many
     /// things already flying).
     pub fn throw(&mut self, mats: &Materials, x: usize, y: usize, vx: f32, vy: f32) -> bool {
+        if x >= self.w || y >= self.h {
+            return false;
+        }
         let i = self.idx(x, y);
         if self.flying.len() >= MAX_FLYING || self.open(mats, i) || self.is_owned(i) {
             return false;
@@ -375,7 +388,7 @@ impl World {
             let m = mats.get(f.mat);
             // Explosives hot enough to go off do it right here: drop back
             // onto the grid where the normal rules set them off.
-            if m.explosion_size > 0.0 && (f.flags & BURNING != 0 || m.catches_fire_at.is_some_and(|c| f.temp >= c)) {
+            if f.y >= 0.0 && m.explosion_size > 0.0 && (f.flags & BURNING != 0 || m.catches_fire_at.is_some_and(|c| f.temp >= c)) {
                 self.land(mats, f);
                 continue;
             }
@@ -451,7 +464,20 @@ impl World {
                 continue;
             }
             let x = x as usize;
-            let Some(y) = (0..=y0).rev().take(96).find(|&y| self.open(mats, self.idx(x, y))) else { continue };
+            // Up through loose stuff (it shifted under the cell), but never
+            // through something solid: no popping out above a cave roof.
+            let mut found = None;
+            for y in (0..=y0).rev().take(96) {
+                let i = self.idx(x, y);
+                if self.open(mats, i) {
+                    found = Some(y);
+                    break;
+                }
+                if self.is_owned(i) || !matches!(mats.get(self.mat[i]).state, State::Powder | State::Liquid) {
+                    break;
+                }
+            }
+            let Some(y) = found else { continue };
             let i = self.idx(x, y);
             {
                 self.mat[i] = f.mat;

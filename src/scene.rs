@@ -330,17 +330,19 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                         let t = *v.last().unwrap();
                         let iv: Vec<i32> = v.iter().map(|x| *x as i32).collect();
                         let (x0, y0, x1, y1, circle) = if shape == "rect" {
-                            (iv[0], iv[1], iv[0] + iv[2] - 1, iv[1] + iv[3] - 1, None)
+                            (iv[0], iv[1], iv[0].saturating_add(iv[2]) - 1, iv[1].saturating_add(iv[3]) - 1, None)
                         } else {
-                            (iv[0] - iv[2], iv[1] - iv[2], iv[0] + iv[2], iv[1] + iv[2], Some((iv[0], iv[1], iv[2])))
+                            let r = iv[2].clamp(0, 8192);
+                            (iv[0] - r, iv[1] - r, iv[0] + r, iv[1] + r, Some((iv[0], iv[1], r)))
                         };
+                        let (x0, x1, y0, y1) = w.clip(x0, x1, y0, y1);
                         for y in y0..=y1 {
                             for x in x0..=x1 {
                                 if !w.in_bounds(x, y) {
                                     continue;
                                 }
                                 if let Some((cx, cy, r)) = circle {
-                                    if (x - cx).pow(2) + (y - cy).pow(2) > r * r + r / 2 {
+                                    if ((x - cx) as i64).pow(2) + ((y - cy) as i64).pow(2) > (r * r + r / 2) as i64 {
                                         continue;
                                     }
                                 }
@@ -413,10 +415,10 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     match r {
                         Ok((id, v)) => {
                             let (w, h, cells, cx, cy) = if shape == "rect" {
-                                let (w, h) = (v[2].max(1.0) as usize, v[3].max(1.0) as usize);
+                                let (w, h) = (v[2].clamp(1.0, 1024.0) as usize, v[3].clamp(1.0, 1024.0) as usize);
                                 (w, h, vec![Some(id); w * h], v[0] + w as f32 / 2.0, v[1] + h as f32 / 2.0)
                             } else {
-                                let r = v[2].max(0.0) as i32;
+                                let r = v[2].clamp(0.0, 512.0) as i32;
                                 let d = (2 * r + 1) as usize;
                                 let mut cells = vec![None; d * d];
                                 for y in -r..=r {
@@ -653,8 +655,9 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
-    for yy in y..y + rh {
-        for xx in x..x + rw {
+    let (x0, x1, y0, y1) = w.clip(x, x.saturating_add(rw).saturating_sub(1), y, y.saturating_add(rh).saturating_sub(1));
+    for yy in y0..=y1 {
+        for xx in x0..=x1 {
             if w.in_bounds(xx, yy) {
                 w.set(mats, xx as usize, yy as usize, id);
             }
@@ -664,8 +667,11 @@ fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: M
 
 #[allow(clippy::too_many_arguments)]
 pub fn line_shape(w: &mut World, mats: &Materials, x1: i32, y1: i32, x2: i32, y2: i32, thick: i32, id: MatId) {
+    // Keep silly numbers from making a line billions of steps long.
+    let lim = |v: i32| v.clamp(-16_384, 16_384);
+    let (x1, y1, x2, y2) = (lim(x1), lim(y1), lim(x2), lim(y2));
     let steps = (x2 - x1).abs().max((y2 - y1).abs()).max(1);
-    let r = (thick.max(1) - 1) / 2;
+    let r = (thick.clamp(1, 256) - 1) / 2;
     for s in 0..=steps {
         let x = x1 + (x2 - x1) * s / steps;
         let y = y1 + (y2 - y1) * s / steps;
@@ -818,7 +824,11 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         let (x, y) = a.feet();
         let mut line = format!("\nplayer {x:.1} {y:.1}");
         if let Some(l) = &a.look {
-            line += &format!(" look {}", l.name);
+            // Its name if that finds it again (assets/characters/NAME), else its folder.
+            let same = |p: &Path| p.canonicalize().ok() == l.dir.canonicalize().ok();
+            let by_name = crate::look::find(&l.name, None, crate::physics::actor_height()).is_ok_and(|f| same(&f.dir));
+            let r = if by_name { l.name.clone() } else { l.dir.display().to_string().replace('\\', "/") };
+            line += &format!(" look {r}");
         }
         if mats.get(a.mat).name != "flesh" {
             line += &format!(" material {}", mats.get(a.mat).name);

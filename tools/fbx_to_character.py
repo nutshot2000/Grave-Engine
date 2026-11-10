@@ -30,13 +30,15 @@ if len(argv) < 2:
     raise SystemExit("usage: blender -b -P fbx_to_character.py -- IN_DIR OUT_DIR")
 IN_DIR, OUT_DIR = os.path.abspath(argv[0]), os.path.abspath(argv[1])
 
+# Most specific first: "Falling Idle" is a fall, "Standing Death" a death,
+# "Running Jump" a jump. Idle is only what's left.
 KINDS = [
-    ("idle", ("idle", "breath", "stand")),
-    ("walk", ("walk", "run", "jog")),
-    ("jump", ("jump",)),
-    ("fall", ("fall",)),
-    ("swim", ("swim", "tread")),
     ("die", ("die", "death", "dying", "dead")),
+    ("swim", ("swim", "tread")),
+    ("fall", ("fall",)),
+    ("jump", ("jump",)),
+    ("walk", ("walk", "run", "jog")),
+    ("idle", ("idle", "breath", "stand")),
 ]
 LOOPS = {"idle", "walk", "fall", "swim"}
 
