@@ -29,6 +29,36 @@ pub struct Blast {
     pub fire: Option<MatId>,
 }
 
+/// A cell thrown into the air (by a blast, a splash...). It flies on its own,
+/// off the grid, until it hits something, then lands back in as a normal cell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flyer {
+    /// Position and speed, in cells and cells per frame.
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
+    pub mat: MatId,
+    pub temp: f32,
+    pub life: u16,
+    pub burn: u16,
+    pub flags: u8,
+    pub shade: u8,
+}
+
+/// Gravity for flying cells: 9.81 m/s² at 10 cells a metre, 60 frames a second.
+pub const FLY_GRAVITY: f32 = 9.81 * 10.0 / 3600.0;
+/// Air slows flying cells a little every frame.
+const FLY_DRAG: f32 = 0.995;
+/// Fastest a flying cell can go (cells per frame; 6 = 36 m/s).
+const FLY_MAX_SPEED: f32 = 6.0;
+/// A flying cell this fast (cells per frame) knocks loose stuff it hits
+/// flying too, passing on this share of its speed.
+const KNOCK_SPEED: f32 = 1.0;
+const KNOCK_KEEP: f32 = 0.9;
+/// At most this many cells in the air at once (more just stay put).
+pub const MAX_FLYING: usize = 30_000;
+
 /// Air currents are worked out on a grid this many cells apart.
 const FLOW_GRID: usize = 8;
 
@@ -86,6 +116,8 @@ pub struct World {
     pub ambient: f32,
     /// Explosions that happened during the last step.
     pub blasts: Vec<Blast>,
+    /// Cells flying through the air.
+    pub flying: Vec<Flyer>,
     /// Steady wind blowing gases sideways, in metres per second (+ = right).
     pub wind: f32,
     /// How swirly the air is (0 = still, 1 = normal, 3 = stormy).
@@ -124,6 +156,7 @@ impl World {
             frame: 1,
             ambient: ROOM_TEMP,
             blasts: Vec::new(),
+            flying: Vec::new(),
             wind: 0.0,
             turbulence: 1.0,
             flow: Vec::new(),
@@ -265,6 +298,15 @@ impl World {
                 }
             }
         }
+        // Things in the air still count.
+        for f in &self.flying {
+            if let Some(c) = count.get_mut(f.mat as usize) {
+                *c += 1;
+                if f.flags & BURNING != 0 {
+                    burning[f.mat as usize] += 1;
+                }
+            }
+        }
         mats.list
             .iter()
             .enumerate()
@@ -280,6 +322,146 @@ impl World {
         self.heat(mats);
         self.changes(mats);
         self.movement(mats);
+        self.fly(mats);
+    }
+
+    // -------------------------------------------------------------- flying --
+
+    /// Can a flying cell pass through cell `i`? (Gases yes; objects and
+    /// anything solid, powdery or liquid, no.)
+    fn open(&self, mats: &Materials, i: usize) -> bool {
+        self.flags[i] & OWNED == 0 && mats.get(self.mat[i]).state == State::Gas
+    }
+
+    /// Throw cell `(x, y)` into the air with this speed (cells per frame).
+    /// Returns false if it can't fly (a gas, part of an object, or too many
+    /// things already flying).
+    pub fn throw(&mut self, mats: &Materials, x: usize, y: usize, vx: f32, vy: f32) -> bool {
+        let i = self.idx(x, y);
+        if self.flying.len() >= MAX_FLYING || self.open(mats, i) || self.is_owned(i) {
+            return false;
+        }
+        self.flying.push(Flyer {
+            x: x as f32 + 0.5,
+            y: y as f32 + 0.5,
+            vx,
+            vy,
+            mat: self.mat[i],
+            temp: self.temp[i],
+            life: self.life[i],
+            burn: self.burn[i],
+            flags: self.flags[i],
+            shade: self.shade[i],
+        });
+        self.make_air(i);
+        true
+    }
+
+    /// Move everything that's flying; whatever hits something lands.
+    fn fly(&mut self, mats: &Materials) {
+        if self.flying.is_empty() {
+            return;
+        }
+        let list = std::mem::take(&mut self.flying);
+        let mut keep = Vec::with_capacity(list.len());
+        let (w, h) = (self.w as f32, self.h as f32);
+        for mut f in list {
+            f.vy += FLY_GRAVITY;
+            f.vx = (f.vx * FLY_DRAG).clamp(-FLY_MAX_SPEED, FLY_MAX_SPEED);
+            f.vy = (f.vy * FLY_DRAG).clamp(-FLY_MAX_SPEED, FLY_MAX_SPEED);
+            let m = mats.get(f.mat);
+            // Explosives hot enough to go off do it right here: drop back
+            // onto the grid where the normal rules set them off.
+            if m.explosion_size > 0.0 && (f.flags & BURNING != 0 || m.catches_fire_at.is_some_and(|c| f.temp >= c)) {
+                self.land(mats, f);
+                continue;
+            }
+            // Things that run out (fire, steam) still run out in the air.
+            if m.lifetime.is_some() {
+                if f.life <= 1 {
+                    continue;
+                }
+                f.life -= 1;
+            }
+            // Move at most one cell at a time so nothing tunnels through walls.
+            let steps = f.vx.abs().max(f.vy.abs()).ceil().max(1.0);
+            let (sx, sy) = (f.vx / steps, f.vy / steps);
+            let mut landed = false;
+            let mut gone = false;
+            for _ in 0..steps as usize {
+                let (nx, ny) = (f.x + sx, f.y + sy);
+                if nx < 0.0 || nx >= w || ny >= h {
+                    gone = true; // off the side or bottom of the world
+                    break;
+                }
+                if ny < 0.0 {
+                    // Above the top: keep going, it'll come back down.
+                    (f.x, f.y) = (nx, ny);
+                    continue;
+                }
+                let j = self.idx(nx as usize, ny as usize);
+                if self.open(mats, j) {
+                    (f.x, f.y) = (nx, ny);
+                } else {
+                    // Hitting loose stuff (sand, water) fast knocks it flying
+                    // in turn, like snooker balls: that's how a buried charge
+                    // throws up the whole pile above it, not just its neighbours.
+                    let speed2 = f.vx * f.vx + f.vy * f.vy;
+                    let loose = matches!(mats.get(self.mat[j]).state, State::Powder | State::Liquid);
+                    if loose && speed2 > KNOCK_SPEED * KNOCK_SPEED && !self.is_owned(j) {
+                        let spread = ((self.rand() % 1000) as f32 / 1000.0 - 0.5) * 0.5;
+                        let (kx, ky) = (f.vx * KNOCK_KEEP, f.vy * KNOCK_KEEP);
+                        let (bx, by) = (kx - ky * spread, ky + kx * spread);
+                        self.throw(mats, nx as usize, ny as usize, bx, by);
+                    }
+                    landed = true;
+                    break;
+                }
+            }
+            if gone {
+                continue;
+            }
+            if landed {
+                self.land(mats, f);
+            } else {
+                keep.push(f);
+            }
+        }
+        // (Anything thrown while we were busy goes on the end.)
+        keep.append(&mut self.flying);
+        self.flying = keep;
+    }
+
+    /// Put a flying cell back on the grid where it is (or just above, if
+    /// something else landed there first).
+    fn land(&mut self, mats: &Materials, f: Flyer) {
+        if f.y < 0.0 {
+            return;
+        }
+        let x0 = (f.x as usize).min(self.w - 1);
+        let y0 = (f.y as usize).min(self.h - 1);
+        // Straight up first (the pile shifted under it), then nearby columns.
+        let columns = (0..=16i32).flat_map(|d| if d == 0 { vec![0] } else { vec![-d, d] });
+        for dx in columns {
+            let x = x0 as i32 + dx;
+            if x < 0 || x as usize >= self.w {
+                continue;
+            }
+            let x = x as usize;
+            let Some(y) = (0..=y0).rev().take(96).find(|&y| self.open(mats, self.idx(x, y))) else { continue };
+            let i = self.idx(x, y);
+            {
+                self.mat[i] = f.mat;
+                self.temp[i] = f.temp;
+                self.life[i] = f.life;
+                self.burn[i] = f.burn;
+                self.flags[i] = f.flags & !OWNED;
+                self.shade[i] = f.shade;
+                self.tex[i] = pack_tex(x, y);
+                return;
+            }
+        }
+        // Nowhere to go (a sealed pocket): it's lost, like spray on a wall.
     }
 
     // ---------------------------------------------------------------- heat --

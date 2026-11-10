@@ -167,6 +167,30 @@ impl Renderer {
             self.tmp[i] = col;
         }
 
+        // Cells flying through the air, drawn on top.
+        for f in &world.flying {
+            if f.x < 0.0 || f.y < 0.0 || f.x >= world.w as f32 || f.y >= world.h as f32 {
+                continue;
+            }
+            let i = world.idx(f.x as usize, f.y as usize);
+            let m = mats.get(f.mat);
+            let s = (f.shade as f32 / 255.0) * 2.0 - 1.0;
+            let k = 1.0 + m.color_variation * s;
+            let mut col = c3(m.color);
+            col = [col[0] * k, col[1] * k, col[2] * k];
+            if view.heat {
+                col = lerp3(col, heat_color(f.temp), 0.8);
+            } else if f.flags & crate::world::BURNING != 0 || m.glow > 0.0 {
+                let flame = [255.0, 150.0, 40.0];
+                col = lerp3(col, flame, 0.7);
+                self.light[i] = [flame[0] * 0.5, flame[1] * 0.5, flame[2] * 0.5];
+            } else if f.temp > 450.0 {
+                let k = ((f.temp - 450.0) / 700.0).clamp(0.0, 1.0);
+                col = lerp3(col, hot_color(f.temp), k * 0.9);
+            }
+            self.tmp[i] = col;
+        }
+
         if !view.heat {
             blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
             blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);

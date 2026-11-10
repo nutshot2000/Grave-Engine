@@ -1,0 +1,32 @@
+# Flying pixels: blasts throw loose stuff (sand, gravel, water, oil)
+# through the air. It flies in arcs and lands where it hits something.
+# Heat the gunpowder (or press Play: the buried fuses are already hot).
+size 512 288
+seed 4
+fill air
+rect stone 0 268 512 20          # ground
+
+# 1. A sand dune with gunpowder buried in it
+rect sand 20 236 140 32
+circle sand 90 236 30
+rect gunpowder 86 252 8 6
+heat circle 90 255 2 600
+
+# 2. A pond with a charge at the bottom, and one an iron block drops into
+rect stone 196 220 4 48
+rect stone 262 220 4 48
+rect water 200 228 62 40
+rect gunpowder 227 262 8 5
+heat circle 231 264 2 600
+rect stone 290 220 4 48
+rect stone 356 220 4 48
+rect water 294 228 62 40
+body rect iron 318 40 12 12
+
+# 3. An oil drum on the gravel: burning oil goes everywhere
+rect gravel 380 248 120 20
+rect iron 420 216 2 32
+rect iron 458 216 2 32
+rect oil 422 222 36 26
+rect gunpowder 436 240 8 6
+heat circle 440 243 2 600

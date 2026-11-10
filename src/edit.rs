@@ -498,6 +498,7 @@ struct Moment {
     frame: u32,
     keyframe: Option<Vec<CellState>>,
     cells: Vec<(u32, CellState)>,
+    flying: Vec<crate::world::Flyer>,
     bodies: Vec<BodySpec>,
     links: Vec<Option<Instance>>,
     joints: Vec<crate::physics::JointSpec>,
@@ -589,7 +590,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -606,7 +607,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -645,6 +646,7 @@ impl Timeline {
             restore_state(&mut snap.world, c, s);
         }
         snap.world.frame = m.frame;
+        snap.world.flying = m.flying.clone();
         snap.bodies = m.bodies.clone();
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();
@@ -658,5 +660,6 @@ fn moment_bytes(m: &Moment) -> usize {
     let cell = std::mem::size_of::<CellState>();
     m.keyframe.as_ref().map_or(0, |k| k.len() * cell)
         + m.cells.len() * (cell + 4)
+        + m.flying.len() * std::mem::size_of::<crate::world::Flyer>()
         + m.bodies.iter().map(|b| b.cells.len() * std::mem::size_of::<Option<BodyCell>>() + 64).sum::<usize>()
 }

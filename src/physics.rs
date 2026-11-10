@@ -52,6 +52,8 @@ const MIN_PIECE: usize = 6;
 const MAX_OBJECTS: usize = 1500;
 /// How hard explosions shove objects (newton-seconds per kN per sqrt(cell)).
 const BLAST_PUSH: f32 = 0.012;
+/// Objects faster than this (cells per frame; 0.6 = 3.6 m/s) splash liquid.
+const SPLASH_SPEED: f32 = 0.6;
 /// The most speed a blast can give an object (metres per second).
 const BLAST_MAX_SPEED: f32 = 35.0;
 
@@ -442,6 +444,11 @@ impl Physics {
         let (c, s) = (angle.cos(), angle.sin());
         let (hw, hh) = (body.w as f32 / 2.0, body.h as f32 / 2.0);
         let r = (hw * hw + hh * hh).sqrt() + 1.0;
+        // Fast objects splash the liquid they hit (speeds in cells per frame).
+        let v = self.set[body.handle].linvel();
+        let (bvx, bvy) = (v.x / CELL / 60.0, v.y / CELL / 60.0);
+        let speed = (bvx * bvx + bvy * bvy).sqrt();
+        let splash = speed > SPLASH_SPEED;
         let (x0, x1) = ((cx - r).floor() as i32, (cx + r).ceil() as i32);
         let (y0, y1) = ((cy - r).floor() as i32, (cy + r).ceil() as i32);
         for wy in y0..=y1 {
@@ -469,7 +476,17 @@ impl Physics {
                 match under.state {
                     _ if under.crushable => {} // crushed to nothing
                     State::Solid | State::Powder => continue, // terrain wins
-                    State::Liquid => push_liquid_up(world, mats, wx, wy),
+                    State::Liquid => {
+                        let to = push_liquid_up(world, mats, wx, wy);
+                        if let (true, Some(j)) = (splash, to) {
+                            let h = hash(j as u32 ^ self.tick.wrapping_mul(0x9E37_79B9));
+                            let jitter = 0.6 + (h % 800) as f32 / 1000.0;
+                            let out = if (wx as f32 + 0.5) < cx { -1.0 } else { 1.0 };
+                            let up = speed * 0.7 * jitter + 0.3;
+                            let side = bvx * 0.4 + out * speed * 0.35 * jitter;
+                            world.throw(mats, j % world.w, j / world.w, side, -up);
+                        }
+                    }
                     State::Gas => {}
                 }
                 world.mat[wi] = cell.mat;
@@ -970,6 +987,48 @@ impl Physics {
                             world.transform(mats, i, f);
                         }
                     }
+                }
+            }
+
+            // Throw loose stuff (sand, gravel, water, oil...) outwards. All of
+            // it leaves at once, so the inside of a pile doesn't just bump
+            // into the outside.
+            let reach = r * 0.85;
+            let rt = reach.ceil() as i32;
+            let strength = (p0 / 10_000.0).sqrt().clamp(0.5, 1.5);
+            for dy in -rt..=rt {
+                for dx in -rt..=rt {
+                    let (x, y) = (cx as i32 + dx, cy as i32 + dy);
+                    if !world.in_bounds(x, y) {
+                        continue;
+                    }
+                    let d = ((dx * dx + dy * dy) as f32).sqrt();
+                    if d > reach {
+                        continue;
+                    }
+                    let i = world.idx(x as usize, y as usize);
+                    let mat = mats.get(world.mat[i]);
+                    if world.is_owned(i) || !matches!(mat.state, State::Powder | State::Liquid) {
+                        continue;
+                    }
+                    // Other explosives caught in a blast go off too (they'd
+                    // be set off before they could be thrown clear).
+                    if mat.explosion_size > 0.0 {
+                        if let Some(c) = mat.catches_fire_at {
+                            world.temp[i] = world.temp[i].max(c);
+                        }
+                        continue;
+                    }
+                    let k = 1.0 - d / reach;
+                    let h = hash(i as u32 ^ self.tick.wrapping_mul(2_654_435_761));
+                    if (h % 1000) as f32 / 1000.0 > 0.35 + 0.65 * k {
+                        continue;
+                    }
+                    let jitter = 0.7 + ((h >> 10) % 600) as f32 / 1000.0;
+                    let speed = (1.0 + 5.0 * k) * jitter * strength;
+                    let (ux, uy) = if d > 0.01 { (dx as f32 / d, dy as f32 / d) } else { (0.0, -1.0) };
+                    // A little extra kick upwards: blasts against the ground spray up.
+                    world.throw(mats, x as usize, y as usize, ux * speed, uy * speed - 0.6 * k);
                 }
             }
 
@@ -1992,7 +2051,8 @@ fn nearest_cell(world: &World, mats: &Materials, owners: &HashMap<u32, usize>, w
 
 /// Move a liquid cell out of an object's way: to the nearest open space
 /// (usually the spot the object just left), or else up to the surface.
-fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) {
+/// Returns where the liquid went (None if it had nowhere to go).
+fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) -> Option<usize> {
     let from = world.idx(x as usize, y as usize);
     let free = |world: &World, nx: i32, ny: i32| -> Option<usize> {
         if !world.in_bounds(nx, ny) {
@@ -2011,7 +2071,7 @@ fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) {
                     }
                     if let Some(i) = free(world, x + dx, y + dy) {
                         world.swap_cells(from, i);
-                        return;
+                        return Some(i);
                     }
                 }
             }
@@ -2026,13 +2086,14 @@ fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) {
         match mats.get(world.mat[i]).state {
             State::Gas => {
                 world.swap_cells(from, i);
-                return;
+                return Some(i);
             }
             State::Liquid => continue,
             _ => break,
         }
     }
     world.make_air(from); // nowhere to go
+    None
 }
 
 /// Connected pieces (4-way) of a cell grid, as lists of indices.

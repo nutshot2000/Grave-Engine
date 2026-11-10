@@ -147,5 +147,8 @@ pub fn run(o: &Options) -> i32 {
             println!("  {name:<12} {count:>7}");
         }
     }
+    if !world.flying.is_empty() {
+        println!("Flying through the air: {} cells", world.flying.len());
+    }
     if problems.is_empty() && mats.problems.is_empty() { 0 } else { 3 }
 }

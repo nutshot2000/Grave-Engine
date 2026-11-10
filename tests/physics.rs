@@ -58,7 +58,7 @@ fn wood_floats_and_iron_sinks() {
     let m = mats();
     let mut s = sim(
         &m,
-        "size 80 80\nfill air\nrect stone 0 70 80 10\nrect water 0 30 80 40\nbody rect wood 10 10 20 4\nbody rect iron 50 10 6 6\n",
+        "size 80 80\nfill air\nrect stone 0 70 80 10\nrect stone 0 0 2 70\nrect stone 78 0 2 70\nrect water 2 30 76 40\nbody rect wood 10 10 20 4\nbody rect iron 50 10 6 6\n",
     );
     let water_before = count(&s, &m, "water");
     for _ in 0..600 {

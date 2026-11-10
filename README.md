@@ -144,6 +144,21 @@ Try `scenes/forces.txt`.
   things, throws objects, scatters burning splinters and lights fires. Neighbouring
   gunpowder sets off in a chain.
 
+## Flying pixels: blasts and splashes
+
+Try `scenes/splash.txt`.
+
+- **Blasts throw loose stuff.** Sand, gravel, water and oil near an explosion fly
+  out through the air in arcs, then land wherever they hit something. A charge
+  buried in a sand dune throws the whole pile up, because fast grains knock the
+  grains they hit flying too, like snooker balls.
+- **Fast objects splash.** Drop an iron block into a pond and the water it pushes
+  aside sprays up in a V. A block that just sinks in gently doesn't splash.
+- **Nothing is lost.** Every grain or drop comes back down somewhere, keeping its
+  temperature, so burning oil lands still burning and sets things alight. Only
+  things flung right off the edge of the world are gone.
+- Other explosives caught in a blast go off rather than being thrown clear.
+
 ## Camera
 
 The mouse wheel zooms in and out around the pointer, middle-drag pans, and **⤢ Fit**
@@ -241,8 +256,7 @@ RPGs...), where any material works on any surface.
 4. Game layer: player, input, camera follow, triggers, scripting, health
 5. Big worlds: 64x64 chunks that only update what's moving, run on several CPU
    cores in a checkerboard pattern, and stream to disk far from the camera
-6. Flying pixels: liquids and powders knocked loose by objects and blasts fly as
-   particles and splash back into the world
+6. ~~Flying pixels: blasts and splashes throw liquids and powders through the air~~ (done)
 7. Coatings: things get covered in what they touch (oily wood burns faster, wet
    tyres slip, icy roads), shown with small icons so players see why
 8. Projectiles, rays and top-down mode: second test game, a destructible shooter
