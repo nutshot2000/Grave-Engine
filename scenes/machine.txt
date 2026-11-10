@@ -1,0 +1,12 @@
+# The "Cascade Engine" Rube Goldberg machine from an old Unreal/Blender
+# project (UnrealMCPStudio/RubeGoldberg/CascadeEngine.blend), brought in as
+# scenery: Blender exported it (without its 200 m studio floor) to
+# assets/imported/cascade/cascade.glb, and the engine turned its brass,
+# chrome and enamel into the nearest materials by colour.
+# Walk along it with A / D, jump with W. Try heating the wooden parts.
+size 420 180
+seed 5
+fill air
+rect stone 0 170 420 10
+object ../assets/imported/cascade/cascade.glb 60 100 static
+player 30 170 look hero zoom 3

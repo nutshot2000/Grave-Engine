@@ -1,0 +1,21 @@
+# Assets brought over from an old Godot project (dayz-clone):
+# the three rock models (assets/imported/dayz/Rock*.glb) and its ground and
+# rock textures, which became the `dirt` and `rock` materials.
+# Walk with A / D, jump with W. Push the loose boulder off the ledge.
+size 640 288
+seed 11
+fill air
+
+# Rolling dirt ground
+rect dirt 0 250 640 38
+circle dirt 120 290 70
+circle dirt 470 300 80
+rect dirt 300 236 90 20
+
+# Big rocks set into the ground (scenery), and a loose boulder on the ledge
+object ../assets/imported/dayz/RockC.glb 200 200 scale 5 static material rock
+object ../assets/imported/dayz/RockA.glb 560 214 scale 6 static material rock
+object ../assets/imported/dayz/RockB.glb 330 190 scale 4 material rock
+
+
+player 40 250 look hero zoom 3

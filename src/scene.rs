@@ -24,6 +24,7 @@
 //! body circle stone 200 40 6         # material centre-x centre-y radius
 //! object assets/crate.png 300 20     # an image or Blender model (.png .glb .gltf), top-left at x y
 //! object assets/cart.glb 50 30 scale 12 static   # `static`: paint it in place instead
+//! object rock.glb 50 30 material rock  # make all of it one material
 //! place crate 200 60 angle 15 material iron flip   # a copy of templates/crate.txt
 //! name crate1                       # give the last object a name (for joints)
 //!
@@ -593,8 +594,21 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     Some(p) if p.exists() => p,
                     _ => Path::new(file).to_path_buf(),
                 };
+                // `material rock`: make the whole thing out of one material.
+                let forced = rest.iter().position(|w| w == "material").and_then(|i| rest.get(i + 1)).map(|m| mat(m));
+                if let Some(Err(e)) = &forced {
+                    err(e.clone());
+                }
+                let forced = forced.and_then(|r| r.ok());
                 match pos.and_then(|v| import::load(&path, mats, opt("scale")).map(|r| (v, r))) {
-                    Ok((v, (shape, warnings))) => {
+                    Ok((v, (mut shape, mut warnings))) => {
+                        if let Some(id) = forced {
+                            for c in shape.cells.iter_mut().flatten() {
+                                *c = id;
+                            }
+                            // (Nothing to guess any more, so no colour warnings.)
+                            warnings.retain(|w| !w.contains("colour") && !w.contains("material"));
+                        }
                         for w in warnings {
                             problems.push(format!("scene line {line_no}: {w}"));
                         }

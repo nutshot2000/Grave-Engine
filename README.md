@@ -281,6 +281,19 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
   ([`tools/make_material_textures.py`](tools/make_material_textures.py) makes them);
   drop in your own pictures any time.
 
+### Brought over from old projects
+
+- `scenes/imported.txt`: the rock models and ground/rock textures from an old
+  Godot project (`dayz-clone`). The textures became the `dirt` and `rock`
+  materials (ambientCG, CC0), and the models stand in the landscape with
+  `object ... material rock`, which makes a whole model out of one material.
+- `scenes/machine.txt`: the "Cascade Engine" Rube Goldberg machine from an
+  old Unreal/Blender project. Blender exported it without its 200 m studio
+  floor, and the engine picked materials by colour (brass came out as wood,
+  chrome as iron, enamel as rubber).
+- Unreal's own `.uasset` files can't be read outside Unreal: export them to
+  FBX from the Unreal editor first.
+
 ## For AI agents: headless mode
 
 Run a scene without a window and get a screenshot plus a report:

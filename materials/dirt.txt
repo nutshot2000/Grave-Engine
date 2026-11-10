@@ -1,0 +1,15 @@
+# Dirt: packed earth with a photo texture (Ground037 from the Godot
+# dayz-clone project; ambientCG, CC0). Holds its shape, but it's soft:
+# knocks crumble it into sand.
+about = Packed earth. Soft; crumbles into sand.
+state = solid
+density = 1500
+color = #6e5a43
+color_variation = 0.05
+conducts_heat = 0.2
+heat_capacity = 1.2
+strength = 6
+toughness = 900
+breaks_into = sand
+friction = 0.9
+texture = textures/dirt.png

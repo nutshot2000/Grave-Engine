@@ -83,3 +83,16 @@ fn materials_with_a_texture_are_drawn_with_it() {
     let (lo, hi) = (*brightness.iter().min().unwrap(), *brightness.iter().max().unwrap());
     assert!(hi > lo + 60, "texture should show light grain and dark seams: {lo}..{hi}");
 }
+
+#[test]
+fn an_object_can_be_made_all_of_one_material() {
+    let m = mats();
+    let base = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes"));
+    let text = "size 120 120\nfill air\nobject ../assets/imported/dayz/RockA.glb 20 20 scale 5 static material rock\n";
+    let loaded = grave_engine::scene::load(text, &m, Some(base));
+    assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+    let rock = m.id("rock").unwrap();
+    let solid: Vec<u16> = loaded.world.mat.iter().copied().filter(|&c| c != 0).collect();
+    assert!(solid.len() > 300, "the Godot rock came in: {} cells", solid.len());
+    assert!(solid.iter().all(|&c| c == rock), "and it's all rock");
+}
