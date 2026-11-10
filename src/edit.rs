@@ -447,3 +447,168 @@ pub fn freeze(world: &mut World, spec: &BodySpec) {
         }
     }
 }
+
+// ---------------------------------------------------------------- rewind --
+
+/// One recorded moment: the cells that changed since the moment before
+/// (or every cell, for a keyframe), plus all the objects.
+struct Moment {
+    frame: u32,
+    keyframe: Option<Vec<CellState>>,
+    cells: Vec<(u32, CellState)>,
+    bodies: Vec<BodySpec>,
+}
+
+/// Records what happens during Play so you can scrub back to any moment.
+///
+/// Every `every` frames a moment is stored. Normally only the cells that
+/// changed are kept; every `KEYFRAME_EVERY` moments the whole grid is kept, so
+/// scrubbing never has to replay far. When it gets too big, the oldest
+/// stretch is dropped.
+pub struct Timeline {
+    moments: Vec<Moment>,
+    /// The grid as of the newest moment (what changes are compared against).
+    last: Vec<CellState>,
+    pub every: u32,
+    counter: u32,
+    bytes: usize,
+}
+
+const KEYFRAME_EVERY: usize = 40;
+/// Rough memory limit for the recording.
+const TIMELINE_BYTES: usize = 400 * 1024 * 1024;
+/// Temperature changes smaller than this (°C) aren't worth recording.
+const TEMP_STEP: f32 = 1.0;
+
+impl Default for Timeline {
+    fn default() -> Self {
+        Timeline { moments: Vec::new(), last: Vec::new(), every: 6, counter: 0, bytes: 0 }
+    }
+}
+
+impl Timeline {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.moments.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.moments.is_empty()
+    }
+
+    /// The simulation frame number of a recorded moment.
+    pub fn frame(&self, i: usize) -> Option<u32> {
+        self.moments.get(i).map(|m| m.frame)
+    }
+
+    /// The newest moment's frame number.
+    pub fn last_frame(&self) -> Option<u32> {
+        self.moments.last().map(|m| m.frame)
+    }
+
+    pub fn clear(&mut self) {
+        *self = Timeline { every: self.every, ..Timeline::default() };
+    }
+
+    /// Forget everything after moment `i` (you went back and carried on).
+    pub fn truncate_after(&mut self, i: usize, sim: &mut Sim) {
+        if i + 1 >= self.moments.len() {
+            return;
+        }
+        self.moments.truncate(i + 1);
+        self.bytes = self.moments.iter().map(moment_bytes).sum();
+        // Rebuild `last` to match the moment we're continuing from.
+        if let Some(cells) = self.cells_at(i) {
+            self.last = cells;
+        } else {
+            self.last = (0..sim.world.mat.len()).map(|c| state(&sim.world, c)).collect();
+        }
+        self.counter = 0;
+    }
+
+    /// Call after every simulation step: stores a moment every `every` frames.
+    pub fn record(&mut self, sim: &mut Sim) {
+        let force = self.moments.is_empty();
+        self.counter += 1;
+        if !force && self.counter < self.every {
+            return;
+        }
+        self.counter = 0;
+        let snap = sim.snapshot();
+        let w = &snap.world;
+        let n = w.mat.len();
+        let key = force || self.last.len() != n || self.moments.len() % KEYFRAME_EVERY == 0;
+        let moment = if key {
+            let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
+            self.last = all.clone();
+            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), bodies: snap.bodies }
+        } else {
+            let mut cells = Vec::new();
+            for i in 0..n {
+                let now = state(w, i);
+                let was = self.last[i];
+                let same = now.mat == was.mat
+                    && now.flags == was.flags
+                    && now.burn == was.burn
+                    && now.life == was.life
+                    && now.shade == was.shade
+                    && (now.temp - was.temp).abs() < TEMP_STEP;
+                if !same {
+                    cells.push((i as u32, now));
+                    self.last[i] = now;
+                }
+            }
+            Moment { frame: w.frame, keyframe: None, cells, bodies: snap.bodies }
+        };
+        self.bytes += moment_bytes(&moment);
+        self.moments.push(moment);
+        // Too big? Drop the oldest stretch up to the next keyframe.
+        while self.bytes > TIMELINE_BYTES && self.moments.len() > KEYFRAME_EVERY {
+            let next_key = self.moments.iter().skip(1).position(|m| m.keyframe.is_some()).map(|p| p + 1);
+            let Some(k) = next_key else { break };
+            for m in self.moments.drain(..k) {
+                self.bytes -= moment_bytes(&m);
+            }
+        }
+    }
+
+    /// The whole grid at moment `i`.
+    fn cells_at(&self, i: usize) -> Option<Vec<CellState>> {
+        let key = (0..=i).rev().find(|&k| self.moments[k].keyframe.is_some())?;
+        let mut cells = self.moments[key].keyframe.clone()?;
+        for m in &self.moments[key + 1..=i] {
+            for &(c, s) in &m.cells {
+                cells[c as usize] = s;
+            }
+        }
+        Some(cells)
+    }
+
+    /// Put the simulation back to moment `i`.
+    pub fn restore(&self, i: usize, sim: &mut Sim, mats: &Materials) -> bool {
+        let (Some(m), Some(cells)) = (self.moments.get(i), self.cells_at(i.min(self.moments.len().saturating_sub(1)))) else {
+            return false;
+        };
+        let mut snap = sim.snapshot();
+        if cells.len() != snap.world.mat.len() {
+            return false;
+        }
+        for (c, s) in cells.into_iter().enumerate() {
+            restore_state(&mut snap.world, c, s);
+        }
+        snap.world.frame = m.frame;
+        snap.bodies = m.bodies.clone();
+        *sim = Sim::restore(&snap, mats);
+        true
+    }
+}
+
+fn moment_bytes(m: &Moment) -> usize {
+    let cell = std::mem::size_of::<CellState>();
+    m.keyframe.as_ref().map_or(0, |k| k.len() * cell)
+        + m.cells.len() * (cell + 4)
+        + m.bodies.iter().map(|b| b.cells.len() * std::mem::size_of::<Option<BodyCell>>() + 64).sum::<usize>()
+}

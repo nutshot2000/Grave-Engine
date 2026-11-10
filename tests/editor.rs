@@ -136,3 +136,42 @@ fn removing_an_object() {
     assert_eq!(s.physics.body_count(), 0);
     assert_eq!(count(&s, &m, "iron"), 0);
 }
+
+#[test]
+fn rewind_goes_back_to_exactly_how_things_were() {
+    let m = mats();
+    let mut s = sim(
+        &m,
+        "size 120 80\nfill air\nrect stone 0 70 120 10\nrect wood 20 40 60 4\nrect wood 20 44 4 26\nrect wood 76 44 4 26\nbody rect wood 40 10 10 10\nheat rect 20 40 6 4 600\n",
+    );
+    let mut t = edit::Timeline::new();
+    let wood = m.id("wood").unwrap();
+    let mut seen = Vec::new(); // (frame, wood cells, objects) at each recorded moment
+    t.record(&mut s);
+    seen.push((s.world.frame, s.world.mat.iter().filter(|&&x| x == wood).count(), s.physics.body_count()));
+    for _ in 0..600 {
+        s.step(&m);
+        let before = t.len();
+        t.record(&mut s);
+        if t.len() > before {
+            seen.push((s.world.frame, s.world.mat.iter().filter(|&&x| x == wood).count(), s.physics.body_count()));
+        }
+    }
+    assert_eq!(t.len(), seen.len());
+    assert!(seen.first().unwrap().1 > seen.last().unwrap().1 + 50, "the fire should have burned some wood");
+    for i in [0, 3, seen.len() / 2, seen.len() - 1] {
+        assert!(t.restore(i, &mut s, &m));
+        let w = s.world.mat.iter().filter(|&&x| x == wood).count();
+        assert_eq!((s.world.frame, w, s.physics.body_count()), seen[i], "moment {i}");
+    }
+    // Carry on from the middle: the later moments are replaced.
+    let mid = seen.len() / 2;
+    t.restore(mid, &mut s, &m);
+    t.truncate_after(mid, &mut s);
+    assert_eq!(t.len(), mid + 1);
+    for _ in 0..30 {
+        s.step(&m);
+        t.record(&mut s);
+    }
+    assert!(t.len() > mid + 1);
+}

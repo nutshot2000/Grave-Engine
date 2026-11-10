@@ -296,6 +296,12 @@ impl Physics {
         self.add_raw(world, mats, spec)
     }
 
+    /// Add an object exactly where its spec says, without moving it out of
+    /// the ground (restoring a saved moment).
+    pub fn add_exact(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) -> Option<u64> {
+        self.add_raw(world, mats, spec)
+    }
+
     /// Add an object exactly where its spec says (pieces of broken things).
     fn add_raw(&mut self, world: &mut World, mats: &Materials, spec: BodySpec) -> Option<u64> {
         if spec.cell_count() == 0 {

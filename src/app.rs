@@ -1,7 +1,7 @@
 //! The editor window: paint materials, select and change things, press Play.
 
 use eframe::egui::{self, Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, Stroke, TextureHandle, TextureOptions, Vec2};
-use grave_engine::edit::{self, Clip, History, Region, Transform};
+use grave_engine::edit::{self, Clip, History, Region, Timeline, Transform};
 use grave_engine::import;
 use grave_engine::material::{AIR, MatId, Materials};
 use grave_engine::physics::{BodySpec, CELL};
@@ -68,6 +68,10 @@ struct Sandbox {
     mats: Materials,
     sim: Sim,
     history: History,
+    /// Recording of the last Play, for rewinding.
+    timeline: Timeline,
+    /// The moment we rewound to (None = at the end, live).
+    rewind_pos: Option<usize>,
     /// How things were when Play was last pressed. Reset goes back here.
     snapshot: Snapshot,
     ran_since_snapshot: bool,
@@ -163,6 +167,8 @@ impl Sandbox {
             sim,
             mats,
             history: History::new(),
+            timeline: Timeline::new(),
+            rewind_pos: None,
             ran_since_snapshot: false,
             playing: false,
             speed: 1.0,
@@ -387,6 +393,8 @@ impl Sandbox {
             Ok(text) => {
                 let (sim, problems) = scene::load(&text, &self.mats, path.parent()).into_sim(&self.mats);
                 self.sim = sim;
+                self.timeline.clear();
+                self.rewind_pos = None;
                 self.snapshot = self.sim.snapshot();
                 self.ran_since_snapshot = false;
                 self.playing = false;
@@ -445,8 +453,25 @@ impl Sandbox {
 
     // --------------------------------------------------------------- time --
 
+    /// About to simulate: if we'd rewound, the old future is replaced; if the
+    /// world was changed since the recording ended, start a new recording.
+    fn continue_from_here(&mut self) {
+        match self.rewind_pos.take() {
+            Some(i) => self.timeline.truncate_after(i, &mut self.sim),
+            None => {
+                if self.timeline.last_frame() != Some(self.sim.world.frame) {
+                    self.timeline.clear();
+                }
+            }
+        }
+        if self.timeline.is_empty() {
+            self.timeline.record(&mut self.sim);
+        }
+    }
+
     fn play(&mut self) {
         self.history.commit(&mut self.sim);
+        self.continue_from_here();
         self.snapshot = self.sim.snapshot();
         self.ran_since_snapshot = false;
         self.playing = true;
@@ -454,11 +479,15 @@ impl Sandbox {
     }
 
     fn step_once(&mut self) {
+        if self.rewind_pos.is_some() || self.timeline.is_empty() {
+            self.continue_from_here();
+        }
         if !self.ran_since_snapshot {
             self.snapshot = self.sim.snapshot();
         }
         let t = Instant::now();
         self.sim.step(&self.mats);
+        self.timeline.record(&mut self.sim);
         self.sim_ms = self.sim_ms * 0.9 + t.elapsed().as_secs_f32() * 1000.0 * 0.1;
         self.ran_since_snapshot = true;
     }
@@ -466,6 +495,8 @@ impl Sandbox {
     fn reset(&mut self) {
         let snap = self.snapshot.clone();
         self.change("reset", |app| app.sim = Sim::restore(&snap, &app.mats));
+        self.timeline.clear();
+        self.rewind_pos = None;
         self.ran_since_snapshot = false;
         self.playing = false;
         self.selection = Selection::None;
@@ -590,6 +621,8 @@ impl Sandbox {
             if ui.add(egui::Button::new(big("Clear"))).on_hover_text("Empty everything (you can undo this)").clicked() {
                 let (w, h) = (self.sim.world.w, self.sim.world.h);
                 self.change("clear", |app| app.sim = Sim::empty(w, h, &app.mats));
+                self.timeline.clear();
+                self.rewind_pos = None;
                 self.snapshot = self.sim.snapshot();
                 self.ran_since_snapshot = false;
                 self.playing = false;
@@ -926,6 +959,38 @@ impl Sandbox {
             }
         });
         self.selection = Selection::None;
+    }
+
+    /// The rewind slider: drag back through what happened during Play.
+    fn timeline_bar(&mut self, ui: &mut egui::Ui) {
+        let n = self.timeline.len();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("⏪ Rewind").strong());
+            if n < 2 {
+                ui.label(RichText::new("Press Play: everything that happens is recorded, then you can drag back to any moment here.").weak());
+                return;
+            }
+            let last = n - 1;
+            let mut pos = self.rewind_pos.unwrap_or(last);
+            let end_frame = self.timeline.frame(last).unwrap_or(0);
+            let width = (ui.available_width() - 260.0).max(120.0);
+            ui.spacing_mut().slider_width = width;
+            let resp = ui.add(egui::Slider::new(&mut pos, 0..=last).show_value(false));
+            let secs = (self.timeline.frame(pos).unwrap_or(0) as f32 - end_frame as f32) / SIM_HZ as f32;
+            ui.label(if pos == last { "now".to_string() } else { format!("{secs:.1} s") });
+            if resp.changed() {
+                self.playing = false;
+                self.drag = Drag::None;
+                self.history.commit(&mut self.sim);
+                if self.timeline.restore(pos, &mut self.sim, &self.mats) {
+                    self.rewind_pos = if pos == last { None } else { Some(pos) };
+                    self.selection = Selection::None;
+                }
+            }
+            if self.rewind_pos.is_some() {
+                ui.label(RichText::new("Play carries on from here").weak().size(13.0));
+            }
+        });
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
@@ -1450,6 +1515,7 @@ impl eframe::App for Sandbox {
             egui::ScrollArea::vertical().show(ui, |ui| self.inspector(ui));
         });
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+        egui::Panel::bottom("timeline").show(ui, |ui| self.timeline_bar(ui));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::from_rgb(10, 10, 14)))
             .show(ui, |ui| self.canvas(ui));
@@ -1649,5 +1715,34 @@ body rect wood 40 60 20 10
         let w = &h.state().sim.world;
         assert_eq!(w.mat[w.idx(125, 80)], stone, "the pillar is now further left");
         assert_ne!(w.mat[w.idx(165, 80)], stone, "and gone from where it was");
+    }
+
+    #[test]
+    fn rewind_with_the_slider() {
+        let mut h = editor();
+        h.state_mut().play();
+        for _ in 0..120 {
+            h.state_mut().step_once();
+        }
+        h.state_mut().playing = false;
+        h.run_steps(2);
+        let end = object(&h).y;
+        assert!(h.state().timeline.len() > 10);
+        // Drag the slider all the way to the start.
+        // The rewind slider is the widest one.
+        let r = h
+            .get_all_by_role(egui::accesskit::Role::Slider)
+            .map(|n| n.rect())
+            .max_by(|a, b| a.width().total_cmp(&b.width()))
+            .unwrap();
+        let (a, b) = (r.right_center() - Vec2::new(2.0, 0.0), r.left_center());
+        drag(&mut h, a, b);
+        assert_eq!(h.state().rewind_pos, Some(0));
+        let start = object(&h).y;
+        assert!(start < end - 5.0, "back at the start the object is higher up: start {start}, end {end}");
+        // Playing again carries on from the start and replaces the rest.
+        h.state_mut().play();
+        h.state_mut().step_once();
+        assert!(h.state().timeline.len() <= 3);
     }
 }

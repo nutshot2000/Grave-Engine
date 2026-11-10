@@ -49,7 +49,14 @@ impl Sim {
         Snapshot { world, bodies }
     }
 
+    /// Put things back exactly as they were (objects aren't nudged out of
+    /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
-        Sim::new(snap.world.clone(), snap.bodies.clone(), mats)
+        let world = snap.world.clone();
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world };
+        for b in snap.bodies.iter().cloned() {
+            sim.physics.add_exact(&mut sim.world, mats, b);
+        }
+        sim
     }
 }
