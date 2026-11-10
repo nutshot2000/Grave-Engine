@@ -70,12 +70,20 @@ fn sand_piles_around_the_player_but_never_through_it() {
     run(&mut s, &m, 240, 0.0, false);
     assert_eq!(count(&s, flesh), body, "sand never pushes into the player");
     assert_eq!(count(&s, sand), sand0, "and none is lost");
-    // It survives being buried. (A big load can cover it for a few seconds,
-    // and the physics then pushes it out rather hard: see the README's
-    // known limits.)
-    run(&mut s, &m, 600, 0.0, false);
+    // Sand piled on top doesn't fling it out (sand only holds characters
+    // up from below)...
+    let mut fastest_up = 0.0f32;
+    for _ in 0..200 {
+        s.step(&m);
+        fastest_up = fastest_up.min(s.physics.export_actors()[0].vy);
+    }
+    assert!(fastest_up > -20.0, "no jolt out of the sand: {} m/s up", -fastest_up / 10.0);
+    // ...and holding jump claws its way up and out, breathing again.
+    let y0 = s.physics.actor_status()[0].y;
+    run(&mut s, &m, 180, 0.0, true);
     let p = &s.physics.actor_status()[0];
-    assert!(!p.dead && p.health > 80.0, "survived: {p:?}");
+    assert!(p.y < y0 - 15.0, "climbed out: {y0} -> {}", p.y);
+    assert!(!p.dead && p.breath > 5.0, "breathing: {p:?}");
 }
 
 #[test]

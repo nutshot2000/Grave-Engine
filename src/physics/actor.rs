@@ -24,6 +24,8 @@ const ACCEL_AIR: f32 = 14.0;
 const JUMP: f32 = 5.5;
 /// Swimming upwards (m/s).
 const SWIM_UP: f32 = 2.5;
+/// Clawing up out of sand (m/s).
+const CLAW_UP: f32 = 1.5;
 /// A jump still works this many frames after walking off an edge.
 const COYOTE: u32 = 6;
 pub const MAX_HEALTH: f32 = 100.0;
@@ -189,6 +191,8 @@ impl Physics {
         // No friction: walking is done by setting the speed, so it doesn't
         // stick to walls when jumping against them.
         let col = ColliderBuilder::capsule_y(half, radius)
+            .user_data(ACTOR_TAG)
+            .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
             .friction(0.0)
             .friction_combine_rule(CoefficientCombineRule::Min)
             .restitution(0.0)
@@ -459,13 +463,24 @@ impl Physics {
             } else {
                 a.stride = 0;
             }
-            let top_speed = if swimming { WALK * 0.5 } else { WALK };
+            // Buried in sand (no air at the head, and it isn't water): slow
+            // going sideways, and jump claws upwards through it.
+            let above = (left..left + W as i32).filter(|&x| {
+                world.in_bounds(x, top - 1) && {
+                    let i = world.idx(x as usize, (top - 1) as usize);
+                    !world.is_owned(i) && mats.get(world.mat[i]).state == State::Powder
+                }
+            }).count();
+            let buried = head_under && !head_wet && above >= 2;
+            let top_speed = if buried { 1.0 } else if swimming { WALK * 0.5 } else { WALK };
             let accel = if a.since_ground == 0 { ACCEL_GROUND } else { ACCEL_AIR } * DT;
             let target = walk * top_speed;
             let mut vx = v.x + (target - v.x).clamp(-accel, accel);
             let mut vy = v.y;
             a.jump_wait = a.jump_wait.saturating_sub(1);
-            if controls.jump {
+            if controls.jump && buried {
+                vy += (-CLAW_UP - vy).clamp(-15.0 * DT, 15.0 * DT);
+            } else if controls.jump {
                 if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming {
                     vy = -JUMP;
                     a.jump_wait = 15;
@@ -611,8 +626,13 @@ impl Physics {
                     _ if under.crushable => {}
                     State::Solid => continue,
                     // People shove sand and water aside (objects don't).
-                    State::Liquid | State::Powder => {
+                    State::Liquid => {
                         push_liquid_up(world, mats, wx, wy);
+                    }
+                    // Sand goes underneath first: climbing up through a
+                    // pile leaves it behind, under the feet.
+                    State::Powder => {
+                        push_aside(world, mats, wx, wy, true);
                     }
                     State::Gas => {}
                 }

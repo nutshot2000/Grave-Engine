@@ -208,6 +208,8 @@ crate to climb, a campfire, a lava pit and a powder keg.
     head, so being under water *or* buried in sand both count,
   - it lands too hard or gets hit by something heavy (about a 4 m fall),
   - something blows up nearby (which also throws it).
+- **Buried in sand?** Hold jump to claw your way up through it (loose sand
+  only holds you up from below, so it can't trap you or fling you out).
 - **Dying** shows what got you; two seconds later you're back at the start.
 - In a scene: `player 40 260` puts the player's feet at x 40, y 260. Add
   `zoom 3` for how close the camera follows, or `material ...` to make it out
@@ -366,9 +368,6 @@ and steam, and scenes save and load correctly.
 
 ## Known limits
 
-- A big load of sand dumped right on the player buries them for a few
-  seconds (they run low on breath), then the physics pushes them out with a
-  jolt that throws them a few metres up. The player can't dig out yet.
 - Wood grain always runs the same way, even along horizontal beams.
 
 ## What's next

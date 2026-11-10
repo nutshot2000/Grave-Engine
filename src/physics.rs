@@ -32,6 +32,40 @@ const CHUNK: usize = 32;
 
 static NEXT_RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+/// Collider tags (in `user_data`): ground made of powder, and characters.
+const POWDER_TAG: u128 = 1;
+const ACTOR_TAG: u128 = 2;
+
+/// Loose powder (sand, gravel) only holds characters up from below, like a
+/// one-way platform: you stand on a dune, but sand piled on or around you
+/// can't trap you or (when it overlaps you) fling you out.
+struct OneWayPowder;
+
+impl PhysicsHooks for OneWayPowder {
+    fn modify_solver_contacts(&self, ctx: &mut ContactModificationContext) {
+        let (c1, c2) = (&ctx.colliders[ctx.collider1], &ctx.colliders[ctx.collider2]);
+        let (actor_first, other) = if c1.user_data == ACTOR_TAG {
+            (true, c2)
+        } else if c2.user_data == ACTOR_TAG {
+            (false, c1)
+        } else {
+            return;
+        };
+        if other.user_data != POWDER_TAG {
+            return;
+        }
+        if let Some(m) = ctx.rigid_mut() {
+            // The normal points from collider 1 to collider 2: make it point
+            // from the character to the powder. Keep the contact only if the
+            // powder is underneath (y grows downwards).
+            let n = if actor_first { *m.normal } else { -*m.normal };
+            if n.y < 0.5 {
+                m.solver_contacts.clear();
+            }
+        }
+    }
+}
+
 mod actor;
 pub use actor::{ActorSpec, ActorStatus, Controls};
 
@@ -655,7 +689,7 @@ impl Physics {
             &mut self.multibody_joints,
             &mut self.soft,
             &mut self.ccd,
-            &(),
+            &OneWayPowder,
             &(),
         );
 
@@ -1236,6 +1270,7 @@ impl Physics {
                     // The slipperier surface wins (anything slides on ice), and
                     // the bouncier one does too.
                     let col = ColliderBuilder::polyline(verts, Some(idx))
+                        .user_data(if m.state == State::Powder { POWDER_TAG } else { 0 })
                         .friction(m.friction)
                         .restitution(m.bounciness)
                         .friction_combine_rule(CoefficientCombineRule::Min)
@@ -1264,6 +1299,7 @@ impl Physics {
                             (x0 + x) as f32 * CELL + rw as f32 * CELL / 2.0,
                             (y0 + y) as f32 * CELL + rh as f32 * CELL / 2.0,
                         ))
+                        .user_data(if m.state == State::Powder { POWDER_TAG } else { 0 })
                         .friction(m.friction)
                         .restitution(m.bounciness)
                         .friction_combine_rule(CoefficientCombineRule::Min)
@@ -2099,6 +2135,13 @@ fn nearest_cell(world: &World, mats: &Materials, owners: &HashMap<u32, usize>, w
 /// (usually the spot the object just left), or else up to the surface.
 /// Returns where the liquid went (None if it had nowhere to go).
 fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) -> Option<usize> {
+    push_aside(world, mats, x, y, false)
+}
+
+/// Move the cell at (x, y) out of the way, to the nearest gas. `down_first`:
+/// try the rows below first (a character climbing up through sand leaves
+/// the sand behind it, under its feet).
+fn push_aside(world: &mut World, mats: &Materials, x: i32, y: i32, down_first: bool) -> Option<usize> {
     let from = world.idx(x as usize, y as usize);
     let free = |world: &World, nx: i32, ny: i32| -> Option<usize> {
         if !world.in_bounds(nx, ny) {
@@ -2107,9 +2150,10 @@ fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) -> Option
         let i = world.idx(nx as usize, ny as usize);
         (!world.is_owned(i) && mats.get(world.mat[i]).state == State::Gas).then_some(i)
     };
-    // Rings of growing size, checking upper rows first.
+    // Rings of growing size, checking upper rows first (or lower).
     for r in 1..=6i32 {
-        for dy in -r..=r {
+        for k in 0..=2 * r {
+            let dy = if down_first { r - k } else { k - r };
             for k in 0..=r {
                 for dx in [-k, k] {
                     if dx.abs() != r && dy.abs() != r {
