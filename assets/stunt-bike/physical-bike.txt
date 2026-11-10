@@ -1,0 +1,154 @@
+# Motorcycle assemblies
+legend I iron
+legend R rubber
+legend B brass
+legend . air
+body 57.500 196.700 0
+....II.............IIII
+....IIIII.BBIIIIIIIIIII
+......IIIIIIIIIII...II.
+.........IIB.......II..
+.........BII......II...
+........BBII.....II....
+........BB.II...II.....
+.......BBB..II.III.....
+..B....BB...IIIII......
+BBIBIIIIIIIIIIII.......
+B.IIIIIIIIIIIIIIIIII...
+B.IIIIII....IIIIIIII...
+B.IIBIIIIIII...........
+.BBB...................
+end
+name frame
+depth 0.02
+body 62.000 196.200 0
+.....I..
+...IIIII
+...IIIII
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIII..
+end
+name engine
+depth 0.02
+body 72.500 193.700 0
+RRI........
+.II........
+....III....
+..BBIIII...
+..IIIIII...
+...BBIII...
+....BB.....
+....BB.....
+.....BB....
+.....BBB...
+......BI...
+.......II..
+........II.
+........II.
+.........II
+..........I
+end
+name fork
+depth 0.02
+body 63.000 192.200 0
+..IIIIIII...
+.IIIIIIIIII.
+IIIIIIIIIII.
+IIIIIIIIIIII
+IIIIIIIIIIII
+.........RII
+........RRII
+........R.II
+..........I.
+end
+name tank
+depth 0.02
+body 51.000 191.700 0
+IIIIIIIIII..
+.IIIIIIIIIII
+.....IIIIIII
+.....IIIIIII
+.....IIIIIII
+.....IIIIII.
+end
+name tail
+depth 0.02
+body 77.500 193.200 0
+IIII.........
+IIIIIIIIIIII.
+.......IIIIII
+end
+name mudguard
+depth 0.02
+body 57.500 195.700 0
+IIII...................
+IIIIII.................
+.IIIIIII...............
+...IIIIII..........I...
+.....IIIII.........III.
+.......IIIII........III
+...........IIII......II
+.............IIIII...II
+................IIIIII.
+..................III..
+end
+name exhaust
+depth 0.02
+body 54.500 189.700 0
+RRRRRRRRRRR
+RRRRRRRRRRR
+end
+name seat
+depth 0.02
+body 48.500 201.200 0
+.....RRRRR.....
+...RRRRRRRRR...
+..RRRRRIRRRRR..
+.RRRIIRRRIIRRR.
+.RRIRRIIIRRIRR.
+RRRIRIIIIBRIRRR
+RRRRIIIIIBBRRRR
+RRRRIIIIIIIRRRR
+RRRRIIIIIIIRRRR
+.RRIRIIIIIRIRR.
+.RRRIRRIRRIRRR.
+..RRRIIRIIRRR..
+..RRRRRRRRRRR..
+....RRRRRRR....
+.......R.......
+end
+name rear-wheel
+depth 0.02
+body 77.500 201.200 0
+.....RRRRR.....
+...RRRRRRRRR...
+..RRRRIIRRRRR..
+.RRRIIRRRIIRRR.
+.RRIRRIIIRRIRR.
+RRRIRIIIIBRIRR.
+RRRRIIIIIBBRRRR
+RRRRIIIIIIIRRRR
+RRRRIIIIIIRRRRR
+.RRIRIIIIIRIRR.
+.RRRIRRIRRIRRR.
+..RRRIIIIIRRR..
+..RRRRRRRRRRR..
+....RRRRRRR....
+.......R.......
+end
+name front-wheel
+depth 0.02
+weld frame engine break 5000
+weld frame fork break 2000
+weld frame tank break 500
+weld frame tail break 500
+weld frame mudguard break 500
+weld frame exhaust break 500
+weld frame seat break 500
+wheel frame rear-wheel spring 4 damping 1 travel 2 motor 10 strength 2 drive break 2000
+wheel frame front-wheel spring 4 damping 1 travel 2 motor 10 strength 2 drive break 2000
+follow frame zoom 3

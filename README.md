@@ -416,3 +416,9 @@ RPGs...), where any material works on any surface.
     don't all end up as rubble
 
 Ideas for 5, 6, 7 and 11 come from Petri Purho's GDC talk on Noita's engine.
+
+## Material motorcycle and breakable attachments
+
+Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycle. Run `Play-Stunt-Yard.cmd`; C starts a high-speed wall crash, R resets.
+
+Scenes can set `depth 0.02` after a body for its physical thickness in metres (default 1). Joints accept an optional `break 500` failure load in kN. Both survive scene saves and snapshots; fragments inherit thickness. Omit these settings for the existing behaviour. See `assets/stunt-bike/README.md` for the complete model/export and material notes.

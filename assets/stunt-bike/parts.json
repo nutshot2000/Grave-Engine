@@ -1,0 +1,152 @@
+[
+  {
+    "name": "frame",
+    "x": 57.5,
+    "y": 196.7,
+    "left": -23.5,
+    "top": -16.0,
+    "width": 58,
+    "height": 29,
+    "cells": 139,
+    "materials": {
+      "iron": 115,
+      "rubber": 0,
+      "brass": 24
+    }
+  },
+  {
+    "name": "engine",
+    "x": 62.0,
+    "y": 196.2,
+    "left": -28.0,
+    "top": -15.5,
+    "width": 58,
+    "height": 29,
+    "cells": 52,
+    "materials": {
+      "iron": 52,
+      "rubber": 0,
+      "brass": 0
+    }
+  },
+  {
+    "name": "fork",
+    "x": 72.5,
+    "y": 193.7,
+    "left": -38.5,
+    "top": -13.0,
+    "width": 58,
+    "height": 29,
+    "cells": 45,
+    "materials": {
+      "iron": 29,
+      "rubber": 2,
+      "brass": 14
+    }
+  },
+  {
+    "name": "tank",
+    "x": 63.0,
+    "y": 192.2,
+    "left": -29.0,
+    "top": -11.5,
+    "width": 58,
+    "height": 29,
+    "cells": 63,
+    "materials": {
+      "iron": 59,
+      "rubber": 4,
+      "brass": 0
+    }
+  },
+  {
+    "name": "tail",
+    "x": 51.0,
+    "y": 191.7,
+    "left": -17.0,
+    "top": -11.0,
+    "width": 58,
+    "height": 29,
+    "cells": 48,
+    "materials": {
+      "iron": 48,
+      "rubber": 0,
+      "brass": 0
+    }
+  },
+  {
+    "name": "mudguard",
+    "x": 77.5,
+    "y": 193.2,
+    "left": -43.5,
+    "top": -12.5,
+    "width": 58,
+    "height": 29,
+    "cells": 22,
+    "materials": {
+      "iron": 22,
+      "rubber": 0,
+      "brass": 0
+    }
+  },
+  {
+    "name": "exhaust",
+    "x": 57.5,
+    "y": 195.7,
+    "left": -23.5,
+    "top": -15.0,
+    "width": 58,
+    "height": 29,
+    "cells": 62,
+    "materials": {
+      "iron": 62,
+      "rubber": 0,
+      "brass": 0
+    }
+  },
+  {
+    "name": "seat",
+    "x": 54.5,
+    "y": 189.7,
+    "left": -20.5,
+    "top": -9.0,
+    "width": 58,
+    "height": 29,
+    "cells": 22,
+    "materials": {
+      "iron": 0,
+      "rubber": 22,
+      "brass": 0
+    }
+  },
+  {
+    "name": "rear-wheel",
+    "x": 48.5,
+    "y": 201.2,
+    "left": -14.5,
+    "top": -20.5,
+    "width": 58,
+    "height": 29,
+    "cells": 167,
+    "materials": {
+      "iron": 49,
+      "rubber": 115,
+      "brass": 3
+    }
+  },
+  {
+    "name": "front-wheel",
+    "x": 77.5,
+    "y": 201.2,
+    "left": -43.5,
+    "top": -20.5,
+    "width": 58,
+    "height": 29,
+    "cells": 166,
+    "materials": {
+      "iron": 50,
+      "rubber": 113,
+      "brass": 3
+    }
+  }
+]
