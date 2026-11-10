@@ -1877,6 +1877,20 @@ impl Physics {
         }
     }
 
+    /// Apply horizontal drag to a group without rebuilding its bodies or joints.
+    /// A factor of one preserves speed; zero stops horizontal movement.
+    pub fn damp_horizontal(&mut self, ids: &[u64], factor: f32) {
+        if !factor.is_finite() { return; }
+        let factor = factor.clamp(0.0, 1.0);
+        for id in ids {
+            if let Some(n) = self.find(*id) {
+                let rb = &mut self.set[self.bodies[n].handle];
+                let v = rb.linvel();
+                rb.set_linvel(Vector::new(v.x * factor, v.y), true);
+            }
+        }
+    }
+
     /// Apply a bounded angular acceleration to an object (radians/s²).
     /// Useful for rider balance and other game controls; keeps joints intact.
     pub fn steer_rotation(&mut self, id: u64, acceleration: f32, max_speed: f32) {

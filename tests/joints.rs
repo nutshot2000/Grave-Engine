@@ -185,3 +185,15 @@ fn depth_changes_mass_without_changing_material_and_survives_fragments() {
     assert_eq!(thin.physics.body_count(),2);
     for id in thin.physics.ids(){assert_eq!(thin.physics.spec_of(&thin.world,id).unwrap().depth,0.02);}
 }
+
+#[test]
+fn horizontal_drag_preserves_vertical_motion_and_attachments() {
+    let m=mats();let mut s=sim(&m,CAR);let ids=s.physics.ids();
+    for id in &ids {s.physics.edit(&mut s.world,&m,*id,|b|{b.vx=80.;b.vy=-12.;});}
+    let joints=s.physics.joints().len();
+    s.physics.damp_horizontal(&ids,0.5);
+    for id in &ids {let b=s.physics.spec_of(&s.world,*id).unwrap();assert!((b.vx-40.).abs()<0.01);assert!((b.vy+12.).abs()<0.01);}
+    s.physics.damp_horizontal(&ids,f32::NAN);
+    assert_eq!(s.physics.joints().len(),joints);
+    assert!((s.physics.spec_of(&s.world,ids[0]).unwrap().vx-40.).abs()<0.01);
+}

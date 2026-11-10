@@ -1,3 +1,5 @@
+This earlier course has been replaced by Wreck Run. See WRECK-RUN.md for the current layout and controls.
+
 # Inferno Run — Stunt Yard level
 
 A 360-metre side-scrolling course with six real terrain jumps, three burning obstacles, water gaps and shallow splashes, a lava gap, gravel, sand and six breakaway wooden props. Nine stage gates award points before the finish.

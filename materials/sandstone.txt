@@ -1,0 +1,15 @@
+# Sandstone supports dune shapes; its loose sand coating shifts under tyres.
+about = Compacted sand rock. Hard impacts break it into loose sand.
+state = solid
+density = 2200
+color = #c6ab70
+color_variation = 0.1
+conducts_heat = 0.2
+heat_capacity = 1
+melts_at = 1600
+melts_into = lava
+strength = 25
+toughness = 5000
+breaks_into = sand
+friction = 0.8
+texture = textures/sand.png

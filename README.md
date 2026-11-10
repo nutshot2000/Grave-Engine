@@ -423,6 +423,6 @@ Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycl
 
 Scenes can set `depth 0.02` after a body for its physical thickness in metres (default 1). Joints accept an optional `break 500` failure load in kN. Both survive scene saves and snapshots; fragments inherit thickness. Omit these settings for the existing behaviour. See `assets/stunt-bike/README.md` for the complete model/export and material notes.
 
-## Inferno Run course
+## Wreck Run course
 
-Stunt Yard now opens a 360-metre scrolling level with six jumps, burning obstacles, water, lava, loose surfaces and breakaway props. The camera follows the full world with smooth look-ahead. See docs/INFERNO-RUN.md for controls and verification. tools/make_stunt_course.py regenerates the course from normal engine scene commands.
+Stunt Yard opens a 360-metre scrolling material course: sand hills, a muddy bog, a low gantry after a descent, proximity-triggered demolition charges, timber bridge, ice and a lava jump. S/down brakes; R returns to a checkpoint; Backspace restarts. See docs/WRECK-RUN.md. tools/make_stunt_course.py regenerates the scene and ignition cues.

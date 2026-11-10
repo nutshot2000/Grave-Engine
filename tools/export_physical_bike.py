@@ -59,7 +59,7 @@ for name in names:
  parts.append(dict(name=name,x=cx,y=cy,left=34-cx,top=180.7-cy,width=58,height=29,cells=len(used),materials={m:grid.count(m) for m in colors}))
 limits={'engine':5000,'fork':2000,'tank':500,'tail':500,'mudguard':500,'exhaust':500,'seat':500}
 for name in names[1:-2]:lines+=['weld frame %s break %s'%(name,limits[name])]
-for name in names[-2:]:lines+=['wheel frame %s spring 4 damping 1 travel 2 motor 10 strength 2 drive break 2000'%name]
+for name in names[-2:]:lines+=['wheel frame %s spring 4 damping 1 travel 2 motor 10 strength 3 drive break 2000'%name]
 lines+=['follow frame zoom 3']
 (root/'physical-bike.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
 (root/'parts.json').write_text(json.dumps(parts,indent=2),encoding='utf-8')
