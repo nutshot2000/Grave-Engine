@@ -3,9 +3,9 @@ use eframe::egui::{self, Color32, Pos2, Rect, Vec2};
 use grave_engine::{material::Materials, render::{Renderer, View}, sim::Sim};
 use std::time::Instant;
 
-struct Part { id:u64, name:String, left:f32, top:f32, width:f32, height:f32, cells:usize }
+struct Part { id:u64, name:String }
 
-struct Game { parts:Vec<Part>, crashed:bool, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, bike_art: Vec<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: [bool;3] }
+struct Game { parts:Vec<Part>, crashed:bool, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: [bool;3] }
 impl Game {
  fn new() -> Self {
   let mats=Materials::load_dir("materials");
@@ -14,11 +14,12 @@ impl Game {
   let (sim,problems)=grave_engine::scene::load(&text,&mats,Some(std::path::Path::new("scenes"))).into_sim(&mats);
   assert!(problems.is_empty(),"{problems:?}");
   let ids=sim.physics.ids();
-  let parts=std::fs::read_to_string("assets/stunt-bike/parts.tsv").expect("parts manifest").lines().enumerate().map(|(i,line)|{
+  let parts:Vec<Part>=std::fs::read_to_string("assets/stunt-bike/parts.tsv").expect("parts manifest").lines().enumerate().map(|(i,line)|{
    let v:Vec<_>=line.split('\t').collect();
-   Part{id:ids[i+1],name:v[0].into(),left:v[1].parse().unwrap(),top:v[2].parse().unwrap(),width:v[3].parse().unwrap(),height:v[4].parse().unwrap(),cells:v[5].parse().unwrap()}
+   Part{id:ids[i+1],name:v[0].into()}
   }).collect();
-  Self {parts,crashed:false,sim,mats,renderer:Renderer::default(),texture:None,rider:None,bike_art:Vec::new(),clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE".into(),started:false,best:0,score:0,gates:[false;3]}
+  assert!(parts.iter().any(|p|p.name=="frame"),"missing bike frame");
+  Self {parts,crashed:false,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE".into(),started:false,best:0,score:0,gates:[false;3]}
  }
  fn retry(&mut self) {let best=self.best.max(self.score); *self=Self::new(); self.best=best; self.started=true; self.state="ACTION!".into();}
  fn crash_test(&mut self) {
@@ -61,19 +62,10 @@ impl eframe::App for Game {
   ui.horizontal(|ui|{ui.label(format!("SCORE {:04}     BEST {:04}     TAKE {:.1}s",self.score,self.best,self.frame as f32/60.));if ui.button("New take [R]").clicked(){self.retry();}if ui.button("Crash test [C]").clicked(){self.crash_test();}});
   ui.label(egui::RichText::new(&self.state).color(Color32::from_rgb(255,190,65)).size(21.));
   ui.label("SPACE: start  •  D / →: accelerate  •  A / ←: reverse  •  Q / E: lean  •  R: retry  •  C: crash test");
-  let _bike_id=self.sim.follow.unwrap_or(1);
-  let visible:std::collections::BTreeSet<_>=self.parts.iter().filter(|p|self.sim.physics.spec_of(&self.sim.world,p.id).is_some_and(|b|b.cell_count()==p.cells && b.cells.iter().flatten().all(|c|c.flags & grave_engine::world::BURNING==0 && c.temp<400.))).map(|p|p.id).collect();
-  // Hide only the visual proxies during drawing; restore flags before simulation.
-  let mut hidden=Vec::new();
-  for i in 0..self.sim.world.flags.len() {
-   if self.sim.world.is_owned(i) && self.sim.physics.id_at(&self.sim.world,i%self.sim.world.w,i/self.sim.world.w).is_some_and(|id|visible.contains(&id)) {
-    hidden.push((i,self.sim.world.flags[i]));self.sim.world.flags[i]|=grave_engine::world::HIDDEN;
-   }
-  }
+  // Always draw the real material cells, for intact parts and wreckage alike.
   let rgba=self.renderer.draw(&self.sim.world,&self.mats,View::default());
   let image=egui::ColorImage::from_rgba_unmultiplied([self.sim.world.w,self.sim.world.h],rgba);
   if let Some(t)=&mut self.texture {t.set(image,egui::TextureOptions::NEAREST);}else{self.texture=Some(ctx.load_texture("world",image,egui::TextureOptions::NEAREST));}
-  for (i,flags) in hidden {self.sim.world.flags[i]=flags;}
   let (rect,_)=ui.allocate_exact_size(ui.available_size(),egui::Sense::hover());
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1));
   let vw=220.;let vh=(vw*rect.height()/rect.width()).min(240.);
@@ -82,13 +74,6 @@ impl eframe::App for Game {
   let view=Rect::from_min_max(Pos2::new((cx-vw/2.)/960.,y0/240.),Pos2::new((cx+vw/2.)/960.,(y0+vh)/240.));
   ui.painter().rect_filled(rect,0.,Color32::from_rgb(15,20,31));
   ui.painter().image(self.texture.as_ref().unwrap().id(),rect,view,Color32::WHITE);
-  if self.bike_art.is_empty() {
-   for part in &self.parts {
-    let name=part.name.as_str();
-    let img=image::open(format!("assets/stunt-bike/{name}.png")).expect("motorcycle art").to_rgba8();
-    self.bike_art.push(ctx.load_texture(name,egui::ColorImage::from_rgba_unmultiplied([img.width() as usize,img.height() as usize],img.as_raw()),egui::TextureOptions::LINEAR));
-   }
-  }
   let draw_sprite=|texture:egui::TextureId,x:f32,y:f32,angle:f32,left:f32,top:f32,width:f32,height:f32| {
    let mut mesh=egui::Mesh::with_texture(texture);let(sn,cs)=angle.sin_cos();
    for ((px,py),(u,v)) in [((left,top),(0.,0.)),((left+width,top),(1.,0.)),((left+width,top+height),(1.,1.)),((left,top+height),(0.,1.))] {
@@ -97,11 +82,6 @@ impl eframe::App for Game {
    }
    mesh.indices.extend_from_slice(&[0,1,2,0,2,3]);ui.painter().with_clip_rect(rect).add(egui::Shape::mesh(mesh));
   };
-  for (i,part) in self.parts.iter().enumerate() {
-   if visible.contains(&part.id) {if let Some(body)=self.sim.physics.spec_of(&self.sim.world,part.id) {
-    draw_sprite(self.bike_art[i].id(),body.x,body.y,body.angle,part.left,part.top,part.width,part.height);
-   }}
-  }
   if self.rider.is_none() {
    let img=image::open("assets/stunt-rider.png").expect("rider art").to_rgba8();
    self.rider=Some(ctx.load_texture("rider",egui::ColorImage::from_rgba_unmultiplied([img.width() as usize,img.height() as usize],img.as_raw()),egui::TextureOptions::LINEAR));

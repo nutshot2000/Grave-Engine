@@ -1,6 +1,6 @@
 # Ignition 450: physical material assemblies
 
-The motorcycle is ten physical assemblies: frame, engine, fork/handlebars, tank/radiator, tail, front mudguard, exhaust, seat, rear wheel and front wheel. Each has its own body, material-cell shape, rendered appearance and attachment. Detached parts remain physical objects and retain their momentum. If a part loses cells, melts or burns, its detailed artwork gives way to the remaining material cells.
+The motorcycle is ten physical assemblies: frame, engine, fork/handlebars, tank/radiator, tail, front mudguard, exhaust, seat, rear wheel and front wheel. Each has its own body, material-cell shape and attachment. Detached parts remain physical objects and retain their momentum. All bike parts are drawn by the engine material renderer from the start, including textures, heat, burning and missing cells. Blender beauty images are reference assets, not overlays in the game.
 
 Tyres and grips use engine rubber, structural parts and panels use iron, and gold hardware uses brass. Wheel rims contain iron while the tyre circumference is rubber. Rubber friction, bounce and burning come from materials/rubber.txt; iron density, thermal conduction, melting and toughness come from materials/iron.txt. These are real simulation materials.
 
