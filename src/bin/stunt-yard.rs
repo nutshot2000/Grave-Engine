@@ -32,7 +32,7 @@ impl Game {
  fn update_zoom(&mut self,dt:f32)->f32 {
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs());
   let t=((speed-20.)/120.).clamp(0.,1.);
-  let target=220.+60.*t*t*(3.-2.*t);
+  let target=220.+120.*t*t*(3.-2.*t);
   let rate=if target>self.cam_width {2.5}else{1.5};
   self.cam_width+=(target-self.cam_width)*(1.-(-dt.max(0.)*rate).exp());
   self.cam_width
@@ -326,13 +326,13 @@ mod tests {
  fn camera_zoom_eases_with_speed_and_stays_inside_world() {
   let mut g=Game::new();let id=g.sim.follow.unwrap();
   g.sim.physics.edit(&mut g.sim.world,&g.mats,id,|b|b.vx=140.);
-  let first=g.update_zoom(1./60.);assert!(first>220. && first<225.);
+  let first=g.update_zoom(1./60.);assert!(first>220. && first<226.);
   for _ in 0..180 {g.update_zoom(1./60.);}
-  assert!(g.cam_width>279. && g.cam_width<=280.);
+  assert!(g.cam_width>339. && g.cam_width<=340.);
   let width=g.cam_width;g.update_camera(width,150.,0.016);
   assert!(g.cam_x>=width/2. && g.cam_y>=0.);
   g.sim.physics.edit(&mut g.sim.world,&g.mats,id,|b|b.vx=0.);
-  let first=g.update_zoom(1./60.);assert!(first>275.);
+  let first=g.update_zoom(1./60.);assert!(first>335.);
   for _ in 0..240 {g.update_zoom(1./60.);}
   assert!(g.cam_width>=220. && g.cam_width<221.);
  }
