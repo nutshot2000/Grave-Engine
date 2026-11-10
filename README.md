@@ -38,6 +38,27 @@ cargo run --release
   Q / E turn 15°, F flip, Esc deselect, Shift+click to add to the selection,
   B for the brush.
 
+### Right-click and notes
+
+With **👆 Select**, right-click anything:
+
+- **An object:** change its material, leave a note, select it, follow it with
+  the camera, freeze it into scenery, duplicate or delete it.
+- **Scenery (ground, walls):** change that connected piece to another
+  material, delete it, or leave a note.
+- **Empty space:** leave a note ("add a bounce pad here", "put an explosive
+  barrel here").
+
+**Notes** are little yellow pins. A note on an object moves with it. Click a
+pin to edit it, tick it done, or delete it; the 📝 Notes list (right panel)
+shows them all. They're saved straight away in a file next to the scene
+(`scenes/player.txt` → `scenes/player.notes.md`), each saying exactly what
+it's on (an object's materials, size and position, or the scenery's
+material), with a close-up picture in `scenes/player.notes/` (the object
+outlined, a pin where you clicked). So you can leave notes, then ask an AI
+agent to "do my notes": it reads the file and pictures, makes the changes,
+and ticks them off; the editor picks up the ticks live.
+
 ### Rewind
 
 Everything that happens during Play is recorded. Drag the **⏪ Rewind** slider under

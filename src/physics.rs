@@ -30,6 +30,8 @@ use std::collections::HashMap;
 pub const CELL: f32 = 0.1;
 const CHUNK: usize = 32;
 
+static NEXT_RUN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 mod actor;
 pub use actor::{ActorSpec, ActorStatus, Controls};
 
@@ -211,6 +213,8 @@ pub struct Physics {
     throttle: f32,
     /// Characters (the player).
     actors: Vec<actor::Actor>,
+    /// A number unique to this physics world (object ids restart in each).
+    run_id: u64,
     /// What the player is pressing.
     controls: Controls,
     set: RigidBodySet,
@@ -310,6 +314,7 @@ impl Physics {
             joints: Vec::new(),
             throttle: 0.0,
             actors: Vec::new(),
+            run_id: NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             controls: Controls::default(),
             set,
             colliders,
@@ -334,6 +339,12 @@ impl Physics {
             w,
             h,
         }
+    }
+
+    /// A number unique to this physics world: object ids are only
+    /// meaningful together with it (a restored world numbers objects anew).
+    pub fn run_id(&self) -> u64 {
+        self.run_id
     }
 
     pub fn body_count(&self) -> usize {

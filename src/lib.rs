@@ -7,6 +7,7 @@ pub mod edit;
 pub mod headless;
 pub mod import;
 pub mod look;
+pub mod notes;
 pub mod physics;
 pub mod sim;
 pub mod template;

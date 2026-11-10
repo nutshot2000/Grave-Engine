@@ -8,6 +8,7 @@ use grave_engine::physics::{BodySpec, CELL, GROUND, JointKind, Motor};
 use grave_engine::render::{Renderer, View};
 use grave_engine::scene;
 use grave_engine::sim::{Sim, Snapshot};
+use grave_engine::notes::{self, Note};
 use grave_engine::template::{self, Change, Templates};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
@@ -137,6 +138,26 @@ struct Sandbox {
     cam: Option<(f32, f32, f32)>,
     /// Mouse-wheel movement not yet turned into zoom steps.
     zoom_acc: f32,
+    /// Sticky notes for the open scene (see notes.rs), and the scene file
+    /// they belong to (they're kept in `NAME.notes.md` next to it).
+    notes: Vec<Note>,
+    notes_scene: PathBuf,
+    notes_stamp: Option<SystemTime>,
+    /// A note being written (or edited).
+    note_draft: Option<NoteDraft>,
+    /// Where the right-click menu was opened (cells).
+    menu_at: Option<(f32, f32)>,
+    show_done_notes: bool,
+}
+
+/// The note box: where it goes, the text so far, and which note it is
+/// (None = a new one).
+struct NoteDraft {
+    x: f32,
+    y: f32,
+    text: String,
+    editing: Option<usize>,
+    focused: bool,
 }
 
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
@@ -240,6 +261,12 @@ impl Sandbox {
             canvas_at: (Pos2::ZERO, 1.0),
             cam: None,
             zoom_acc: 0.0,
+            notes: Vec::new(),
+            notes_scene: PathBuf::from("scenes/my_scene.txt"),
+            notes_stamp: None,
+            note_draft: None,
+            menu_at: None,
+            show_done_notes: false,
         };
         for p in app.mats.problems.clone() {
             app.say(p);
@@ -259,6 +286,302 @@ impl Sandbox {
             app.scene_stamp = None;
         }
         app
+    }
+
+    /// Write the notes file (right away, so notes are never lost).
+    fn save_notes(&mut self) {
+        let file = notes::path_for(&self.notes_scene);
+        let name = self.notes_scene.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        match notes::save(&file, &name, &self.notes) {
+            Ok(()) => self.notes_stamp = stamp(&file),
+            Err(e) => self.say(format!("Couldn't save notes to {}: {e}", file.display())),
+        }
+    }
+
+    /// Save a close-up picture of a spot, with the object (if any) outlined
+    /// and a pin where the note is. Returns its path relative to the notes file.
+    fn note_picture(&mut self, x: f32, y: f32, object: Option<u64>) -> Option<String> {
+        let dir = notes::pictures_dir(&self.notes_scene);
+        std::fs::create_dir_all(&dir).ok()?;
+        let n = (1..).find(|k| !dir.join(format!("note-{k}.png")).exists())?;
+        let file = dir.join(format!("note-{n}.png"));
+        let w = &self.sim.world;
+        let rgba = self.renderer.draw(w, &self.mats, View::default()).to_vec();
+        let (cw, ch) = (96.min(w.w), 54.min(w.h));
+        let x0 = (x - cw as f32 / 2.0).clamp(0.0, (w.w - cw) as f32) as usize;
+        let y0 = (y - ch as f32 / 2.0).clamp(0.0, (w.h - ch) as f32) as usize;
+        const S: usize = 6;
+        let (ow, oh) = (cw * S, ch * S);
+        let mut out = vec![0u8; ow * oh * 4];
+        for oy in 0..oh {
+            for ox in 0..ow {
+                let i = ((y0 + oy / S) * w.w + x0 + ox / S) * 4;
+                out[(oy * ow + ox) * 4..(oy * ow + ox) * 4 + 4].copy_from_slice(&rgba[i..i + 4]);
+            }
+        }
+        let mut dot = |px: f32, py: f32, r: f32, c: [u8; 3]| {
+            let (cx, cy) = ((px - x0 as f32) * S as f32, (py - y0 as f32) * S as f32);
+            for yy in (cy - r) as i32..=(cy + r) as i32 {
+                for xx in (cx - r) as i32..=(cx + r) as i32 {
+                    if xx >= 0 && yy >= 0 && (xx as usize) < ow && (yy as usize) < oh && ((xx as f32 - cx).powi(2) + (yy as f32 - cy).powi(2)) <= r * r {
+                        let o = (yy as usize * ow + xx as usize) * 4;
+                        out[o..o + 3].copy_from_slice(&c);
+                    }
+                }
+            }
+        };
+        // Outline the object.
+        if let Some(b) = object.and_then(|id| self.sim.physics.spec_of(&self.sim.world, id)) {
+            let c = corners(&b, 1.08);
+            for k in 0..4 {
+                let (a, e) = (c[k], c[(k + 1) % 4]);
+                let steps = (((e.0 - a.0).powi(2) + (e.1 - a.1).powi(2)).sqrt() * 4.0) as usize + 1;
+                for t in 0..=steps {
+                    let f = t as f32 / steps as f32;
+                    dot(a.0 + (e.0 - a.0) * f, a.1 + (e.1 - a.1) * f, 2.0, [255, 220, 40]);
+                }
+            }
+        }
+        // The pin.
+        dot(x, y, 7.0, [255, 255, 255]);
+        dot(x, y, 5.0, [230, 40, 40]);
+        grave_engine::headless::write_png(&file, ow, oh, &out, 1).ok()?;
+        Some(format!("{}/note-{n}.png", dir.file_name()?.to_string_lossy()))
+    }
+
+    /// Change one connected piece of scenery (all touching cells of the
+    /// same material) into another material (air = delete it).
+    fn recolor_piece(&mut self, x: f32, y: f32, to: MatId) {
+        let w = &self.sim.world;
+        let (cx, cy) = (x.floor() as i32, y.floor() as i32);
+        if !w.in_bounds(cx, cy) {
+            return;
+        }
+        let start = w.idx(cx as usize, cy as usize);
+        let from = w.mat[start];
+        if from == AIR || w.is_owned(start) {
+            return;
+        }
+        let mut seen = vec![false; w.mat.len()];
+        let mut stack = vec![start];
+        let mut piece = Vec::new();
+        seen[start] = true;
+        while let Some(i) = stack.pop() {
+            piece.push(i);
+            if piece.len() > 400_000 {
+                break;
+            }
+            let (x, y) = (i % w.w, i / w.w);
+            let near = [(x > 0).then(|| i - 1), (x + 1 < w.w).then(|| i + 1), (y > 0).then(|| i - w.w), (y + 1 < w.h).then(|| i + w.w)];
+            for j in near.into_iter().flatten() {
+                if !seen[j] && w.mat[j] == from && !w.is_owned(j) {
+                    seen[j] = true;
+                    stack.push(j);
+                }
+            }
+        }
+        let name = if to == AIR { "delete piece".to_string() } else { format!("change piece to {}", self.mats.get(to).name) };
+        self.change(&name, |app| {
+            let ww = app.sim.world.w;
+            for &i in &piece {
+                if to == AIR {
+                    app.sim.world.make_air(i);
+                } else {
+                    app.sim.world.set(&app.mats, i % ww, i / ww, to);
+                }
+            }
+        });
+        self.say(format!("{} cells changed", piece.len()));
+    }
+
+    /// The right-click menu.
+    fn context_menu(&mut self, ui: &mut egui::Ui) {
+        let Some((x, y)) = self.menu_at else {
+            ui.close();
+            return;
+        };
+        let (about, object) = notes::describe(&self.sim, &self.mats, x, y);
+        let short = about.split(" (").next().unwrap_or(&about).to_string();
+        ui.label(RichText::new(&short).strong());
+        ui.separator();
+        if ui.button("📝 Leave a note here…").clicked() {
+            self.note_draft = Some(NoteDraft { x, y, text: String::new(), editing: None, focused: false });
+            ui.close();
+        }
+        if let Some(id) = object {
+            if let Some(m) = self.material_menu(ui, "🎨 Change material to") {
+                self.selection = Selection::Objects(vec![id]);
+                self.recolor_selection(m);
+                ui.close();
+            }
+            if ui.button("👆 Select it").clicked() {
+                self.selection = Selection::Objects(vec![id]);
+                self.tool = Tool::Select;
+                ui.close();
+            }
+            if ui.button("📷 Follow it with the camera").clicked() {
+                self.sim.follow = Some(id);
+                ui.close();
+            }
+            if ui.button("❄ Freeze into scenery").clicked() {
+                self.selection = Selection::Objects(vec![id]);
+                self.freeze_selection();
+                ui.close();
+            }
+            if ui.button("⧉ Duplicate").clicked() {
+                self.selection = Selection::Objects(vec![id]);
+                self.duplicate();
+                ui.close();
+            }
+            if ui.button("🗑 Delete").clicked() {
+                self.selection = Selection::Objects(vec![id]);
+                self.delete_selection();
+                ui.close();
+            }
+        } else if short != "empty space" && short != "outside the world" {
+            if let Some(m) = self.material_menu(ui, "🎨 Change this piece to") {
+                self.recolor_piece(x, y, m);
+                ui.close();
+            }
+            if ui.button("🗑 Delete this piece").clicked() {
+                self.recolor_piece(x, y, AIR);
+                ui.close();
+            }
+        }
+    }
+
+    /// The note box (a small window), when writing or editing a note.
+    fn note_window(&mut self, ctx: &egui::Context) {
+        let Some(d) = self.note_draft.as_mut() else { return };
+        let (about, object) = notes::describe(&self.sim, &self.mats, d.x, d.y);
+        let mut save = false;
+        let mut cancel = false;
+        let mut remove = false;
+        let mut done = None;
+        let editing = d.editing;
+        let title = if editing.is_some() { "📝 Note" } else { "📝 New note" };
+        egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 90.0)).show(ctx, |ui| {
+            ui.label(RichText::new(format!("On: {about}")).size(13.0).weak());
+            let edit = ui.add(
+                egui::TextEdit::multiline(&mut d.text)
+                    .hint_text("e.g. make this crate iron, or: add a bounce pad here")
+                    .desired_rows(3)
+                    .desired_width(360.0),
+            );
+            if !d.focused {
+                edit.request_focus();
+                d.focused = true;
+            }
+            ui.label(RichText::new("Ctrl+Enter saves. Notes go in the scene's .notes.md file, with a picture.").size(12.0).weak());
+            ui.horizontal(|ui| {
+                save = ui.button("💾 Save note").clicked() || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.command);
+                cancel = ui.button("Cancel").clicked() || ui.input(|i| i.key_pressed(Key::Escape));
+                if let Some(i) = editing {
+                    let is_done = self.notes.get(i).is_some_and(|n| n.done);
+                    if ui.button(if is_done { "↺ Not done" } else { "✔ Done" }).clicked() {
+                        done = Some(!is_done);
+                    }
+                    remove = ui.button("🗑 Delete").clicked();
+                }
+            });
+        });
+        let d = self.note_draft.take().unwrap();
+        if save && !d.text.trim().is_empty() {
+            match d.editing {
+                Some(i) if i < self.notes.len() => self.notes[i].text = d.text.trim().to_string(),
+                _ => {
+                    let mut n = Note::new(d.x, d.y, &d.text);
+                    n.about = about;
+                    n.picture = self.note_picture(d.x, d.y, object);
+                    n.run = self.sim.physics.run_id();
+                    n.object = object.and_then(|id| self.sim.physics.spec_of(&self.sim.world, id).map(|b| (n.run, id, d.x - b.x, d.y - b.y)));
+                    self.notes.push(n);
+                    self.say("Note saved");
+                }
+            }
+            self.save_notes();
+        } else if let (Some(i), Some(v)) = (d.editing, done) {
+            if let Some(n) = self.notes.get_mut(i) {
+                n.done = v;
+            }
+            self.save_notes();
+        } else if let (Some(i), true) = (d.editing, remove) {
+            if i < self.notes.len() {
+                self.notes.remove(i);
+            }
+            self.save_notes();
+        } else if !cancel && !save {
+            self.note_draft = Some(d); // still writing
+        }
+    }
+
+    /// The notes list (bottom of the inspector).
+    fn notes_panel(&mut self, ui: &mut egui::Ui) {
+        let open = self.notes.iter().filter(|n| !n.done).count();
+        ui.add_space(8.0);
+        ui.separator();
+        egui::CollapsingHeader::new(RichText::new(format!("📝 Notes ({open})")).strong()).default_open(true).show(ui, |ui| {
+            ui.label(RichText::new("Right-click anything (👆 Select tool) to leave a note on it.").size(12.0).weak());
+            if self.notes.is_empty() {
+                return;
+            }
+            ui.checkbox(&mut self.show_done_notes, "Show done notes");
+            let mut changed = false;
+            let mut open_note = None;
+            for (i, n) in self.notes.iter_mut().enumerate() {
+                if n.done && !self.show_done_notes {
+                    continue;
+                }
+                ui.horizontal(|ui| {
+                    changed |= ui.checkbox(&mut n.done, "").on_hover_text("Done").changed();
+                    let text: String = n.text.chars().take(34).collect();
+                    let text = if n.text.chars().count() > 34 { format!("{text}…") } else { text };
+                    let label = if n.done { RichText::new(text).strikethrough().weak() } else { RichText::new(text) };
+                    if ui.link(label).on_hover_text(format!("{}\n\nOn: {}", n.text, n.about)).clicked() {
+                        open_note = Some(i);
+                    }
+                });
+            }
+            if changed {
+                self.save_notes();
+            }
+            if let Some(i) = open_note {
+                let n = &self.notes[i];
+                self.cam = Some((n.x, n.y, self.canvas_at.1.max(self.cam.map_or(0.0, |c| c.2))));
+                self.note_draft = Some(NoteDraft { x: n.x, y: n.y, text: n.text.clone(), editing: Some(i), focused: false });
+            }
+        });
+    }
+
+    /// Note pins on the canvas. Returns the note under the pointer, if any.
+    fn draw_notes(&self, painter: &egui::Painter, to_screen: &impl Fn((f32, f32)) -> Pos2, pointer: Option<Pos2>) -> Option<usize> {
+        let mut hovered = None;
+        for (i, n) in self.notes.iter().enumerate() {
+            if n.done && !self.show_done_notes {
+                continue;
+            }
+            let p = to_screen((n.x, n.y));
+            let pin = Rect::from_center_size(p + Vec2::new(0.0, -12.0), Vec2::new(16.0, 16.0));
+            let fill = if n.done { Color32::from_rgb(120, 160, 120) } else { Color32::from_rgb(255, 214, 64) };
+            painter.line_segment([p, pin.center_bottom()], Stroke::new(2.0, Color32::from_rgb(60, 50, 20)));
+            painter.circle_filled(p, 3.0, Color32::from_rgb(220, 40, 40));
+            painter.rect_filled(pin, 2.0, fill);
+            painter.rect_stroke(pin, 2.0, Stroke::new(1.0, Color32::from_rgb(60, 50, 20)), egui::StrokeKind::Middle);
+            painter.text(pin.center(), egui::Align2::CENTER_CENTER, if n.done { "✔" } else { "✎" }, egui::FontId::proportional(11.0), Color32::from_rgb(60, 50, 20));
+            let near = pointer.is_some_and(|q| pin.expand(4.0).contains(q));
+            if near {
+                hovered = Some(i);
+            }
+            // Short text next to the pin; the whole note on hover.
+            let full = near;
+            let text: String = if full { n.text.clone() } else { n.text.chars().take(28).collect::<String>() + if n.text.chars().count() > 28 { "…" } else { "" } };
+            let galley = painter.layout(text, egui::FontId::proportional(13.0), Color32::from_rgb(30, 26, 10), if full { 260.0 } else { f32::INFINITY });
+            let at = pin.right_top() + Vec2::new(4.0, 0.0);
+            let bg = Rect::from_min_size(at, galley.size() + Vec2::new(8.0, 4.0));
+            painter.rect_filled(bg, 3.0, fill.gamma_multiply(if full { 1.0 } else { 0.85 }));
+            painter.galley(at + Vec2::new(4.0, 2.0), galley, Color32::BLACK);
+        }
+        hovered
     }
 
     fn say(&mut self, msg: impl Into<String>) {
@@ -496,7 +819,13 @@ impl Sandbox {
                 self.hover = None;
                 self.cam = None;
                 self.scene_stamp = stamp(&path);
+                self.notes_scene = path.clone();
+                self.notes = notes::load(&notes::path_for(&path));
+                self.notes_stamp = stamp(&notes::path_for(&path));
                 self.say(format!("Loaded {}", path.display()));
+                if self.notes.iter().any(|n| !n.done) {
+                    self.say(format!("{} note(s) on this scene: see 📝 Notes", self.notes.iter().filter(|n| !n.done).count()));
+                }
                 for p in problems {
                     self.say(p);
                 }
@@ -545,6 +874,13 @@ impl Sandbox {
             }
             let n = template::refresh(&mut self.sim, &self.templates, &self.mats);
             self.say(format!("Templates reloaded: {n} cop{} updated", if n == 1 { "y" } else { "ies" }));
+        }
+        let notes_file = notes::path_for(&self.notes_scene);
+        let now = stamp(&notes_file);
+        if now.is_some() && now != self.notes_stamp {
+            self.notes = notes::load(&notes_file);
+            self.notes_stamp = now;
+            self.say("Notes updated");
         }
         if let Some(old) = self.scene_stamp {
             let path = PathBuf::from(&self.scene_path);
@@ -1435,8 +1771,21 @@ impl Sandbox {
             }
         }
 
+        // Note pins, and the right-click menu (Select tool).
+        let pin_hover = self.draw_notes(&painter, &to_screen, pointer);
+        if self.tool == Tool::Select {
+            if resp.secondary_clicked() {
+                self.menu_at = pointer.map(to_cells);
+            }
+            resp.context_menu(|ui| self.context_menu(ui));
+        }
         let (primary, secondary, shift) = ui.input(|i| (i.pointer.primary_down(), i.pointer.secondary_down(), i.modifiers.shift));
-        let pressed = resp.drag_started() || (resp.is_pointer_button_down_on() && matches!(self.drag, Drag::None) && (primary || secondary));
+        if let (Some(i), true) = (pin_hover, resp.clicked()) {
+            let n = &self.notes[i];
+            self.note_draft = Some(NoteDraft { x: n.x, y: n.y, text: n.text.clone(), editing: Some(i), focused: false });
+        }
+        let pressed = pin_hover.is_none()
+            && (resp.drag_started() || (resp.is_pointer_button_down_on() && matches!(self.drag, Drag::None) && (primary || secondary)));
         let released = !primary && !secondary;
 
         // ---- start a drag
@@ -1445,6 +1794,8 @@ impl Sandbox {
                 let cell = to_cell(p);
                 let cf = to_cells(p);
                 self.drag = match self.tool {
+                    // (Right-click in Select opens the menu instead.)
+                    Tool::Select if secondary => Drag::None,
                     _ if secondary => {
                         self.history.touch(&mut self.sim, "erase");
                         Drag::Paint
@@ -2040,14 +2391,19 @@ impl eframe::App for Sandbox {
             ui.add_space(2.0);
         });
         egui::Panel::left("palette").resizable(false).exact_size(200.0).show(ui, |ui| self.palette(ui));
+        notes::follow(&self.sim, &mut self.notes);
         egui::Panel::right("inspector").resizable(false).exact_size(270.0).show(ui, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| self.inspector(ui));
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                self.inspector(ui);
+                self.notes_panel(ui);
+            });
         });
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         egui::Panel::bottom("timeline").show(ui, |ui| self.timeline_bar(ui));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::from_rgb(10, 10, 14)))
             .show(ui, |ui| self.canvas(ui));
+        self.note_window(&ctx);
 
         // Inspector number drags etc. become one undo step once the mouse is let go.
         let mouse_down = ctx.input(|i| i.pointer.any_down());
@@ -2328,6 +2684,80 @@ body rect wood 40 60 20 10
         h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
         h.run_steps(3);
         assert_eq!(h.state().sim.physics.joints().len(), 0, "undo removes it");
+    }
+
+    /// Right-click with the button only (no drag).
+    fn right_click(h: &mut Harness<Sandbox>, p: Pos2) {
+        h.event(Event::PointerMoved(p));
+        h.event(Event::PointerButton { pos: p, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE });
+        h.run_steps(1);
+        h.event(Event::PointerButton { pos: p, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+        h.run_steps(2);
+    }
+
+    #[test]
+    fn right_click_leaves_notes_on_objects_and_ground() {
+        let mut h = editor();
+        let dir = std::env::temp_dir().join(format!("grave_notes_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        h.state_mut().notes_scene = dir.join("level.txt");
+        h.state_mut().tool = Tool::Select;
+        h.run_steps(2);
+
+        // On the wooden object.
+        let b = object(&h);
+        let p = at(&h, b.x, b.y);
+        right_click(&mut h, p);
+        h.get_by_label_contains("Leave a note here").click();
+        h.run_steps(2);
+        h.get_by_role(egui::accesskit::Role::MultilineTextInput).type_text("make this crate iron");
+        h.run_steps(1);
+        h.get_by_label_contains("Save note").click();
+        h.run_steps(3);
+        // On plain ground.
+        let p = at(&h, 100.0, 105.0);
+        right_click(&mut h, p);
+        h.get_by_label_contains("Leave a note here").click();
+        h.run_steps(2);
+        h.get_by_role(egui::accesskit::Role::MultilineTextInput).type_text("add a bounce pad here");
+        h.run_steps(1);
+        h.get_by_label_contains("Save note").click();
+        h.run_steps(3);
+
+        let text = std::fs::read_to_string(dir.join("level.notes.md")).expect("notes file written");
+        let saved = grave_engine::notes::parse(&text);
+        assert_eq!(saved.len(), 2, "{text}");
+        assert_eq!(saved[0].text, "make this crate iron");
+        assert!(saved[0].about.contains("object #1") && saved[0].about.contains("wood"), "{}", saved[0].about);
+        assert_eq!(saved[1].text, "add a bounce pad here");
+        assert!(saved[1].about.contains("stone"), "{}", saved[1].about);
+        for n in &saved {
+            let pic = dir.join(n.picture.as_ref().expect("a picture"));
+            assert!(pic.is_file(), "{}", pic.display());
+        }
+        // The note follows its object when it moves.
+        let id = h.state().sim.physics.ids()[0];
+        {
+            let app = h.state_mut();
+            let mats = Materials::clone(&app.mats);
+            app.sim.physics.edit(&mut app.sim.world, &mats, id, |b| b.x += 30.0);
+        }
+        h.run_steps(2);
+        assert!((h.state().notes[0].x - (b.x + 30.0)).abs() < 1.0, "note moved with the crate");
+
+        // The right-click menu also changes materials.
+        let p = at(&h, b.x + 30.0, b.y);
+        right_click(&mut h, p);
+        h.get_by_label_contains("Change material to").click();
+        h.run_steps(2);
+        // (The palette has an "iron" button too: the menu's is drawn last.)
+        h.get_all_by_label("iron").last().unwrap().click();
+        h.run_steps(3);
+        assert!(count(&h, "iron") > 100, "the crate is iron now");
+        if std::env::var("GRAVE_KEEP_TEST_NOTES").is_err() {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 
     #[test]
