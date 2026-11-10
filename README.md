@@ -422,3 +422,7 @@ Ideas for 5, 6, 7 and 11 come from Petri Purho's GDC talk on Noita's engine.
 Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycle. Run `Play-Stunt-Yard.cmd`; C starts a high-speed wall crash, R resets.
 
 Scenes can set `depth 0.02` after a body for its physical thickness in metres (default 1). Joints accept an optional `break 500` failure load in kN. Both survive scene saves and snapshots; fragments inherit thickness. Omit these settings for the existing behaviour. See `assets/stunt-bike/README.md` for the complete model/export and material notes.
+
+## Inferno Run course
+
+Stunt Yard now opens a 360-metre scrolling level with six jumps, burning obstacles, water, lava, loose surfaces and breakaway props. The camera follows the full world with smooth look-ahead. See docs/INFERNO-RUN.md for controls and verification. tools/make_stunt_course.py regenerates the course from normal engine scene commands.
