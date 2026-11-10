@@ -1,7 +1,7 @@
 //! A whole running simulation: the cell grid plus the rigid objects in it.
 
 use crate::material::Materials;
-use crate::physics::{BodySpec, Physics};
+use crate::physics::{BodySpec, GROUND, JointSpec, Physics};
 use crate::template::Instance;
 use crate::world::World;
 use std::collections::HashMap;
@@ -20,12 +20,15 @@ pub struct Snapshot {
     pub bodies: Vec<BodySpec>,
     /// For each object in `bodies`: which template it's a copy of, if any.
     pub instances: Vec<Option<Instance>>,
+    /// Joints, with `a` and `b` meaning "object number N+1 in `bodies`"
+    /// (0 = the ground).
+    pub joints: Vec<JointSpec>,
 }
 
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new() }
     }
 }
 
@@ -45,6 +48,21 @@ impl Sim {
             }
         }
         sim
+    }
+
+    /// Reconnect joints numbered by position (1 = first object, 0 = ground).
+    pub fn add_joints(&mut self, joints: &[JointSpec], ids: &[Option<u64>], mats: &Materials) {
+        let id_of = |n: u64| -> Option<u64> {
+            if n == GROUND {
+                return Some(GROUND);
+            }
+            ids.get(n as usize - 1).copied().flatten()
+        };
+        for j in joints {
+            if let (Some(a), Some(b)) = (id_of(j.a), id_of(j.b)) {
+                self.physics.add_joint(mats, JointSpec { a, b, ..j.clone() });
+            }
+        }
     }
 
     pub fn empty(w: usize, h: usize, mats: &Materials) -> Self {
@@ -71,14 +89,31 @@ impl Sim {
 
     pub fn snapshot(&mut self) -> Snapshot {
         let bodies = self.physics.export(&mut self.world);
-        let instances = self.physics.ids().iter().map(|id| self.instances.get(id).cloned()).collect();
+        let ids = self.physics.ids();
+        let instances = ids.iter().map(|id| self.instances.get(id).cloned()).collect();
+        let index = |id: u64| -> Option<u64> {
+            if id == GROUND {
+                return Some(GROUND);
+            }
+            ids.iter().position(|&i| i == id).map(|p| p as u64 + 1)
+        };
+        let joints = self
+            .physics
+            .joints()
+            .into_iter()
+            .filter_map(|mut j| {
+                j.a = index(j.a)?;
+                j.b = index(j.b)?;
+                Some(j)
+            })
+            .collect();
         let mut world = self.world.clone();
         for i in 0..world.mat.len() {
             if world.is_owned(i) {
                 world.make_air(i);
             }
         }
-        Snapshot { world, bodies, instances }
+        Snapshot { world, bodies, instances, joints }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
@@ -87,11 +122,15 @@ impl Sim {
         let world = snap.world.clone();
         let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new() };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
+        let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {
-            if let (Some(id), Some(inst)) = (sim.physics.add_exact(&mut sim.world, mats, b), inst) {
+            let id = sim.physics.add_exact(&mut sim.world, mats, b);
+            if let (Some(id), Some(inst)) = (id, inst) {
                 sim.instances.insert(id, inst);
             }
+            new_ids.push(id);
         }
+        sim.add_joints(&snap.joints, &new_ids, mats);
         sim
     }
 }

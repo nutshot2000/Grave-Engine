@@ -15,6 +15,8 @@ pub struct Options {
     pub every: Option<u32>,
     pub scale: u32,
     pub heat: bool,
+    /// Hold the drive controls: 1 = full ahead, -1 = full reverse.
+    pub throttle: f32,
 }
 
 /// Write an RGBA image as PNG, scaled up by a whole number.
@@ -80,6 +82,7 @@ pub fn run(o: &Options) -> i32 {
     let mut r = Renderer::default();
     let shot_path = o.shot.clone().unwrap_or_else(|| PathBuf::from("shots/out.png"));
     let start = std::time::Instant::now();
+    sim.physics.set_throttle(o.throttle);
     for f in 1..=o.frames {
         sim.step(&mats);
         if let Some(every) = o.every.filter(|e| *e > 0) {

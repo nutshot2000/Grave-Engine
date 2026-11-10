@@ -144,6 +144,34 @@ Try `scenes/forces.txt`.
   things, throws objects, scatters burning splinters and lights fires. Neighbouring
   gunpowder sets off in a chain.
 
+## Joints, motors and driving
+
+Try `scenes/racer.txt`: press Play and drive with **→ / D** (ahead) and **← / A**
+(reverse).
+
+- **🔗 Join** tool: pick a kind, click the first thing, then the second (empty space
+  means the ground).
+  - **Hinge:** a pin both turn around (doors, pendulums, seesaws).
+  - **Wheel:** an axle with a suspension spring. Wheels get a perfectly round
+    collision shape so they roll smoothly.
+  - **Weld:** glues two things together.
+  - **Rope:** a rope of the length you drew.
+- Hinges and wheels can have a **motor** (speed in turns per second, strength).
+  Tick **Drive** to control it with the keys; let go and it coasts.
+- **Rubber** is a new material: grippy, bouncy and tough. Perfect for tyres.
+- In scenes, name objects and join them by name:
+
+```text
+body rect wood 20 210 64 5
+name car
+body circle rubber 30 221 6
+name back
+wheel car back spring 60 damping 12 travel 3 motor 2 strength 12 drive
+hinge door ground at 40 100          # also: weld a b at x y, rope a b at x y to x y length L
+```
+
+Headless runs can hold the drive controls too: `--throttle 1`.
+
 ## Importing from Blender and images
 
 **Drag a file onto the window** to drop it in as an object (tick "Drop as fixed scenery"
@@ -188,8 +216,8 @@ RPGs...), where any material works on any surface.
 
 1. ~~Sandbox~~ (done)
 2. ~~Editor: select, move, rotate, scale, inspector, undo, rewind, templates~~ (done)
-3. Joints, motors and springs (hinges, axles, suspension) plus a rubber material:
-   first test game, a hill-climb racer
+3. ~~Joints, motors and springs plus a rubber material: a hill-climb racer~~ (done;
+   next for it: a camera that follows the car through a longer world)
 4. Game layer: player, input, camera follow, triggers, scripting, health
 5. Big worlds: 64x64 chunks that only update what's moving, run on several CPU
    cores in a checkerboard pattern, and stream to disk far from the camera

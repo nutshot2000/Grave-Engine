@@ -31,6 +31,8 @@ pub const CELL: f32 = 0.1;
 const CHUNK: usize = 32;
 const GRAVITY: f32 = 9.81;
 const DT: f32 = 1.0 / 60.0;
+/// How eagerly motors chase their target speed (higher = snappier).
+const MOTOR_RESPONSE: f32 = 10.0;
 /// How far (in cells) a straightened outline may stray from the pixel edge.
 const SMOOTHING: f32 = 0.9;
 /// Contacts softer than this (kN) are never checked for damage.
@@ -52,6 +54,53 @@ const MAX_OBJECTS: usize = 1500;
 const BLAST_PUSH: f32 = 0.012;
 /// The most speed a blast can give an object (metres per second).
 const BLAST_MAX_SPEED: f32 = 35.0;
+
+/// The ground (fixed scenery), when used as one end of a joint.
+pub const GROUND: u64 = 0;
+
+/// How two things are joined.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JointKind {
+    /// A pin both can turn around (door, pendulum, seesaw).
+    Hinge,
+    /// An axle with a suspension spring: the second object turns freely and
+    /// can move up and down (in the first object's frame) against a spring.
+    /// `stiffness` in kN per metre, `damping` in kN per (m/s), `travel` in cells.
+    Wheel { stiffness: f32, damping: f32, travel: f32 },
+    /// Glued rigidly together.
+    Weld,
+    /// Can't get further apart than `length` cells.
+    Rope { length: f32 },
+}
+
+/// A motor on a hinge or wheel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Motor {
+    /// Target turning speed, in turns per second (+ = clockwise on screen).
+    pub speed: f32,
+    /// How strong it is (kN·m of twist).
+    pub strength: f32,
+    /// Controlled by the player (arrow keys / A and D) instead of always on.
+    pub drive: bool,
+}
+
+/// A joint between two objects (or an object and the ground, `GROUND`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointSpec {
+    pub a: u64,
+    pub b: u64,
+    pub kind: JointKind,
+    /// Where the joint is on each, in cells from that object's centre (in its
+    /// own unrotated frame; for the ground, in world cells).
+    pub anchor_a: (f32, f32),
+    pub anchor_b: (f32, f32),
+    pub motor: Option<Motor>,
+}
+
+struct Joint {
+    spec: JointSpec,
+    handle: ImpulseJointHandle,
+}
 
 /// One cell of an object, with all its simulation state.
 #[derive(Clone, Copy, Debug)]
@@ -130,6 +179,8 @@ struct Body {
     dirty: bool,
     /// It's a piece that just broke off something (briefly unbreakable).
     shard: bool,
+    /// Rolls on a perfectly round collision shape (wheels).
+    round: bool,
     /// Stable name for the editor (survives moves and edits; pieces that
     /// break off get new ids).
     id: u64,
@@ -145,6 +196,9 @@ pub struct Physics {
     next_id: u64,
     /// Objects that lost cells (burned, chipped, broke) during the last update.
     damaged: Vec<u64>,
+    joints: Vec<Joint>,
+    /// Player throttle for `drive` motors, -1..1.
+    throttle: f32,
     set: RigidBodySet,
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
@@ -239,6 +293,8 @@ impl Physics {
             bodies: Vec::new(),
             next_id: 1,
             damaged: Vec::new(),
+            joints: Vec::new(),
+            throttle: 0.0,
             set,
             colliders,
             impulse_joints: ImpulseJointSet::new(),
@@ -317,7 +373,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, id: self.next_id };
+        let mut body = Body { w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
         self.next_id += 1;
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
@@ -333,6 +389,30 @@ impl Physics {
         }
         let (w, h) = (body.w, body.h);
         let cells = &body.cells;
+        if body.round {
+            // One smooth circle, made of the most common material.
+            let mut count: HashMap<MatId, usize> = HashMap::new();
+            for c in cells.iter().flatten() {
+                *count.entry(c.mat).or_default() += 1;
+            }
+            if let Some((&mat, _)) = count.iter().max_by_key(|(_, n)| **n) {
+                let m = mats.get(mat);
+                let n = cells.iter().flatten().count() as f32;
+                let r = (w.max(h) as f32) / 2.0 * CELL;
+                // Same mass as the cells, spread over the circle.
+                let density = cells.iter().flatten().map(|c| mats.get(c.mat).density).sum::<f32>() / n * (n * CELL * CELL)
+                    / (std::f32::consts::PI * r * r);
+                let col = ColliderBuilder::ball(r)
+                    .friction_combine_rule(CoefficientCombineRule::Min)
+                    .restitution_combine_rule(CoefficientCombineRule::Max)
+                    .density(density.max(50.0))
+                    .friction(m.friction)
+                    .restitution(m.bounciness);
+                self.colliders.insert_with_parent(col, body.handle, &mut self.set);
+                self.set[body.handle].wake_up(true);
+                return;
+            }
+        }
         for (x, y, rw, rh, mat) in rects(w, h, |x, y| cells[y * w + x].map(|c| c.mat)) {
             let cx = (x as f32 + rw as f32 / 2.0 - w as f32 / 2.0) * CELL;
             let cy = (y as f32 + rh as f32 / 2.0 - h as f32 / 2.0) * CELL;
@@ -474,6 +554,7 @@ impl Physics {
             }
         }
         self.bodies = keep;
+        self.tidy_joints();
 
         // 2. Scenery that lost its support breaks loose.
         new_specs.extend(self.collapse(world, mats));
@@ -1056,6 +1137,34 @@ impl Physics {
                     let h = self.colliders.insert_with_parent(col, self.ground, &mut self.set);
                     self.chunks[k].colliders.push(h);
                 }
+                // Solid blocks just inside the outline: anything forced past
+                // the smooth surface (a wheel pushed by its axle, say) meets
+                // solid ground and is pushed back out, instead of being
+                // trapped inside a hollow shell.
+                let (w, h) = (self.w, self.h);
+                let deep = |x: usize, y: usize| -> Option<MatId> {
+                    let (gx, gy) = (x0 + x, y0 + y);
+                    if gx == 0 || gy == 0 || gx + 1 >= w || gy + 1 >= h {
+                        return None;
+                    }
+                    let i = gy * w + gx;
+                    let all = [i, i - 1, i + 1, i - w, i + w].iter().all(|&j| Self::is_terrain(world, mats, j));
+                    all.then(|| world.mat[i])
+                };
+                for (x, y, rw, rh, mat) in rects(x1 - x0, y1 - y0, deep) {
+                    let m = mats.get(mat);
+                    let col = ColliderBuilder::cuboid(rw as f32 * CELL / 2.0, rh as f32 * CELL / 2.0)
+                        .translation(Vector::new(
+                            (x0 + x) as f32 * CELL + rw as f32 * CELL / 2.0,
+                            (y0 + y) as f32 * CELL + rh as f32 * CELL / 2.0,
+                        ))
+                        .friction(m.friction)
+                        .restitution(m.bounciness)
+                        .friction_combine_rule(CoefficientCombineRule::Min)
+                        .restitution_combine_rule(CoefficientCombineRule::Max);
+                    let hd = self.colliders.insert_with_parent(col, self.ground, &mut self.set);
+                    self.chunks[k].colliders.push(hd);
+                }
                 rebuilt.push((cx, cy));
             }
         }
@@ -1418,6 +1527,170 @@ impl Physics {
 
     // ------------------------------------------------------------ editing --
 
+    fn handle_of(&self, id: u64) -> Option<RigidBodyHandle> {
+        if id == GROUND {
+            return Some(self.ground);
+        }
+        self.find(id).map(|n| self.bodies[n].handle)
+    }
+
+    /// Add a joint exactly as described (anchors already in each object's frame).
+    pub fn add_joint(&mut self, mats: &Materials, spec: JointSpec) -> bool {
+        self.insert_joint(mats, spec)
+    }
+
+    /// Make the rapier joint for a spec. Returns false if either end is gone.
+    fn insert_joint(&mut self, mats: &Materials, spec: JointSpec) -> bool {
+        let (Some(h1), Some(h2)) = (self.handle_of(spec.a), self.handle_of(spec.b)) else { return false };
+        if h1 == h2 {
+            return false;
+        }
+        // Wheels roll on round shapes.
+        if matches!(spec.kind, JointKind::Wheel { .. }) {
+            if let Some(n) = self.find(spec.b) {
+                if !self.bodies[n].round {
+                    let mut b = std::mem::replace(
+                        &mut self.bodies[n],
+                        Body { w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                    );
+                    b.round = true;
+                    self.build_colliders(&mut b, mats);
+                    self.bodies[n] = b;
+                }
+            }
+        }
+        let a1 = Vector::new(spec.anchor_a.0 * CELL, spec.anchor_a.1 * CELL);
+        let a2 = Vector::new(spec.anchor_b.0 * CELL, spec.anchor_b.1 * CELL);
+        let motor = spec.motor.clone();
+        let target = |m: &Motor, throttle: f32| -> f32 {
+            let turns = if m.drive { m.speed * throttle } else { m.speed };
+            turns * std::f32::consts::TAU
+        };
+        let joint: GenericJoint = match &spec.kind {
+            JointKind::Hinge => {
+                let mut j = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
+                    .local_anchor1(a1)
+                    .local_anchor2(a2)
+                    .contacts_enabled(false);
+                if let Some(m) = &motor {
+                    j = j.motor_velocity(JointAxis::AngX, target(m, self.throttle), MOTOR_RESPONSE).motor_max_force(JointAxis::AngX, motor_force(m, self.throttle));
+                }
+                j.build()
+            }
+            JointKind::Wheel { stiffness, damping, travel } => {
+                let mut j = GenericJointBuilder::new(JointAxesMask::LIN_X)
+                    .local_anchor1(a1)
+                    .local_anchor2(a2)
+                    .contacts_enabled(false)
+                    .motor_position(JointAxis::LinY, 0.0, stiffness * 1000.0, damping * 1000.0)
+                    .limits(JointAxis::LinY, [-travel * CELL, travel * CELL]);
+                if let Some(m) = &motor {
+                    j = j.motor_velocity(JointAxis::AngX, target(m, self.throttle), MOTOR_RESPONSE).motor_max_force(JointAxis::AngX, motor_force(m, self.throttle));
+                }
+                j.build()
+            }
+            JointKind::Weld => GenericJointBuilder::new(JointAxesMask::LOCKED_FIXED_AXES)
+                .local_anchor1(a1)
+                .local_anchor2(a2)
+                .contacts_enabled(false)
+                .build(),
+            JointKind::Rope { length } => {
+                let mut j: GenericJoint = RopeJointBuilder::new(length * CELL).local_anchor1(a1).local_anchor2(a2).build().into();
+                j.set_contacts_enabled(true);
+                j
+            }
+        };
+        let handle = self.impulse_joints.insert(h1, h2, joint, true);
+        self.joints.push(Joint { spec, handle });
+        true
+    }
+
+    /// Join two things (object ids, or `GROUND`) at a point in the world
+    /// (cells). For a rope, `at` is on `a` and `at_b` on `b`; otherwise both
+    /// ends are at `at`. Returns false if either end doesn't exist.
+    pub fn join(&mut self, mats: &Materials, a: u64, b: u64, kind: JointKind, at: (f32, f32), at_b: Option<(f32, f32)>, motor: Option<Motor>) -> bool {
+        let local = |this: &Self, id: u64, p: (f32, f32)| -> Option<(f32, f32)> {
+            if id == GROUND {
+                return Some(p);
+            }
+            let n = this.find(id)?;
+            let (cx, cy, ang) = this.pose(&this.bodies[n]);
+            let (dx, dy) = (p.0 - cx, p.1 - cy);
+            let (c, s) = (ang.cos(), ang.sin());
+            Some((c * dx + s * dy, -s * dx + c * dy))
+        };
+        let (Some(anchor_a), Some(anchor_b)) = (local(self, a, at), local(self, b, at_b.unwrap_or(at))) else { return false };
+        self.insert_joint(mats, JointSpec { a, b, kind, anchor_a, anchor_b, motor })
+    }
+
+    /// All joints.
+    pub fn joints(&self) -> Vec<JointSpec> {
+        self.joints.iter().map(|j| j.spec.clone()).collect()
+    }
+
+    /// Joints attached to an object.
+    pub fn joints_of(&self, id: u64) -> Vec<JointSpec> {
+        self.joints.iter().filter(|j| j.spec.a == id || j.spec.b == id).map(|j| j.spec.clone()).collect()
+    }
+
+    /// Where a joint is in the world (cells), for drawing it: (end on a, end on b).
+    pub fn joint_ends(&self, spec: &JointSpec) -> Option<((f32, f32), (f32, f32))> {
+        let world = |id: u64, p: (f32, f32)| -> Option<(f32, f32)> {
+            if id == GROUND {
+                return Some(p);
+            }
+            let n = self.find(id)?;
+            let (cx, cy, ang) = self.pose(&self.bodies[n]);
+            let (dx, dy) = rot(ang.cos(), ang.sin(), p.0, p.1);
+            Some((cx + dx, cy + dy))
+        };
+        Some((world(spec.a, spec.anchor_a)?, world(spec.b, spec.anchor_b)?))
+    }
+
+    /// Remove every joint attached to an object.
+    pub fn unjoin(&mut self, id: u64) {
+        let (gone, keep): (Vec<Joint>, Vec<Joint>) = std::mem::take(&mut self.joints).into_iter().partition(|j| j.spec.a == id || j.spec.b == id);
+        for j in gone {
+            self.impulse_joints.remove(j.handle, true);
+        }
+        self.joints = keep;
+    }
+
+    /// Set the player's throttle (-1 = full reverse, 1 = full ahead) for
+    /// every `drive` motor.
+    pub fn set_throttle(&mut self, throttle: f32) {
+        let throttle = throttle.clamp(-1.0, 1.0);
+        if (throttle - self.throttle).abs() < 1e-4 {
+            return;
+        }
+        self.throttle = throttle;
+        for j in &self.joints {
+            if let Some(m) = j.spec.motor.as_ref().filter(|m| m.drive) {
+                let v = m.speed * throttle * std::f32::consts::TAU;
+                if let Some(joint) = self.impulse_joints.get_mut(j.handle, true) {
+                    joint.data.set_motor_velocity(JointAxis::AngX, v, MOTOR_RESPONSE);
+                    joint.data.set_motor_max_force(JointAxis::AngX, motor_force(m, throttle));
+                }
+            }
+        }
+    }
+
+    pub fn throttle(&self) -> f32 {
+        self.throttle
+    }
+
+    /// Joints whose objects are gone (broke apart, deleted) are dropped.
+    fn tidy_joints(&mut self) {
+        let alive: std::collections::HashSet<u64> = self.bodies.iter().map(|b| b.id).collect();
+        let (keep, gone): (Vec<Joint>, Vec<Joint>) = std::mem::take(&mut self.joints)
+            .into_iter()
+            .partition(|j| (j.spec.a == GROUND || alive.contains(&j.spec.a)) && (j.spec.b == GROUND || alive.contains(&j.spec.b)));
+        for j in gone {
+            self.impulse_joints.remove(j.handle, false);
+        }
+        self.joints = keep;
+    }
+
     /// Objects that lost cells (burned, chipped, broke) in the last update.
     pub fn damaged(&self) -> &[u64] {
         &self.damaged
@@ -1481,6 +1754,7 @@ impl Physics {
     pub fn remove(&mut self, world: &mut World, id: u64) -> Option<BodySpec> {
         let spec = self.spec_of(world, id)?;
         let n = self.find(id)?;
+        self.unjoin(id);
         let mut b = self.bodies.remove(n);
         Self::read_back(&mut b, world, true);
         self.set.remove(
@@ -1499,6 +1773,8 @@ impl Physics {
     /// gets its current state to edit; the object keeps its id. Returns false
     /// if there's no such object (or the change left it empty).
     pub fn edit(&mut self, world: &mut World, mats: &Materials, id: u64, change: impl FnOnce(&mut BodySpec)) -> bool {
+        let joints = self.joints_of(id);
+        let round = self.find(id).is_some_and(|n| self.bodies[n].round);
         let Some(mut spec) = self.remove(world, id) else { return false };
         change(&mut spec);
         let before = self.next_id;
@@ -1508,6 +1784,21 @@ impl Physics {
         if let Some(b) = self.bodies.last_mut() {
             if added.is_some() {
                 b.born = self.tick.wrapping_sub(SETTLE_TICKS); // edits aren't "new pieces"
+            }
+        }
+        if added.is_some() {
+            if round {
+                let n = self.bodies.len() - 1;
+                let mut b = std::mem::replace(
+                    &mut self.bodies[n],
+                    Body { w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                );
+                b.round = true;
+                self.build_colliders(&mut b, mats);
+                self.bodies[n] = b;
+            }
+            for j in joints {
+                self.insert_joint(mats, j);
             }
         }
         added.is_some()
@@ -1540,6 +1831,7 @@ impl Physics {
                 born: b.born,
                 dirty: false,
                 shard: false,
+                round: b.round,
                 id: b.id,
             };
             Self::read_back(&mut copy, world, false);
@@ -1574,6 +1866,12 @@ impl Physics {
         }
         *self = Physics::new(self.w, self.h);
     }
+}
+
+/// How hard a motor may push (newton-metres). A driven motor with no throttle
+/// goes nearly slack, so cars coast instead of braking.
+fn motor_force(m: &Motor, throttle: f32) -> f32 {
+    if m.drive && throttle.abs() < 1e-3 { m.strength * 1000.0 * 0.02 } else { m.strength * 1000.0 }
 }
 
 /// Join outline segments that share end points into chains of points.

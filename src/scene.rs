@@ -25,6 +25,13 @@
 //! object assets/crate.png 300 20     # an image or Blender model (.png .glb .gltf), top-left at x y
 //! object assets/cart.glb 50 30 scale 12 static   # `static`: paint it in place instead
 //! place crate 200 60 angle 15 material iron flip   # a copy of templates/crate.txt
+//! name crate1                       # give the last object a name (for joints)
+//!
+//! # Joints between named objects (or `ground`); `at x y` is where, default the second's centre
+//! hinge door ground at 40 100 motor 0.5 strength 2 # a pin; optional motor (turns/s, kN·m)
+//! wheel car back at 100 210 spring 60 damping 4 travel 3 motor 2 strength 4 drive
+//! weld car cargo at 120 200                # glued together
+//! rope lamp ground at 50 40 to 50 10 length 30
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
 //! W..W
@@ -50,17 +57,83 @@ pub struct Loaded {
     pub heated: Vec<(usize, f32)>,
     /// For each object in `bodies`: the template it's a copy of, if any.
     pub instances: Vec<Option<crate::template::Instance>>,
+    /// Joints to make once the objects exist.
+    pub joints: Vec<PendingJoint>,
+}
+
+/// One end of a joint in a scene: the ground, or object number N in `bodies`.
+#[derive(Clone, Copy, Debug)]
+pub enum End {
+    Ground,
+    Object(usize),
+}
+
+/// A joint line from a scene, made once the objects exist.
+#[derive(Clone, Debug)]
+pub struct PendingJoint {
+    pub a: End,
+    pub b: End,
+    pub kind: crate::physics::JointKind,
+    /// Where (world cells). None: the second object's centre.
+    pub at: Option<(f32, f32)>,
+    /// Rope: the other end's position.
+    pub to: Option<(f32, f32)>,
+    pub motor: Option<crate::physics::Motor>,
 }
 
 impl Loaded {
     pub fn into_sim(self, mats: &Materials) -> (crate::sim::Sim, Vec<String>) {
-        let mut sim = crate::sim::Sim::new_with(self.world, self.bodies, self.instances, mats);
+        use crate::physics::{GROUND, JointKind};
+        let mut problems = self.problems;
+        let mut sim = crate::sim::Sim::new_with(self.world, Vec::new(), Vec::new(), mats);
+        let mut ids = Vec::new();
+        let links = self.instances.into_iter().chain(std::iter::repeat(None));
+        for (b, inst) in self.bodies.into_iter().zip(links) {
+            let id = sim.physics.add(&mut sim.world, mats, b);
+            if let (Some(id), Some(inst)) = (id, inst) {
+                sim.instances.insert(id, inst);
+            }
+            ids.push(id);
+        }
+        for j in self.joints {
+            let id_of = |e: End| match e {
+                End::Ground => Some(GROUND),
+                End::Object(n) => ids.get(n).copied().flatten(),
+            };
+            let (Some(a), Some(b)) = (id_of(j.a), id_of(j.b)) else {
+                problems.push("scene: a joint's object is missing".into());
+                continue;
+            };
+            let centre = |id: u64| sim.physics.spec_of(&sim.world, id).map(|s| (s.x, s.y));
+            let at = j.at.or_else(|| centre(b)).or_else(|| centre(a)).unwrap_or((0.0, 0.0));
+            let to = match j.kind {
+                JointKind::Rope { .. } => Some(j.to.or_else(|| centre(b)).unwrap_or(at)),
+                _ => None,
+            };
+            let at = match j.kind {
+                JointKind::Rope { .. } => j.at.or_else(|| centre(a)).unwrap_or(at),
+                _ => at,
+            };
+            // A rope with no length given is as long as the gap.
+            let kind = match j.kind {
+                JointKind::Rope { length } if length <= 0.0 => {
+                    let t = to.unwrap_or(at);
+                    JointKind::Rope { length: ((t.0 - at.0).powi(2) + (t.1 - at.1).powi(2)).sqrt() }
+                }
+                k => k,
+            };
+            if !sim.physics.join(mats, a, b, kind, at, to, j.motor) {
+                problems.push("scene: couldn't make a joint".into());
+            }
+        }
+        let mut sim = sim;
+        let problems_out = problems;
         for (i, t) in self.heated {
             if sim.world.is_owned(i) {
                 sim.world.temp[i] = t;
             }
         }
-        (sim, self.problems)
+        (sim, problems_out)
     }
 }
 
@@ -122,6 +195,8 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut problems = Vec::new();
     let mut bodies: Vec<BodySpec> = Vec::new();
     let mut placed: Vec<(usize, crate::template::Instance)> = Vec::new();
+    let mut names: HashMap<String, usize> = HashMap::new();
+    let mut joints: Vec<PendingJoint> = Vec::new();
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
     let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
@@ -355,6 +430,52 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     }
                 }
             }
+            "name" => match (words.get(1), bodies.len()) {
+                (Some(n), k) if k > 0 => {
+                    names.insert(n.to_lowercase(), k - 1);
+                }
+                _ => err("`name` goes right after an object: `name crate1`".into()),
+            },
+            "hinge" | "wheel" | "weld" | "rope" => {
+                use crate::physics::{JointKind, Motor};
+                let end = |w: Option<&&str>| -> Result<End, String> {
+                    let w = w.ok_or(format!("`{cmd}` needs two names: `{cmd} first second`"))?.to_lowercase();
+                    if w == "ground" {
+                        return Ok(End::Ground);
+                    }
+                    names.get(&w).map(|&n| End::Object(n)).ok_or(format!("there's no object named `{w}` (use `name {w}` after it)"))
+                };
+                let (a, b) = match (end(words.get(1)), end(words.get(2))) {
+                    (Ok(a), Ok(b)) => (a, b),
+                    (Err(e), _) | (_, Err(e)) => {
+                        err(e);
+                        continue;
+                    }
+                };
+                // The rest: keyword value pairs.
+                let rest: Vec<String> = words.iter().skip(3).map(|w| w.to_lowercase()).collect();
+                let val = |key: &str| -> Option<f32> { rest.iter().position(|w| w == key).and_then(|i| rest.get(i + 1)).and_then(|v| v.parse().ok()) };
+                let pair = |key: &str| -> Option<(f32, f32)> {
+                    let i = rest.iter().position(|w| w == key)?;
+                    Some((rest.get(i + 1)?.parse().ok()?, rest.get(i + 2)?.parse().ok()?))
+                };
+                let kind = match cmd.as_str() {
+                    "hinge" => JointKind::Hinge,
+                    "wheel" => JointKind::Wheel {
+                        stiffness: val("spring").unwrap_or(60.0),
+                        damping: val("damping").unwrap_or(4.0),
+                        travel: val("travel").unwrap_or(3.0),
+                    },
+                    "weld" => JointKind::Weld,
+                    _ => JointKind::Rope { length: val("length").unwrap_or(0.0) },
+                };
+                let motor = val("motor").map(|speed| Motor {
+                    speed,
+                    strength: val("strength").unwrap_or(2.0),
+                    drive: rest.iter().any(|w| w == "drive"),
+                });
+                joints.push(PendingJoint { a, b, kind, at: pair("at"), to: pair("to"), motor });
+            }
             "place" => {
                 use crate::template;
                 if !allow_place {
@@ -461,7 +582,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances }
+    Loaded { world, bodies, problems, heated, instances, joints }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -551,6 +672,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if !snap.bodies.is_empty() {
         out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");
     }
+    // Objects that joints refer to get names.
+    let named: std::collections::HashSet<u64> = snap.joints.iter().flat_map(|j| [j.a, j.b]).collect();
+    let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
             // Still exactly its template (plus changes)? Save it as one line.
@@ -567,6 +691,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
                     b.angle.to_degrees(),
                     changes.join(" ")
                 ));
+                out.push_str(&name_line(n));
                 continue;
             }
         }
@@ -578,6 +703,43 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             out.push('\n');
         }
         out.push_str("end\n");
+        out.push_str(&name_line(n));
+    }
+    if !snap.joints.is_empty() {
+        out.push_str("\n# Joints\n");
+    }
+    let world_at = |id: u64, p: (f32, f32)| -> (f32, f32) {
+        if id == crate::physics::GROUND {
+            return p;
+        }
+        let b = &snap.bodies[id as usize - 1];
+        let (c, s) = (b.angle.cos(), b.angle.sin());
+        (b.x + c * p.0 - s * p.1, b.y + s * p.0 + c * p.1)
+    };
+    let who = |id: u64| if id == crate::physics::GROUND { "ground".to_string() } else { format!("obj{id}") };
+    for j in &snap.joints {
+        use crate::physics::JointKind;
+        let at = world_at(j.b, j.anchor_b);
+        let mut line = match &j.kind {
+            JointKind::Hinge => format!("hinge {} {} at {:.2} {:.2}", who(j.a), who(j.b), at.0, at.1),
+            JointKind::Wheel { stiffness, damping, travel } => format!(
+                "wheel {} {} at {:.2} {:.2} spring {stiffness} damping {damping} travel {travel}",
+                who(j.a),
+                who(j.b),
+                at.0,
+                at.1
+            ),
+            JointKind::Weld => format!("weld {} {} at {:.2} {:.2}", who(j.a), who(j.b), at.0, at.1),
+            JointKind::Rope { length } => {
+                let from = world_at(j.a, j.anchor_a);
+                format!("rope {} {} at {:.2} {:.2} to {:.2} {:.2} length {length:.2}", who(j.a), who(j.b), from.0, from.1, at.0, at.1)
+            }
+        };
+        if let Some(m) = &j.motor {
+            line += &format!(" motor {} strength {}{}", m.speed, m.strength, if m.drive { " drive" } else { "" });
+        }
+        out.push_str(&line);
+        out.push('\n');
     }
     out
 }

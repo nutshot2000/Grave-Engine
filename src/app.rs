@@ -4,7 +4,7 @@ use eframe::egui::{self, Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, S
 use grave_engine::edit::{self, Clip, History, Region, Timeline, Transform};
 use grave_engine::import;
 use grave_engine::material::{AIR, MatId, Materials};
-use grave_engine::physics::{BodySpec, CELL};
+use grave_engine::physics::{BodySpec, CELL, GROUND, JointKind, Motor};
 use grave_engine::render::{Renderer, View};
 use grave_engine::scene;
 use grave_engine::sim::{Sim, Snapshot};
@@ -28,6 +28,17 @@ enum Tool {
     Object,
     /// Click to place copies of the chosen template.
     Place,
+    /// Click two things to join them.
+    Join,
+}
+
+/// Which kind of joint the Join tool makes.
+#[derive(Clone, Copy, PartialEq)]
+enum JoinChoice {
+    Hinge,
+    Wheel,
+    Weld,
+    Rope,
 }
 
 /// What's selected.
@@ -78,6 +89,13 @@ struct Sandbox {
     place_template: Option<String>,
     /// Name typed for "Save as template".
     template_name: String,
+    join_kind: JoinChoice,
+    join_motor: bool,
+    join_speed: f32,
+    join_strength: f32,
+    join_drive: bool,
+    /// The first thing clicked with the Join tool, and where.
+    join_first: Option<(u64, (f32, f32))>,
     /// The moment we rewound to (None = at the end, live).
     rewind_pos: Option<usize>,
     /// How things were when Play was last pressed. Reset goes back here.
@@ -179,6 +197,12 @@ impl Sandbox {
             templates: Templates::default(),
             place_template: None,
             template_name: String::new(),
+            join_kind: JoinChoice::Hinge,
+            join_motor: false,
+            join_speed: 1.0,
+            join_strength: 5.0,
+            join_drive: true,
+            join_first: None,
             rewind_pos: None,
             ran_since_snapshot: false,
             playing: false,
@@ -595,7 +619,7 @@ impl Sandbox {
             Tool::Erase => self.sim.world.paint_circle(&self.mats, x, y, r, AIR),
             Tool::Heat => self.sim.world.heat_circle(x, y, r, 40.0),
             Tool::Cool => self.sim.world.heat_circle(x, y, r, -40.0),
-            Tool::Select | Tool::Object | Tool::Place => {}
+            Tool::Select | Tool::Object | Tool::Place | Tool::Join => {}
         }
     }
 
@@ -714,10 +738,36 @@ impl Sandbox {
                 (Tool::Cool, "❄ Cool", "Make things colder"),
                 (Tool::Object, "📦 Make object", "Drag a box around something you painted: it becomes a loose object that falls, tumbles and breaks"),
                 (Tool::Place, "🧩 Place", "Click to place copies of the chosen template"),
+                (Tool::Join, "🔗 Join", "Click two things to join them (empty space = the ground)"),
             ] {
                 ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(16.0)).on_hover_text(tip);
             }
         });
+        if self.tool == Tool::Join {
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for (k, label, tip) in [
+                    (JoinChoice::Hinge, "Hinge", "A pin both turn around: doors, pendulums, seesaws"),
+                    (JoinChoice::Wheel, "Wheel", "An axle with a suspension spring: click the body, then the wheel"),
+                    (JoinChoice::Weld, "Weld", "Glue them rigidly together"),
+                    (JoinChoice::Rope, "Rope", "A rope from the first click to the second"),
+                ] {
+                    ui.selectable_value(&mut self.join_kind, k, label).on_hover_text(tip);
+                }
+            });
+            if matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel) {
+                ui.checkbox(&mut self.join_motor, "With a motor");
+                if self.join_motor {
+                    ui.add(egui::Slider::new(&mut self.join_speed, -5.0..=5.0).text("turns/s"));
+                    ui.add(egui::Slider::new(&mut self.join_strength, 0.5..=50.0).logarithmic(true).text("strength"));
+                    ui.checkbox(&mut self.join_drive, "Drive with ← → / A D");
+                }
+            }
+            ui.label(RichText::new(match self.join_first {
+                None => "Click the first thing (or empty space for the ground).",
+                Some(_) => "Now click the second thing.",
+            }).size(13.0).weak());
+        }
         ui.add_space(4.0);
         ui.label("Brush size (mouse wheel)");
         ui.add(egui::Slider::new(&mut self.brush_size, 1..=40));
@@ -987,6 +1037,23 @@ impl Sandbox {
             self.freeze_selection();
         }
         self.shape_buttons(ui);
+        let joints = self.sim.physics.joints_of(id);
+        if !joints.is_empty() {
+            ui.separator();
+            let names: Vec<&str> = joints
+                .iter()
+                .map(|j| match j.kind {
+                    JointKind::Hinge => "hinge",
+                    JointKind::Wheel { .. } => "wheel",
+                    JointKind::Weld => "weld",
+                    JointKind::Rope { .. } => "rope",
+                })
+                .collect();
+            ui.label(format!("🔗 Joints: {}", names.join(", ")));
+            if ui.button("Remove its joints").clicked() {
+                self.change("remove joints", |app| app.sim.physics.unjoin(id));
+            }
+        }
         ui.separator();
         self.template_section(ui, id, &b);
     }
@@ -1150,6 +1217,7 @@ impl Sandbox {
             } else {
                 let hint = match self.tool {
                     Tool::Select => "Click an object or drag a box to select. Drag to move, use the handles to turn and resize.",
+                    Tool::Join => "Click the first thing, then the second (empty space = the ground). While playing, drive with ← → or A D.",
                     _ => "Left-click to paint, right-click to erase. Space = Play/Pause, H = heat view, R = reset.",
                 };
                 ui.label(RichText::new(hint).weak());
@@ -1224,6 +1292,10 @@ impl Sandbox {
                         let pts: Vec<Pos2> = corners(&ghost, 1.0).iter().map(|&c| to_screen(c)).collect();
                         painter.add(egui::Shape::closed_line(pts, Stroke::new(1.5, SELECT_COLOR.gamma_multiply(0.7))));
                     }
+                } else if self.tool == Tool::Join {
+                    if let Some((_, at)) = self.join_first {
+                        painter.line_segment([to_screen(at), p], Stroke::new(1.5, SELECT_COLOR));
+                    }
                 } else if self.tool != Tool::Object {
                     painter.circle_stroke(p, r, Stroke::new(1.5, col));
                 }
@@ -1252,6 +1324,45 @@ impl Sandbox {
                     }
                     Tool::Select => self.start_select_drag(p, cell, cf, shift, &to_screen),
                     Tool::Object => Drag::MakeObject(cell),
+                    Tool::Join => {
+                        let hit = if self.sim.world.in_bounds(cell.0, cell.1) {
+                            self.sim.physics.id_at(&self.sim.world, cell.0 as usize, cell.1 as usize)
+                        } else {
+                            None
+                        };
+                        let this = hit.unwrap_or(GROUND);
+                        match self.join_first.take() {
+                            None => {
+                                self.join_first = Some((this, cf));
+                                self.say(if this == GROUND { "First: the ground. Now click the second thing." } else { "Now click the second thing." });
+                            }
+                            Some((first, at)) if first == this => {
+                                self.say("That's the same thing: click something else");
+                                self.join_first = Some((first, at));
+                            }
+                            Some((first, at)) => {
+                                let motor = (self.join_motor && matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel)).then(|| Motor {
+                                    speed: self.join_speed,
+                                    strength: self.join_strength,
+                                    drive: self.join_drive,
+                                });
+                                let centre = self.sim.physics.spec_of(&self.sim.world, this).map(|b| (b.x, b.y)).unwrap_or(cf);
+                                let (kind, point, point_b) = match self.join_kind {
+                                    JoinChoice::Hinge => (JointKind::Hinge, cf, None),
+                                    JoinChoice::Wheel => (JointKind::Wheel { stiffness: 60.0, damping: 12.0, travel: 3.0 }, centre, None),
+                                    JoinChoice::Weld => (JointKind::Weld, cf, None),
+                                    JoinChoice::Rope => {
+                                        let len = ((cf.0 - at.0).powi(2) + (cf.1 - at.1).powi(2)).sqrt();
+                                        (JointKind::Rope { length: len }, at, Some(cf))
+                                    }
+                                };
+                                let mut ok = false;
+                                self.change("join", |app| ok = app.sim.physics.join(&app.mats, first, this, kind, point, point_b, motor));
+                                self.say(if ok { "Joined" } else { "Couldn't join those" });
+                            }
+                        }
+                        Drag::Paint
+                    }
                     Tool::Place => {
                         let name = self.place_template.clone();
                         match name.and_then(|n| self.templates.get(&n).cloned()) {
@@ -1286,7 +1397,7 @@ impl Sandbox {
         // ---- continue / finish it
         match self.drag {
             Drag::None => {}
-            Drag::Paint if self.tool == Tool::Place && !secondary => {
+            Drag::Paint if matches!(self.tool, Tool::Place | Tool::Join) && !secondary => {
                 if released {
                     self.drag = Drag::None;
                 }
@@ -1425,6 +1536,37 @@ impl Sandbox {
         }
 
         self.draw_selection(&painter, &to_screen);
+        self.draw_joints(&painter, &to_screen);
+    }
+
+    /// Joints drawn on top of the world: pins, axles, welds, ropes.
+    fn draw_joints(&self, painter: &egui::Painter, to_screen: &impl Fn((f32, f32)) -> Pos2) {
+        let col = Color32::from_rgb(120, 230, 160);
+        for j in self.sim.physics.joints() {
+            let Some((ea, eb)) = self.sim.physics.joint_ends(&j) else { continue };
+            let (pa, pb) = (to_screen(ea), to_screen(eb));
+            match j.kind {
+                JointKind::Hinge => {
+                    painter.circle_stroke(pb, 4.0, Stroke::new(2.0, col));
+                }
+                JointKind::Wheel { .. } => {
+                    painter.circle_stroke(pb, 3.0, Stroke::new(2.0, col));
+                    painter.circle_filled(pb, 1.5, col);
+                }
+                JointKind::Weld => {
+                    painter.rect_stroke(Rect::from_center_size(pb, Vec2::splat(6.0)), 0.0, Stroke::new(2.0, col), egui::StrokeKind::Middle);
+                }
+                JointKind::Rope { .. } => {
+                    painter.line_segment([pa, pb], Stroke::new(1.5, Color32::from_rgb(200, 170, 120)));
+                }
+            }
+            if j.motor.is_some() {
+                painter.circle_stroke(pb, 7.0, Stroke::new(1.0, col.gamma_multiply(0.6)));
+            }
+        }
+        if let (Tool::Join, Some((_, at))) = (self.tool, self.join_first) {
+            painter.circle_filled(to_screen(at), 4.0, SELECT_COLOR);
+        }
     }
 
     fn last_scale(&self, id: u64, start_d: f32, p: Option<(f32, f32)>) -> Option<f32> {
@@ -1583,6 +1725,7 @@ impl Sandbox {
         }
         if esc {
             self.selection = Selection::None;
+            self.join_first = None;
         }
         if copy {
             self.copy_selection();
@@ -1657,6 +1800,19 @@ impl eframe::App for Sandbox {
             self.import_file(&path);
         }
         self.shortcuts(&ctx);
+
+        // Driving: → / D ahead, ← / A reverse (motors marked `drive`).
+        let typing = ctx.egui_wants_keyboard_input();
+        let throttle = if typing || !self.playing {
+            0.0
+        } else {
+            ctx.input(|i| {
+                let fwd = i.key_down(Key::ArrowRight) || (i.key_down(Key::D) && i.modifiers.is_none());
+                let back = i.key_down(Key::ArrowLeft) || (i.key_down(Key::A) && i.modifiers.is_none());
+                fwd as i32 as f32 - back as i32 as f32
+            })
+        };
+        self.sim.physics.set_throttle(throttle);
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
@@ -1943,5 +2099,28 @@ body rect wood 40 60 20 10
         h.state_mut().recolor_selection(iron);
         let changed = h.state().sim.instances.values().filter(|i| !i.changes.is_empty()).count();
         assert_eq!(changed, 1);
+    }
+
+    #[test]
+    fn join_two_objects_with_the_join_tool() {
+        let mut h = editor();
+        // A second object to join to the plank.
+        let mats = Materials::clone(&h.state().mats);
+        {
+            let app = h.state_mut();
+            let spec = BodySpec::from_mats(6, 6, &vec![Some(mats.id("iron").unwrap()); 36], &mats, 80.0, 65.0);
+            app.sim.physics.add(&mut app.sim.world, &mats, spec);
+        }
+        h.state_mut().tool = Tool::Join;
+        h.state_mut().join_kind = JoinChoice::Weld;
+        for (x, y) in [(55.0, 65.0), (80.0, 65.0)] {
+            let p = at(&h, x, y);
+            press(&mut h, p, true);
+            press(&mut h, p, false);
+        }
+        assert_eq!(h.state().sim.physics.joints().len(), 1, "welded");
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(3);
+        assert_eq!(h.state().sim.physics.joints().len(), 0, "undo removes it");
     }
 }

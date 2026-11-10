@@ -1,0 +1,20 @@
+# Rubber: grippy, bouncy and tough. Tyres, balls, bumpers.
+# It burns slowly with thick black smoke.
+about = Grippy, bouncy and tough. Good for tyres.
+state = solid
+density = 1100
+color = #2a292e
+color_variation = 0.06
+conducts_heat = 0.1
+heat_capacity = 1.5
+catches_fire_at = 330
+burns_for = 500
+burn_temperature = 850
+burns_into = ash
+burns_into_chance = 0.05
+gives_off = smoke
+gives_off_chance = 0.3
+friction = 1.2                   # very grippy
+bounciness = 0.45                # bouncy
+toughness = 8000                 # takes a real beating (tyres don't chip from driving)
+strength = 20
