@@ -183,6 +183,33 @@ crate to climb, a campfire, a lava pit and a powder keg.
 - Headless: `--walk 1 --jump` holds the controls, and the report says where
   the player is, its health, breath and body temperature.
 
+### Characters with real art (made in Blender)
+
+The plain cell figure is only the default. A character can wear a **look**: a
+folder of high-resolution animation frames, drawn sharp on top of the pixel
+world. `scenes/player.txt` uses `look hero`, an adventurer built and animated
+in Blender by `tools/make_hero_in_blender.py` and rendered to
+`assets/characters/hero/`.
+
+- **Animations:** `idle`, `walk`, `jump`, `fall`, `swim` and `die`. The engine
+  picks one from what the character is doing, keeps the walk in step with its
+  speed, and mirrors the frames when it turns round.
+- **The body matches the picture.** Each frame's outline becomes the cells the
+  character fills in the world. A swimmer lies flat in the water, a fallen
+  character is long and low, and sand and heat react to that shape. Those
+  cells are hidden, so you only see the art.
+- **Make your own:** put frames named `walk_00.png`, `walk_01.png`, ... in
+  `assets/characters/NAME/`, plus a `character.txt` saying how tall the figure
+  stands in the pictures, where its feet are, and each animation's frame
+  count and speed (see `src/look.rs`). The pictures can come from Blender,
+  any 3D package, hand-drawn sprite sheets or AI tools. Then write
+  `player x y look NAME`.
+- **The Blender script** builds the hero in its own scene ("Grave Engine
+  hero"), so it's there to tweak: change colours or poses, then run it again
+  to re-render every frame.
+- Headless: `--player-view 160 --scale 8` takes close-up screenshots around
+  the player, with the character drawn sharp.
+
 ## Camera
 
 The mouse wheel zooms in and out around the pointer, middle-drag pans, and **⤢ Fit**

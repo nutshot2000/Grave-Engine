@@ -19,6 +19,7 @@ Headless (no window), for agents and scripts:
       --throttle T    hold the drive controls (1 = full ahead, -1 = reverse)
       --walk W        hold the player's walk controls (1 = right, -1 = left)
       --jump          hold the player's jump
+      --player-view N screenshot just N cells across around the player
       --materials DIR use a different materials folder (default materials)
 ";
 
@@ -34,6 +35,7 @@ fn main() {
     let mut throttle = 0.0f32;
     let mut walk = 0.0f32;
     let mut jump = false;
+    let mut player_view = 0usize;
     let mut materials = PathBuf::from("materials");
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -57,6 +59,7 @@ fn main() {
             "--throttle" => throttle = val("--throttle").parse().unwrap_or(0.0),
             "--walk" => walk = val("--walk").parse().unwrap_or(0.0),
             "--jump" => jump = true,
+            "--player-view" => player_view = val("--player-view").parse().unwrap_or(0),
             "--materials" => materials = PathBuf::from(val("--materials")),
             other if !other.starts_with('-') => scene = Some(PathBuf::from(other)),
             other => {
@@ -66,7 +69,7 @@ fn main() {
         }
     }
     if let Some(scene) = run {
-        let code = headless::run(&headless::Options { scene, materials, frames, shot, every, scale, heat, throttle, walk, jump });
+        let code = headless::run(&headless::Options { scene, materials, frames, shot, every, scale, heat, throttle, walk, jump, player_view });
         std::process::exit(code);
     }
     if let Err(e) = app::run(materials, scene) {

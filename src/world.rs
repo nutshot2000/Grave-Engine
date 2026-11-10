@@ -17,6 +17,9 @@ pub const BURNING: u8 = 1;
 /// This cell belongs to a rigid object (see `physics.rs`). The cell simulation
 /// still heats, burns and melts it, but never moves it.
 pub const OWNED: u8 = 2;
+/// Drawn some other way (a character's pictures): the renderer shows what's
+/// behind instead of this cell.
+pub const HIDDEN: u8 = 4;
 
 /// An explosive cell went off here this frame (handled by `physics.rs`).
 #[derive(Clone, Copy, Debug)]

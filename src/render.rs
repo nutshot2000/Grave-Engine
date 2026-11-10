@@ -107,6 +107,11 @@ impl Renderer {
         let flicker_frame = world.frame / 3;
 
         for i in 0..n {
+            if world.flags[i] & crate::world::HIDDEN != 0 {
+                self.light[i] = [0.0; 3];
+                self.tmp[i] = if view.heat { lerp3(air, heat_color(world.temp[i]), 0.8) } else { air };
+                continue;
+            }
             let m = mats.get(world.mat[i]);
             let t = world.temp[i];
             let shade = (world.shade[i] as f32 / 255.0) * 2.0 - 1.0;
@@ -165,6 +170,30 @@ impl Renderer {
             }
             self.light[i] = emit;
             self.tmp[i] = col;
+        }
+
+        // Hidden cells (under a character's pictures) take the look of
+        // whatever is next to them in the row, so a swimmer sits in water,
+        // not in a dark hole.
+        for y in 0..world.h {
+            let row = y * world.w;
+            for x in 0..world.w {
+                let i = row + x;
+                if world.flags[i] & crate::world::HIDDEN == 0 {
+                    continue;
+                }
+                let shown = |j: usize| world.flags[j] & crate::world::HIDDEN == 0;
+                let left = (1..=24).take_while(|d| *d <= x).map(|d| i - d).find(|&j| shown(j));
+                let right = (1..=24).take_while(|d| x + d < world.w).map(|d| i + d).find(|&j| shown(j));
+                let pick = match (left, right) {
+                    (Some(l), Some(r)) => Some(if i - l <= r - i { l } else { r }),
+                    (l, r) => l.or(r),
+                };
+                if let Some(j) = pick {
+                    self.tmp[i] = self.tmp[j];
+                    self.light[i] = self.light[j];
+                }
+            }
         }
 
         // Cells flying through the air, drawn on top.

@@ -33,7 +33,7 @@
 //! weld car cargo at 120 200                # glued together
 //! rope lamp ground at 50 40 to 50 10 length 30
 //! follow car zoom 3                  # the camera follows `car`, 3 times closer than the whole world
-//! player 40 260 zoom 3               # the player, feet at x y (optional `material flesh`)
+//! player 40 260 look hero zoom 3     # the player, feet at x y; `look` = assets/characters/hero
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
 //! W..W
@@ -455,12 +455,19 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 let material = opt("material").map(|s| s.to_string()).unwrap_or_else(|| "flesh".into());
                 match (nums(1, 2), mat(&material)) {
                     (Ok(v), Ok(id)) => {
-                        actors.push(crate::physics::ActorSpec::standing_at(id, v[0], v[1]));
+                        let mut a = crate::physics::ActorSpec::standing_at(id, v[0], v[1]);
+                        if let Some(name) = opt("look") {
+                            match crate::look::find(name, base, crate::physics::actor_height()) {
+                                Ok(l) => a.look = Some(l),
+                                Err(e) => err(e),
+                            }
+                        }
+                        actors.push(a);
                         if let Some(z) = opt("zoom").and_then(|z| z.parse::<f32>().ok()) {
                             player_zoom = z.clamp(0.0, 20.0);
                         }
                     }
-                    (Err(_), _) => err("use `player x y` (where its feet go), optionally `material flesh zoom 3`".into()),
+                    (Err(_), _) => err("use `player x y` (where its feet go), optionally `look hero material flesh zoom 3`".into()),
                     (_, Err(e)) => err(e),
                 }
             }
@@ -796,6 +803,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     for a in &snap.actors {
         let (x, y) = a.feet();
         let mut line = format!("\nplayer {x:.1} {y:.1}");
+        if let Some(l) = &a.look {
+            line += &format!(" look {}", l.name);
+        }
         if mats.get(a.mat).name != "flesh" {
             line += &format!(" material {}", mats.get(a.mat).name);
         }

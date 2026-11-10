@@ -106,6 +106,8 @@ struct Sandbox {
     view: View,
     renderer: Renderer,
     texture: Option<TextureHandle>,
+    /// Character animation frames uploaded to the GPU: (look folder, animation, frame).
+    look_textures: std::collections::HashMap<(PathBuf, &'static str, usize), TextureHandle>,
     tool: Tool,
     brush_mat: MatId,
     brush_size: i32,
@@ -215,6 +217,7 @@ impl Sandbox {
             view: View::default(),
             renderer: Renderer::default(),
             texture: None,
+            look_textures: Default::default(),
             tool: Tool::Paint,
             brush_mat,
             brush_size: 6,
@@ -1351,6 +1354,7 @@ impl Sandbox {
         let resp = ui.interact(outer, ui.scope_id().with("canvas"), Sense::click_and_drag());
         let painter = ui.painter_at(outer);
         painter.image(tex.id(), rect, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+        self.draw_characters(ui, &painter, rect.min, scale);
 
         // Mouse wheel zooms around the pointer (Shift + wheel: brush size).
         // Middle mouse drag pans.
@@ -1661,6 +1665,42 @@ impl Sandbox {
         self.draw_selection(&painter, &to_screen);
         self.draw_joints(&painter, &to_screen);
         self.draw_hud(&painter, outer);
+    }
+
+    /// Characters with a look are drawn as their (sharp, full resolution)
+    /// animation frames, on top of the world.
+    fn draw_characters(&mut self, ui: &egui::Ui, painter: &egui::Painter, origin: Pos2, scale: f32) {
+        let body_h = grave_engine::physics::actor_height();
+        for a in self.sim.physics.actor_status() {
+            let Some(look) = &a.look else { continue };
+            let (frame, index) = look.frame(a.anim, a.anim_time);
+            let key = (look.dir.clone(), a.anim, index);
+            let tex = self.look_textures.entry(key).or_insert_with(|| {
+                let img = egui::ColorImage::from_rgba_unmultiplied([frame.w, frame.h], &frame.rgba);
+                ui.ctx().load_texture(format!("{}/{}/{index}", look.name, a.anim), img, TextureOptions::LINEAR)
+            });
+            let cpp = look.cells_per_px(body_h);
+            let feet = a.y + body_h as f32 / 2.0;
+            let left = a.x - frame.w as f32 * cpp / 2.0;
+            let top = feet - look.feet * cpp;
+            let r = Rect::from_min_size(
+                origin + Vec2::new(left * scale, top * scale),
+                Vec2::new(frame.w as f32 * cpp * scale, frame.h as f32 * cpp * scale),
+            );
+            let mirror = (a.facing < 0.0) == look.faces_right;
+            let uv = if mirror {
+                Rect::from_min_max(Pos2::new(1.0, 0.0), Pos2::new(0.0, 1.0))
+            } else {
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
+            };
+            // Hurt: flash red.
+            let tint = if a.hurt_by.is_some() && !a.dead && (self.sim.world.frame / 5) % 2 == 0 {
+                Color32::from_rgb(255, 150, 150)
+            } else {
+                Color32::WHITE
+            };
+            painter.image(tex.id(), r, uv, tint);
+        }
     }
 
     /// The player's health and breath, top left of the view.

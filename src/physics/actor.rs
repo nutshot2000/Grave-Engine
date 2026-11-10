@@ -9,7 +9,9 @@
 //! something blows up near it. When it dies it comes back at its start.
 
 use super::*;
+use crate::look::{Look, MASK_W};
 use crate::world::Blast;
+use std::sync::Arc;
 
 /// The figure's size in cells (0.6 m wide, 1.6 m tall).
 pub const W: usize = 6;
@@ -66,6 +68,9 @@ pub struct ActorSpec {
     pub dead_for: u32,
     /// Which way it's looking (-1 left, 1 right).
     pub facing: f32,
+    /// How it's drawn: animated pictures (see `look.rs`), or None for the
+    /// plain cell figure.
+    pub look: Option<Arc<Look>>,
 }
 
 impl ActorSpec {
@@ -84,6 +89,7 @@ impl ActorSpec {
             spawn: (x, y),
             dead_for: 0,
             facing: 1.0,
+            look: None,
         }
     }
 
@@ -106,6 +112,12 @@ pub struct ActorStatus {
     pub swimming: bool,
     /// What hurt it last, while that's recent.
     pub hurt_by: Option<&'static str>,
+    /// Which way it faces (-1 left, 1 right), how it's drawn, and which
+    /// animation is playing (and for how long, in seconds).
+    pub facing: f32,
+    pub look: Option<Arc<Look>>,
+    pub anim: &'static str,
+    pub anim_time: f32,
 }
 
 pub(super) struct Actor {
@@ -132,6 +144,9 @@ pub(super) struct Actor {
     /// Frames spent walking (for the leg animation).
     stride: u32,
     hurt: Option<(&'static str, u32)>,
+    /// The animation playing (idle, walk, jump, fall, swim, die) and for how long.
+    anim: &'static str,
+    anim_time: f32,
     /// Hurt this frame, and by what.
     pending: f32,
     pending_cause: Option<&'static str>,
@@ -178,7 +193,7 @@ impl Physics {
             .density(mats.get(spec.mat).density.max(50.0));
         let collider = self.colliders.insert_with_parent(col, handle, &mut self.set);
         let mut a = Actor {
-            temps: vec![spec.temp; W * H],
+            temps: vec![spec.temp; MASK_W * H],
             head_air: true,
             head_wet: false,
             spec,
@@ -192,6 +207,8 @@ impl Physics {
             v_before: Vector::new(0.0, 0.0),
             stride: 0,
             hurt: None,
+            anim: "idle",
+            anim_time: 0.0,
             pending: 0.0,
             pending_cause: None,
         };
@@ -241,6 +258,10 @@ impl Physics {
                     grounded: a.since_ground == 0,
                     swimming: a.wet > 0.4,
                     hurt_by: a.hurt.map(|h| h.0),
+                    facing: a.spec.facing,
+                    look: a.spec.look.clone(),
+                    anim: a.anim,
+                    anim_time: a.anim_time,
                 }
             })
             .collect()
@@ -254,8 +275,9 @@ impl Physics {
             if !a.stamped.is_empty() {
                 a.head_air = false;
                 a.head_wet = false;
+                let top_row = a.stamped.iter().map(|&(_, li)| li as usize / MASK_W).min().unwrap_or(0);
                 for &(wi, li) in &a.stamped {
-                    if li as usize / W >= 5 {
+                    if li as usize / MASK_W >= top_row + 5 {
                         continue;
                     }
                     let wi = wi as usize;
@@ -287,12 +309,17 @@ impl Physics {
             }
             // Blood evens the body out a little, and a living body warms or
             // cools itself back towards normal.
-            let avg = a.temps.iter().sum::<f32>() / a.temps.len() as f32;
+            // (Only the cells that are body right now count.)
+            if a.stamped.is_empty() {
+                continue;
+            }
+            let n = a.stamped.len() as f32;
+            let avg = a.stamped.iter().map(|&(_, li)| a.temps[li as usize]).sum::<f32>() / n;
             let regulate = if a.spec.dead_for == 0 { 0.02 } else { 0.0 };
             for t in a.temps.iter_mut() {
                 *t += (avg - *t) * 0.03 + (BODY_TEMP - *t) * regulate;
             }
-            a.spec.temp = a.temps.iter().sum::<f32>() / a.temps.len() as f32;
+            a.spec.temp = a.stamped.iter().map(|&(_, li)| a.temps[li as usize]).sum::<f32>() / n;
         }
     }
 
@@ -369,6 +396,8 @@ impl Physics {
                     a.spec.breath = MAX_BREATH;
                     a.spec.temp = BODY_TEMP;
                     a.temps.fill(BODY_TEMP);
+                    a.anim = "idle";
+                    a.anim_time = 0.0;
                     a.spec.dead_for = 0;
                     a.hurt = None;
                 } else {
@@ -388,9 +417,10 @@ impl Physics {
             };
             // Burns and frostbite: how far each part of the body is past
             // safe, averaged over the body.
-            let n = a.temps.len() as f32;
-            let too_hot = a.temps.iter().map(|t| (t - HOT).max(0.0)).sum::<f32>() / n;
-            let too_cold = a.temps.iter().map(|t| (COLD - t).max(0.0)).sum::<f32>() / n;
+            let n = a.stamped.len().max(1) as f32;
+            let body = || a.stamped.iter().map(|&(_, li)| a.temps[li as usize]);
+            let too_hot = body().map(|t| (t - HOT).max(0.0)).sum::<f32>() / n;
+            let too_cold = body().map(|t| (COLD - t).max(0.0)).sum::<f32>() / n;
             hurt(too_hot * 3.0 * DT, "burned");
             hurt(too_cold * 2.0 * DT, "froze");
             if head_under {
@@ -483,25 +513,63 @@ impl Physics {
             }
             a.pending = 0.0;
             a.pending_cause = None;
+            // Which animation fits what it's doing.
+            let anim = if a.spec.dead_for > 0 {
+                "die"
+            } else if a.wet > 0.4 {
+                "swim"
+            } else if a.since_ground > 8 {
+                if v.y < 0.0 { "jump" } else { "fall" }
+            } else if v.x.abs() > 0.4 {
+                "walk"
+            } else {
+                "idle"
+            };
+            if anim != a.anim {
+                a.anim = anim;
+                a.anim_time = 0.0;
+            } else if anim == "walk" {
+                // Legs keep pace with the ground.
+                a.anim_time += DT * (v.x.abs() / WALK).clamp(0.3, 1.5);
+            } else {
+                a.anim_time += DT;
+            }
             Self::stamp_actor(a, &self.set, world, mats);
         }
     }
 
-    /// Draw an actor into the grid as cells of its material.
+    /// Draw an actor into the grid as cells of its material: the outline of
+    /// its current animation frame, or the plain figure.
     fn stamp_actor(a: &mut Actor, set: &RigidBodySet, world: &mut World, mats: &Materials) {
         a.stamped.clear();
         let t = set[a.handle].translation();
         let (cx, cy) = (t.x / CELL, t.y / CELL);
-        let left = (cx - W as f32 / 2.0).round() as i32;
+        let left = (cx - MASK_W as f32 / 2.0).round() as i32;
         let top = (cy - H as f32 / 2.0).round() as i32;
-        let shape = figure(if a.since_ground == 0 { a.stride } else { 8 });
-        for (row, cells) in shape.iter().enumerate() {
-            for (col, &on) in cells.iter().enumerate() {
-                if !on {
+        let (mask, mirror, hidden) = match &a.spec.look {
+            Some(look) => {
+                let (frame, _) = look.frame(a.anim, a.anim_time);
+                (frame.mask.clone(), (a.spec.facing < 0.0) == look.faces_right, crate::world::HIDDEN)
+            }
+            None => {
+                let shape = figure(if a.since_ground == 0 { a.stride } else { 8 });
+                let mut m = vec![false; MASK_W * H];
+                let off = (MASK_W - W) / 2;
+                for (row, cells) in shape.iter().enumerate() {
+                    for (col, &on) in cells.iter().enumerate() {
+                        m[row * MASK_W + off + col] = on;
+                    }
+                }
+                (m, a.spec.facing < 0.0, 0)
+            }
+        };
+        for row in 0..H {
+            for col in 0..MASK_W {
+                if !mask[row * MASK_W + col] {
                     continue;
                 }
-                // Mirror the figure when it faces left.
-                let col_w = if a.spec.facing < 0.0 { W - 1 - col } else { col };
+                // Mirror the figure when it faces the other way.
+                let col_w = if mirror { MASK_W - 1 - col } else { col };
                 let (wx, wy) = (left + col_w as i32, top + row as i32);
                 if !world.in_bounds(wx, wy) {
                     continue;
@@ -521,11 +589,12 @@ impl Physics {
                     State::Gas => {}
                 }
                 world.mat[wi] = a.spec.mat;
-                let li = row * W + col;
+                let li = row * MASK_W + col;
                 world.temp[wi] = a.temps[li];
                 world.burn[wi] = 0;
                 world.life[wi] = 0;
-                world.flags[wi] = OWNED;
+                // With a look, the pictures are drawn instead of these cells.
+                world.flags[wi] = OWNED | hidden;
                 // Head, body and legs in slightly different shades.
                 world.shade[wi] = match row {
                     0..=4 => 200,

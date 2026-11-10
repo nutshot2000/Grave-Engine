@@ -1,0 +1,11 @@
+# Hero: made and rendered by tools/make_hero_in_blender.py
+frame = 256                 # each picture is this many pixels square
+figure = 192.0            # how tall the character stands in a picture (pixels)
+feet = 234.7              # the row its feet are on
+faces = right
+idle = 16 frames, 8 fps, loop
+walk = 16 frames, 16 fps, loop
+jump = 6 frames, 12 fps
+fall = 8 frames, 10 fps, loop
+swim = 16 frames, 10 fps, loop
+die = 14 frames, 12 fps

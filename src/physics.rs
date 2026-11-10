@@ -32,6 +32,11 @@ const CHUNK: usize = 32;
 
 mod actor;
 pub use actor::{ActorSpec, ActorStatus, Controls};
+
+/// How tall a character's body is, in cells.
+pub fn actor_height() -> usize {
+    actor::H
+}
 const GRAVITY: f32 = 9.81;
 const DT: f32 = 1.0 / 60.0;
 /// How eagerly motors chase their target speed (higher = snappier).

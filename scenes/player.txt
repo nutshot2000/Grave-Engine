@@ -8,7 +8,7 @@ seed 3
 fill air
 rect stone 0 268 768 20              # ground
 
-player 30 268 zoom 3
+player 30 268 look hero zoom 3
 
 # Steps up to a ledge
 rect stone 90 260 20 8
