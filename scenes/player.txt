@@ -17,6 +17,8 @@ rect stone 130 244 40 24
 # A gap to jump (fall in and you can still climb out)
 rect stone 170 256 18 12
 rect stone 188 244 52 24
+# A bounce pad at the water's edge: walk onto it to fly over the pond
+rect bounce_pad 222 244 18 3
 # A pond: deep enough to go under (watch your breath)
 rect water 240 248 90 20
 rect stone 330 244 30 24

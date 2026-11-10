@@ -99,6 +99,9 @@ pub struct Material {
     /// It's a metal: imported parts marked metallic (glTF / Blender
     /// "Metallic") only turn into metals, and other parts never do.
     pub metal: bool,
+    /// Bounce pad: anything that lands on top is flung upwards at this speed
+    /// (m/s). 0 = an ordinary surface.
+    pub launch: f32,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -162,6 +165,7 @@ impl Material {
             puts_out_fire: false,
             crushable: false,
             metal: false,
+            launch: 0.0,
             melts: None,
             boils: None,
             freezes: None,
@@ -536,6 +540,7 @@ fn apply(
         "puts_out_fire" => m.puts_out_fire = yes_no(v)?,
         "crushable" => m.crushable = yes_no(v)?,
         "metal" => m.metal = yes_no(v)?,
+        "launch" => m.launch = num(v)?.clamp(0.0, 60.0),
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,
         "boils_at" => set_at(&mut m.boils, v)?,

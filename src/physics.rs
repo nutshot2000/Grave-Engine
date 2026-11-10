@@ -624,6 +624,23 @@ impl Physics {
                 }
             }
         }
+        // Bounce pads fling objects resting or landing on them.
+        for b in &self.bodies {
+            let mut pad = 0.0f32;
+            for &(wi, _) in &b.stamped {
+                let below = wi as usize + world.w;
+                if below < world.mat.len() && !world.is_owned(below) {
+                    pad = pad.max(mats.get(world.mat[below]).launch);
+                }
+            }
+            if pad > 0.0 {
+                let rb = &mut self.set[b.handle];
+                let v = rb.linvel();
+                if v.y > -pad * 0.5 {
+                    rb.set_linvel(Vector::new(v.x, -pad), true);
+                }
+            }
+        }
         let blasts = world.blasts.clone();
         self.actors_think(world, mats, &blasts);
         self.pipeline.step(

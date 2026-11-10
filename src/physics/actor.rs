@@ -147,6 +147,8 @@ pub(super) struct Actor {
     /// The animation playing (idle, walk, jump, fall, swim, die) and for how long.
     anim: &'static str,
     anim_time: f32,
+    /// Flung by a bounce pad and not landed yet (that landing doesn't hurt).
+    launched: bool,
     /// Hurt this frame, and by what.
     pending: f32,
     pending_cause: Option<&'static str>,
@@ -209,6 +211,7 @@ impl Physics {
             hurt: None,
             anim: "idle",
             anim_time: 0.0,
+            launched: false,
             pending: 0.0,
             pending_cause: None,
         };
@@ -475,6 +478,28 @@ impl Physics {
                     vy += (-SWIM_UP - vy).clamp(-20.0 * DT, 20.0 * DT);
                 }
             }
+            // Bounce pads: standing or landing on something with `launch`.
+            let feet_row = top + H as i32;
+            let mut pad = 0.0f32;
+            for y in [feet_row, feet_row - 1] {
+                for x in left..left + W as i32 {
+                    if world.in_bounds(x, y) {
+                        let i = world.idx(x as usize, y as usize);
+                        if !world.is_owned(i) {
+                            pad = pad.max(mats.get(world.mat[i]).launch);
+                        }
+                    }
+                }
+            }
+            if pad > 0.0 && vy > -pad * 0.5 {
+                vy = -pad;
+                a.since_ground = COYOTE;
+                a.jump_wait = 15;
+                a.launched = true;
+            } else if (a.since_ground == 0 || swimming) && pad == 0.0 && a.jump_wait == 0 {
+                // (jump_wait: not in the first moments, while still leaving the pad)
+                a.launched = false; // landed (or splashed down) after the flight
+            }
             if a.wet > 0.0 {
                 // Floating: the liquid holds up the part of it that's under.
                 let body = mats.get(a.spec.mat).density.max(50.0);
@@ -498,7 +523,10 @@ impl Physics {
                 // landing or getting hit by something heavy. Gravity alone
                 // only changes speed by 0.16 m/s a frame.
                 let dv = (v - a.v_before).length();
-                if dv > SAFE_LANDING {
+                if a.launched && dv > SAFE_LANDING {
+                    // The landing after a bounce pad: games don't punish that.
+                    a.launched = false;
+                } else if dv > SAFE_LANDING {
                     a.pending += (dv - SAFE_LANDING) * 10.0;
                     a.pending_cause = Some("hit too hard");
                 }

@@ -21,6 +21,7 @@ the file and line number.
 | `glow` | How much it lights up its surroundings, 0 to 1 | 0 |
 | `crushable` | `yes` if falling objects crush it to nothing instead of landing on it (ash is) | no |
 | `metal` | `yes` for metals: imported model parts marked metallic (Blender's "Metallic", glTF, OBJ `Pm`) only become metals, and other parts never do | no |
+| `launch` | Bounce pad: anything landing on top is flung upwards at this speed (m/s). 15 clears a 12 m gap at a walk; landing after a bounce does no harm | 0 |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |
 | `strength` | Solids: how many cells it can stick out sideways (or hang down) from something holding it up before it snaps. Wood 50, stone 25, iron 150, ice 15. Standing on something solid counts as fully held up | 1 |
 

@@ -211,3 +211,39 @@ fn the_kimodo_character_has_every_animation() {
         assert!(a.frames.len() >= 6, "{anim}: {} frames", a.frames.len());
     }
 }
+
+#[test]
+fn bounce_pads_fling_the_player_and_objects_and_the_landing_is_safe() {
+    let m = mats();
+    // A 9 m pond with a pad at its edge.
+    let text = "size 300 200\nfill air\nrect stone 0 190 300 10\nrect stone 0 150 100 40\nrect water 100 160 90 30\n\
+                rect stone 190 150 110 40\nrect bounce_pad 82 150 18 3\nplayer 70 150\n";
+    let mut s = sim(&m, text);
+    s.physics.set_controls(Controls { walk: 1.0, jump: false });
+    let mut top = 200.0f32;
+    for _ in 0..300 {
+        s.step(&m);
+        top = top.min(s.physics.actor_status()[0].y);
+    }
+    let p = &s.physics.actor_status()[0];
+    assert!(top < 80.0, "flung high: top {top}");
+    assert!(p.x > 195.0 && !p.swimming, "cleared the water: x {}", p.x);
+    assert_eq!(p.health, 100.0, "landing after a bounce doesn't hurt");
+
+    // A crate dropped on a pad bounces back up.
+    let mut s = sim(&m, "size 100 200\nfill air\nrect stone 0 190 100 10\nrect bounce_pad 30 187 40 3\nbody rect wood 42 150 16 10\n");
+    let mut highest_after_bounce = 200.0f32;
+    let mut bounced = false;
+    for _ in 0..240 {
+        s.step(&m);
+        let b = &s.physics.export(&mut s.world)[0];
+        if b.vy < -50.0 {
+            bounced = true;
+        }
+        if bounced {
+            highest_after_bounce = highest_after_bounce.min(b.y);
+        }
+    }
+    assert!(bounced, "the crate was flung up");
+    assert!(highest_after_bounce < 120.0, "and went high: {highest_after_bounce}");
+}

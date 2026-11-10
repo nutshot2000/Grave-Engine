@@ -1,0 +1,14 @@
+# Bounce pad: a springy pad that flings anything landing on it straight up.
+# Put it where a jump is too far: `launch` is how fast (m/s); 15 clears
+# about 12 m of gap at a walk. Landing after a bounce doesn't hurt.
+about = Flings things upwards. A game bounce pad.
+state = solid
+density = 1200
+color = #42e07a
+color_variation = 0.08
+glow = 0.12
+conducts_heat = 0.1
+heat_capacity = 1.5
+toughness = 20000
+friction = 0.6
+launch = 15
