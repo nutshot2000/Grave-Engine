@@ -499,6 +499,7 @@ struct Moment {
     keyframe: Option<Vec<CellState>>,
     cells: Vec<(u32, CellState)>,
     flying: Vec<crate::world::Flyer>,
+    actors: Vec<crate::physics::ActorSpec>,
     bodies: Vec<BodySpec>,
     links: Vec<Option<Instance>>,
     joints: Vec<crate::physics::JointSpec>,
@@ -590,7 +591,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -607,7 +608,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -647,6 +648,7 @@ impl Timeline {
         }
         snap.world.frame = m.frame;
         snap.world.flying = m.flying.clone();
+        snap.actors = m.actors.clone();
         snap.bodies = m.bodies.clone();
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();

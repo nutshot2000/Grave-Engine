@@ -1313,6 +1313,18 @@ impl Sandbox {
         let avail = ui.available_size();
         let fit = (avail.x / w as f32).min(avail.y / h as f32).max(0.05);
         let (outer, _) = ui.allocate_exact_size(avail, Sense::hover());
+        let player = if self.sim.follow.is_none() && self.playing {
+            self.sim.physics.actor_status().first().map(|p| (p.x, p.y))
+        } else {
+            None
+        };
+        if let Some((px, py)) = player {
+            let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
+            let cam = self.cam.get_or_insert((px, py, fit * zoom));
+            cam.0 += (px - cam.0) * 0.12;
+            cam.1 += (py - cam.1) * 0.12;
+            cam.2 += (fit * zoom - cam.2) * 0.2;
+        }
         if let Some(id) = self.sim.follow {
             if let Some(b) = self.sim.physics.spec_of(&self.sim.world, id) {
                 let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
@@ -1648,6 +1660,41 @@ impl Sandbox {
 
         self.draw_selection(&painter, &to_screen);
         self.draw_joints(&painter, &to_screen);
+        self.draw_hud(&painter, outer);
+    }
+
+    /// The player's health and breath, top left of the view.
+    fn draw_hud(&self, painter: &egui::Painter, outer: Rect) {
+        let Some(p) = self.sim.physics.actor_status().into_iter().next() else { return };
+        let at = outer.min + Vec2::new(12.0, 12.0);
+        let bar = |y: f32, frac: f32, col: Color32, label: &str| {
+            let r = Rect::from_min_size(at + Vec2::new(0.0, y), Vec2::new(160.0, 12.0));
+            painter.rect_filled(r, 3.0, Color32::from_black_alpha(160));
+            let mut fill = r.shrink(2.0);
+            fill.set_width(fill.width() * frac.clamp(0.0, 1.0));
+            painter.rect_filled(fill, 2.0, col);
+            painter.text(r.right_center() + Vec2::new(8.0, 0.0), egui::Align2::LEFT_CENTER, label, egui::FontId::proportional(12.0), Color32::WHITE);
+        };
+        let hurting = p.hurt_by.is_some() && (self.sim.world.frame / 6) % 2 == 0;
+        let health_col = if hurting { Color32::from_rgb(255, 230, 120) } else { Color32::from_rgb(220, 60, 60) };
+        bar(0.0, p.health / 100.0, health_col, &format!("health {:.0}", p.health));
+        let mut y = 16.0;
+        if p.breath < 10.0 {
+            bar(y, p.breath / 10.0, Color32::from_rgb(90, 170, 255), "breath");
+            y += 16.0;
+        }
+        let text = if p.dead {
+            Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
+        } else if let Some(h) = p.hurt_by {
+            Some(format!("Ouch! ({h}, body {:.0}°C)", p.temp))
+        } else if !self.playing {
+            Some("Press Play, then A / D to walk and W to jump".to_string())
+        } else {
+            None
+        };
+        if let Some(t) = text {
+            painter.text(at + Vec2::new(0.0, y + 4.0), egui::Align2::LEFT_TOP, t, egui::FontId::proportional(14.0), Color32::WHITE);
+        }
     }
 
     /// Joints drawn on top of the world: pins, axles, welds, ropes.
@@ -1926,7 +1973,12 @@ impl eframe::App for Sandbox {
                 fwd as i32 as f32 - back as i32 as f32
             })
         };
-        self.sim.physics.set_throttle(throttle);
+        let has_player = self.sim.physics.actor_count() > 0;
+        self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
+        let jump = !typing
+            && self.playing
+            && ctx.input(|i| i.key_down(Key::ArrowUp) || (i.key_down(Key::W) && i.modifiers.is_none()));
+        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
@@ -2236,6 +2288,35 @@ body rect wood 40 60 20 10
         h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
         h.run_steps(3);
         assert_eq!(h.state().sim.physics.joints().len(), 0, "undo removes it");
+    }
+
+    #[test]
+    fn keys_drive_the_player() {
+        let mut h = editor();
+        {
+            let app = h.state_mut();
+            let mats = Materials::clone(&app.mats);
+            let (sim, _) = scene::load("size 200 120
+fill air
+rect stone 0 100 200 20
+player 50 100
+", &mats, None).into_sim(&mats);
+            app.sim = sim;
+            app.playing = true;
+        }
+        h.run_steps(2);
+        let key = |key, pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+        h.event(key(Key::D, true));
+        h.event(key(Key::W, true));
+        h.run_steps(2);
+        let c = h.state().sim.physics.controls();
+        assert_eq!((c.walk, c.jump), (1.0, true), "D walks right, W jumps");
+        h.event(key(Key::D, false));
+        h.event(key(Key::W, false));
+        h.event(key(Key::A, true));
+        h.run_steps(2);
+        assert_eq!(h.state().sim.physics.controls().walk, -1.0, "A walks left");
+        assert_eq!(h.state().sim.physics.throttle(), 0.0, "cars don't move while there's a player");
     }
 
     #[test]

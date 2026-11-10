@@ -29,6 +29,9 @@ use std::collections::HashMap;
 /// Metres per cell.
 pub const CELL: f32 = 0.1;
 const CHUNK: usize = 32;
+
+mod actor;
+pub use actor::{ActorSpec, ActorStatus, Controls};
 const GRAVITY: f32 = 9.81;
 const DT: f32 = 1.0 / 60.0;
 /// How eagerly motors chase their target speed (higher = snappier).
@@ -201,6 +204,10 @@ pub struct Physics {
     joints: Vec<Joint>,
     /// Player throttle for `drive` motors, -1..1.
     throttle: f32,
+    /// Characters (the player).
+    actors: Vec<actor::Actor>,
+    /// What the player is pressing.
+    controls: Controls,
     set: RigidBodySet,
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
@@ -297,6 +304,8 @@ impl Physics {
             damaged: Vec::new(),
             joints: Vec::new(),
             throttle: 0.0,
+            actors: Vec::new(),
+            controls: Controls::default(),
             set,
             colliders,
             impulse_joints: ImpulseJointSet::new(),
@@ -536,6 +545,7 @@ impl Physics {
     /// Advance all objects by one frame. Call right after `World::step`.
     pub fn update(&mut self, world: &mut World, mats: &Materials) {
         // 1. Read back and lift every object out of the grid.
+        self.actors_read_back(world, mats);
         let mut bodies = std::mem::take(&mut self.bodies);
         let mut changed = Vec::new();
         self.damaged.clear();
@@ -598,6 +608,8 @@ impl Physics {
                 }
             }
         }
+        let blasts = world.blasts.clone();
+        self.actors_think(world, mats, &blasts);
         self.pipeline.step(
             Vector::new(0.0, GRAVITY),
             &self.params,
@@ -623,6 +635,7 @@ impl Physics {
             self.stamp(b, world, mats);
         }
         self.bodies = bodies;
+        self.actors_after(world, mats);
         for spec in new_specs {
             self.add_raw(world, mats, spec);
         }
@@ -2088,7 +2101,7 @@ fn push_liquid_up(world: &mut World, mats: &Materials, x: i32, y: i32) -> Option
                 world.swap_cells(from, i);
                 return Some(i);
             }
-            State::Liquid => continue,
+            State::Liquid | State::Powder => continue,
             _ => break,
         }
     }

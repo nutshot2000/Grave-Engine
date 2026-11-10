@@ -33,6 +33,7 @@
 //! weld car cargo at 120 200                # glued together
 //! rope lamp ground at 50 40 to 50 10 length 30
 //! follow car zoom 3                  # the camera follows `car`, 3 times closer than the whole world
+//! player 40 260 zoom 3               # the player, feet at x y (optional `material flesh`)
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
 //! W..W
@@ -62,6 +63,9 @@ pub struct Loaded {
     pub joints: Vec<PendingJoint>,
     /// The object the camera follows, and how close (0 = editor decides).
     pub follow: Option<(usize, f32)>,
+    /// Characters (the player), and how close the camera follows them.
+    pub actors: Vec<crate::physics::ActorSpec>,
+    pub player_zoom: f32,
 }
 
 /// One end of a joint in a scene: the ground, or object number N in `bodies`.
@@ -130,6 +134,12 @@ impl Loaded {
             }
         }
         let mut sim = sim;
+        for a in self.actors {
+            sim.physics.add_actor(&mut sim.world, mats, a);
+        }
+        if self.player_zoom > 0.0 {
+            sim.zoom = self.player_zoom;
+        }
         if let Some((n, zoom)) = self.follow {
             sim.follow = ids.get(n).copied().flatten();
             sim.zoom = zoom;
@@ -205,6 +215,8 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut names: HashMap<String, usize> = HashMap::new();
     let mut joints: Vec<PendingJoint> = Vec::new();
     let mut follow: Option<(usize, f32)> = None;
+    let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
+    let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
     let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
@@ -438,6 +450,20 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     }
                 }
             }
+            "player" => {
+                let opt = |key: &str| words.iter().position(|w| w.eq_ignore_ascii_case(key)).and_then(|i| words.get(i + 1));
+                let material = opt("material").map(|s| s.to_string()).unwrap_or_else(|| "flesh".into());
+                match (nums(1, 2), mat(&material)) {
+                    (Ok(v), Ok(id)) => {
+                        actors.push(crate::physics::ActorSpec::standing_at(id, v[0], v[1]));
+                        if let Some(z) = opt("zoom").and_then(|z| z.parse::<f32>().ok()) {
+                            player_zoom = z.clamp(0.0, 20.0);
+                        }
+                    }
+                    (Err(_), _) => err("use `player x y` (where its feet go), optionally `material flesh zoom 3`".into()),
+                    (_, Err(e)) => err(e),
+                }
+            }
             "name" => match (words.get(1), bodies.len()) {
                 (Some(n), k) if k > 0 => {
                     names.insert(n.to_lowercase(), k - 1);
@@ -602,7 +628,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, actors, player_zoom }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -766,6 +792,18 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     if let Some(f) = snap.follow {
         out.push_str(&format!("\nfollow obj{f} zoom {}\n", snap.zoom));
+    }
+    for a in &snap.actors {
+        let (x, y) = a.feet();
+        let mut line = format!("\nplayer {x:.1} {y:.1}");
+        if mats.get(a.mat).name != "flesh" {
+            line += &format!(" material {}", mats.get(a.mat).name);
+        }
+        if snap.follow.is_none() && snap.zoom > 0.0 {
+            line += &format!(" zoom {}", snap.zoom);
+        }
+        out.push_str(&line);
+        out.push('\n');
     }
     out
 }

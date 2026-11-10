@@ -159,6 +159,30 @@ Try `scenes/splash.txt`.
   things flung right off the edge of the world are gone.
 - Other explosives caught in a blast go off rather than being thrown clear.
 
+## The player
+
+Try `scenes/player.txt`: an obstacle course with steps, a gap, a deep pond, a
+crate to climb, a campfire, a lava pit and a powder keg.
+
+- **Controls:** press Play, then **A / D** (or ← / →) to walk and **W** (or ↑) to
+  jump. In water, hold W to swim up; at the bank, W jumps you out. The camera
+  follows the player while the game is playing.
+- **The player is made of cells** (the `flesh` material), so it's really in the
+  world: sand heaps up around it, it shoves water aside, it floats, and it
+  warms up next to fire through the same heat rules as everything else.
+- **Health** (the red bar, top left) goes down when:
+  - any part of the body gets too hot (fire, lava) or too cold (ice),
+  - it runs out of breath (the blue bar): breathing needs air touching the
+    head, so being under water *or* buried in sand both count,
+  - it lands too hard or gets hit by something heavy (about a 4 m fall),
+  - something blows up nearby (which also throws it).
+- **Dying** shows what got you; two seconds later you're back at the start.
+- In a scene: `player 40 260` puts the player's feet at x 40, y 260. Add
+  `zoom 3` for how close the camera follows, or `material ...` to make it out
+  of something else.
+- Headless: `--walk 1 --jump` holds the controls, and the report says where
+  the player is, its health, breath and body temperature.
+
 ## Camera
 
 The mouse wheel zooms in and out around the pointer, middle-drag pans, and **⤢ Fit**
@@ -253,7 +277,7 @@ RPGs...), where any material works on any surface.
 1. ~~Sandbox~~ (done)
 2. ~~Editor: select, move, rotate, scale, inspector, undo, rewind, templates~~ (done)
 3. ~~Joints, motors and springs, rubber, a hill-climb racer, a follow camera~~ (done)
-4. Game layer: player, input, camera follow, triggers, scripting, health
+4. Game layer: ~~player, input, camera follow, health~~ (done); next triggers, scripting, enemies
 5. Big worlds: 64x64 chunks that only update what's moving, run on several CPU
    cores in a checkerboard pattern, and stream to disk far from the camera
 6. ~~Flying pixels: blasts and splashes throw liquids and powders through the air~~ (done)

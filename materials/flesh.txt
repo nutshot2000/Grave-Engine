@@ -1,0 +1,11 @@
+# Flesh: what the player (and later, creatures) are made of. A little
+# lighter than water, so people float. It doesn't burn by itself, but heat
+# soaks in: stand in fire or lava and the body gets dangerously hot.
+about = What living things are made of. Floats. Hurts when hot.
+state = solid
+density = 985
+color = #d9a47e
+color_variation = 0.35
+conducts_heat = 0.3
+heat_capacity = 3.5
+friction = 0.8

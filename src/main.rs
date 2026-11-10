@@ -17,6 +17,8 @@ Headless (no window), for agents and scripts:
       --scale S       make screenshots S times bigger (default 2)
       --heat          screenshot the heat view instead
       --throttle T    hold the drive controls (1 = full ahead, -1 = reverse)
+      --walk W        hold the player's walk controls (1 = right, -1 = left)
+      --jump          hold the player's jump
       --materials DIR use a different materials folder (default materials)
 ";
 
@@ -30,6 +32,8 @@ fn main() {
     let mut scale = 2;
     let mut heat = false;
     let mut throttle = 0.0f32;
+    let mut walk = 0.0f32;
+    let mut jump = false;
     let mut materials = PathBuf::from("materials");
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -51,6 +55,8 @@ fn main() {
             "--scale" => scale = val("--scale").parse().unwrap_or(2),
             "--heat" => heat = true,
             "--throttle" => throttle = val("--throttle").parse().unwrap_or(0.0),
+            "--walk" => walk = val("--walk").parse().unwrap_or(0.0),
+            "--jump" => jump = true,
             "--materials" => materials = PathBuf::from(val("--materials")),
             other if !other.starts_with('-') => scene = Some(PathBuf::from(other)),
             other => {
@@ -60,7 +66,7 @@ fn main() {
         }
     }
     if let Some(scene) = run {
-        let code = headless::run(&headless::Options { scene, materials, frames, shot, every, scale, heat, throttle });
+        let code = headless::run(&headless::Options { scene, materials, frames, shot, every, scale, heat, throttle, walk, jump });
         std::process::exit(code);
     }
     if let Err(e) = app::run(materials, scene) {

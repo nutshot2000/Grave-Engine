@@ -17,6 +17,9 @@ pub struct Options {
     pub heat: bool,
     /// Hold the drive controls: 1 = full ahead, -1 = full reverse.
     pub throttle: f32,
+    /// Hold the player's walk controls (-1 left, 1 right) and jump.
+    pub walk: f32,
+    pub jump: bool,
 }
 
 /// Write an RGBA image as PNG, scaled up by a whole number.
@@ -83,6 +86,7 @@ pub fn run(o: &Options) -> i32 {
     let shot_path = o.shot.clone().unwrap_or_else(|| PathBuf::from("shots/out.png"));
     let start = std::time::Instant::now();
     sim.physics.set_throttle(o.throttle);
+    sim.physics.set_controls(grave_engine_controls(o.walk, o.jump));
     for f in 1..=o.frames {
         sim.step(&mats);
         if let Some(every) = o.every.filter(|e| *e > 0) {
@@ -116,6 +120,27 @@ pub fn run(o: &Options) -> i32 {
     }
     println!("Temperature range: {tmin:.0}°C to {tmax:.0}°C");
     println!("Objects: {} at the start, {} now", objects_at_start, sim.physics.body_count());
+    for (n, a) in sim.physics.actor_status().iter().enumerate() {
+        let state = if a.dead {
+            "dead".to_string()
+        } else if a.swimming {
+            "swimming".into()
+        } else if a.grounded {
+            "standing".into()
+        } else {
+            "in the air".into()
+        };
+        println!(
+            "Player {}: at x={:.0} y={:.0}, {state}, health {:.0}/100, breath {:.1}s, body {:.0}°C{}",
+            n + 1,
+            a.x,
+            a.y,
+            a.health,
+            a.breath,
+            a.temp,
+            a.hurt_by.map(|h| format!(" (just {h})")).unwrap_or_default()
+        );
+    }
     for b in specs.iter().take(40) {
         let mut names: Vec<(String, usize)> = Vec::new();
         for c in b.cells.iter().flatten() {
@@ -151,4 +176,8 @@ pub fn run(o: &Options) -> i32 {
         println!("Flying through the air: {} cells", world.flying.len());
     }
     if problems.is_empty() && mats.problems.is_empty() { 0 } else { 3 }
+}
+
+fn grave_engine_controls(walk: f32, jump: bool) -> crate::physics::Controls {
+    crate::physics::Controls { walk, jump }
 }
