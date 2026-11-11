@@ -24,6 +24,11 @@ pub struct Renderer {
     lamps: Vec<crate::light::Placed>,
     illum: Vec<[f32; 3]>,
     sun_scratch: Vec<[f32; 3]>,
+    /// Cells that give off their own light (fire, lava, red-hot metal,
+    /// burning embers): drawn at full brightness however dark it is.
+    self_lit: Vec<bool>,
+    /// Glow spread wide (fires light up a big area in the dark).
+    wide: Vec<[f32; 3]>,
     lamp_only: Vec<[f32; 3]>,
     /// Sky and scenery layers behind the world, and where the camera is
     /// (their parallax depends on it).
@@ -133,6 +138,8 @@ impl Renderer {
             .collect();
         let n = world.w * world.h;
         self.light.resize(n, [0.0; 3]);
+        self.self_lit.clear();
+        self.self_lit.resize(n, false);
         self.tmp.resize(n, [0.0; 3]);
         self.scratch.resize(n, [0.0; 3]);
         self.rgba.resize(n * 4, 255);
@@ -202,6 +209,7 @@ impl Renderer {
                 }
             }
             self.light[i] = emit;
+            self.self_lit[i] = emit != [0.0; 3];
             self.tmp[i] = col;
         }
 
@@ -246,6 +254,7 @@ impl Renderer {
                 let flame = [255.0, 150.0, 40.0];
                 col = lerp3(col, flame, 0.7);
                 self.light[i] = [flame[0] * 0.5, flame[1] * 0.5, flame[2] * 0.5];
+                self.self_lit[i] = true;
             } else if f.temp > 450.0 {
                 let k = ((f.temp - 450.0) / 700.0).clamp(0.0, 1.0);
                 col = lerp3(col, hot_color(f.temp), k * 0.9);
@@ -258,6 +267,15 @@ impl Renderer {
             blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
         }
         let lit = !view.heat && !(self.lighting.is_plain() && self.lamps.is_empty());
+        // In the dark, glow also reaches far: a wide, soft spread of it,
+        // stronger the darker the scene.
+        let dark = if lit { (1.0 - self.lighting.ambient).clamp(0.0, 1.0) } else { 0.0 };
+        if dark > 0.05 {
+            self.wide.clear();
+            self.wide.extend_from_slice(&self.light);
+            blur(&mut self.wide, &mut self.scratch, world.w, world.h, 16);
+            blur(&mut self.wide, &mut self.scratch, world.w, world.h, 16);
+        }
         if lit {
             crate::light::illuminate(world, mats, &self.lighting, &self.lamps, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
         }
@@ -291,7 +309,11 @@ impl Renderer {
                 let lamp = self.lamp_only[i];
                 let haze = |k: usize| if open { lamp[k] * 30.0 } else { haze(k) };
                 let e = if open { [(amb[0] + sun_full[0]).min(1.0), (amb[1] + sun_full[1]).min(1.0), (amb[2] + sun_full[2]).min(1.0)] } else { e };
-                let px = |k: usize| c[k] * (e[k] + l[k] / 255.0) + l[k] * 1.1 + haze(k) + own[k];
+                // Fire and glowing things shine at full strength in the dark,
+                // and their glow lights up what's around them strongly.
+                let e = if self.self_lit[i] { [e[0].max(1.0), e[1].max(1.0), e[2].max(1.0)] } else { e };
+                let far = if dark > 0.05 { self.wide[i] } else { [0.0; 3] };
+                let px = |k: usize| c[k] * (e[k] + (l[k] * 2.0 + far[k] * 8.0 * dark) / 255.0) + l[k] * 1.1 + far[k] * 2.5 * dark + haze(k) + own[k];
                 (px(0), px(1), px(2))
             } else {
                 // Light brightens what it falls on, and adds a soft halo in the air.
