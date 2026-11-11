@@ -149,9 +149,6 @@ struct Sandbox {
     cam: Option<(f32, f32, f32)>,
     /// Mouse-wheel movement not yet turned into zoom steps.
     zoom_acc: f32,
-    /// How big the canvas was last frame (screen points), to work out which
-    /// part of the world is on screen and draw only that.
-    view_size: Vec2,
     /// Sticky notes for the open scene (see notes.rs), and the scene file
     /// they belong to (they're kept in `NAME.notes.md` next to it).
     notes: Vec<Note>,
@@ -281,7 +278,6 @@ impl Sandbox {
             canvas_at: (Pos2::ZERO, 1.0),
             cam: None,
             zoom_acc: 0.0,
-            view_size: Vec2::ZERO,
             notes: Vec::new(),
             notes_scene: PathBuf::from("scenes/my_scene.txt"),
             notes_stamp: None,
@@ -568,6 +564,19 @@ impl Sandbox {
 
     /// A material's settings, as sliders. Your changes go in
     /// materials/my_settings/NAME.txt over the defaults (materials/NAME.txt).
+    /// Show a menu that changes the scene's look (lighting, background), and
+    /// record any change as an undoable step.
+    fn look_menu(&mut self, ui: &mut egui::Ui, label: &str, menu: fn(&mut Self, &mut egui::Ui)) {
+        let before = (self.sim.lighting.clone(), self.sim.backdrop.clone());
+        menu(self, ui);
+        if self.sim.lighting != before.0 || self.sim.backdrop != before.1 {
+            let after = (std::mem::replace(&mut self.sim.lighting, before.0), std::mem::replace(&mut self.sim.backdrop, before.1));
+            self.history.touch(&mut self.sim, label); // (remembers how it was)
+            self.sim.lighting = after.0;
+            self.sim.backdrop = after.1;
+        }
+    }
+
     /// The 🏞 Background menu: sky and parallax layers behind the world.
     fn background_menu(&mut self, ui: &mut egui::Ui) {
         use grave_engine::backdrop::{Backdrop, Kind, Layer, PRESETS};
@@ -726,9 +735,7 @@ impl Sandbox {
             l.lights.remove(n);
             changed = true;
         }
-        if changed {
-            self.ran_since_snapshot = true;
-        }
+        let _ = changed; // (recorded for undo by `look_menu`)
     }
 
     /// The 🎬 Camera menu: how close, how smooth, looking ahead, effects.
@@ -961,7 +968,7 @@ impl Sandbox {
         match self.mats.save_my_settings(&cur.name, &pairs) {
             Ok(()) => {
                 self.mats.reload();
-                self.sim.physics.materials_changed(&self.mats);
+                self.sim.materials_changed(&self.mats);
                 self.renderer.reload_textures();
                 if reset_all {
                     self.say(format!("{name}: back to the defaults"));
@@ -1313,7 +1320,7 @@ impl Sandbox {
         self.last_file_check = Instant::now();
         if self.mats.changed_on_disk() {
             self.mats.reload();
-            self.sim.physics.materials_changed(&self.mats);
+            self.sim.materials_changed(&self.mats);
             self.renderer.reload_textures();
             if self.mats.problems.is_empty() {
                 self.say("Materials reloaded");
@@ -1549,8 +1556,8 @@ impl Sandbox {
                 self.speed = if slow { 0.25 } else { 1.0 };
             }
             ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
-            ui.menu_button(big("💡 Lighting"), |ui| self.lighting_menu(ui));
-            ui.menu_button(big("🏞 Background"), |ui| self.background_menu(ui));
+            ui.menu_button(big("💡 Lighting"), |ui| self.look_menu(ui, "lighting", Self::lighting_menu));
+            ui.menu_button(big("🏞 Background"), |ui| self.look_menu(ui, "background", Self::background_menu));
             ui.separator();
             ui.label("Scene");
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
@@ -2112,35 +2119,12 @@ impl Sandbox {
 
     fn canvas(&mut self, ui: &mut egui::Ui) {
         let (w, h) = (self.sim.world.w, self.sim.world.h);
-        self.renderer.light(&self.sim);
-        // Backdrop layers slide by at their depth as the camera moves.
-        let (w0, h0) = (self.sim.world.w as f32, self.sim.world.h as f32);
-        let (cx0, cy0) = self.cam.map_or((w0 / 2.0, h0 / 2.0), |c| (c.0, c.1));
-        self.renderer.set_camera(cx0, cy0);
-        // Draw only the part of the world that's on screen (where the camera
-        // was last frame, plus a margin): big worlds stay fast.
-        let win = match self.cam {
-            Some((x, y, s)) if self.view_size.x > 0.0 && s > 0.0 => {
-                let (hw, hh) = (self.view_size.x / s / 2.0 + 12.0, self.view_size.y / s / 2.0 + 12.0);
-                let (x0, y0) = ((x - hw).max(0.0) as usize, (y - hh).max(0.0) as usize);
-                grave_engine::render::clip(&self.sim.world, (x0, y0, (hw * 2.0).ceil() as usize + 1, (hh * 2.0).ceil() as usize + 1))
-            }
-            _ => (0, 0, w, h),
-        };
-        let rgba = self.renderer.draw_window(&self.sim.world, &self.mats, self.view, win);
-        let image = egui::ColorImage::from_rgba_unmultiplied([win.2, win.3], rgba);
-        match &mut self.texture {
-            Some(t) if t.size() == [win.2, win.3] => t.set(image, TextureOptions::NEAREST),
-            _ => self.texture = Some(ui.ctx().load_texture("grid", image, TextureOptions::NEAREST)),
-        }
-        let tex = self.texture.as_ref().unwrap();
 
         // The camera: by default the whole world fits; zoomed in, it shows part
         // of it (and can follow an object).
         let avail = ui.available_size();
         let fit = (avail.x / w as f32).min(avail.y / h as f32).max(0.05);
         let (outer, _) = ui.allocate_exact_size(avail, Sense::hover());
-        self.view_size = outer.size();
         // What to look at: a camera effect's focus (from a trigger), the
         // followed object, or the player; looking ahead of where it's going.
         let fx = &self.sim.camera;
@@ -2182,6 +2166,19 @@ impl Sandbox {
         self.canvas_at = (rect.min, scale);
         let resp = ui.interact(outer, ui.scope_id().with("canvas"), Sense::click_and_drag());
         let painter = ui.painter_at(outer);
+        // Draw only the part of the world on screen now (this frame's camera
+        // and shake, plus a margin): big worlds stay fast.
+        self.renderer.light(&self.sim);
+        self.renderer.set_camera(cx, cy); // backdrop layers slide by at their depth
+        let half = (outer.width() / scale / 2.0 + shake.0.abs(), outer.height() / scale / 2.0 + shake.1.abs());
+        let win = grave_engine::render::view_window(&self.sim.world, (cx, cy), half, 4.0);
+        let rgba = self.renderer.draw_window(&self.sim.world, &self.mats, self.view, win);
+        let image = egui::ColorImage::from_rgba_unmultiplied([win.2, win.3], rgba);
+        match &mut self.texture {
+            Some(t) if t.size() == [win.2, win.3] => t.set(image, TextureOptions::NEAREST),
+            _ => self.texture = Some(ui.ctx().load_texture("grid", image, TextureOptions::NEAREST)),
+        }
+        let tex = self.texture.as_ref().unwrap();
         let shown = Rect::from_min_size(rect.min + Vec2::new(win.0 as f32 * scale, win.1 as f32 * scale), Vec2::new(win.2 as f32 * scale, win.3 as f32 * scale));
         painter.image(tex.id(), shown, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
         self.draw_characters(ui, &painter, rect.min, scale);
@@ -2678,6 +2675,7 @@ impl Sandbox {
                     ids = self.selected_ids();
                 }
                 self.selection = Selection::Objects(ids);
+                self.fling.clear(); // a new swing starts here
                 return Drag::Objects(cf);
             }
         }
@@ -3035,6 +3033,48 @@ body rect wood 40 60 20 10
         h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
         h.run_steps(3);
         assert!(h.state().sim.lighting.lights.is_empty());
+    }
+
+    #[test]
+    fn lighting_changes_can_be_undone_and_keep_the_reset_point() {
+        let mut h = editor();
+        h.get_by_label("💡 Lighting").click();
+        h.run_steps(2);
+        h.get_by_label_contains("Night").click();
+        h.run_steps(2);
+        assert!(h.state().sim.lighting.ambient < 0.5, "night");
+        assert!(!h.state().ran_since_snapshot, "a lighting change isn't the sim running");
+        h.key_press(Key::Escape);
+        h.run_steps(2);
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(3);
+        assert_eq!(h.state().sim.lighting.ambient, 1.0, "undo brings the daylight back");
+    }
+
+    #[test]
+    fn a_new_drag_after_an_undo_mid_drag_does_not_fling() {
+        let mut h = editor();
+        h.key_press(Key::V);
+        h.run_steps(2);
+        h.state_mut().playing = true;
+        // Start swinging the object fast, then undo in the middle of it.
+        let a = at(&h, 50.0, 65.0);
+        press(&mut h, a, true);
+        for k in 1..=4 {
+            h.event(Event::PointerMoved(a + Vec2::new(k as f32 * 60.0, 0.0)));
+            h.run_steps(1);
+        }
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(2);
+        press(&mut h, a + Vec2::new(240.0, 0.0), false);
+        h.state_mut().playing = true;
+        h.run_steps(2);
+        // Now a gentle nudge of the object: it mustn't fly off.
+        let p = object(&h);
+        let (from, to) = (at(&h, p.x, p.y), at(&h, p.x + 1.0, p.y));
+        drag(&mut h, from, to);
+        let v = object(&h);
+        assert!(v.vx.abs() < 20.0, "a gentle nudge stays gentle: vx {}", v.vx);
     }
 
     #[test]

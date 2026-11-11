@@ -142,3 +142,26 @@ body rect iron 20 20 8 8
     println!("block ends at y {sleep} with sleeping, {awake} without");
     assert!(sleep > 150.0 && (sleep - awake).abs() < 3.0);
 }
+
+#[test]
+fn changing_a_material_reaches_sleeping_areas() {
+    let mut m = mats();
+    let mut s = sim(&m, "size 400 200
+fill air
+rect stone 0 190 400 10
+rect brick 300 150 40 40
+");
+    for _ in 0..200 {
+        s.step(&m);
+    }
+    assert!(s.world.awake_fraction() < 0.3, "the brick block is asleep: {}", s.world.awake_fraction());
+    // Brick now melts at 0 degrees: even the sleeping block should melt.
+    let brick = m.id("brick").unwrap();
+    m.list[brick as usize].melts.as_mut().unwrap().at = 0.0;
+    s.materials_changed(&m);
+    for _ in 0..5 {
+        s.step(&m);
+    }
+    let left = s.world.mat.iter().filter(|&&c| c == brick).count();
+    assert!(left < 100, "the sleeping brick melted too: {left} of 1600 cells left");
+}

@@ -184,6 +184,15 @@ impl Lighting {
     }
 }
 
+/// Sunlight remembered between frames (see `illuminate`): what arrives at
+/// each cell, valid for rows above `valid_to`, for this world size and slant.
+#[derive(Default)]
+pub struct SunCache {
+    key: Option<(u64, usize, usize, u32)>,
+    field: Vec<[f32; 3]>,
+    valid_to: usize,
+}
+
 /// How much light each material lets through, per cell, per colour.
 fn passes(mats: &Materials) -> Vec<[f32; 3]> {
     mats.list
@@ -212,7 +221,7 @@ fn passes(mats: &Materials) -> Vec<[f32; 3]> {
 /// Only for the window `win` = (x, y, w, h) of the world (what's being
 /// drawn): `out` is `w * h`, row by row. Shadows from outside it still count.
 #[allow(clippy::too_many_arguments)]
-pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], win: (usize, usize, usize, usize), out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>, lamp_only: &mut Vec<[f32; 3]>) {
+pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], win: (usize, usize, usize, usize), out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>, lamp_only: &mut Vec<[f32; 3]>, sun_cache: &mut SunCache) {
     let (wx0, wy0, ww, wh) = win;
     let n = ww * wh;
     let inside = |x: i32, y: i32| -> Option<usize> {
@@ -239,32 +248,56 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
         let slope = sun.angle.to_radians().tan().clamp(-3.0, 3.0);
         scratch.clear();
         scratch.resize(n, [0.0; 3]);
-        // Sweep from the top of the world down to the window's bottom, over
-        // the window's columns plus those the slanted light comes in from.
-        let bottom = wy0 + wh;
-        let reach = (slope.abs() * bottom as f32).ceil() as usize + 2;
-        let (c0, c1) = (wx0.saturating_sub(reach), (wx0 + ww + reach).min(world.w));
-        let cols = c1 - c0;
-        let mut prev = vec![[1.0f32; 3]; cols]; // light leaving the row above (open sky)
-        let mut row = vec![[0.0f32; 3]; cols];
-        for y in 0..bottom {
-            for (x, r) in row.iter_mut().enumerate() {
-                let src = x as f32 - slope;
-                let x0 = src.floor();
-                let k = src - x0;
-                let get = |xi: f32| -> [f32; 3] {
-                    if xi < 0.0 || xi >= cols as f32 { [1.0; 3] } else { prev[xi as usize] }
-                };
-                let (l0, l1) = (get(x0), get(x0 + 1.0));
-                *r = [l0[0] * (1.0 - k) + l1[0] * k, l0[1] * (1.0 - k) + l1[1] * k, l0[2] * (1.0 - k) + l1[2] * k];
-            }
-            for x in 0..cols {
-                let i = y * world.w + c0 + x;
-                if let Some(j) = inside((c0 + x) as i32, y as i32) {
-                    scratch[j] = row[x];
+        // The sunlight arriving at every cell is remembered between frames
+        // (`sun`): it only needs working out again from the highest row where
+        // something has changed (the world's sleeping areas tell us), down to
+        // the window's bottom. Rows above that are as they were.
+        let (w, bottom) = (world.w, wy0 + wh);
+        let key = Some((world.id, world.w, world.h, slope.to_bits()));
+        if sun_cache.key != key {
+            sun_cache.key = key;
+            sun_cache.field.clear();
+            sun_cache.field.resize(world.w * world.h, [1.0; 3]);
+            sun_cache.valid_to = 0;
+        }
+        sun_cache.valid_to = sun_cache.valid_to.min(world.top_busy_row());
+        if sun_cache.valid_to < bottom {
+            let start = sun_cache.valid_to;
+            let field = &mut sun_cache.field;
+            // Light leaving the row above the first one redone (open sky at the top).
+            let mut prev: Vec<[f32; 3]> = if start == 0 {
+                vec![[1.0; 3]; w]
+            } else {
+                (0..w).map(|x| {
+                    let i = (start - 1) * w + x;
+                    let (a, t) = (field[i], through(i));
+                    [a[0] * t[0], a[1] * t[1], a[2] * t[2]]
+                }).collect()
+            };
+            let mut row = vec![[0.0f32; 3]; w];
+            for y in start..bottom {
+                for (x, r) in row.iter_mut().enumerate() {
+                    let src = x as f32 - slope;
+                    let x0 = src.floor();
+                    let k = src - x0;
+                    let get = |xi: f32| -> [f32; 3] {
+                        if xi < 0.0 || xi >= w as f32 { [1.0; 3] } else { prev[xi as usize] }
+                    };
+                    let (l0, l1) = (get(x0), get(x0 + 1.0));
+                    *r = [l0[0] * (1.0 - k) + l1[0] * k, l0[1] * (1.0 - k) + l1[1] * k, l0[2] * (1.0 - k) + l1[2] * k];
                 }
-                let t = through(i);
-                prev[x] = [row[x][0] * t[0], row[x][1] * t[1], row[x][2] * t[2]];
+                for x in 0..w {
+                    let i = y * w + x;
+                    field[i] = row[x];
+                    let t = through(i);
+                    prev[x] = [row[x][0] * t[0], row[x][1] * t[1], row[x][2] * t[2]];
+                }
+            }
+            sun_cache.valid_to = bottom;
+        }
+        for y in wy0..bottom {
+            for x in wx0..wx0 + ww {
+                scratch[(y - wy0) * ww + x - wx0] = sun_cache.field[y * w + x];
             }
         }
         let c = [sun.color[0] as f32 / 255.0 * sun.strength, sun.color[1] as f32 / 255.0 * sun.strength, sun.color[2] as f32 / 255.0 * sun.strength];

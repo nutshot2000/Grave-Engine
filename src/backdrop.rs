@@ -63,7 +63,10 @@ impl Layer {
             Kind::City => "city".into(),
             Kind::Forest => "forest".into(),
             Kind::Clouds => "clouds".into(),
-            Kind::Image(p) => format!("image {}", p.display()),
+            Kind::Image(p) => {
+                let name = p.display().to_string();
+                if name.contains(char::is_whitespace) { format!("image \"{name}\"") } else { format!("image {name}") }
+            }
         }
     }
 }
@@ -73,6 +76,9 @@ pub struct Backdrop {
     /// Sky gradient (top, bottom) and stars. None = the plain background.
     pub sky: Option<([u8; 3], [u8; 3], bool)>,
     pub layers: Vec<Layer>,
+    /// The scene's folder: pictures named relative to it are found there
+    /// (the names are kept as written, so saved scenes stay portable).
+    pub dir: Option<std::path::PathBuf>,
 }
 
 fn hex(c: [u8; 3]) -> String {
@@ -133,6 +139,21 @@ impl Backdrop {
 
     /// Read one scene line (`sky ...` or `layer ...`). Ok(false) = not ours.
     pub fn parse_line(&mut self, words: &[&str]) -> Result<bool, String> {
+        // A picture name with spaces goes in quotes: `layer image "my hills.png" ...`.
+        let joined: Vec<String>;
+        let words: Vec<&str> = if words.get(2).is_some_and(|w| w.starts_with('"')) {
+            let end = (2..words.len()).find(|&k| words[k].ends_with('"') && (k > 2 || words[k].len() > 1)).ok_or("a quoted picture name needs its closing quote")?;
+            let name = words[2..=end].join(" ");
+            joined = std::iter::once(words[0].to_string())
+                .chain(std::iter::once(words[1].to_string()))
+                .chain(std::iter::once(name.trim_matches('"').to_string()))
+                .chain(words[end + 1..].iter().map(|w| w.to_string()))
+                .collect();
+            joined.iter().map(String::as_str).collect()
+        } else {
+            words.to_vec()
+        };
+        let words = &words[..];
         let color = |w: Option<&&str>| -> Result<[u8; 3], String> { crate::material::parse_color(w.ok_or("missing a colour like #2e3d4a")?) };
         match words.first().map(|w| w.to_lowercase()).as_deref() {
             Some("sky") => {
@@ -262,7 +283,12 @@ impl Backdrop {
             let seed = hash(l.seed.wrapping_mul(2654435761));
             match &l.kind {
                 Kind::Image(path) => {
-                    let pic = pictures.entry(path.clone()).or_insert_with(|| Picture::open(path).ok()).clone();
+                    // As written (from the project folder), or next to the scene.
+                    let found = match &self.dir {
+                        Some(d) if path.is_relative() && !path.exists() => d.join(path),
+                        _ => path.clone(),
+                    };
+                    let pic = pictures.entry(found.clone()).or_insert_with(|| Picture::open(&found).ok()).clone();
                     let Some(p) = pic else { continue };
                     let s = l.scale.max(0.1);
                     let (pw, ph) = (p.w as f32 * s, p.h as f32 * s);

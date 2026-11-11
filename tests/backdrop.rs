@@ -82,3 +82,23 @@ fn backdrops_survive_saving_and_presets_load() {
     let bad = scene::load("size 50 50\nfill air\nlayer volcano #ff0000\n", &m, None);
     assert!(!bad.problems.is_empty(), "unknown layer kinds are explained");
 }
+
+#[test]
+fn picture_layers_keep_their_names_as_written() {
+    let m = mats();
+    let dir = std::env::temp_dir().join(format!("grave_backdrop_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/materials/textures/brick.png"), dir.join("my hills.png")).unwrap();
+    let text = "size 64 32\nfill air\nlayer image \"my hills.png\" depth 0.5 y 32 scale 1\n";
+    let (s, p) = scene::load(text, &m, Some(&dir)).into_sim(&m);
+    assert!(p.is_empty(), "{p:?}");
+    // Found next to the scene and drawn.
+    let mut r = Renderer::default();
+    r.light(&s);
+    let px = r.draw(&s.world, &m, View::default()).to_vec();
+    let o = (20 * 64 + 10) * 4;
+    assert!(px[o] > 60, "the picture shows: {:?}", &px[o..o + 3]);
+    // Saved as written: quoted, not a full path.
+    let saved = { let mut s = s; scene::save(&s.snapshot(), &m) };
+    assert!(saved.contains("layer image \"my hills.png\""), "{saved}");
+}

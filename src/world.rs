@@ -151,7 +151,12 @@ pub struct World {
     pub sleeping: bool,
     bw: usize,
     bh: usize,
+    /// A number unique to this world (copies share it), so things worked
+    /// out from it and kept between frames (sunlight) know it's the same one.
+    pub id: u64,
 }
+
+static NEXT_WORLD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 /// Block size for sleeping areas (cells).
 const BLOCK: usize = 32;
@@ -197,6 +202,7 @@ impl World {
             bw: w.div_ceil(BLOCK),
             bh: h.div_ceil(BLOCK),
             sleeping: true,
+            id: NEXT_WORLD.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         };
         for i in 0..n {
             world.shade[i] = world.rand() as u8;
@@ -227,6 +233,14 @@ impl World {
     /// Wake the whole world (after editing it from outside).
     pub fn wake_all(&mut self) {
         self.awake.fill(AWAKE_FRAMES);
+    }
+
+    /// The highest row where anything may have changed lately (the top of
+    /// the highest block that's awake or being worked on); the world's
+    /// height if it's all asleep. Things worked out from rows above it
+    /// (like sunlight from the sky) still hold.
+    pub fn top_busy_row(&self) -> usize {
+        (0..self.awake.len()).find(|&b| self.awake[b] > 0 || self.active[b]).map_or(self.h, |b| (b / self.bw) * BLOCK)
     }
 
     /// How much of the world is being worked on (0..1): the rest is asleep.

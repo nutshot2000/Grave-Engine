@@ -38,6 +38,7 @@ pub struct Renderer {
     /// Glow spread wide (fires light up a big area in the dark).
     wide: Vec<[f32; 3]>,
     lamp_only: Vec<[f32; 3]>,
+    sun_cache: crate::light::SunCache,
     /// Sky and scenery layers behind the world, and where the camera is
     /// (their parallax depends on it).
     backdrop: crate::backdrop::Backdrop,
@@ -323,7 +324,7 @@ impl Renderer {
             blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
         }
         if lit {
-            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
+            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only, &mut self.sun_cache);
         }
         let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
         let backdrop = !view.heat && !self.backdrop.is_empty();
@@ -404,6 +405,17 @@ pub fn clip(world: &World, (x, y, w, h): (usize, usize, usize, usize)) -> (usize
     let x = x.min(world.w - 1);
     let y = y.min(world.h - 1);
     (x, y, w.clamp(1, world.w - x), h.clamp(1, world.h - y))
+}
+
+/// The part of the world to draw for a view centred at `(cx, cy)` showing
+/// `half` cells either side, plus `margin`. Its size is rounded up to whole
+/// 32-cell blocks and it's slid (not shrunk) to stay inside the world, so
+/// it keeps the same size from frame to frame (no new picture buffers).
+pub fn view_window(world: &World, (cx, cy): (f32, f32), (hw, hh): (f32, f32), margin: f32) -> (usize, usize, usize, usize) {
+    let round = |v: f32, max: usize| (((v.max(1.0) / 32.0).ceil() as usize) * 32).min(max);
+    let (w, h) = (round((hw + margin) * 2.0 + 1.0, world.w), round((hh + margin) * 2.0 + 1.0, world.h));
+    let place = |c: f32, size: usize, max: usize| ((c - size as f32 / 2.0).max(0.0) as usize).min(max - size);
+    (place(cx, w, world.w), place(cy, h, world.h), w, h)
 }
 
 /// A window grown by `m` cells on every side, clipped to the world.

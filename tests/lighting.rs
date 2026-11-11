@@ -143,3 +143,42 @@ fn drawing_just_the_view_matches_drawing_everything() {
         assert_eq!(wrong, 0, "{file}: {wrong} pixels differ");
     }
 }
+
+#[test]
+fn remembered_sunlight_updates_when_a_new_shadow_appears() {
+    let m = mats();
+    let mut s = sim(&m, &format!("{ROOM}lighting 0.1\nsun 0 1\n"));
+    for _ in 0..120 {
+        s.step(&m);
+    }
+    let mut r = Renderer::default();
+    r.light(&s);
+    let open = bright(&r.draw(&s.world, &m, View::default()).to_vec(), &s, 60, 49);
+    // Still nothing changed: drawn again, the same.
+    s.step(&m);
+    r.light(&s);
+    assert_eq!(bright(&r.draw(&s.world, &m, View::default()).to_vec(), &s, 60, 49), open);
+    // A roof appears high above (as if built there): the floor goes into shadow.
+    s.world.paint_circle(&m, 60, 10, 6, m.id("stone").unwrap());
+    s.step(&m);
+    r.light(&s);
+    let shaded = bright(&r.draw(&s.world, &m, View::default()).to_vec(), &s, 60, 49);
+    println!("floor in the sun {open}, under the new roof {shaded}");
+    assert!(shaded * 2 < open, "the new roof casts a shadow at once");
+}
+
+#[test]
+fn the_drawn_view_keeps_its_size_and_covers_the_screen() {
+    let m = mats();
+    let s = sim(&m, "size 3000 900\nfill air\n");
+    let mut sizes = std::collections::HashSet::new();
+    for (cx, cy) in [(0.0, 0.0), (1500.0, 450.0), (2999.0, 899.0), (733.3, 120.7), (1500.5, 451.2)] {
+        let win = grave_engine::render::view_window(&s.world, (cx, cy), (180.0, 110.0), 4.0);
+        sizes.insert((win.2, win.3));
+        assert!(win.0 + win.2 <= 3000 && win.1 + win.3 <= 900, "inside the world: {win:?}");
+        let (vx0, vx1) = ((cx - 180.0).max(0.0), (cx + 180.0).min(3000.0));
+        let (vy0, vy1) = ((cy - 110.0).max(0.0), (cy + 110.0).min(900.0));
+        assert!(win.0 as f32 <= vx0 && (win.0 + win.2) as f32 >= vx1 && win.1 as f32 <= vy0 && (win.1 + win.3) as f32 >= vy1, "covers the view at {cx},{cy}: {win:?}");
+    }
+    assert_eq!(sizes.len(), 1, "always the same size: {sizes:?}");
+}

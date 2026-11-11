@@ -129,6 +129,14 @@ impl Sim {
         }
     }
 
+    /// Material settings changed: objects get new shapes and weights, and
+    /// the whole world wakes up so sleeping areas follow the new settings
+    /// (a lower melting point, a solid made into powder...).
+    pub fn materials_changed(&mut self, mats: &Materials) {
+        self.physics.materials_changed(mats);
+        self.world.wake_all();
+    }
+
     /// Where the lamps are right now (lamps on objects move with them).
     pub fn lamps(&self) -> Vec<crate::light::Placed> {
         self.lighting.place(self.world.frame, |id| self.physics.pose_of(id))

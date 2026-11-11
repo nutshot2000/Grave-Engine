@@ -355,12 +355,9 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
             "sky" | "layer" => {
                 if let Err(e) = backdrop.parse_line(&words) {
                     err(e);
-                } else if let (Some(base), Some(crate::backdrop::Layer { kind: crate::backdrop::Kind::Image(p), .. })) = (base, backdrop.layers.last_mut()) {
-                    // Pictures are found next to the scene (or from the project folder).
-                    if p.is_relative() && !p.exists() && base.join(&*p).exists() {
-                        *p = base.join(&*p);
-                    }
                 }
+                // Pictures are found next to the scene (or from the project folder).
+                backdrop.dir = base.map(|b| b.to_path_buf());
             }
             "lighting" => match nums(1, 1) {
                 Ok(v) => {

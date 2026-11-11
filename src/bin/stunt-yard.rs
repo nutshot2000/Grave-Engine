@@ -149,7 +149,8 @@ impl eframe::App for Game {
   let cx=self.cam_x+shake.0;let y0=self.cam_y+shake.1;
   // Draw only what the camera sees (plus a margin): the real material cells,
   // for intact parts and wreckage alike.
-  let win=grave_engine::render::clip(&self.sim.world,((cx-vw/2.-24.).max(0.) as usize,(y0-24.).max(0.) as usize,(vw+48.) as usize,(vh+48.) as usize));
+  // (A steady size from frame to frame, so the picture buffer is reused.)
+  let win=grave_engine::render::view_window(&self.sim.world,(cx,y0+vh/2.),(170.,120.),24.);
   self.renderer.light(&self.sim);
   self.renderer.set_camera(cx,y0+vh/2.);
   let mut rgba=self.renderer.draw_window(&self.sim.world,&self.mats,View::default(),win).to_vec();
