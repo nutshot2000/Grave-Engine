@@ -392,9 +392,11 @@ pub fn step(
     }
     if run.strike_now && run.pending.is_none() {
         run.strike_now = false;
-        // The tallest thing among a few places in view.
-        let mut best: Option<(f32, f32)> = None;
-        for k in 0..6u32 {
+        // Lightning goes for what sticks up: sample many places in view, find
+        // the ground level, and strike a raised thing (the tallest, mostly)
+        // whenever there is one; bare ground only when nothing stands up.
+        let mut tops: Vec<(f32, f32)> = Vec::new();
+        for k in 0..32u32 {
             let x = (x0 + rnd(frame, k, 11) * width).min(world.w as f32 - 1.0);
             let col = x as usize;
             let top_y = (0..world.h).find(|&y| {
@@ -402,11 +404,21 @@ pub fn step(
                 world.is_owned(i) || mats.get(world.mat[i]).state != State::Gas
             });
             if let Some(y) = top_y {
-                if best.is_none_or(|b| (y as f32) < b.1) {
-                    best = Some((x, y as f32));
-                }
+                tops.push((x, y as f32));
             }
         }
+        let mut ys: Vec<f32> = tops.iter().map(|t| t.1).collect();
+        ys.sort_by(|a, b| a.total_cmp(b));
+        let ground = ys.get(ys.len() * 3 / 4).copied().unwrap_or(0.0);
+        let mut raised: Vec<(f32, f32)> = tops.iter().copied().filter(|t| t.1 < ground - 6.0).collect();
+        raised.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let best = if raised.is_empty() {
+            tops.first().copied()
+        } else if rnd(frame, 3, 12) < 0.7 {
+            raised.first().copied()
+        } else {
+            Some(raised[(rnd(frame, 4, 12) * raised.len() as f32) as usize % raised.len()])
+        };
         if let Some((x, y)) = best {
             run.pending = Some((x, y, 26)); // a flicker of warning first
         }
