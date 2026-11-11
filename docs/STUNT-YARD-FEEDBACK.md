@@ -144,3 +144,16 @@ Do not spend the next update reimplementing basic material resistance, brakes, t
 Ship a focused reliability-and-authoring update: robust trigger crossings, validated obstacle clearances, visual trigger/shape editing, trustworthy check results and performance diagnostics. Then add rider physics and sound. That would turn the new capabilities into a smoother process for building reliable, enjoyable levels.
 
 These results do not certify a full human playthrough, hours-long stability, all hardware, all user settings or every possible combination of materials. The failure in the edited Wreck Run scene is recorded, not silently fixed or hidden. The new engine systems are a clear advance; the next milestone is making their interactions easier to inspect and consistently dependable.
+
+## Engine update, 12 November 2026: Mountain Run, trials handling and an audit
+
+What the game taught the engine this time (all in the engine, not game code):
+
+1. **Trials-style vehicle balance** (`upright NAME strength S air A heavy H`): `air` below 1 follows the ground slope under the wheels and lets lean rotate the bike in the air; lean eases in over about a quarter second; `heavy` scales gravity. Wreck Run and Mountain Run use `strength 70 air 0.15 heavy 1.6` and a motor of 12 (6 stalled on steep climbs).
+2. **Levels carry their own story.** Triggers now also do `sun`, `sky`, `lighting` (with a tint), `finish`, and the camera effects; the game reads `finish` and checkpoints from the scene, so a level needs no game code (see `scenes/mountain-run.txt`, built by `tools/make_mountain_run.py`).
+3. **A way to check a level can be finished**: `stunt-yard --verify-ai --level=N [--from=X] [--wait=N]` rides it with a simple automatic rider, reports where it gets stuck and saves pictures. Running it from several start timings found real problems that a single ride hid: a jump with 20 cells to spare, a pit too wide, climbs the heavier bike could not make, and a floating mountain that fell onto the track.
+4. **Performance on big levels**: only the visible part is drawn; quiet areas sleep; the overhang check now only looks around what is awake (Mountain Run: 114 ms spikes became 17 ms).
+
+Bugs the audit found and fixed (so they are not rediscovered): dirt turned to mud in a second, so ravine banks dissolved; the regional overhang check treated the edge of its box as ground, so a floating island of rock was judged and fell (regression test in `tests/sleep.rs`); the launcher ran a stale build.
+
+Still open: hand-play feedback on difficulty (jump sizes, the oil pit, the mud bog), a rider that falls off, sound, and a level editor for triggers and layers.

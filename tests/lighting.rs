@@ -202,3 +202,33 @@ fn a_trigger_moves_the_sun_and_finish_reports_the_end() {
     let line = s.triggers[0].to_line("ball");
     assert!(line.contains("sun 70 0.2 #ff8040 1") && line.contains("finish"), "{line}");
 }
+
+#[test]
+fn a_trigger_turns_dusk_into_night_sky_tint_and_all() {
+    let m = mats();
+    let mut s = sim(&m, &format!("{ROOM}sky #3060c0 #e0a070\nlighting 0.8 #ffd0a0\nbody circle iron 20 20 3\nname ball\ntrigger 0 30 120 20 by ball : sky #000010 #101830 1 ; lighting 0.2 1 #6080ff\n"));
+    for _ in 0..200 {
+        s.step(&m);
+        if s.triggers[0].fired {
+            break;
+        }
+    }
+    assert!(s.triggers[0].fired);
+    for _ in 0..61 {
+        s.step(&m);
+    }
+    let (top, bottom, _) = s.backdrop.sky.unwrap();
+    assert!(top[2] < 30 && bottom[2] < 60, "the sky went dark: {top:?} {bottom:?}");
+    assert_eq!(s.lighting.ambient_color, [0x60, 0x80, 0xff], "and the light turned moonlight blue");
+    assert!((s.lighting.ambient - 0.2).abs() < 0.02);
+    let line = s.triggers[0].to_line("ball");
+    assert!(line.contains("sky #000010 #101830 1") && line.contains("lighting 0.2 1 #6080ff"), "{line}");
+    // Saved mid-fade, it's saved as where it's heading.
+    let mut s2 = sim(&m, &format!("{ROOM}sky #3060c0 #e0a070\n"));
+    s2.backdrop.sky_to([0, 0, 16], [16, 24, 48], 5.0);
+    for _ in 0..30 {
+        s2.step(&m);
+    }
+    let text = scene::save(&s2.snapshot(), &m);
+    assert!(text.contains("sky #000010 #101830"), "{text}");
+}

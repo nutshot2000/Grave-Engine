@@ -1024,19 +1024,19 @@ rect air 4733 584 1 55
 rect air 4734 584 1 55
 rect rock 4060 580 640 4
 rect iron 4100 584 2 4
-light 4101 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4101 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4190 584 2 4
-light 4191 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4191 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4280 584 2 4
-light 4281 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4281 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4370 584 2 4
-light 4371 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4371 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4460 584 2 4
-light 4461 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4461 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4550 584 2 4
-light 4551 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4551 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect iron 4640 584 2 4
-light 4641 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+light 4641 590 120 strength 2.4 color #ffcf8a flicker 0.2 cone 90 75
 rect wood 4060 580 640 2    # ceiling boards
 rect air 4396 568 22 4
 rect gunpowder 4400 572 14 8   # charges in a niche above the tunnel
@@ -1226,25 +1226,26 @@ wheel frame front-wheel spring 7 damping 2.5 travel 2 motor 10 strength 12 drive
 follow frame zoom 3
 upright frame strength 70 air 0.15 heavy 1.6   # trials handling: heavier, lean to rotate in the air
 # Its headlight and tail light ride along with it
-light 70.5 683.7 120 strength 1.8 color #fff0d0 cone 0 22 on frame
+light 70.5 683.7 210 strength 2.6 color #fff0d0 cone 0 28 on frame
+light 61.5 680.7 38 strength 0.9 color #ffe8c0 on frame     # a soft glow round the bike so it never vanishes
 light 45.5 685.7 14 strength 1.2 color #ff3020 on frame
 # Messages, checkpoints, light changes and events along the way
 trigger 260 0 40 760 by frame : message JUMP THE FENCE
 trigger 520 0 40 760 by frame : checkpoint 540 683 ; score 300 ; message THE CLIMB — lean forward on the steep bits
 trigger 1500 0 40 760 by frame : checkpoint 1520 482 ; score 400 ; message STEEPER — mind the crevasse bridge
-trigger 1700 0 40 760 by frame : sun 68 0.7 #ff8a50 8 ; lighting 0.5 8
+trigger 1700 0 40 760 by frame : sun 68 0.7 #ff8a50 8 ; lighting 0.5 8 #e0b8c8 ; sky #1a2250 #b0604a 8
 trigger 2200 0 40 760 by frame : checkpoint 2220 324 ; score 500 ; message THE SUMMIT — snow and ice, easy on the gas
 trigger 2420 0 40 760 by frame : message FROZEN POND — no grip, carry your speed
-trigger 2600 0 40 760 by frame : sun 74 0.35 #c86a5a 10 ; lighting 0.3 10
+trigger 2600 0 40 760 by frame : sun 74 0.35 #c86a5a 10 ; lighting 0.3 10 #a8a8d8 ; sky #101a42 #5a3a52 10
 trigger 2895 0 20 760 by frame : message SEND IT! ; slowmo 0.35 1.4 ; zoom 1.25 1.6
 trigger 3200 0 40 760 by frame : checkpoint 3220 453 ; score 800 ; message NIGHT FALLS — the forest is burning
-trigger 3200 0 40 760 by frame : sun 60 0.18 #8090c0 6 ; lighting 0.16 6
+trigger 3200 0 40 760 by frame : sun 60 0.22 #8090c0 6 ; lighting 0.2 6 #7088c8 ; sky #060a22 #1c2a52 6
 trigger 3380 0 20 760 by frame : heat rect 3612 640 44 10 700 ; message FIRE UNDER THE BRIDGE — keep your speed!
 trigger 4000 0 40 760 by frame : checkpoint 4020 626 ; score 600 ; message THE MINE — lights out
-trigger 4030 0 40 760 by frame : lighting 0.04 1.5
+trigger 4030 0 40 760 by frame : lighting 0.1 1.5
 trigger 4590 0 20 760 by frame : heat rect 4400 572 14 8 900 ; shake 5 ; message THE ROOF IS COMING DOWN — GO GO GO!
 trigger 4700 0 40 760 by frame : checkpoint 4720 626 ; score 600 ; message THE QUARRY — smash on through
-trigger 4700 0 40 760 by frame : lighting 0.14 2
+trigger 4700 0 40 760 by frame : lighting 0.2 2
 trigger 4990 0 20 760 by frame : heat rect 5176 684 34 4 400 ; message OIL FIRE — FULL RUN-UP!
 trigger 5300 0 40 760 by frame : checkpoint 5320 643 ; score 400 ; message HOME STRAIGHT
 trigger 5470 0 20 760 by frame : finish ; heat rect 5532 596 4 4 900 ; heat rect 5582 596 4 4 900 ; zoom 1.2 2

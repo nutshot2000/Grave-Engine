@@ -76,6 +76,8 @@ pub struct Backdrop {
     /// Sky gradient (top, bottom) and stars. None = the plain background.
     pub sky: Option<([u8; 3], [u8; 3], bool)>,
     pub layers: Vec<Layer>,
+    /// The sky changing colour: (to top, to bottom, frames left). A sunset.
+    pub sky_fade: Option<([u8; 3], [u8; 3], u32)>,
     /// The scene's folder: pictures named relative to it are found there
     /// (the names are kept as written, so saved scenes stay portable).
     pub dir: Option<std::path::PathBuf>,
@@ -135,6 +137,36 @@ impl Backdrop {
 
     pub fn is_empty(&self) -> bool {
         self.sky.is_none() && self.layers.is_empty()
+    }
+
+    /// Fade the sky to these colours over `seconds` (0 = at once); stars
+    /// stay as they are.
+    pub fn sky_to(&mut self, top: [u8; 3], bottom: [u8; 3], seconds: f32) {
+        let frames = (seconds * 60.0).round() as u32;
+        match self.sky.as_mut() {
+            Some(_) if frames > 0 => self.sky_fade = Some((top, bottom, frames)),
+            Some(sky) => {
+                sky.0 = top;
+                sky.1 = bottom;
+                self.sky_fade = None;
+            }
+            None => {
+                self.sky = Some((top, bottom, false));
+                self.sky_fade = None;
+            }
+        }
+    }
+
+    /// One simulation frame.
+    pub fn step(&mut self) {
+        if let (Some((top, bottom, left)), Some(sky)) = (self.sky_fade, self.sky.as_mut()) {
+            let k = 1.0 / left.max(1) as f32;
+            for c in 0..3 {
+                sky.0[c] = (sky.0[c] as f32 + (top[c] as f32 - sky.0[c] as f32) * k).round() as u8;
+                sky.1[c] = (sky.1[c] as f32 + (bottom[c] as f32 - sky.1[c] as f32) * k).round() as u8;
+            }
+            self.sky_fade = (left > 1).then_some((top, bottom, left - 1));
+        }
     }
 
     /// Read one scene line (`sky ...` or `layer ...`). Ok(false) = not ours.
@@ -211,7 +243,10 @@ impl Backdrop {
             return String::new();
         }
         let mut s = String::from("\n# Backdrop (far to near)\n");
-        if let Some((t, b, stars)) = self.sky {
+        if let Some((mut t, mut b, stars)) = self.sky {
+            if let Some((ft, fb, _)) = self.sky_fade {
+                (t, b) = (ft, fb); // saved as where it's heading
+            }
             s += &format!("sky {} {}{}\n", hex(t), hex(b), if stars { " stars" } else { "" });
         }
         for l in &self.layers {

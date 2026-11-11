@@ -362,7 +362,9 @@ light 26 22 30 cone 0 25 on bike                          # a headlight that rid
   sun's angle, strength and colour, and every lamp (reach, strength, colour,
   flicker, beam direction and width, remove). **Right-click → 💡 Put a lamp here**
   adds one (on an object, it rides along). Undo works.
-- Triggers fade the lights: `lighting 0.05 2` (to nearly dark over 2 seconds).
+- Triggers change the mood over time, no code: `lighting 0.05 2 #7088c8` (to nearly
+  dark over 2 seconds, with a moonlight tint), `sun 74 0.3 #c86a5a 10` (the sun sinks and
+  reddens over 10 seconds), `sky #060a22 #1c2a52 6` (the sky goes from dusk to night).
 
 ## Backgrounds with depth
 

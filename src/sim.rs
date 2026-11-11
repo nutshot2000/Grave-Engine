@@ -111,6 +111,7 @@ impl Sim {
         }
         self.camera.step();
         self.lighting.step();
+        self.backdrop.step();
         if !self.instances.is_empty() {
             // A damaged copy has gone its own way: it's no longer linked to
             // its template (editing the template mustn't heal it).
@@ -162,7 +163,7 @@ impl Sim {
             };
             let inside = who.is_some();
             if inside && !t.occupied {
-                t.fire(&mut self.world, &mut self.events, &mut self.camera, &mut self.lighting, who);
+                t.fire(&mut self.world, &mut self.events, &mut self.camera, &mut self.lighting, &mut self.backdrop, who);
                 t.fired = true;
             }
             t.occupied = inside;
