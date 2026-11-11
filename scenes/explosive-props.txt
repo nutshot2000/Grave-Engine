@@ -1,0 +1,7 @@
+# Reusable workshop props. Heat them in the editor to test ignition.
+size 180 100
+seed 42
+fill air
+rect stone 0 88 180 12
+asset ../assets/workshop/tnt_box.asset 52 68 as crate
+asset ../assets/workshop/explosive_barrel.asset 128 64 as barrel
