@@ -16,6 +16,11 @@ pub struct Sim {
     /// How close the following camera is (times closer than showing the
     /// whole world). 0 = the editor decides.
     pub zoom: f32,
+    /// Level triggers (see trigger.rs), what they did since the game last
+    /// looked (`events`, drain them), and the last checkpoint reached.
+    pub triggers: Vec<crate::trigger::Trigger>,
+    pub events: Vec<crate::trigger::Event>,
+    pub checkpoint: Option<(f32, f32)>,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -33,6 +38,9 @@ pub struct Snapshot {
     pub zoom: f32,
     /// Objects with a balance assist: (number N+1 in `bodies`, strength).
     pub upright: Vec<(u64, f32)>,
+    /// Triggers (`by` an object = number N+1) and the last checkpoint.
+    pub triggers: Vec<crate::trigger::Trigger>,
+    pub checkpoint: Option<(f32, f32)>,
     /// Characters (the player).
     pub actors: Vec<crate::physics::ActorSpec>,
 }
@@ -40,7 +48,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), actors: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, actors: Vec::new() }
     }
 }
 
@@ -53,7 +61,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0 };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -87,6 +95,9 @@ impl Sim {
     pub fn step(&mut self, mats: &Materials) {
         self.world.step(mats);
         self.physics.update(&mut self.world, mats);
+        if !self.triggers.is_empty() {
+            self.run_triggers();
+        }
         if !self.instances.is_empty() {
             // A damaged copy has gone its own way: it's no longer linked to
             // its template (editing the template mustn't heal it).
@@ -101,6 +112,43 @@ impl Sim {
         if let Some(id) = self.follow {
             if self.physics.spec_of(&self.world, id).is_none() {
                 self.follow = None;
+            }
+        }
+    }
+
+    /// Set off triggers that something has entered.
+    fn run_triggers(&mut self) {
+        use crate::trigger::By;
+        let bodies: Vec<(u64, (f32, f32))> = self.physics.ids().into_iter().filter_map(|id| Some((id, self.physics.centre(id)?))).collect();
+        let actors: Vec<(f32, f32)> = self.physics.actor_status().iter().map(|a| (a.x, a.y)).collect();
+        for t in self.triggers.iter_mut() {
+            if t.fired && !t.repeat {
+                continue;
+            }
+            let inside = match t.by {
+                By::Object(id) => bodies.iter().any(|(b, p)| *b == id && t.contains(p.0, p.1)),
+                By::Player => actors.iter().any(|p| t.contains(p.0, p.1)),
+                By::Any => bodies.iter().any(|(_, p)| t.contains(p.0, p.1)) || actors.iter().any(|p| t.contains(p.0, p.1)),
+            };
+            if inside && !t.occupied {
+                t.fire(&mut self.world, &mut self.events);
+                t.fired = true;
+            }
+            t.occupied = inside;
+        }
+        for e in &self.events {
+            if let crate::trigger::Event::Checkpoint(x, y) = e {
+                self.checkpoint = Some((*x, *y));
+            }
+        }
+    }
+
+    /// Mark once-only triggers left of `x` as already done (coming back at
+    /// a checkpoint further along: the fuses behind you stay lit... or not).
+    pub fn skip_triggers_before(&mut self, x: f32) {
+        for t in self.triggers.iter_mut() {
+            if t.x + t.w <= x {
+                t.fired = true;
             }
         }
     }
@@ -134,14 +182,25 @@ impl Sim {
                 world.make_air(i);
             }
         }
-        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, actors }
+        let triggers = self
+            .triggers
+            .iter()
+            .filter_map(|t| {
+                let mut t = t.clone();
+                if let crate::trigger::By::Object(id) = t.by {
+                    t.by = crate::trigger::By::Object(index(id)?);
+                }
+                Some(t)
+            })
+            .collect();
+        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let world = snap.world.clone();
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {
@@ -156,6 +215,16 @@ impl Sim {
             sim.physics.add_actor(&mut sim.world, mats, a.clone());
         }
         sim.follow = snap.follow.filter(|&n| n > 0).and_then(|n| new_ids.get(n as usize - 1).copied().flatten());
+        for t in &snap.triggers {
+            let mut t = t.clone();
+            if let crate::trigger::By::Object(n) = t.by {
+                match (n > 0).then(|| new_ids.get(n as usize - 1).copied().flatten()).flatten() {
+                    Some(id) => t.by = crate::trigger::By::Object(id),
+                    None => continue,
+                }
+            }
+            sim.triggers.push(t);
+        }
         for &(n, strength) in &snap.upright {
             if let Some(id) = (n > 0).then(|| new_ids.get(n as usize - 1).copied().flatten()).flatten() {
                 sim.physics.set_upright(id, strength);

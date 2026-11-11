@@ -5,12 +5,13 @@ use std::time::Instant;
 
 const STAGES: [(f32,&str,u32); 9] = [(410.,"BURNING SCRAPYARD",500),(1000.,"DUNE CLIMB",750),(1340.,"THE BOG",500),(1660.,"DEMOLITION LEAP",800),(1960.,"TIMBER CROSSING",500),(2400.,"ICE DESCENT",500),(2850.,"LAVA ESCAPE",1000),(3200.,"LAST DUNE",750),(3480.,"EXPLOSIVE FINALE",1000)];
 const SIGNS: [(f32,&str);9] = [(170.,"JUMP THE BURNING WRECK"),(440.,"SAND HILLS / KEEP MOMENTUM"),(850.,"BRAKE DOWNHILL / LOW GANTRY"),(1150.,"DEEP MUD / POWER THROUGH"),(1400.,"JUMP / CHARGES BEHIND YOU"),(1750.,"TIMBER BRIDGE"),(2190.,"ICE / EASY ON THE BRAKES"),(2550.,"LAVA GAP / FULL RUN-UP"),(3210.,"FINAL DEMOLITION")];
-struct Cue { x:f32, cx:i32, cy:i32, radius:i32, heat:f32, label:String, fired:bool }
 const FINISH:f32=3520.;
 
 struct Part { id:u64, name:String }
 
-struct Game { checkpoint:f32, cues:Vec<Cue>, surface:String, parts:Vec<Part>, crashed:bool, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: [bool;9], cam_x:f32, cam_y:f32, cam_width:f32 }
+// Fuses, checkpoints and their messages are engine triggers in the scene
+// (`trigger ... by frame : ...`); the game reacts to `sim.events`.
+struct Game { checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: [bool;9], cam_x:f32, cam_y:f32, cam_width:f32 }
 impl Game {
  fn new() -> Self {
   let mats=Materials::load_dir("materials");
@@ -24,10 +25,7 @@ impl Game {
    Part{id:ids[i+1],name:v[0].into()}
   }).collect();
   assert!(parts.iter().any(|p|p.name=="frame"),"missing bike frame");
-  let cues=std::fs::read_to_string("scenes/stunt-yard-events.txt").expect("course cues").lines().filter(|l|!l.starts_with('#')&&!l.trim().is_empty()).map(|l|{
-   let v:Vec<_>=l.split_whitespace().collect();Cue{x:v[0].parse().unwrap(),cx:v[1].parse().unwrap(),cy:v[2].parse().unwrap(),radius:v[3].parse().unwrap(),heat:v[4].parse().unwrap(),label:v[5..].join(" "),fired:false}
-  }).collect();
-  Self {checkpoint:0.,cues,surface:String::new(),parts,crashed:false,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE".into(),started:false,best:0,score:0,gates:[false;9],cam_x:110.,cam_y:100.,cam_width:220.}
+  Self {checkpoint:0.,surface:String::new(),parts,crashed:false,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE".into(),started:false,best:0,score:0,gates:[false;9],cam_x:110.,cam_y:100.,cam_width:220.}
  }
  fn update_zoom(&mut self,dt:f32)->f32 {
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs());
@@ -52,7 +50,8 @@ impl Game {
    let x=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap()).unwrap().x;
    for p in &self.parts {self.sim.physics.edit(&mut self.sim.world,&self.mats,p.id,|b|b.x+=checkpoint-x);}
    self.checkpoint=checkpoint;self.score=score;self.gates=gates;self.cam_x=checkpoint+40.;
-   for cue in &mut self.cues {cue.fired=cue.x<checkpoint;}
+   // Fuses and checkpoints behind the restart point stay done.
+   self.sim.skip_triggers_before(checkpoint);
    self.state="CHECKPOINT — back on the bike".into();
   }
  }
@@ -94,9 +93,12 @@ impl Game {
    return true;
   }}false
  }
- fn trigger_cues(&mut self,x:f32) {
-  for cue in &mut self.cues {if !cue.fired && x>=cue.x {
-   self.sim.world.heat_circle(cue.cx,cue.cy,cue.radius,cue.heat);cue.fired=true;self.state=cue.label.clone();
+ // What the scene's triggers did this frame.
+ fn read_events(&mut self) {
+  for e in std::mem::take(&mut self.sim.events) {match e {
+   grave_engine::trigger::Event::Message(m)=>self.state=m,
+   grave_engine::trigger::Event::Checkpoint(x,_)=>if x>self.checkpoint {self.checkpoint=x;},
+   grave_engine::trigger::Event::Score(n)=>self.score=(self.score as i64+n).max(0) as u32,
   }}
  }
  fn tick(&mut self, throttle:f32, lean:f32) {
@@ -109,8 +111,7 @@ impl Game {
   if wheels_attached<2 {self.crashed=true;self.state="CUT! Wheel attachment failed — R for a new take".into();return;}
   let Some(b)=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)) else {self.state="CUT! Bike destroyed — R to retry".into();self.crashed=true;return};
   if self.helmet_blocked(&b) {self.crashed=true;self.state="CUT! Rider hit scenery — R for checkpoint".into();return;}
-  for cp in [410.,1340.,1960.,2880.] {if b.x>cp+25. && self.checkpoint<cp {self.checkpoint=cp;}}
-  self.trigger_cues(b.x);
+  self.read_events();
   for (i,(x,name,points)) in STAGES.iter().enumerate() {if !self.gates[i] && b.x>*x {self.gates[i]=true;self.score+=points;self.state=format!("{name} — cleared!");}}
   if b.angle.cos()<0.0 && b.y>180. {self.state="CUT! Crashed — R to retry".into();self.crashed=true;}
   if b.x>FINISH {self.score+=3000u32.saturating_sub(self.frame/3);self.best=self.best.max(self.score);self.state="THAT'S A WRAP! Course complete — BACKSPACE for another run".into();self.started=false;}
@@ -223,7 +224,7 @@ mod tests {
    if g.frame%240==0 {let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();println!("frame {} x {} speed {}",g.frame,b.x,b.vx);if (b.x-previous).abs()<2. {break;}previous=b.x;}
   }
   assert!(g.state.starts_with("THAT'S A WRAP"),"{}",g.state);
-  assert_eq!(g.gates,[true;9]);assert!(g.score>=1000);assert!(g.cues.iter().all(|c|c.fired));
+  assert_eq!(g.gates,[true;9]);assert!(g.score>=1000);assert!(g.sim.triggers.iter().all(|t|t.fired),"every fuse and checkpoint went off");
   g.retry();assert_eq!(g.score,0);assert_eq!(g.frame,0);assert_eq!(g.gates,[false;9]);assert!(g.best>=1000);
  }
  #[test]
@@ -275,13 +276,16 @@ mod tests {
  fn passage_cues_detonate_actual_gunpowder_once() {
   let mut g=Game::new();let powder=g.mats.id("gunpowder").unwrap();
   let before=g.sim.world.mat.iter().filter(|m|**m==powder).count();
-  g.trigger_cues(1534.);assert!(!g.cues[1].fired);
-  g.trigger_cues(1535.);assert!(g.cues[1].fired);
-  let i=g.sim.world.idx(1508,205);let temp=g.sim.world.temp[i];
-  g.trigger_cues(1536.);assert_eq!(g.sim.world.temp[i],temp);
-  g.sim.world.step(&g.mats);
-  assert!(!g.sim.world.blasts.is_empty(),"charge must generate engine blasts");
+  let fuse=|g:&Game|g.sim.triggers.iter().find(|t|t.x==1535.).unwrap().fired;
+  let move_to=|g:&mut Game,x:f32|{let dx=x-g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap().x;for p in &g.parts {g.sim.physics.edit(&mut g.sim.world,&g.mats,p.id,|b|{b.x+=dx;b.vx=0.;});}};
+  move_to(&mut g,1525.);g.sim.step(&g.mats);assert!(!fuse(&g),"not yet");
+  move_to(&mut g,1540.);g.sim.step(&g.mats);assert!(fuse(&g),"the bike reached the fuse trigger");
+  g.read_events();assert_eq!(g.state,"DEMOLITION CHARGE!");
+  let i=g.sim.world.idx(1508,205);
+  let mut blew=false;for _ in 0..3 {g.sim.step(&g.mats);blew|=!g.sim.world.blasts.is_empty();}
+  assert!(blew||g.sim.world.mat.iter().filter(|m|**m==powder).count()<before,"charge must generate engine blasts");
   assert!(g.sim.world.mat.iter().filter(|m|**m==powder).count()<before);
+  let _=i;
   grave_engine::headless::shot_with_actors(&g.sim.world,&g.mats,&mut g.renderer,&[],Some((1430,100,240,160)),std::path::Path::new("shots/wreck-blast.png"),4,false).unwrap();
  }
  #[test]
@@ -290,7 +294,8 @@ mod tests {
   g.retry_checkpoint();
   assert!(!g.crashed);assert_eq!(g.score,1250);assert!(g.gates[1]);
   assert_eq!(g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap().x,1340.);
-  assert!(g.cues[0].fired && !g.cues[1].fired);
+  let fired=|x:f32|g.sim.triggers.iter().find(|t|t.x==x).unwrap().fired;
+  assert!(fired(190.) && !fired(1535.),"fuses behind the checkpoint stay done, ones ahead don't");
   for _ in 0..30 {g.drive(1.,0.,false);}assert!(!g.crashed);
  }
 

@@ -80,6 +80,9 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** |
 | `src/material.rs` | material files, ids, **your settings** layered over defaults (`my_settings/`) |
 | `src/physics.rs` | rigid objects (Rapier 2D): read back, collapse, terrain colliders, joints, impacts, explosions, bounce pads, one-way powder |
+| `src/physics/vehicle.rs` | vehicle controls: brakes, rolling resistance (material key), balance assist (`upright`) and lean, `wheel_contact` |
+| `src/trigger.rs` | triggers: scene boxes that fire actions (heat, message, checkpoint, score) when something enters; `Sim::events` |
+| `src/bin/stunt-yard.rs` | **Stunt Yard / Wreck Run**, the stunt-bike game built on the engine (`Play-Stunt-Yard.cmd`); course from `tools/make_stunt_course.py`; docs in `docs/` |
 | `src/physics/actor.rs` | characters (the player): movement, swimming, breathing, health, death, animation choice, body cells |
 | `src/sim.rs` | `Sim` = world + physics + template links + camera follow; `Snapshot` for reset/undo/rewind/save |
 | `src/scene.rs` | scene text format: load and save (format reference at the top of the file) |
@@ -158,7 +161,12 @@ Key ideas:
   `turbulence`, `ambient`, `fill`, `rect`, `circle`, `line`, `heat`,
   `legend` + `grid`, `body`, `object FILE x y [scale S] [static] [material M]`,
   `place TEMPLATE x y [angle A] [material M] [flip]`, `name`, joints
-  (`hinge`, `wheel`, `weld`, `rope`), `follow`, `player x y [look L] [zoom Z]`.
+  (`hinge`, `wheel`, `weld`, `rope`, optional `break KN`), `follow`,
+  `upright NAME strength S` (balance assist), `player x y [look L] [zoom Z]`,
+  level shapes `slope`, `hill`, `curve`, `poly` (filled below, optional
+  `to Y` and `cover MAT DEPTH`), `anchor x y w h` (pinned scenery), and
+  `trigger X Y W H [by NAME|player|any] [repeat] : heat circle|rect ... ;
+  message TEXT ; checkpoint [X Y] ; score N`.
   Full reference at the top of `src/scene.rs`. Shapes outside the world are
   clipped; sizes are capped (agents' typos can't hang the engine).
 - **Templates:** `templates/NAME.txt`, a tiny scene whose first object is the template.
@@ -172,6 +180,20 @@ Key ideas:
   list, materials, size, centre, template; or the scenery material, or
   empty space). The picture is a close-up with the object outlined in
   yellow and a red pin at the spot. The editor reloads ticks live.
+
+## The game project: Stunt Yard / Wreck Run
+
+The owner and their agents are building a stunt-bike game (`src/bin/stunt-yard.rs`,
+`Play-Stunt-Yard.cmd`, docs in `docs/WRECK-RUN.md` and
+`docs/STUNT-YARD-FEEDBACK.md`) **to find out what the engine lacks, then fix
+it in the engine**. Rule: when the game needs something general, build it in
+the engine (with a test and docs) and make the game use it, rather than
+writing more game-only code. Done so far from its wish list: vehicle
+controls (brakes, rolling resistance, balance), level shapes and anchors,
+triggers and checkpoints. Next on the list: a physical rider and ragdoll,
+sound, active simulation regions, regression scenes, contact inspector.
+`cargo test --release --bin stunt-yard` runs its 9 tests (~1 minute;
+includes riding the whole course).
 
 ## Workflows
 

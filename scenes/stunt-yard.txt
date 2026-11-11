@@ -324,3 +324,13 @@ body rect wood 2860 193 1 17
 depth 0.01
 body rect wood 3450 193 1 17
 depth 0.01
+# Fuses lit as the bike approaches
+trigger 190 0 60 260 by frame : heat circle 280 196 20 820 ; message TYRE FIRE — CLEAR THE WRECK
+trigger 1535 0 60 260 by frame : heat circle 1508 205 8 1220 ; message DEMOLITION CHARGE!
+trigger 2530 0 60 260 by frame : heat circle 2676 192 24 920 ; message BURNING BRIDGE — KEEP YOUR SPEED
+trigger 3340 0 60 260 by frame : heat circle 3312 207 10 1220 ; message FINAL CHARGE!
+# Checkpoints: crash after one and you come back to it
+trigger 435 0 60 260 by frame : checkpoint 410 200 ; message CHECKPOINT 41m
+trigger 1365 0 60 260 by frame : checkpoint 1340 200 ; message CHECKPOINT 134m
+trigger 1985 0 60 260 by frame : checkpoint 1960 200 ; message CHECKPOINT 196m
+trigger 2905 0 60 260 by frame : checkpoint 2880 200 ; message CHECKPOINT 288m

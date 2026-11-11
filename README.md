@@ -391,6 +391,24 @@ The tests check the core rules: heat spreads, wood catches fire past its thresho
 (and only when it touches air), water freezes and boils, lava plus water makes stone
 and steam, and scenes save and load correctly.
 
+## Vehicles, level shapes and triggers
+
+Built for the stunt-bike game (Stunt Yard / Wreck Run: `Play-Stunt-Yard.cmd`),
+usable in any game:
+
+- **Vehicles:** wheels with `drive` motors go with the throttle; **brakes**
+  lock the wheels, so stopping depends on real grip (hard on stone, a slide
+  on ice, nothing in mid-air). Materials have a `rolling_resistance` (sand
+  and mud slow you down). `upright NAME strength 60` keeps a vehicle
+  balanced, and lean tips it for jumps.
+- **Level shapes** (each filled solid underneath): `slope stone 170 210 255
+  178` (ramp), `hill sandstone 440 690 38 210 cover sand 5` (smooth hill with
+  a sand top), `curve ...`, `poly ...` (any shape). `anchor x y w h` pins
+  scenery so it never collapses.
+- **Triggers:** `trigger X Y W H by bike : heat circle 1508 205 8 1200 ;
+  message DEMOLITION CHARGE!` lights a fuse when the bike gets there;
+  `... : checkpoint X Y`, `score N`. No code needed.
+
 ## Known limits
 
 - Wood grain always runs the same way, even along horizontal beams.

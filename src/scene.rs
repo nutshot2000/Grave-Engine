@@ -19,6 +19,10 @@
 //! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
+//!
+//! # Triggers: a box that does things when something enters (see trigger.rs)
+//! trigger 1535 150 10 60 by bike : heat circle 1508 205 8 1200 ; message DEMOLITION CHARGE!
+//! trigger 1340 100 10 120 by bike : checkpoint ; score 500
 //! heat circle 120 250 6 900    # set temperature (°C) in a circle
 //! heat rect 0 0 10 10 -40      # ...or in a rectangle
 //! legend . air                 # grid characters
@@ -77,6 +81,8 @@ pub struct Loaded {
     pub follow: Option<(usize, f32)>,
     /// Objects kept upright by a balance assist: (object number, strength).
     pub upright: Vec<(usize, f32)>,
+    /// Triggers (`by` an object = its number N+1, like joints).
+    pub triggers: Vec<crate::trigger::Trigger>,
     /// Characters (the player), and how close the camera follows them.
     pub actors: Vec<crate::physics::ActorSpec>,
     pub player_zoom: f32,
@@ -156,6 +162,18 @@ impl Loaded {
         }
         if self.player_zoom > 0.0 {
             sim.zoom = self.player_zoom;
+        }
+        for mut t in self.triggers {
+            if let crate::trigger::By::Object(n) = t.by {
+                match ids.get(n as usize - 1).copied().flatten() {
+                    Some(id) => t.by = crate::trigger::By::Object(id),
+                    None => {
+                        problems.push("scene: a trigger's object is missing".into());
+                        continue;
+                    }
+                }
+            }
+            sim.triggers.push(t);
         }
         for (n, strength) in self.upright {
             if let Some(id) = ids.get(n).copied().flatten() {
@@ -238,6 +256,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut joints: Vec<PendingJoint> = Vec::new();
     let mut follow: Option<(usize, f32)> = None;
     let mut upright: Vec<(usize, f32)> = Vec::new();
+    let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -410,6 +429,27 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     Ok((id, v)) => {
                         let pts: Vec<(f32, f32)> = v.chunks(2).map(|c| (c[0], c[1])).collect();
                         fill_poly(ensure(&mut world, mats), mats, &pts, id);
+                    }
+                    Err(e) => err(e),
+                }
+            }
+            "trigger" => {
+                let (head, actions) = line.split_once(':').unwrap_or((line, ""));
+                let head: Vec<&str> = head.split_whitespace().collect();
+                match crate::trigger::parse(&head, actions) {
+                    Ok((mut t, by)) => {
+                        t.by = match by.as_str() {
+                            "any" => crate::trigger::By::Any,
+                            "player" => crate::trigger::By::Player,
+                            name => match names.get(name) {
+                                Some(&n) => crate::trigger::By::Object(n as u64 + 1),
+                                None => {
+                                    err(format!("trigger: no object named `{name}` (name it before the trigger)"));
+                                    continue;
+                                }
+                            },
+                        };
+                        triggers.push(t);
                     }
                     Err(e) => err(e),
                 }
@@ -781,7 +821,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, actors, player_zoom }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -949,6 +989,10 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         named.insert(f);
     }
     named.extend(snap.upright.iter().map(|&(n, _)| n));
+    named.extend(snap.triggers.iter().filter_map(|t| match t.by {
+        crate::trigger::By::Object(n) => Some(n),
+        _ => None,
+    }));
     let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
@@ -1024,6 +1068,18 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     for &(n, strength) in &snap.upright {
         out.push_str(&format!("upright obj{n} strength {strength}\n"));
+    }
+    for t in &snap.triggers {
+        let by = match t.by {
+            crate::trigger::By::Any => "any".to_string(),
+            crate::trigger::By::Player => "player".to_string(),
+            crate::trigger::By::Object(n) => format!("obj{n}"),
+        };
+        out.push_str(&t.to_line(&by));
+        out.push('\n');
+    }
+    if let Some((x, y)) = snap.checkpoint {
+        out.push_str(&format!("# Last checkpoint reached: {x} {y}\n"));
     }
     for a in &snap.actors {
         let (x, y) = a.feet();

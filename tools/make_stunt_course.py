@@ -66,11 +66,13 @@ lines+=['body rect wood 1360 193 1 17','depth 0.01']
 lines+=(r/'assets/stunt-bike/physical-bike.txt').read_text(encoding='utf-8').splitlines()
 lines += ['body rect iron 1040 166 90 8','depth 0.08','name low_gantry','weld low_gantry ground at 1085 166']
 for x in [1680,1980,2860,3450]:lines += [f'body rect wood {x} 193 1 17','depth 0.01']
+# Level events are engine triggers (see src/trigger.rs): when the bike's
+# frame enters a box. Fuses heat real cells; the engine does the fire and
+# blasts. Boxes are wide so a fast bike can't skip past them in one frame.
+lines.append('# Fuses lit as the bike approaches')
+for x,cx,cy,rad,heat,label in [(190,280,196,20,820,'TYRE FIRE — CLEAR THE WRECK'),(1535,1508,205,8,1220,'DEMOLITION CHARGE!'),(2530,2676,192,24,920,'BURNING BRIDGE — KEEP YOUR SPEED'),(3340,3312,207,10,1220,'FINAL CHARGE!')]:
+ lines.append(f'trigger {x} 0 60 260 by frame : heat circle {cx} {cy} {rad} {heat} ; message {label}')
+lines.append('# Checkpoints: crash after one and you come back to it')
+for cp in [410,1340,1960,2880]:
+ lines.append(f'trigger {cp+25} 0 60 260 by frame : checkpoint {cp} 200 ; message CHECKPOINT {cp//10}m')
 (r/'scenes/stunt-yard.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
-# Proximity cues heat existing cells; the engine does all combustion and blasts.
-(r/'scenes/stunt-yard-events.txt').write_text('''# crossing-x heat-centre-x y radius temperature label
-190 280 196 20 800 TYRE FIRE — CLEAR THE WRECK
-1535 1508 205 8 1200 DEMOLITION CHARGE!
-2530 2676 192 24 900 BURNING BRIDGE — KEEP YOUR SPEED
-3340 3312 207 10 1200 FINAL CHARGE!
-''',encoding='utf-8')

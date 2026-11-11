@@ -43,6 +43,16 @@ Further engine improvements exposed by the build:
 - Add a general scene trigger/checkpoint system. This game's cue file only supports crossing an x position and applying heat once; it is not yet an engine-wide scripting system.
 
 
+## Engine update, 11 November 2026: Vehicles and Level Tools
+
+Done in the engine (each with tests; the game now uses them):
+
+1. **Vehicle contact and traction** (physics/vehicle.rs): brakes hold the drive wheels through their motors, so stopping comes from real tyre grip (hard on stone, a slide on ice, nothing in the air). `rolling_resistance` is a material key (sand 0.6, mud 1.4, water 0.3, gravel 0.3...), read from the cells the drive wheels touch. `upright NAME strength S` and `set_lean` replace the game's hand-written balance. The game's surface table, drag-based brakes and manual steering are gone.
+2. **Level-building toolkit**: `slope`, `hill`, `curve`, `poly` with `cover MAT DEPTH`, and `anchor` for pinned scenery. scenes/stunt-yard.txt went from 3,554 lines to 326.
+3. **Triggers and checkpoints** (trigger.rs): `trigger X Y W H by frame : heat circle ... ; message ... ; checkpoint X Y ; score N`. The four fuses and four checkpoints are scene data now; scenes/stunt-yard-events.txt is gone.
+
+Still to do from the list below: a physical rider and ragdoll (4), sound (5), active simulation regions (6), tuning scenes and an inspector for contact forces (7). Stage gates and scoring still live in the game (they could become `score` triggers once a jump can be judged on landing).
+
 ## Current verdict — 10 November 2026
 
 Grave Engine is a promising material-simulation engine with a distinctive strength: objects and terrain participate in the same physical world. Rubber tyres can burn, metal parts have mass, joints can fail, wood can collapse, and gunpowder can damage nearby structures. These interactions make it more interesting than a simple driving-game framework.

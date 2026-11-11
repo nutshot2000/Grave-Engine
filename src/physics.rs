@@ -403,6 +403,13 @@ impl Physics {
         self.run_id
     }
 
+    /// Where an object's centre is (cells), cheaply.
+    pub fn centre(&self, id: u64) -> Option<(f32, f32)> {
+        let n = self.find(id)?;
+        let t = self.set[self.bodies[n].handle].translation();
+        Some((t.x / CELL, t.y / CELL))
+    }
+
     pub fn body_count(&self) -> usize {
         self.bodies.len()
     }
