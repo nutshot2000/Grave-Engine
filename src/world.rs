@@ -570,7 +570,12 @@ impl World {
             let light = ((AIR_CARRIES - m.density) / AIR_CARRIES).clamp(0.0, 1.0);
             if light > 0.0 && f.y >= 0.0 {
                 let (u, v) = self.flow_at(f.x as i32, f.y as i32);
-                let k = 0.12 * light;
+                // Every flake is a little different (how fast it settles, when
+                // it sways), so snow drifts down in a haze, not in lines.
+                let me = f.shade as f32 / 255.0;
+                let k = 0.12 * light * (0.55 + 0.9 * me);
+                let sway = ((self.frame as f32) * (0.035 + 0.03 * me) + me * 40.0).sin() * 0.16 * light * light;
+                f.vx += sway * 0.12;
                 // Heavier flakes (snow) feel the wind far less than embers do:
                 // they come down, drifting, instead of streaming sideways.
                 f.vx += (u * 2.0 * light * light - f.vx) * k;

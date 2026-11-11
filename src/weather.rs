@@ -323,9 +323,9 @@ pub fn step(
         };
         let top = |k: u32| (y0 - 4.0 - rnd(frame, k, 5) * 12.0).max(0.5);
         // Snow: slow, carried sideways by the wind.
-        for k in 0..count(w.snow * width * 0.02, frame, 1) {
+        for k in 0..count(w.snow * width * 0.008, frame, 1) {
             let x = x0 + rnd(frame, k, 1) * width - wind_cells * 60.0 * 0.25;
-            spawn(world, id("snow"), x, top(k), wind_cells * 0.3, 0.3, Some(-5.0));
+            spawn(world, id("snow"), x, top(k), wind_cells * 0.3, 0.1 + 0.3 * rnd(frame, k, 8), Some(-5.0));
         }
         // Rain: fast, at a slant.
         for k in 0..count(w.rain * width * 0.03, frame, 2) {

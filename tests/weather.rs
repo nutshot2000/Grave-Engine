@@ -37,8 +37,8 @@ fn snow_builds_up_on_the_ground_and_on_ledges() {
     let snow = m.id("snow").unwrap();
     let on_shelf = (60..140).flat_map(|x| (60..70).map(move |y| (x, y))).filter(|&(x, y)| s.world.mat[s.world.idx(x, y)] == snow).count();
     println!("snow cells: {}, on the shelf: {on_shelf}", count(&s, &m, "snow"));
-    assert!(count(&s, &m, "snow") > 1500, "snow piles up");
-    assert!(on_shelf > 200, "and settles on the ledge: {on_shelf}");
+    assert!(count(&s, &m, "snow") > 600, "snow piles up");
+    assert!(on_shelf > 100, "and settles on the ledge: {on_shelf}");
     // Off means off: nothing more falls (what's in the air lands).
     s.weather.on = false;
     for _ in 0..800 {
