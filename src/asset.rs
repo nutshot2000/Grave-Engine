@@ -16,6 +16,7 @@ pub struct Part {
     pub name: String,
     pub cells: Vec<MatId>,
     pub paint: Vec<u32>,
+    pub layer: usize,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Weld {
@@ -33,6 +34,7 @@ pub struct Asset {
     pub depth: f32,
     pub pivot: (f32, f32),
     pub parts: Vec<Part>,
+    pub layers: Vec<String>,
     pub welds: Vec<Weld>,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -76,10 +78,12 @@ impl Asset {
             h,
             depth: 0.05,
             pivot: (w as f32 / 2., h as f32 / 2.),
+            layers: vec!["front".into()],
             parts: vec![Part {
                 name: "frame".into(),
                 cells: vec![AIR; w * h],
                 paint: vec![0; w * h],
+                layer: 0,
             }],
             welds: vec![],
         })
@@ -95,6 +99,7 @@ impl Asset {
             name: name.into(),
             cells: vec![AIR; self.w * self.h],
             paint: vec![0; self.w * self.h],
+            layer: 0,
         });
         Ok(self.parts.len() - 1)
     }
@@ -156,9 +161,10 @@ impl Asset {
             return;
         }
         let i = y as usize * self.w + x as usize;
+        let layer = self.parts[part].layer;
         if mat != AIR {
             for (k, p) in self.parts.iter_mut().enumerate() {
-                if k != part {
+                if k != part && p.layer == layer {
                     p.cells[i] = AIR;
                     p.paint[i] = 0;
                 }
@@ -182,7 +188,7 @@ impl Asset {
             if original == mat {
                 return;
             }
-            let composite = self.composite();
+            let composite = self.composite_layer(self.parts[part].layer);
             let mut q = VecDeque::from([a]);
             let mut seen = vec![false; self.w * self.h];
             while let Some((x, y)) = q.pop_front() {
@@ -375,6 +381,28 @@ impl Asset {
             }
         }
     }
+    pub fn composite_layer(&self, layer: usize) -> Vec<MatId> {
+        self.for_layer(layer).composite()
+    }
+    pub fn add_layer(&mut self, name: &str) -> Result<usize, String> {
+        if self.layers.len() >= 4 || !valid_name(name) || self.layers.iter().any(|n| n == name) {
+            return Err("Use a unique layer name; at most four layers.".into());
+        }
+        self.layers.push(name.into());
+        Ok(self.layers.len() - 1)
+    }
+    pub fn for_layer(&self, layer: usize) -> Self {
+        let mut a = self.clone();
+        a.parts.retain(|p| p.layer == layer);
+        let names: BTreeSet<_> = a.parts.iter().map(|p| p.name.clone()).collect();
+        a.welds
+            .retain(|j| names.contains(&j.a) && names.contains(&j.b));
+        for p in &mut a.parts {
+            p.layer = 0;
+        }
+        a.layers = vec!["front".into()];
+        a
+    }
     pub fn composite(&self) -> Vec<MatId> {
         let mut cells = vec![AIR; self.w * self.h];
         for p in &self.parts {
@@ -388,7 +416,7 @@ impl Asset {
     }
     pub fn validate(&self, mats: &Materials) -> Vec<String> {
         let mut out = vec![];
-        let mut owners = vec![false; self.w * self.h];
+        let mut owners = vec![false; self.w * self.h * self.layers.len().max(1)];
         let mut names = BTreeSet::new();
         if !valid_name(&self.name) {
             out.push("Asset name needs letters/numbers/-/_.".into());
@@ -400,7 +428,7 @@ impl Asset {
             if !valid_name(&p.name) || !names.insert(p.name.clone()) {
                 out.push(format!("Invalid or duplicate part name: {}", p.name));
             }
-            if p.cells.len() != owners.len() {
+            if p.layer >= self.layers.len() || p.cells.len() != self.w * self.h {
                 out.push(format!("{} has the wrong grid size", p.name));
                 continue;
             }
@@ -413,11 +441,11 @@ impl Asset {
                     break;
                 }
                 if *m != AIR {
-                    if owners[i] {
+                    if owners[p.layer * self.w * self.h + i] {
                         out.push("Two parts overlap. Each cell must belong to one part.".into());
                         break;
                     }
-                    owners[i] = true;
+                    owners[p.layer * self.w * self.h + i] = true;
                 }
             }
             let mut visited = vec![false; p.cells.len()];
@@ -459,6 +487,14 @@ impl Asset {
             }
         }
         for j in &self.welds {
+            if let (Some(a), Some(b)) = (
+                self.parts.iter().find(|p| p.name == j.a),
+                self.parts.iter().find(|p| p.name == j.b),
+            ) {
+                if a.layer != b.layer {
+                    out.push("Welds must join parts in the same depth layer".into());
+                }
+            }
             if j.a == j.b || !names.contains(&j.a) || !names.contains(&j.b) {
                 out.push(format!(
                     "Weld {} → {} has missing or identical parts",
@@ -476,7 +512,7 @@ impl Asset {
     pub fn bodies(&self, mats: &Materials, x: f32, y: f32) -> Vec<(String, BodySpec)> {
         self.parts
             .iter()
-            .filter(|p| p.cells.iter().any(|m| *m != AIR))
+            .filter(|p| p.layer == 0 && p.cells.iter().any(|m| *m != AIR))
             .map(|p| {
                 let cells: Vec<_> = p
                     .cells
@@ -508,8 +544,18 @@ impl Asset {
         x: f32,
         y: f32,
     ) -> Result<Vec<(String, u64)>, String> {
+        for z in 1..self.layers.len() {
+            let a = self.for_layer(z);
+            let layer = sim.ensure_layer(z, &self.layers[z], mats);
+            if a.parts.iter().any(|p| p.cells.iter().any(|m| *m != AIR)) {
+                a.instantiate(layer, mats, x, y)?;
+            }
+        }
         let specs = self.bodies(mats, x, y);
         if specs.is_empty() {
+            if self.layers.len() > 1 {
+                return Ok(Vec::new());
+            }
             return Err("Draw some material before placing this asset.".into());
         }
         let mut ids = vec![];
@@ -557,6 +603,9 @@ impl Asset {
             out.push_str(&format!("legend {ch} {}\n", mats.get(*m).name));
         }
         for p in &self.parts {
+            if self.layers.len() > 1 {
+                out.push_str(&format!("layer {}\n", self.layers[p.layer]));
+            }
             out.push_str(&format!("\npart {}\ngrid\n", p.name));
             for row in p.cells.chunks(self.w) {
                 for m in row {
@@ -589,6 +638,18 @@ impl Asset {
         out
     }
     pub fn scene_text(&self, mats: &Materials, x: f32, y: f32) -> String {
+        if self.layers.len() > 1 {
+            let mut out = self.for_layer(0).scene_text(mats, x, y);
+            for z in 1..self.layers.len() {
+                out.push_str(&format!(
+                    "plane {} {}\n{}endplane\n",
+                    z,
+                    self.layers[z],
+                    self.for_layer(z).scene_text(mats, x, y)
+                ));
+            }
+            return out;
+        }
         let mut out = String::from("fill air\n");
         let chars:Vec<_>="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%&*+=?@$~^!:;<>/|()[]{}-_,".chars().collect();
         let used: BTreeSet<_> = self
@@ -657,6 +718,7 @@ impl Asset {
         let mut asset: Option<Self> = None;
         let mut legend = BTreeMap::from([('.', AIR)]);
         let mut selected = 0;
+        let mut current_layer = 0;
         let mut first = true;
         let mut rows = text.lines().enumerate();
         while let Some((ln, raw)) = rows.next() {
@@ -703,6 +765,14 @@ impl Asset {
                 .as_mut()
                 .ok_or_else(|| err("start with: asset NAME WIDTH HEIGHT"))?;
             match v[0] {
+                "layer" => {
+                    let name = *v.get(1).ok_or_else(|| err("layer needs a name"))?;
+                    current_layer = if let Some(z) = a.layers.iter().position(|n| n == name) {
+                        z
+                    } else {
+                        a.add_layer(name)?
+                    };
+                }
                 "paint" => {
                     let (x, y) = (int(1)?, int(2)?);
                     let c = v
@@ -758,8 +828,10 @@ impl Asset {
                         a.rename_part(0, n)?;
                         selected = 0;
                         first = false;
+                        a.parts[selected].layer = current_layer;
                     } else {
                         selected = a.add_part(n)?;
+                        a.parts[selected].layer = current_layer;
                     }
                 }
                 "grid" => {
@@ -780,11 +852,9 @@ impl Asset {
                                 .ok_or_else(|| err("undefined grid character"))?;
                             if m != AIR {
                                 let i = y * a.w + x;
-                                if a.parts
-                                    .iter()
-                                    .enumerate()
-                                    .any(|(k, p)| k != selected && p.cells[i] != AIR)
-                                {
+                                if a.parts.iter().enumerate().any(|(k, p)| {
+                                    k != selected && p.layer == current_layer && p.cells[i] != AIR
+                                }) {
                                     return Err(err("parts overlap at the same cell"));
                                 }
                             }
@@ -801,6 +871,15 @@ impl Asset {
                         .id(v.get(1).ok_or_else(|| err("missing material"))?)
                         .ok_or_else(|| err("unknown material"))?;
                     match v[0] {
+                        "layer" => {
+                            let name = *v.get(1).ok_or_else(|| err("layer needs a name"))?;
+                            current_layer = if let Some(z) = a.layers.iter().position(|n| n == name)
+                            {
+                                z
+                            } else {
+                                a.add_layer(name)?
+                            };
+                        }
                         "fill" => a.draw(
                             selected,
                             Brush::Rectangle,
@@ -867,6 +946,12 @@ impl Asset {
             if j.a == j.b || !names.contains(j.a.as_str()) || !names.contains(j.b.as_str()) {
                 return Err("Weld references missing or identical parts.".into());
             }
+        }
+        if a.validate(mats)
+            .iter()
+            .any(|s| s.contains("same depth layer"))
+        {
+            return Err("Welds cannot cross depth layers".into());
         }
         Ok(a)
     }

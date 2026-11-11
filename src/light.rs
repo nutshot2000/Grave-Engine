@@ -34,6 +34,8 @@ pub struct Sun {
 /// A lamp.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Light {
+    /// False for a projected facade/fill light positioned in front of the 2D plane.
+    pub shadows: bool,
     /// Where (cells): in the world, or from the centre of the object it's
     /// `on` (in that object's own unturned frame).
     pub x: f32,
@@ -53,7 +55,7 @@ pub struct Light {
 
 impl Light {
     pub fn at(x: f32, y: f32, radius: f32) -> Light {
-        Light { x, y, radius, strength: 1.0, color: [255, 236, 200], cone: None, flicker: 0.0, on: None }
+        Light { shadows: true, x, y, radius, strength: 1.0, color: [255, 236, 200], cone: None, flicker: 0.0, on: None }
     }
 }
 
@@ -82,6 +84,7 @@ impl Default for Lighting {
 /// A lamp where it is right now (world cells, radians).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placed {
+    pub shadows: bool,
     pub x: f32,
     pub y: f32,
     pub radius: f32,
@@ -186,7 +189,7 @@ impl Lighting {
                 strength *= 1.0 - l.flicker.clamp(0.0, 1.0) * noise;
             }
             let cone = l.cone.map(|(d, w)| (d.to_radians() + turn, w.to_radians().max(0.01)));
-            out.push(Placed { x, y, radius: l.radius.max(1.0), strength, color: l.color, cone });
+            out.push(Placed { shadows: l.shadows, x, y, radius: l.radius.max(1.0), strength, color: l.color, cone });
         }
         out
     }
@@ -220,6 +223,7 @@ impl Lighting {
             if l.flicker > 0.0 {
                 s += &format!(" flicker {}", l.flicker);
             }
+            if !l.shadows {s += " unshadowed";}
             s += &extra;
             s.push('\n');
         }
@@ -386,7 +390,7 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
                     }
                 }
                 // (The lamp's own spot doesn't block it: a lamp on an object.)
-                if s >= 3 {
+                if s >= 3 && lamp.shadows {
                     let p = through(i);
                     t = [t[0] * p[0], t[1] * p[1], t[2] * p[2]];
                 }

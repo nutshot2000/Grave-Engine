@@ -19,6 +19,9 @@ pub struct Workshop {
     pub open: bool,
     pub asset: Asset,
     selected: usize,
+    active_layer: usize,
+    ghost_layers: bool,
+    preview_layer: Option<usize>,
     material: MatId,
     surface_paint: bool,
     paint_color: [u8; 3],
@@ -69,6 +72,9 @@ impl Workshop {
             open: false,
             asset,
             selected: 0,
+            active_layer: 0,
+            ghost_layers: false,
+            preview_layer: None,
             material: mats.id("wood").unwrap_or(AIR),
             surface_paint: false,
             paint_color: [195, 35, 30],
@@ -116,6 +122,8 @@ impl Workshop {
         self.selected = self.selected.min(self.asset.parts.len() - 1);
     }
     fn sync(&mut self) {
+        self.active_layer = self.asset.parts[self.selected.min(self.asset.parts.len() - 1)].layer;
+        self.preview_layer = None;
         self.name = self.asset.name.clone();
         self.width = self.asset.w;
         self.height = self.asset.h;
@@ -173,12 +181,33 @@ impl Workshop {
             &mut sim,
             mats,
             (if impact { 85. } else { 120. }) + self.asset.pivot.0 - self.asset.w as f32 / 2.,
-            65. + self.asset.pivot.1 - self.asset.h as f32 / 2.,
+            (if self.asset.h > 80 {
+                let last = self
+                    .asset
+                    .parts
+                    .iter()
+                    .flat_map(|p| p.cells.iter().enumerate())
+                    .filter(|(_, m)| **m != AIR)
+                    .map(|(i, _)| i / self.asset.w)
+                    .max()
+                    .unwrap_or(self.asset.h - 1);
+                159. - (last + 1) as f32 + self.asset.h as f32 / 2.
+            } else {
+                65.
+            }) + self.asset.pivot.1
+                - self.asset.h as f32 / 2.,
         ) {
             Ok(parts) => {
                 if impact {
                     for _ in 0..10 {
                         sim.step(mats);
+                    }
+                    for plane in &mut sim.layers {
+                        for id in plane.physics.ids() {
+                            plane
+                                .physics
+                                .set_velocity(id, self.impact_speed * 10., 0., 0.);
+                        }
                     }
                     for (_, id) in parts {
                         sim.physics
@@ -362,8 +391,74 @@ impl Workshop {
             self.changed();
         }
         ui.separator();
+        ui.strong("Depth layers — front to back");
+        let previous = self.active_layer;
+        egui::ComboBox::from_id_salt("asset_depth_layer")
+            .selected_text(&self.asset.layers[self.active_layer])
+            .show_ui(ui, |ui| {
+                for (z, name) in self.asset.layers.iter().enumerate() {
+                    ui.selectable_value(&mut self.active_layer, z, name);
+                }
+            });
+        if self.active_layer != previous {
+            if let Some(i) = self
+                .asset
+                .parts
+                .iter()
+                .position(|p| p.layer == self.active_layer)
+            {
+                self.selected = i;
+                self.part_name = self.asset.parts[i].name.clone();
+            } else if self.asset.parts.len() < 24 {
+                self.remember();
+                let name = format!(
+                    "layer_{}_part_{}",
+                    self.active_layer,
+                    self.asset.parts.len()
+                );
+                if let Ok(i) = self.asset.add_part(&name) {
+                    self.asset.parts[i].layer = self.active_layer;
+                    self.selected = i;
+                    self.part_name = name;
+                    self.changed();
+                }
+            } else {
+                self.active_layer = previous;
+            }
+        }
+        if ui
+            .add_enabled(
+                self.asset.layers.len() < 4 && self.asset.parts.len() < 24,
+                egui::Button::new("Add depth layer"),
+            )
+            .clicked()
+        {
+            self.remember();
+            let z = self.asset.layers.len();
+            let name = format!("interior_{z}");
+            match self.asset.add_layer(&name).and_then(|z| {
+                self.asset
+                    .add_part(&format!("layer_{z}_part"))
+                    .map(|i| (z, i))
+            }) {
+                Ok((z, i)) => {
+                    self.asset.parts[i].layer = z;
+                    self.selected = i;
+                    self.active_layer = z;
+                    self.part_name = self.asset.parts[i].name.clone();
+                    self.changed();
+                }
+                Err(e) => self.message = e,
+            }
+        }
+        ui.checkbox(&mut self.ghost_layers, "Ghost other layers on grid");
+        ui.label("Each layer has its own material cells. Heat crosses neighbouring layers. Weld within a layer.");
+        ui.separator();
         ui.strong("Named parts");
         for i in 0..self.asset.parts.len() {
+            if self.asset.parts[i].layer != self.active_layer {
+                continue;
+            }
             let count = self.asset.parts[i]
                 .cells
                 .iter()
@@ -405,6 +500,7 @@ impl Workshop {
                 self.remember();
                 match self.asset.add_part(&self.new_part) {
                     Ok(i) => {
+                        self.asset.parts[i].layer = self.active_layer;
                         self.selected = i;
                         self.changed();
                         self.sync();
@@ -558,13 +654,22 @@ impl Workshop {
         }
         if ui.button("Weld all nonempty parts").clicked() {
             self.remember();
-            self.asset.welds.clear();
+            let names: std::collections::BTreeSet<_> = self
+                .asset
+                .parts
+                .iter()
+                .filter(|p| p.layer == self.active_layer)
+                .map(|p| p.name.clone())
+                .collect();
+            self.asset
+                .welds
+                .retain(|j| !names.contains(&j.a) && !names.contains(&j.b));
             let indices: Vec<_> = self
                 .asset
                 .parts
                 .iter()
                 .enumerate()
-                .filter(|(_, p)| p.cells.iter().any(|m| *m != AIR))
+                .filter(|(_, p)| p.layer == self.active_layer && p.cells.iter().any(|m| *m != AIR))
                 .map(|(i, _)| i)
                 .collect();
             if let Some(root) = indices.first() {
@@ -658,25 +763,24 @@ impl Workshop {
                     for x in 0..self.asset.w {
                         let i = y * self.asset.w + x;
                         let selected = self.asset.parts[self.selected].cells[i];
-                        let cell = if selected != AIR {
-                            selected
+                        let owner = if selected != AIR {
+                            Some(&self.asset.parts[self.selected])
                         } else {
                             self.asset
                                 .parts
                                 .iter()
-                                .map(|p| p.cells[i])
-                                .find(|m| *m != AIR)
-                                .unwrap_or(AIR)
+                                .find(|p| p.layer == self.active_layer && p.cells[i] != AIR)
+                                .or_else(|| {
+                                    if self.ghost_layers {
+                                        self.asset.parts.iter().find(|p| p.cells[i] != AIR)
+                                    } else {
+                                        None
+                                    }
+                                })
                         };
-                        if cell != AIR {
-                            let paint = self
-                                .asset
-                                .parts
-                                .iter()
-                                .find(|p| p.cells[i] != AIR)
-                                .map_or(0, |p| p.paint[i]);
-                            let c = grave_engine::asset::paint_rgb(paint)
-                                .unwrap_or(mats.get(cell).color);
+                        if let Some(owner) = owner {
+                            let c = grave_engine::asset::paint_rgb(owner.paint[i])
+                                .unwrap_or(mats.get(owner.cells[i]).color);
                             let color = Color32::from_rgb(c[0], c[1], c[2]);
                             painter.rect_filled(
                                 Rect::from_min_size(
@@ -823,7 +927,9 @@ impl Workshop {
             Tool::Move => self.asset.move_part(self.selected, b.0 - a.0, b.1 - a.1),
             Tool::Pivot => self.asset.pivot = (b.0 as f32 + 0.5, b.1 as f32 + 0.5),
             Tool::Joint => {
-                if self.parent != self.child {
+                if self.parent != self.child
+                    && self.asset.parts[self.parent].layer == self.asset.parts[self.child].layer
+                {
                     self.asset.welds.push(Weld {
                         a: self.asset.parts[self.parent].name.clone(),
                         b: self.asset.parts[self.child].name.clone(),
@@ -842,6 +948,20 @@ impl Workshop {
     }
     fn preview(&mut self, ui: &mut egui::Ui, mats: &Materials, dt: f64, width: f32) {
         ui.strong("Real material preview / test bay");
+        if self.asset.layers.len() > 1 {
+            egui::ComboBox::from_id_salt("asset_preview_layer")
+                .selected_text(
+                    self.preview_layer
+                        .map(|z| self.asset.layers[z].as_str())
+                        .unwrap_or("All layers — outside view"),
+                )
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.preview_layer, None, "All layers — outside view");
+                    for (z, name) in self.asset.layers.iter().enumerate() {
+                        ui.selectable_value(&mut self.preview_layer, Some(z), name);
+                    }
+                });
+        }
         ui.label(egui::RichText::new("Tests use a copy. Your draft stays safe.").small());
         ui.horizontal_wrapped(|ui| {
             if ui.button("Drop").clicked() {
@@ -855,7 +975,16 @@ impl Workshop {
             if ui.button("Burn").clicked() {
                 self.rebuild_test(mats, false);
                 if let Some(s) = &mut self.test {
-                    s.world.heat_circle(
+                    let target = if let Some(z) = self.preview_layer {
+                        if z == 0 {
+                            &mut s.world
+                        } else {
+                            &mut s.layers[z - 1].world
+                        }
+                    } else {
+                        &mut s.world
+                    };
+                    target.heat_circle(
                         120,
                         65,
                         (self.asset.w.max(self.asset.h) as i32 / 2 + 5).min(95),
@@ -903,7 +1032,20 @@ impl Workshop {
         let (rect, response) = ui.allocate_exact_size(size, Sense::click());
         if let Some(s) = &mut self.test {
             self.renderer.light(s);
-            let rgba = self.renderer.draw(&s.world, mats, View { heat: self.heat });
+            if let Some(z) = self.preview_layer {
+                self.renderer
+                    .light(if z == 0 { s } else { &s.layers[z - 1] });
+            }
+            let world = if let Some(z) = self.preview_layer {
+                if z == 0 {
+                    &s.world
+                } else {
+                    &s.layers[z - 1].world
+                }
+            } else {
+                &s.world
+            };
+            let rgba = self.renderer.draw(world, mats, View { heat: self.heat });
             let img = egui::ColorImage::from_rgba_unmultiplied([240, 180], rgba);
             if let Some(t) = &mut self.texture {
                 t.set(img, TextureOptions::NEAREST);
@@ -924,7 +1066,16 @@ impl Workshop {
                 if let Some(p) = response.interact_pointer_pos() {
                     let x = ((p.x - rect.left()) / rect.width() * 240.) as i32;
                     let y = ((p.y - rect.top()) / rect.height() * 180.) as i32;
-                    s.world.heat_circle(x, y, 5, 900.);
+                    let target = if let Some(z) = self.preview_layer {
+                        if z == 0 {
+                            &mut s.world
+                        } else {
+                            &mut s.layers[z - 1].world
+                        }
+                    } else {
+                        &mut s.world
+                    };
+                    target.heat_circle(x, y, 5, 900.);
                     self.running = true;
                 }
             }

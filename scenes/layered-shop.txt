@@ -1,0 +1,7 @@
+# Burn the outside to expose the aligned, independently simulated shop interior.
+size 220 155
+seed 23
+fill air
+sky #718d9c #ced0ba
+rect stone 0 140 220 15
+asset ../assets/workshop/layered_shop.asset 110 140 as shop

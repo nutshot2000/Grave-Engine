@@ -8,6 +8,9 @@ use std::collections::HashMap;
 
 pub struct Sim {
     pub world: World,
+    /// Independent aligned depth planes, nearest first. Plane zero is this world.
+    pub layers: Vec<Sim>,
+    pub layer_names: Vec<String>,
     pub physics: Physics,
     /// Objects that are copies of a template, by object id.
     pub instances: HashMap<u64, Instance>,
@@ -43,6 +46,8 @@ pub struct Sim {
 #[derive(Clone)]
 pub struct Snapshot {
     pub world: World,
+    pub layers: Vec<Snapshot>,
+    pub layer_names: Vec<String>,
     pub bodies: Vec<BodySpec>,
     /// For each object in `bodies`: which template it's a copy of, if any.
     pub instances: Vec<Option<Instance>>,
@@ -68,7 +73,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), actors: Vec::new() }
+        Snapshot { world, layers: Vec::new(), layer_names: Vec::new(), bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), actors: Vec::new() }
     }
 }
 
@@ -81,7 +86,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -90,6 +95,27 @@ impl Sim {
         sim
     }
 
+    /// Add an aligned plane, inheriting fixed terrain but never front objects.
+    pub fn ensure_layer(&mut self, index: usize, name: &str, mats: &Materials) -> &mut Sim {
+        assert!((1..=3).contains(&index), "depth plane must be 1..=3");
+        while self.layers.len() < index {
+            let mut world=self.world.clone();
+            for i in 0..world.mat.len() { if world.is_owned(i) {world.make_air(i);} }
+            world.flying.clear(); world.blasts.clear();
+            self.layers.push(Sim::new(world,Vec::new(),mats));
+            self.layer_names.push(format!("interior_{}",self.layers.len()));
+        }
+        self.layer_names[index-1]=name.to_string();
+        &mut self.layers[index-1]
+    }
+    fn step_layers(&mut self, mats: &Materials) {
+        let mut previous=&mut self.world;
+        for layer in &mut self.layers {
+            crate::layers::exchange_heat(previous,&mut layer.world,mats);
+            previous=&mut layer.world;
+        }
+        for layer in &mut self.layers { layer.step(mats); }
+    }
     /// Reconnect joints numbered by position (1 = first object, 0 = ground).
     pub fn add_joints(&mut self, joints: &[JointSpec], ids: &[Option<u64>], mats: &Materials) {
         let id_of = |n: u64| -> Option<u64> {
@@ -113,6 +139,7 @@ impl Sim {
 
     /// One frame: cells first (heat, fire, flowing), then objects.
     pub fn step(&mut self, mats: &Materials) {
+        self.step_layers(mats);
         self.world.step(mats);
         // Weather falls (and lightning strikes, adding blasts) before the
         // objects feel this frame's physics.
@@ -146,6 +173,7 @@ impl Sim {
     /// the whole world wakes up so sleeping areas follow the new settings
     /// (a lower melting point, a solid made into powder...).
     pub fn materials_changed(&mut self, mats: &Materials) {
+        for layer in &mut self.layers { layer.materials_changed(mats); }
         self.physics.materials_changed(mats);
         self.world.wake_all();
     }
@@ -242,7 +270,7 @@ impl Sim {
             Some(id) => index(id).map(|n| l.on = Some(n)).is_some(),
             None => true,
         });
-        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, backdrop: self.backdrop.clone(), weather: self.weather.clone(), actors }
+        Snapshot { world, layers: self.layers.iter_mut().map(|l| l.snapshot()).collect(), layer_names: self.layer_names.clone(), bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, backdrop: self.backdrop.clone(), weather: self.weather.clone(), actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
@@ -250,7 +278,9 @@ impl Sim {
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let mut world = snap.world.clone();
         world.wake_all(); // restored: look at everything again
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None };
+        sim.layers = snap.layers.iter().map(|s| Sim::restore(s,mats)).collect();
+        sim.layer_names = snap.layer_names.clone();
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {

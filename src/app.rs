@@ -3614,4 +3614,20 @@ player 50 100
         assert_eq!(h.state().workshop.asset,before);
     }
 
+    #[test]
+    fn workshop_can_add_and_paint_a_depth_layer_without_overwriting_the_front() {
+        let mut h=editor();h.get_by_label("Asset workshop").click();h.run_steps(3);
+        let before=h.state().workshop.asset.clone();
+        h.get_by_label("Add depth layer").click();h.run_steps(3);
+        assert_eq!(h.state().workshop.asset.layers.len(),2);
+        let grid=h.get_by_label("Material asset drawing grid").rect();
+        drag(&mut h,grid.min+Vec2::splat(2.5*9.),grid.min+Vec2::splat(4.5*9.));
+        let a=&h.state().workshop.asset;
+        assert_eq!(a.parts[..before.parts.len()],before.parts);
+        assert!(a.parts.last().unwrap().cells.iter().any(|v|*v!=AIR));
+        assert_eq!(a.parts.last().unwrap().layer,1);
+        h.get_by_label("Reset preview").click();h.run_steps(3);
+        assert_eq!(h.state().workshop.asset.layers.len(),2);
+    }
+
 }

@@ -85,6 +85,8 @@ use std::path::Path;
 
 /// Everything a scene file describes.
 pub struct Loaded {
+    /// Index, name, complete plane and whether it inherits fixed front terrain.
+    pub layers: Vec<(usize,String,Loaded,bool)>,
     pub world: World,
     /// Objects (rigid bodies) to add.
     pub bodies: Vec<BodySpec>,
@@ -219,6 +221,17 @@ impl Loaded {
             sim.follow = ids.get(n).copied().flatten();
             sim.zoom = zoom;
         }
+        for (index,name,mut loaded,inherit) in self.layers {
+            if inherit {
+                loaded.world=sim.world.clone();
+                for i in 0..loaded.world.mat.len() {if loaded.world.is_owned(i) {loaded.world.make_air(i);}}
+                loaded.world.flying.clear();loaded.world.blasts.clear();
+            }
+            if (loaded.world.w,loaded.world.h)!=(sim.world.w,sim.world.h) {problems.push("Depth plane dimensions must match the front world".into());continue;}
+            let (child,p)=loaded.into_sim(mats); problems.extend(p);
+            sim.ensure_layer(index,&name,mats);
+            sim.layers[index-1]=child;
+        }
         let problems_out = problems;
         for (i, t) in self.heated {
             if sim.world.is_owned(i) {
@@ -285,7 +298,33 @@ pub fn load(text: &str, mats: &Materials, base: Option<&Path>) -> Loaded {
 
 /// `load`, optionally refusing `place` (template files can't place templates).
 pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bool) -> Loaded {
+    load_depth(text,mats,base,allow_place,0)
+}
+fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bool, depth: usize) -> Loaded {
     let mut problems = Vec::new();
+    let mut layers: Vec<(usize,String,Loaded,bool)>=Vec::new();
+    let mut plain=String::new();
+    let mut source=text.lines();
+    while let Some(line)=source.next() {
+        let w: Vec<_>=line.split_whitespace().collect();
+        if w.first()==Some(&"plane") && w.len()>=2 {
+            let mut block=String::new();let mut ended=false;let mut nesting=0;
+            for row in source.by_ref() {
+                if row.trim_start().starts_with("plane ") {nesting+=1;}
+                if row.trim()=="endplane" {if nesting==0 {ended=true;break;} nesting-=1;}
+                block.push_str(row);block.push('\n');
+            }
+            if !ended {problems.push("Depth plane is missing endplane".into());}
+            if depth>0 {problems.push("Depth planes cannot be nested".into());continue;}
+            if let Some(index)=w.get(1).and_then(|s|s.parse::<usize>().ok()).filter(|z|(1..=3).contains(z)) {
+                let name=w.get(2).copied().unwrap_or("interior");
+                if !crate::asset::valid_name(name) {problems.push("Invalid plane name".into());continue;}
+                let child=load_depth(&block,mats,base,allow_place,depth+1);
+                merge_plane(&mut layers,index,name.to_string(),child,false);
+            } else {problems.push("Use plane 1..3 NAME followed by endplane".into());}
+        } else {plain.push_str(line);plain.push('\n');}
+    }
+    let text=plain.as_str();
     let mut bodies: Vec<BodySpec> = Vec::new();
     let mut placed: Vec<(usize, crate::template::Instance)> = Vec::new();
     let mut names: HashMap<String, usize> = HashMap::new();
@@ -433,6 +472,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                                 }
                                 i += 3;
                             }
+                            "unshadowed" => {l.shadows=false;i+=1;}
                             "flicker" => {
                                 l.flicker = num(i + 1).unwrap_or(0.3).clamp(0.0, 1.0);
                                 i += 2;
@@ -920,7 +960,12 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 match crate::asset::Asset::load_file(&path,mats){
                     Err(e)=>err(format!("asset {file}: {e}")),
                     Ok(asset)=>{
-                        let loaded=load_part(&asset.scene_text(mats,pos[0],pos[1]),mats,None,false);
+                        for z in 1..asset.layers.len() {
+                            let plane=asset.for_layer(z);
+                            let child=load_depth(&plane.scene_text(mats,pos[0],pos[1]),mats,None,false,1);
+                            merge_plane(&mut layers,z,asset.layers[z].clone(),child,true);
+                        }
+                        let loaded=load_part(&asset.for_layer(0).scene_text(mats,pos[0],pos[1]),mats,None,false);
                         if !loaded.problems.is_empty(){for p in loaded.problems{err(p);}continue;}
                         let offset=bodies.len();
                         let prefix=words.iter().position(|w|*w=="as").and_then(|i|words.get(i+1)).map(|s|s.to_string()).unwrap_or_else(||format!("{}_{}",asset.name,offset));
@@ -1000,7 +1045,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
+    Loaded { layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1295,5 +1340,17 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         out.push_str(&line);
         out.push('\n');
     }
+    for (i,layer) in snap.layers.iter().enumerate() {
+        let name=snap.layer_names.get(i).map(String::as_str).unwrap_or("interior");
+        out.push_str(&format!("\nplane {} {}\n{}endplane\n",i+1,name,save(layer,mats)));
+    }
     out
+}
+
+fn merge_plane(layers: &mut Vec<(usize,String,Loaded,bool)>, index: usize, name: String, mut child: Loaded, inherit: bool) {
+    if let Some((_,_,target,_))=layers.iter_mut().find(|(z,_,_,_)|*z==index) {
+        let offset=target.bodies.len();
+        for j in &mut child.joints {if let End::Object(n)=&mut j.a {*n+=offset;} if let End::Object(n)=&mut j.b {*n+=offset;}}
+        target.bodies.extend(child.bodies);target.instances.extend(child.instances);target.joints.extend(child.joints);target.problems.extend(child.problems);
+    } else {layers.push((index,name,child,inherit));layers.sort_by_key(|(z,_,_,_)|*z);}
 }

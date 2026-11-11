@@ -26,3 +26,4 @@ pub use sim::Sim;
 pub use world::World;
 
 pub mod asset;
+pub mod layers;
