@@ -266,6 +266,8 @@ pub struct Physics {
     /// upright by a balance assist (id -> strength). See vehicle.rs.
     brake: f32,
     lean: f32,
+    /// Lean as the rider actually has it (eases towards `lean`).
+    lean_now: f32,
     upright: std::collections::BTreeMap<u64, vehicle::Balance>,
     /// Hard hits on metal objects this frame, and how far each object has
     /// bent so far (radians). See bend.rs.
@@ -374,6 +376,7 @@ impl Physics {
             actors: Vec::new(),
             brake: 0.0,
             lean: 0.0,
+            lean_now: 0.0,
             upright: Default::default(),
             bend_hits: Vec::new(),
             bent: HashMap::new(),

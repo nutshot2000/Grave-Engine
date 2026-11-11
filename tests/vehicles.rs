@@ -235,6 +235,7 @@ fn trials_balance_lets_you_rotate_in_the_air_and_heavy_falls_faster() {
     let (trials_turn, _) = lean_in_air("air 0");
     let (_, heavy_fall) = lean_in_air("air 0 heavy 1.6");
     println!("turned: arcade {arcade_turn}, trials {trials_turn}; fell: normal {arcade_fall}, heavy {heavy_fall}");
-    assert!(trials_turn > arcade_turn * 3.0 && trials_turn > 0.5, "leaning spins a trials bike in the air");
+    assert!(trials_turn > arcade_turn * 2.0 && trials_turn > 0.5, "leaning spins a trials bike in the air");
+    assert!(trials_turn < 2.0, "but not twitchily: half a second of lean is well under a half flip ({trials_turn})");
     assert!(heavy_fall > arcade_fall * 1.4, "a heavy bike falls faster");
 }

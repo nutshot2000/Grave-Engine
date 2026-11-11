@@ -50,10 +50,17 @@ impl Default for Balance {
 
 /// Trials style: how hard it's pulled to the slope on the ground, how much
 /// leaning shifts the weight there, and how fast leaning spins it in the air.
-const TRIALS_GROUND_LEVEL: f32 = 50.0;
-const TRIALS_GROUND_LEAN: f32 = 40.0;
-const TRIALS_AIR_LEAN: f32 = 75.0;
-const TRIALS_MAX_SPIN: f32 = 7.0;
+const TRIALS_GROUND_LEVEL: f32 = 70.0;
+const TRIALS_GROUND_LEAN: f32 = 30.0;
+const TRIALS_AIR_LEAN: f32 = 32.0;
+const TRIALS_MAX_SPIN: f32 = 4.5;
+/// How quickly lean follows the keys (per frame): keys are all-or-nothing,
+/// a rider shifts their weight over a moment (about a quarter second).
+const TRIALS_LEAN_EASE: f32 = 0.09;
+/// Spin damping in the air when you let go of lean (so it stops turning),
+/// and while leaning.
+const TRIALS_AIR_HOLD: f32 = 7.0;
+const TRIALS_AIR_FREE: f32 = 1.0;
 
 /// How hard brakes can hold a wheel, compared with its drive motor.
 const BRAKE_STRENGTH: f32 = 6.0;
@@ -393,6 +400,9 @@ impl Physics {
         }
         // Balance assists (with lean), and heavier vehicles.
         let lean = self.lean;
+        // Trials riders shift their weight over a moment, not instantly.
+        self.lean_now += (self.lean - self.lean_now) * TRIALS_LEAN_EASE;
+        let eased = self.lean_now;
         let mut heavy: std::collections::HashMap<u64, f32> = Default::default();
         for (id, bal) in self.upright() {
             let Some(n) = self.find(id) else {
@@ -420,9 +430,11 @@ impl Physics {
             let push = if grounded {
                 let target = slope.unwrap_or(angle);
                 let off = (angle - target + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                -off * TRIALS_GROUND_LEVEL * k - spin * 12.0 * k + lean * TRIALS_GROUND_LEAN * k
+                -off * TRIALS_GROUND_LEVEL * k - spin * 18.0 * k + eased * TRIALS_GROUND_LEAN * k
             } else {
-                -angle * 60.0 * bal.air * k - spin * 1.5 * k + lean * TRIALS_AIR_LEAN * k
+                // Let go of lean and it stops turning; hold it and it turns steadily.
+                let hold = TRIALS_AIR_FREE + (TRIALS_AIR_HOLD - TRIALS_AIR_FREE) * (1.0 - eased.abs());
+                -angle * 60.0 * bal.air * k - spin * hold * k + eased * TRIALS_AIR_LEAN * k
             };
             self.steer_rotation(id, push.clamp(-140.0 * k, 140.0 * k), TRIALS_MAX_SPIN);
         }
