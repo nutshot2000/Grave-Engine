@@ -9,6 +9,9 @@ use grave_engine::{
 use std::time::Instant;
 #[path = "../voidrunner/audio.rs"]
 mod audio;
+#[path = "../voidrunner/encounters.rs"]
+mod encounters;
+use encounters::{BossRig, PartRole};
 struct Fx {
     x: f32,
     y: f32,
@@ -32,8 +35,8 @@ struct Notice {
     text: String,
 }
 
-const W: usize = 480;
-const H: usize = 270;
+const W: usize = 640;
+const H: usize = 360;
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Kind {
     Player,
@@ -43,6 +46,10 @@ enum Kind {
     Frigate,
     Asteroid,
     Boss,
+    ShieldDrone,
+    RepairDrone,
+    Bomber,
+    Mine,
 }
 impl Kind {
     fn parse(s: &str) -> Self {
@@ -53,12 +60,20 @@ impl Kind {
             "frigate" => Self::Frigate,
             "asteroid" => Self::Asteroid,
             "boss" => Self::Boss,
+            "shield" => Self::ShieldDrone,
+            "repair" => Self::RepairDrone,
+            "bomber" => Self::Bomber,
+            "mine" => Self::Mine,
+            "convoy" => Self::Tanker,
+            "siege" => Self::Frigate,
+            "hunters" => Self::Interceptor,
             _ => panic!("unknown ship {s}"),
         }
     }
 }
 struct Ship {
     id: u64,
+    squad: u32,
     kind: Kind,
     born: u32,
     base_y: f32,
@@ -82,11 +97,14 @@ struct Pickup {
     weapon: bool,
 }
 struct Wave {
+    squad: bool,
     at: u32,
     kind: Kind,
     y: f32,
 }
 struct Game {
+    boss: Option<BossRig>,
+    next_squad: u32,
     audio: Option<audio::Audio>,
     sounds: Vec<usize>,
     fx: Vec<Fx>,
@@ -140,13 +158,16 @@ impl Game {
             .map(|l| {
                 let a: Vec<_> = l.split_whitespace().collect();
                 Wave {
+                    squad: matches!(a[1], "convoy" | "siege" | "hunters"),
                     at: (a[0].parse::<f32>().unwrap() * 60.) as u32,
                     kind: Kind::parse(a[1]),
-                    y: a[2].parse().unwrap(),
+                    y: a[2].parse::<f32>().unwrap() * H as f32 / 270.,
                 }
             })
             .collect();
         let mut g = Self {
+            boss: None,
+            next_squad: 1,
             audio: None,
             sounds: vec![],
             fx: vec![],
@@ -201,7 +222,10 @@ impl Game {
             Kind::Tanker => (64, 38),
             Kind::Frigate => (70, 48),
             Kind::Asteroid => (30, 30),
-            Kind::Boss => (112, 116),
+            Kind::Boss => (124, 154),
+            Kind::ShieldDrone | Kind::RepairDrone => (26, 24),
+            Kind::Bomber => (48, 32),
+            Kind::Mine => (12, 12),
         };
         let mut grid = vec![None; w * h];
         let mut paint = |name: &str, x0: usize, y0: usize, x1: usize, y1: usize| {
@@ -274,36 +298,54 @@ impl Game {
                 }
             }
         } else if kind == Kind::Boss {
-            paint("steel", 15, 8, 100, 108);
-            paint("aluminium", 8, 28, 105, 88);
-            paint("plastic", 24, 12, 90, 20);
-            paint("plastic", 24, 96, 90, 104);
-            paint("steel", 0, 20, 40, 31);
-            paint("steel", 0, 85, 40, 96);
-            paint("copper", 5, 22, 28, 26);
-            paint("copper", 5, 90, 28, 94);
-            paint("iron", 23, 37, 90, 79);
-            paint("steel", 45, 44, 62, 72);
-            // Thin glass inspection port over the leading side of the core.
-            paint("glass", 23, 48, 45, 68);
-            paint("copper", 25, 43, 43, 47);
-            paint("copper", 25, 69, 43, 73);
-            for yy in (14..106).step_by(9) {
-                paint("copper", 93, yy, 108, yy + 3);
+            // Physical carrier frame with open bays for independently destructible modules.
+            paint("steel", 44, 2, 116, 10);
+            paint("steel", 44, 144, 116, 152);
+            paint("steel", 110, 8, 121, 146);
+            paint("iron", 91, 8, 108, 146);
+            paint("aluminium", 58, 12, 87, 24);
+            paint("aluminium", 58, 130, 87, 142);
+            paint("steel", 47, 30, 96, 36);
+            paint("steel", 47, 118, 96, 124);
+            paint("copper", 94, 18, 100, 136);
+            // Native metal arms visibly mount each module to the carrier spine.
+            for yy in [12, 142] {
+                paint("steel", 20, yy - 2, 108, yy + 2);
+                paint("copper", 21, yy, 105, yy + 1);
             }
-            for yy in [5, 100] {
-                paint("steel", 60, yy, 110, yy + 11);
-                paint("glass", 94, yy + 2, 108, yy + 6);
+            for yy in [47, 107] {
+                paint("steel", 15, yy - 2, 108, yy + 2);
             }
-            for yy in (32..85).step_by(8) {
-                paint("steel", 64, yy, 93, yy + 2);
+            for yy in [22, 132] {
+                paint("copper", 68, yy - 2, 108, yy + 2);
             }
-            // Three separated real explosive reactors: one blast cannot clear all three.
-            for yy in [20, 58, 96] {
-                paint("copper", 14, yy - 6, 51, yy + 6);
-                paint("glass", 14, yy - 4, 46, yy + 4);
-                paint("gunpowder", 46, yy, 47, yy + 1);
+            paint("steel", 79, 75, 108, 79);
+            for yy in (16..143).step_by(12) {
+                paint("glass", 112, yy, 119, yy + 4);
             }
+        } else if matches!(kind, Kind::ShieldDrone | Kind::RepairDrone | Kind::Mine) {
+            for yy in 2..h - 2 {
+                for xx in 2..w - 2 {
+                    let dx = (xx as f32 - w as f32 / 2.).abs();
+                    let dy = (yy as f32 - h as f32 / 2.).abs();
+                    if dx + dy < w as f32 * 0.55 {
+                        paint("aluminium", xx, yy, xx + 1, yy + 1);
+                    }
+                }
+            }
+            paint("copper", w / 2 - 3, h / 2 - 5, w / 2 + 3, h / 2 + 5);
+            paint(
+                if kind == Kind::RepairDrone {
+                    "ceramic"
+                } else {
+                    "glass"
+                },
+                w / 2 - 5,
+                h / 2 - 3,
+                w / 2 + 5,
+                h / 2 + 3,
+            );
+            paint("gunpowder", w / 2, h / 2, w / 2 + 1, h / 2 + 1);
         } else {
             let player = kind == Kind::Player;
             // Pointed central fuselage and swept wings.
@@ -374,6 +416,7 @@ impl Game {
             },
         );
         self.ships.push(Ship {
+            squad: 0,
             id,
             kind,
             born: self.frame,
@@ -382,6 +425,9 @@ impl Game {
             fuel,
             dead: false,
         });
+        if kind == Kind::Boss {
+            self.assemble_boss(id, x, y);
+        }
         id
     }
     fn player(&self) -> Option<(u64, f32, f32)> {
@@ -537,9 +583,11 @@ impl Game {
         let targets: Vec<_> = self
             .ships
             .iter()
-            .filter(|s| s.kind != Kind::Player && s.kind != Kind::Asteroid && !s.dead)
+            .filter(|s| !matches!(s.kind, Kind::Player | Kind::Asteroid | Kind::Boss) && !s.dead)
             .filter_map(|s| self.sim.physics.centre(s.id))
             .collect();
+        let mut targets = targets;
+        targets.extend(self.boss_targets());
         for (x, y) in targets {
             self.impact((x - 8.) as i32, y as i32, 8);
         }
@@ -576,6 +624,11 @@ impl Game {
         self.flash *= 0.88;
         while self.next < self.waves.len() && self.frame >= self.waves[self.next].at {
             let (k, y) = (self.waves[self.next].kind, self.waves[self.next].y);
+            if self.waves[self.next].squad {
+                self.spawn_squad(k, y);
+                self.next += 1;
+                continue;
+            }
             if k == Kind::Boss {
                 // The carrier enters a fresh arena after the convoy, rather than overlapping
                 // old hot fragments at the right-hand spawn edge.
@@ -601,7 +654,7 @@ impl Game {
             self.spawn(
                 k,
                 if k == Kind::Boss {
-                    W as f32 - 60.
+                    W as f32 - 105.
                 } else {
                     W as f32 - 36.
                 },
@@ -642,27 +695,48 @@ impl Game {
         self.sim.physics.set_kinematic(pid, true, true);
         self.sim.physics.set_velocity(pid, vx, vy, 0.);
         if fire && self.fire_cd == 0 {
-            self.fire_cd = 7;
+            self.fire_cd = 5;
             self.sounds.push(0);
             self.burst(px + 22., py, 0, 2);
-            self.shoot(px + 23., py, 0., 410., true, 2);
+            let target = if self.boss_spawned {
+                self.boss_targets()
+                    .into_iter()
+                    .filter(|(_, y)| (y - py).abs() < 28.)
+                    .min_by(|a, b| (a.1 - py).abs().total_cmp(&(b.1 - py).abs()))
+            } else {
+                self.ships
+                    .iter()
+                    .filter(|s| !s.dead && s.kind != Kind::Player)
+                    .filter_map(|s| self.sim.physics.centre(s.id))
+                    .filter(|(x, y)| *x > px + 30. && (y - py).abs() < 22.)
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+            };
+            let aim = target.map_or(0., |(x, y)| (y - py).atan2(x - px).clamp(-0.16, 0.16));
+            self.shoot(px + 23., py - 2., aim, 620., true, 3);
+            self.shoot(px + 23., py + 2., aim, 620., true, 3);
             if self.weapon >= 2 {
-                self.shoot(px + 18., py - 7., -0.045, 400., true, 2);
-                self.shoot(px + 18., py + 7., 0.045, 400., true, 2);
+                self.shoot(px + 18., py - 7., -0.045, 600., true, 3);
+                self.shoot(px + 18., py + 7., 0.045, 600., true, 3);
             }
             if self.weapon >= 3 {
-                self.shoot(px + 16., py - 10., -0.13, 380., true, 2);
-                self.shoot(px + 16., py + 10., 0.13, 380., true, 2);
+                self.shoot(px + 16., py - 10., -0.13, 580., true, 3);
+                self.shoot(px + 16., py + 10., 0.13, 580., true, 3);
             }
         }
         if bomb {
             self.bomb();
         }
+        self.update_encounters(px, py);
         let mut enemy_fire = vec![];
         let mut charging = vec![];
         let reactors = self.remaining_reactors();
         for s in &self.ships {
-            if s.dead || s.kind == Kind::Player {
+            if s.dead
+                || matches!(
+                    s.kind,
+                    Kind::Player | Kind::Boss | Kind::RepairDrone | Kind::Mine
+                )
+            {
                 continue;
             }
             let Some((x, y)) = self.sim.physics.centre(s.id).or_else(|| {
@@ -675,7 +749,7 @@ impl Game {
                 continue;
             };
             let age = self.frame - s.born;
-            let (vx, vy) = match s.kind {
+            let (vx, vy) = self.formation_velocity(s).unwrap_or_else(|| match s.kind {
                 Kind::Boss => {
                     let ty = 135. + (age as f32 * 0.014).sin() * 42.;
                     ((385. - x) * 1.8, (ty - y) * 1.4)
@@ -684,8 +758,9 @@ impl Game {
                 Kind::Tanker => (-23., (s.base_y + (age as f32 * 0.018).sin() * 12. - y) * 2.),
                 Kind::Frigate => (-18., (s.base_y + (age as f32 * 0.014).sin() * 20. - y) * 2.),
                 Kind::Interceptor => (-66., (s.base_y + (age as f32 * 0.035).sin() * 28. - y) * 3.),
-                _ => (-44., (s.base_y + (age as f32 * 0.025).sin() * 20. - y) * 3.),
-            };
+                Kind::Bomber => (-25., (s.base_y + (age as f32 * 0.01).sin() * 20. - y) * 2.),
+                _ => (-63., (s.base_y + (age as f32 * 0.025).sin() * 20. - y) * 3.),
+            });
             self.sim.physics.set_velocity(
                 s.id,
                 vx,
@@ -767,7 +842,7 @@ impl Game {
                 let dy = py - l.y;
                 let along = dx * l.angle.cos() + dy * l.angle.sin();
                 let across = (dx * l.angle.sin() - dy * l.angle.cos()).abs();
-                if along > 0. && along < 520. && across < 6. {
+                if along > 0. && along < W as f32 + 20. && across < 6. {
                     beam_hit = true;
                 }
             }
@@ -812,14 +887,8 @@ impl Game {
                 if !shot.friendly && owner != Some(pid) {
                     continue;
                 }
-                if shot.friendly
-                    && self.ships.iter().any(|s| {
-                        s.kind == Kind::Boss
-                            && !s.dead
-                            && Some(s.id) == owner
-                            && self.boss_shielded(s.born)
-                    })
-                {
+                if shot.friendly && owner.is_some_and(|id| self.protected_target(id)) {
+                    self.burst(x, y, 4, 2);
                     hit = true;
                     break;
                 }
@@ -848,7 +917,8 @@ impl Game {
         let powder = self.mats.id("gunpowder").unwrap();
         let mut rewards = vec![];
         let mut deathfx = vec![];
-        let reactors_left = self.remaining_reactors();
+        self.read_boss_damage();
+        let boss_done = self.boss_defeated();
         for s in &mut self.ships {
             if s.dead {
                 continue;
@@ -858,7 +928,7 @@ impl Game {
                 continue;
             }
             let destroyed = if s.kind == Kind::Boss {
-                reactors_left == 0
+                boss_done
             } else {
                 b.as_ref().is_none_or(|b| {
                     b.cell_count() < s.cells / 3
@@ -979,6 +1049,11 @@ impl Game {
                 .iter()
                 .filter(|s| !s.dead)
                 .map(|s| s.id)
+                .chain(
+                    self.boss
+                        .iter()
+                        .flat_map(|b| b.parts.iter().filter(|p| !p.dead).map(|p| p.id)),
+                )
                 .collect();
             for id in self.sim.physics.ids() {
                 if let Some((x, y)) = self.sim.physics.centre(id) {
@@ -1054,24 +1129,30 @@ impl Game {
                 .filter(|f| f.mat == fuel)
                 .count()
     }
-    fn boss_shielded(&self, born: u32) -> bool {
-        let age = self.frame.saturating_sub(born);
-        age < 180 || age % 360 < 180
+    fn boss_shielded(&self, _born: u32) -> bool {
+        self.boss.as_ref().is_some_and(|b| {
+            b.parts
+                .iter()
+                .any(|p| !p.dead && p.role == PartRole::Generator)
+        })
     }
     fn stage(&self) -> (&str, &str) {
         match self.frame {
-            0..=1199 => ("01 / ORBITAL APPROACH", "INTERCEPT THE FUEL CONVOY"),
-            1200..=2699 => (
+            0..=899 => (
+                "01 / ORBITAL APPROACH",
+                "INTERCEPT THE CONVOY / WATCH FOR SHIELD ESCORTS",
+            ),
+            900..=1799 => (
                 "02 / DEBRIS BELT",
                 "CLEAR THE ASTEROIDS / WATCH THE INTERCEPTORS",
             ),
-            2700..=4799 => (
+            1800..=3839 => (
                 "03 / REFINERY ASSAULT",
                 "BREACH ARMOUR / IGNITE THE AMBER FUEL PORTS",
             ),
             _ => (
                 "04 / REACTOR CARRIER",
-                "WAIT FOR SHIELD TO DROP / DETONATE ALL THREE REACTORS",
+                "DISMANTLE THE CARRIER / TARGET MARKED MODULES",
             ),
         }
     }
@@ -1153,10 +1234,18 @@ impl eframe::App for Game {
         p.rect_filled(outer, 0., Color32::BLACK);
         let to = |x: f32, y: f32| Pos2::new(rect.left() + x * scale, rect.top() + y * scale);
         let t = self.frame as f32;
-        let sector = (self.frame / 1200).min(3);
+        let sector = if self.frame < 900 {
+            0
+        } else if self.frame < 1800 {
+            1
+        } else if self.frame < 3840 {
+            2
+        } else {
+            3
+        };
         p.rect_filled(rect, 0., Color32::from_rgb(5, 8, 20));
         // Distant nebula bands, planet and three independent star layers scroll forever.
-        for n in 0..28 {
+        for n in 0..(H / 10 + 1) {
             let y = n as f32 * 10.;
             let c = if sector == 2 {
                 Color32::from_rgb(12 + (n % 4) as u8, 10, 25)
@@ -1281,7 +1370,10 @@ impl eframe::App for Game {
             }
         }
         for l in &self.lasers {
-            let end = to(l.x + l.angle.cos() * 520., l.y + l.angle.sin() * 520.);
+            let end = to(
+                l.x + l.angle.cos() * (W as f32 + 20.),
+                l.y + l.angle.sin() * (W as f32 + 20.),
+            );
             if l.age < 55 {
                 let alpha = 80 + (l.age * 3).min(160) as u8;
                 p.line_segment(
@@ -1372,22 +1464,24 @@ impl eframe::App for Game {
                 Color32::WHITE,
             );
         }
+        self.draw_encounters(&p, rect, scale);
+        let hud = |x: f32, y: f32| to(x * W as f32 / 480., y * H as f32 / 270.);
         // Restrained HUD keeps the centre of the combat area clear.
         p.rect_filled(
-            Rect::from_min_max(to(0., 0.), to(W as f32, 19.)),
+            Rect::from_min_max(hud(0., 0.), hud(W as f32, 19.)),
             0.,
             Color32::from_rgba_unmultiplied(4, 8, 18, 225),
         );
         let font = egui::FontId::proportional(7. * scale);
         p.text(
-            to(8., 5.),
+            hud(8., 5.),
             egui::Align2::LEFT_TOP,
             "VOIDRUNNER / OPERATION CINDER",
             font.clone(),
             Color32::from_rgb(110, 215, 235),
         );
         p.text(
-            to(472., 5.),
+            hud(472., 5.),
             egui::Align2::RIGHT_TOP,
             format!(
                 "{:07}   LIVES {}   GUN {}   BOMBS {}",
@@ -1397,17 +1491,17 @@ impl eframe::App for Game {
             Color32::WHITE,
         );
         p.rect_filled(
-            Rect::from_min_max(to(8., 21.), to(88., 24.)),
+            Rect::from_min_max(hud(8., 21.), hud(88., 24.)),
             0.,
             Color32::from_rgb(35, 45, 60),
         );
         p.rect_filled(
-            Rect::from_min_max(to(8., 21.), to(8. + self.shield.max(0.) * 0.8, 24.)),
+            Rect::from_min_max(hud(8., 21.), hud(8. + self.shield.max(0.) * 0.8, 24.)),
             0.,
             Color32::from_rgb(65, 205, 210),
         );
         p.text(
-            to(8., 29.),
+            hud(8., 29.),
             egui::Align2::LEFT_TOP,
             format!(
                 "{}   {}",
@@ -1427,67 +1521,58 @@ impl eframe::App for Game {
         );
         let (stage, objective) = self.stage();
         p.text(
-            to(472., 23.),
+            hud(472., 23.),
             egui::Align2::RIGHT_TOP,
             stage,
             font.clone(),
             Color32::from_rgb(220, 160, 80),
         );
         p.text(
-            to(8., 261.),
+            hud(8., 261.),
             egui::Align2::LEFT_BOTTOM,
             "MOVE: WASD / ARROWS    FIRE: SPACE    DODGE: SHIFT    BOMB: X    SOUND: M    PAUSE: P",
             egui::FontId::proportional(5.8 * scale),
             Color32::from_rgb(145, 165, 187),
         );
-        let progress = (self.frame as f32 / 4800.).min(1.);
+        let progress = (self.frame as f32 / 3840.).min(1.);
         p.line_segment(
-            [to(8., 267.), to(8. + 464. * progress, 267.)],
+            [hud(8., 267.), hud(8. + 464. * progress, 267.)],
             Stroke::new(scale, Color32::from_rgb(80, 175, 210)),
         );
         if self.frame % 1200 < 180 && self.started {
             p.text(
-                to(240., 45.),
+                hud(240., 45.),
                 egui::Align2::CENTER_TOP,
                 objective,
                 egui::FontId::proportional(8. * scale),
                 Color32::from_rgb(230, 205, 150),
             );
         }
-        if self.boss_spawned && !self.won {
-            let fuel = self.mats.id("gunpowder").unwrap();
-            for (i, m) in self.sim.world.mat.iter().enumerate() {
-                if *m == fuel {
-                    p.circle_stroke(
-                        to((i % W) as f32, (i / W) as f32),
-                        5. * scale,
-                        Stroke::new(scale, Color32::from_rgb(255, 190, 65)),
+        if let Some(b) = &self.boss {
+            if !self.won {
+                let left = b.parts.iter().filter(|p| !p.dead).count();
+                p.text(
+                    hud(240., 29.),
+                    egui::Align2::CENTER_TOP,
+                    self.boss_objective(),
+                    font.clone(),
+                    Color32::from_rgb(255, 180, 95),
+                );
+                for (k, part) in b.parts.iter().enumerate() {
+                    let x = 165. + k as f32 * 22.;
+                    p.line_segment(
+                        [hud(x, 40.), hud(x + 18., 40.)],
+                        Stroke::new(
+                            2. * scale,
+                            if part.dead {
+                                Color32::from_rgb(45, 55, 65)
+                            } else {
+                                Color32::from_rgb(230, 120, 70)
+                            },
+                        ),
                     );
                 }
-            }
-            if let Some(s) = self.ships.iter().find(|s| s.kind == Kind::Boss && !s.dead) {
-                let remaining = self.remaining_reactors() as f32 / 3.;
-                p.text(
-                    to(240., 29.),
-                    egui::Align2::CENTER_TOP,
-                    if self.boss_shielded(s.born) {
-                        "PHASE I / SHIELD UP"
-                    } else {
-                        if self.remaining_reactors() >= 3 {
-                            "PHASE I / BREACH THE PORTS"
-                        } else if self.remaining_reactors() == 2 {
-                            "PHASE II / CORE INSTABILITY"
-                        } else {
-                            "PHASE III / REACTOR MELTDOWN"
-                        }
-                    },
-                    font.clone(),
-                    Color32::from_rgb(255, 130, 100),
-                );
-                p.line_segment(
-                    [to(165., 40.), to(165. + 150. * remaining, 40.)],
-                    Stroke::new(2. * scale, Color32::from_rgb(240, 90, 85)),
-                );
+                let _ = left;
             }
         }
         if self.flash > 0.02 {
@@ -1499,7 +1584,7 @@ impl eframe::App for Game {
         }
         if !self.started || self.paused {
             p.rect_filled(
-                Rect::from_min_max(to(65., 70.), to(415., 216.)),
+                Rect::from_min_max(hud(65., 70.), hud(415., 216.)),
                 8.,
                 Color32::from_rgba_unmultiplied(4, 10, 23, 235),
             );
@@ -1513,14 +1598,14 @@ impl eframe::App for Game {
                 "VOIDRUNNER"
             };
             p.text(
-                to(240., 91.),
+                hud(240., 91.),
                 egui::Align2::CENTER_TOP,
                 title,
                 egui::FontId::proportional(23. * scale),
                 Color32::from_rgb(160, 235, 250),
             );
             p.text(
-                to(240., 126.),
+                hud(240., 126.),
                 egui::Align2::CENTER_TOP,
                 if self.over || self.won {
                     format!("FINAL SCORE {:07}  /  {} KILLS", self.score, self.kills)
@@ -1530,9 +1615,9 @@ impl eframe::App for Game {
                 font.clone(),
                 Color32::from_rgb(240, 190, 110),
             );
-            p.text(to(240.,148.),egui::Align2::CENTER_TOP,"Chip away armour. Shoot amber fuel ports.\nDetonate the carrier core to complete the mission.",egui::FontId::proportional(8.*scale),Color32::from_rgb(185,200,220));
+            p.text(hud(240.,148.),egui::Align2::CENTER_TOP,"Kill shield escorts. Stop repair links.\nDismantle the carrier to expose its reactor.",egui::FontId::proportional(8.*scale),Color32::from_rgb(185,200,220));
             p.text(
-                to(240., 187.),
+                hud(240., 187.),
                 egui::Align2::CENTER_TOP,
                 if self.over || self.won {
                     "R / RESTART"
@@ -1570,31 +1655,16 @@ fn main() -> eframe::Result {
                 .filter(|(x, _)| *x > 115.)
                 .min_by(|a, b| a.0.total_cmp(&b.0))
                 .map_or(135., |p| p.1);
-            if let Some(b) = g
-                .ships
-                .iter()
-                .find(|s| s.kind == Kind::Boss && !s.dead)
-                .and_then(|s| g.sim.physics.spec_of(&g.sim.world, s.id))
-            {
-                if let Some(k) = b
-                    .cells
-                    .iter()
-                    .position(|c| c.is_some_and(|c| c.mat == g.mats.id("gunpowder").unwrap()))
-                {
-                    target = b.y + (k / b.w) as f32 - b.h as f32 / 2.;
-                }
-            }
             if g.boss_spawned {
-                let fuel = g.mats.id("gunpowder").unwrap();
-                if let Some(i) = g.sim.world.mat.iter().position(|m| *m == fuel) {
-                    target = (i / W) as f32;
+                if let Some((_, y)) = g.boss_targets().first() {
+                    target = *y;
                 }
             }
             if normal {
                 let px = g.player().map_or(75., |p| p.1);
                 let mut best = (f32::INFINITY, target);
                 for offset in [-48., -30., -15., 0., 15., 30., 48.] {
-                    let cy = (py + offset).clamp(30., 240.);
+                    let cy = (py + offset).clamp(30., H as f32 - 30.);
                     let mut risk = (cy - target).abs() * 0.15 + offset.abs() * 0.2;
                     for b in g.shots.iter().filter(|b| !b.friendly && b.vx < 0.) {
                         let seconds = (px - b.x) / b.vx;
@@ -1794,7 +1864,7 @@ mod tests {
         assert!(b2.angle.abs() < 0.001);
     }
     #[test]
-    fn boss_does_not_win_while_any_reactor_survives() {
+    fn boss_does_not_win_while_required_modules_survive() {
         let mut g = Game::new();
         g.boss_spawned = true;
         g.spawn(Kind::Boss, 420., 135.);
@@ -1807,7 +1877,14 @@ mod tests {
         for _ in 0..10 {
             g.tick(0., 0., false, false);
         }
-        assert!(g.remaining_reactors() > 0);
+        assert!(
+            g.boss
+                .as_ref()
+                .unwrap()
+                .parts
+                .iter()
+                .any(|p| !p.dead && p.role != PartRole::Reactor)
+        );
         assert!(!g.won);
     }
     #[test]
@@ -1899,5 +1976,175 @@ mod tests {
         g.damage_player(10.);
         assert_eq!(g.combo, 0);
         assert_eq!(g.combo_timer, 0);
+    }
+    #[test]
+    fn carrier_modules_stay_intact_until_hit() {
+        let mut g = Game::new();
+        g.spawn(Kind::Boss, W as f32 - 105., H as f32 / 2.);
+        for _ in 0..240 {
+            g.tick(0., 0., false, false);
+        }
+        let b = g.boss.as_ref().unwrap();
+        println!(
+            "parts {:?}",
+            b.parts
+                .iter()
+                .map(|p| (p.role, p.dead, g.sim.physics.centre(p.id)))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(b.parts.len(), 7);
+        assert!(b.parts.iter().all(|p| !p.dead));
+        grave_engine::headless::shot(
+            &g.sim.world,
+            &g.mats,
+            &mut g.renderer,
+            std::path::Path::new("shots/voidrunner-carrier-modules.png"),
+            2,
+            false,
+        )
+        .unwrap();
+    }
+    #[test]
+    fn shield_escorts_protect_their_convoy_but_not_themselves() {
+        let mut g = Game::new();
+        g.spawn_squad(Kind::Tanker, H as f32 / 2.);
+        let target = g.ships.iter().find(|s| s.kind == Kind::Tanker).unwrap().id;
+        let drones: Vec<_> = g
+            .ships
+            .iter()
+            .filter(|s| s.kind == Kind::ShieldDrone)
+            .map(|s| s.id)
+            .collect();
+        assert!(g.protected_target(target));
+        assert!(!g.protected_target(drones[0]));
+        for id in drones {
+            g.sim.physics.remove(&mut g.sim.world, id);
+        }
+        assert!(!g.protected_target(target));
+    }
+    #[test]
+    fn dismantling_gun_pods_removes_their_attacks_and_unlocks_core() {
+        let mut g = Game::new();
+        g.spawn(Kind::Boss, W as f32 - 105., H as f32 / 2.);
+        let remove = |g: &mut Game, role: PartRole| {
+            let ids: Vec<_> = g
+                .boss
+                .as_ref()
+                .unwrap()
+                .parts
+                .iter()
+                .filter(|p| p.role == role)
+                .map(|p| p.id)
+                .collect();
+            for id in ids {
+                g.sim.physics.remove(&mut g.sim.world, id);
+            }
+            g.read_boss_damage();
+        };
+        let core = g
+            .boss
+            .as_ref()
+            .unwrap()
+            .parts
+            .iter()
+            .find(|p| p.role == PartRole::Reactor)
+            .unwrap()
+            .id;
+        assert!(g.protected_target(core));
+        remove(&mut g, PartRole::Generator);
+        g.frame = 255;
+        g.update_encounters(75., 135.);
+        assert!(!g.shots.is_empty());
+        g.shots.clear();
+        remove(&mut g, PartRole::Gun);
+        g.frame = 340;
+        g.update_encounters(75., 135.);
+        assert!(g.shots.is_empty());
+        assert!(g.protected_target(core));
+        remove(&mut g, PartRole::Cooler);
+        assert!(!g.protected_target(core));
+        assert!(!g.boss_defeated());
+    }
+    #[test]
+    fn repair_drone_restores_missing_armour_without_recreating_fuel() {
+        let mut g = Game::new();
+        g.spawn_squad(Kind::Tanker, H as f32 / 2.);
+        let id = g.ships.iter().find(|s| s.kind == Kind::Tanker).unwrap().id;
+        let original = g.sim.physics.spec_of(&g.sim.world, id).unwrap();
+        let fuel = g.mats.id("gunpowder").unwrap();
+        g.sim.physics.edit(&mut g.sim.world, &g.mats, id, |b| {
+            let start = b.w * (b.h / 2) + 10;
+            for c in &mut b.cells[start..start + 8] {
+                *c = None;
+            }
+        });
+        let damaged = g
+            .sim
+            .physics
+            .spec_of(&g.sim.world, id)
+            .unwrap()
+            .cell_count();
+        g.frame = 119;
+        g.tick(0., 0., false, false);
+        let repaired = g.sim.physics.spec_of(&g.sim.world, id).unwrap();
+        assert!(repaired.cell_count() > damaged);
+        assert_eq!(
+            repaired
+                .cells
+                .iter()
+                .flatten()
+                .filter(|c| c.mat == fuel)
+                .count(),
+            original
+                .cells
+                .iter()
+                .flatten()
+                .filter(|c| c.mat == fuel)
+                .count()
+        );
+    }
+    #[test]
+    fn minelayers_drop_real_explosive_mines() {
+        let mut g = Game::new();
+        g.spawn(Kind::Bomber, 400., 220.);
+        g.frame = 69;
+        g.tick(0., 0., false, false);
+        let mine = g
+            .ships
+            .iter()
+            .find(|s| s.kind == Kind::Mine)
+            .expect("a physical mine was dropped");
+        let b = g.sim.physics.spec_of(&g.sim.world, mine.id).unwrap();
+        assert!(
+            b.cells
+                .iter()
+                .flatten()
+                .any(|c| c.mat == g.mats.id("gunpowder").unwrap())
+        );
+    }
+    #[test]
+    fn fractured_reactor_remains_targetable_after_body_id_changes() {
+        let mut g = Game::new();
+        g.boss_spawned = true;
+        g.spawn(Kind::Boss, W as f32 - 105., H as f32 / 2.);
+        let ids: Vec<_> = g
+            .boss
+            .as_ref()
+            .unwrap()
+            .parts
+            .iter()
+            .map(|p| p.id)
+            .collect();
+        for id in ids {
+            g.sim.physics.remove(&mut g.sim.world, id);
+        }
+        let fuel = g.mats.id("gunpowder").unwrap();
+        let b = BodySpec::from_mats(2, 2, &[Some(fuel); 4], &g.mats, 500., 180.);
+        g.sim.physics.add_exact(&mut g.sim.world, &g.mats, b);
+        g.read_boss_damage();
+        let targets = g.boss_targets();
+        assert_eq!(targets.len(), 1);
+        assert!((targets[0].0 - 500.).abs() < 2.);
+        assert!(!g.boss_defeated());
     }
 }
