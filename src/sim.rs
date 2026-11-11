@@ -45,7 +45,7 @@ pub struct Snapshot {
     pub follow: Option<u64>,
     pub zoom: f32,
     /// Objects with a balance assist: (number N+1 in `bodies`, strength).
-    pub upright: Vec<(u64, f32)>,
+    pub upright: Vec<(u64, crate::physics::Balance)>,
     /// Triggers (`by` an object = number N+1) and the last checkpoint.
     pub triggers: Vec<crate::trigger::Trigger>,
     pub checkpoint: Option<(f32, f32)>,
@@ -273,9 +273,9 @@ impl Sim {
             }
             sim.triggers.push(t);
         }
-        for &(n, strength) in &snap.upright {
+        for &(n, bal) in &snap.upright {
             if let Some(id) = (n > 0).then(|| new_ids.get(n as usize - 1).copied().flatten()).flatten() {
-                sim.physics.set_upright(id, strength);
+                sim.physics.set_balance(id, bal);
             }
         }
         sim

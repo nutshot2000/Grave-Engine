@@ -182,3 +182,23 @@ fn the_drawn_view_keeps_its_size_and_covers_the_screen() {
     }
     assert_eq!(sizes.len(), 1, "always the same size: {sizes:?}");
 }
+
+#[test]
+fn a_trigger_moves_the_sun_and_finish_reports_the_end() {
+    let m = mats();
+    let mut s = sim(&m, &format!("{ROOM}sun 20 1 #ffffff\nbody circle iron 20 20 3\nname ball\ntrigger 0 30 120 20 by ball : sun 70 0.2 #ff8040 1 ; finish\n"));
+    for _ in 0..200 {
+        s.step(&m);
+        if s.triggers[0].fired {
+            break;
+        }
+    }
+    assert!(s.events.contains(&grave_engine::trigger::Event::Finish), "the finish line was reported");
+    for _ in 0..61 {
+        s.step(&m);
+    }
+    let sun = s.lighting.sun.unwrap();
+    assert!((sun.angle - 70.0).abs() < 0.5 && (sun.strength - 0.2).abs() < 0.01 && sun.color[2] < 80, "the sun set: {sun:?}");
+    let line = s.triggers[0].to_line("ball");
+    assert!(line.contains("sun 70 0.2 #ff8040 1") && line.contains("finish"), "{line}");
+}

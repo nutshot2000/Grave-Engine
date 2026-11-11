@@ -211,3 +211,30 @@ fn dirt_and_wet_sand_come_off_in_clumps() {
         assert!(clumped, "{ground}: thrown in clumps");
     }
 }
+
+/// A balanced block in mid-air, leaning forward for half a second: how far
+/// it turned, and how far it fell.
+fn lean_in_air(style: &str) -> (f32, f32) {
+    let m = Materials::load_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/materials"));
+    let text = format!("size 300 300\nfill air\nbody rect iron 150 50 20 6\nname rider\ndepth 0.05\nupright rider strength 60 {style}\n");
+    let (mut s, p) = scene::load(&text, &m, None).into_sim(&m);
+    assert!(p.is_empty(), "{p:?}");
+    let id = s.physics.ids()[0];
+    let y0 = s.physics.centre(id).unwrap().1;
+    s.physics.set_lean(1.0);
+    for _ in 0..30 {
+        s.step(&m);
+    }
+    let b = s.physics.spec_of(&s.world, id).unwrap();
+    (b.angle.abs(), b.y - y0)
+}
+
+#[test]
+fn trials_balance_lets_you_rotate_in_the_air_and_heavy_falls_faster() {
+    let (arcade_turn, arcade_fall) = lean_in_air("");
+    let (trials_turn, _) = lean_in_air("air 0");
+    let (_, heavy_fall) = lean_in_air("air 0 heavy 1.6");
+    println!("turned: arcade {arcade_turn}, trials {trials_turn}; fell: normal {arcade_fall}, heavy {heavy_fall}");
+    assert!(trials_turn > arcade_turn * 3.0 && trials_turn > 0.5, "leaning spins a trials bike in the air");
+    assert!(heavy_fall > arcade_fall * 1.4, "a heavy bike falls faster");
+}

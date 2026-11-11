@@ -347,7 +347,10 @@ impl Backdrop {
                 let height = match l.kind {
                     Kind::Hills => noise(lx / 70.0, seed) * 0.7 + noise(lx / 23.0, seed ^ 7) * 0.3,
                     Kind::Mountains => {
-                        let r = |s: f32, k: u32| 1.0 - (noise(lx / s, seed ^ k) * 2.0 - 1.0).abs();
+                        // (Feature sizes grow with the height, so tall ranges
+                        // are as craggy as small ones, not needle-thin.)
+                        let f = (l.height / 90.0).max(0.5);
+                        let r = |s: f32, k: u32| 1.0 - (noise(lx / (s * f), seed ^ k) * 2.0 - 1.0).abs();
                         (r(60.0, 1) * 0.6 + r(19.0, 2) * 0.3 + r(6.0, 3) * 0.1).powf(1.6)
                     }
                     Kind::City => {

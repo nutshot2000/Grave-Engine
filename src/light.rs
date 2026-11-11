@@ -67,11 +67,13 @@ pub struct Lighting {
     pub lights: Vec<Light>,
     /// Fading the overall light: (to, frames left).
     pub fade: Option<(f32, u32)>,
+    /// Moving the sun: (to, frames left). Sunset in a level.
+    pub sun_fade: Option<(Sun, u32)>,
 }
 
 impl Default for Lighting {
     fn default() -> Self {
-        Lighting { ambient: 1.0, ambient_color: [255, 255, 255], sun: None, lights: Vec::new(), fade: None }
+        Lighting { ambient: 1.0, ambient_color: [255, 255, 255], sun: None, lights: Vec::new(), fade: None, sun_fade: None }
     }
 }
 
@@ -113,8 +115,29 @@ impl Lighting {
         }
     }
 
+    /// Move the sun to this angle, strength and colour over `seconds` (0 =
+    /// at once): a sunset, the sun going behind a mountain.
+    pub fn sun_to(&mut self, to: Sun, seconds: f32) {
+        let frames = (seconds * 60.0).round() as u32;
+        if frames == 0 || self.sun.is_none() {
+            self.sun = Some(to);
+            self.sun_fade = None;
+        } else {
+            self.sun_fade = Some((to, frames));
+        }
+    }
+
     /// One simulation frame.
     pub fn step(&mut self) {
+        if let (Some((to, left)), Some(sun)) = (self.sun_fade, self.sun.as_mut()) {
+            let k = 1.0 / left.max(1) as f32;
+            sun.angle += (to.angle - sun.angle) * k;
+            sun.strength += (to.strength - sun.strength) * k;
+            for c in 0..3 {
+                sun.color[c] = (sun.color[c] as f32 + (to.color[c] as f32 - sun.color[c] as f32) * k).round() as u8;
+            }
+            self.sun_fade = (left > 1).then_some((to, left - 1));
+        }
         if let Some((to, left)) = self.fade {
             self.ambient += (to - self.ambient) / left.max(1) as f32;
             self.fade = (left > 1).then_some((to, left - 1));

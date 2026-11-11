@@ -41,14 +41,19 @@ fn every_material_is_complete() {
     }
 }
 
-/// Drop a stone block on a pane of `pane`; how many cells of it are left?
+/// Drop a stone block on a pane of `pane`; how many cells of the pane are left?
 fn smash(m: &Materials, pane: &str) -> (usize, usize) {
     let mut s = sim(m, &format!("size 100 100\nfill air\nrect stone 0 90 100 10\nrect stone 30 60 4 30\nrect stone 66 60 4 30\nrect {pane} 34 60 32 2\nbody rect stone 44 20 10 10\n"));
-    let before = count(&s, m, pane);
+    // (Only what's still in the pane: broken-off shards fly about as objects.)
+    let in_pane = |s: &Sim| {
+        let id = m.id(pane).unwrap();
+        (0..s.world.mat.len()).filter(|&i| s.world.mat[i] == id && !s.world.is_owned(i)).count()
+    };
+    let before = in_pane(&s);
     for _ in 0..90 {
         s.step(m);
     }
-    (before, count(&s, m, pane))
+    (before, in_pane(&s))
 }
 
 #[test]

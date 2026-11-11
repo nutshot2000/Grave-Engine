@@ -8,10 +8,17 @@
 //! - **Rolling resistance** (material key `rolling_resistance`): loose or
 //!   soft ground the drive wheels touch slows the whole vehicle down (sand,
 //!   mud, water). Read from the actual cells around each tyre.
-//! - **Balance** (`upright NAME strength S` in a scene, or `set_upright`):
-//!   an assist that keeps an object (and everything welded or wheeled to it)
+//! - **Balance** (`upright NAME strength S [air A] [heavy H]`, or
+//!   `set_balance`): two styles. `air 1` (the default, arcade): it always
+//!   levels out, on the ground and in the air. `air` below 1 (trials): on
+//!   the ground it follows the slope and leaning shifts the rider's weight
+//!   (wheelies, keeping the front down on climbs); in the air it only
+//!   levels out that much, and leaning spins it (flips, lining up landings).
+//!   `heavy` scales gravity on the whole vehicle (1.6: lands hard, less
+//!   floaty jumps).
+//!   The assist keeps an object (and everything welded or wheeled to it)
 //!   upright, like a rider balancing; **lean** (`set_lean`, -1..1) tips it
-//!   forward or back for jumps and wheelies.
+//!   forward or back.
 //!
 //! - **Tyres throw loose stuff**: where a drive wheel's tread moves against
 //!   sand, gravel, mud or water (wheelspin, skids, fast rolling), those cells
@@ -22,6 +29,31 @@
 //! scene and material data.
 
 use super::*;
+
+/// A balance assist's settings (see the top of this file).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Balance {
+    /// How strong (60 is a good rider; 0 = off).
+    pub strength: f32,
+    /// How much it levels out in the air: 1 = always (arcade), 0 = not at
+    /// all (trials: lean to rotate).
+    pub air: f32,
+    /// Gravity on the whole vehicle, times normal (1.6 = heavier, lands hard).
+    pub heavy: f32,
+}
+
+impl Default for Balance {
+    fn default() -> Self {
+        Balance { strength: 60.0, air: 1.0, heavy: 1.0 }
+    }
+}
+
+/// Trials style: how hard it's pulled to the slope on the ground, how much
+/// leaning shifts the weight there, and how fast leaning spins it in the air.
+const TRIALS_GROUND_LEVEL: f32 = 50.0;
+const TRIALS_GROUND_LEAN: f32 = 40.0;
+const TRIALS_AIR_LEAN: f32 = 75.0;
+const TRIALS_MAX_SPIN: f32 = 7.0;
 
 /// How hard brakes can hold a wheel, compared with its drive motor.
 const BRAKE_STRENGTH: f32 = 6.0;
@@ -62,17 +94,22 @@ impl Physics {
     }
 
     /// Keep an object (and what's welded or wheeled to it) upright with this
-    /// strength (0 = off; 60 is a good rider).
+    /// strength (0 = off; 60 is a good rider), arcade style.
     pub fn set_upright(&mut self, id: u64, strength: f32) {
-        if strength > 0.0 {
-            self.upright.insert(id, strength);
+        self.set_balance(id, Balance { strength, ..Balance::default() });
+    }
+
+    /// Keep an object upright with these balance settings (strength 0 = off).
+    pub fn set_balance(&mut self, id: u64, b: Balance) {
+        if b.strength > 0.0 {
+            self.upright.insert(id, b);
         } else {
             self.upright.remove(&id);
         }
     }
 
-    /// Objects with a balance assist, and how strong.
-    pub fn upright(&self) -> Vec<(u64, f32)> {
+    /// Objects with a balance assist, and its settings.
+    pub fn upright(&self) -> Vec<(u64, Balance)> {
         self.upright.iter().map(|(&id, &s)| (id, s)).collect()
     }
 
@@ -98,6 +135,42 @@ impl Physics {
             }
         }
         out
+    }
+
+    /// Is a balanced object's vehicle on the ground (a wheel touching
+    /// something), and the slope of the ground under its wheels (radians,
+    /// same sense as object angles), if both wheels have ground under them.
+    fn ground_under(&self, world: &World, mats: &Materials, id: u64) -> (bool, Option<f32>) {
+        let mut grounded = false;
+        let mut feet: Vec<(f32, f32)> = Vec::new();
+        for j in &self.joints {
+            if j.spec.a != id || !matches!(j.spec.kind, JointKind::Wheel { .. }) {
+                continue;
+            }
+            let Some(n) = self.find(j.spec.b) else { continue };
+            let b = &self.bodies[n];
+            grounded |= Self::touching(b, world, mats).0;
+            let (cx, cy, _) = self.pose(b);
+            let r = b.w.max(b.h) as f32 / 2.0;
+            // The ground straight below the wheel (within a little).
+            let x = cx.round() as i32;
+            let (y0, y1) = ((cy + r * 0.5) as i32, (cy + r + 10.0) as i32);
+            for y in y0..=y1 {
+                if !world.in_bounds(x, y) {
+                    break;
+                }
+                let i = world.idx(x as usize, y as usize);
+                if !world.is_owned(i) && matches!(mats.get(world.mat[i]).state, State::Solid | State::Powder) {
+                    feet.push((cx, y as f32));
+                    break;
+                }
+            }
+        }
+        let slope = (feet.len() == 2).then(|| {
+            let (a, b) = if feet[0].0 <= feet[1].0 { (feet[0], feet[1]) } else { (feet[1], feet[0]) };
+            (b.1 - a.1).atan2((b.0 - a.0).max(1.0))
+        });
+        (grounded, slope)
     }
 
     /// What a body's cells touch (outside itself): anything not gas, and the
@@ -318,19 +391,49 @@ impl Physics {
                 self.damp_horizontal(&ids, (-contact.resistance * DT).exp());
             }
         }
-        // Balance assists (with lean).
+        // Balance assists (with lean), and heavier vehicles.
         let lean = self.lean;
-        for (id, strength) in self.upright() {
+        let mut heavy: std::collections::HashMap<u64, f32> = Default::default();
+        for (id, bal) in self.upright() {
             let Some(n) = self.find(id) else {
                 self.upright.remove(&id);
                 continue;
             };
+            if (bal.heavy - 1.0).abs() > 1e-3 {
+                for part in self.assembly_of(id) {
+                    heavy.insert(part, bal.heavy);
+                }
+            }
             let rb = &self.set[self.bodies[n].handle];
             let angle = rb.rotation().angle();
             let spin = rb.angvel();
-            let k = strength / 60.0;
-            let push = (-angle * 60.0 * k - spin * 15.0 * k + lean * 28.0 * k).clamp(-100.0 * k, 100.0 * k);
-            self.steer_rotation(id, push, BALANCE_MAX_SPIN);
+            let k = bal.strength / 60.0;
+            if bal.air >= 0.999 {
+                // Arcade: always levels out.
+                let push = (-angle * 60.0 * k - spin * 15.0 * k + lean * 28.0 * k).clamp(-100.0 * k, 100.0 * k);
+                self.steer_rotation(id, push, BALANCE_MAX_SPIN);
+                continue;
+            }
+            // Trials: on the ground, follow the slope under the wheels and
+            // lean to shift weight; in the air, lean spins it.
+            let (grounded, slope) = self.ground_under(world, mats, id);
+            let push = if grounded {
+                let target = slope.unwrap_or(angle);
+                let off = (angle - target + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                -off * TRIALS_GROUND_LEVEL * k - spin * 12.0 * k + lean * TRIALS_GROUND_LEAN * k
+            } else {
+                -angle * 60.0 * bal.air * k - spin * 1.5 * k + lean * TRIALS_AIR_LEAN * k
+            };
+            self.steer_rotation(id, push.clamp(-140.0 * k, 140.0 * k), TRIALS_MAX_SPIN);
+        }
+        // Gravity scale: heavy vehicles' parts (and back to normal for parts
+        // that broke off).
+        for b in &self.bodies {
+            let want = heavy.get(&b.id).copied().unwrap_or(1.0);
+            let rb = &mut self.set[b.handle];
+            if (rb.gravity_scale() - want).abs() > 1e-4 {
+                rb.set_gravity_scale(want, true);
+            }
         }
     }
 }

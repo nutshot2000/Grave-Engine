@@ -3,6 +3,16 @@ use eframe::egui::{self, Color32, Pos2, Rect, Vec2};
 use grave_engine::{material::Materials, render::{Renderer, View}, sim::Sim};
 use std::time::Instant;
 
+/// A course: its scene file, what it's called, and (for Wreck Run, made
+/// before levels could say it themselves) its stages, signs and finish line.
+/// Newer levels put all that in the scene: triggers with `message`, `score`,
+/// `checkpoint` and `finish`.
+#[derive(Clone,Copy)]
+struct Level { file:&'static str, title:&'static str, blurb:&'static str, stages:&'static [(f32,&'static str,u32)], signs:&'static [(f32,&'static str)], finish:Option<f32>, timeout:u32 }
+const LEVELS:[Level;2]=[
+ Level{file:"scenes/stunt-yard.txt",title:"WRECK RUN",blurb:"360m MATERIAL PLAYGROUND  •  DUNES / MUD / DEMOLITION / ICE / LAVA",stages:&STAGES,signs:&SIGNS,finish:Some(FINISH),timeout:14400},
+ Level{file:"scenes/mountain-run.txt",title:"MOUNTAIN RUN",blurb:"A LONG RIDE INTO THE NIGHT  •  CLIMBS / SNOW / FOREST FIRE / MINE / QUARRY",stages:&[],signs:&[],finish:None,timeout:60*60*12},
+];
 const STAGES: [(f32,&str,u32); 9] = [(410.,"BURNING SCRAPYARD",500),(1000.,"DUNE CLIMB",750),(1340.,"THE BOG",500),(1660.,"DEMOLITION LEAP",800),(1960.,"TIMBER CROSSING",500),(2400.,"ICE DESCENT",500),(2850.,"LAVA ESCAPE",1000),(3200.,"LAST DUNE",750),(3480.,"EXPLOSIVE FINALE",1000)];
 const SIGNS: [(f32,&str);9] = [(170.,"JUMP THE BURNING WRECK"),(440.,"SAND HILLS / KEEP MOMENTUM"),(850.,"BRAKE DOWNHILL / LOW GANTRY"),(1150.,"DEEP MUD / POWER THROUGH"),(1400.,"JUMP / CHARGES BEHIND YOU"),(1750.,"TIMBER BRIDGE"),(2190.,"ICE / EASY ON THE BRAKES"),(2550.,"LAVA GAP / FULL RUN-UP"),(3210.,"FINAL DEMOLITION")];
 const FINISH:f32=3520.;
@@ -11,21 +21,34 @@ struct Part { id:u64, name:String }
 
 // Fuses, checkpoints and their messages are engine triggers in the scene
 // (`trigger ... by frame : ...`); the game reacts to `sim.events`.
-struct Game { checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: [bool;9], cam_x:f32, cam_y:f32, cam_width:f32 }
+struct Game { level:usize, checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, upside_down:u32, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: Vec<bool>, cam_x:f32, cam_y:f32, cam_width:f32 }
 impl Game {
- fn new() -> Self {
+ /// Wreck Run.
+ fn new() -> Self {Self::with_level(0)}
+ fn with_level(level:usize) -> Self {
+  let lv=LEVELS[level];
   let mats=Materials::load_dir("materials");
   assert!(mats.problems.is_empty(), "{:?}",mats.problems);
-  let text=std::fs::read_to_string("scenes/stunt-yard.txt").expect("stunt scene");
+  let text=std::fs::read_to_string(lv.file).expect("level scene");
   let (sim,problems)=grave_engine::scene::load(&text,&mats,Some(std::path::Path::new("scenes"))).into_sim(&mats);
   assert!(problems.is_empty(),"{problems:?}");
+  // The bike's parts, in the order of the parts list, start with its frame
+  // (the object the camera follows): wherever the level put the bike.
   let ids=sim.physics.ids();
+  let first=ids.iter().position(|&id|Some(id)==sim.follow).expect("the level follows the bike's frame");
   let parts:Vec<Part>=std::fs::read_to_string("assets/stunt-bike/parts.tsv").expect("parts manifest").lines().enumerate().map(|(i,line)|{
    let v:Vec<_>=line.split('\t').collect();
-   Part{id:ids[i+1],name:v[0].into()}
+   Part{id:ids[first+i],name:v[0].into()}
   }).collect();
   assert!(parts.iter().any(|p|p.name=="frame"),"missing bike frame");
-  Self {checkpoint:0.,surface:String::new(),parts,crashed:false,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE".into(),started:false,best:0,score:0,gates:[false;9],cam_x:110.,cam_y:100.,cam_width:220.}
+  let start=sim.physics.spec_of(&sim.world,sim.follow.unwrap_or(1)).map_or((110.,100.),|b|(b.x,b.y-80.));
+  Self {level,checkpoint:0.,surface:String::new(),parts,crashed:false,upside_down:0,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE  (1 / 2: pick a course)".into(),started:false,best:0,score:0,gates:vec![false;lv.stages.len()],cam_x:start.0,cam_y:start.1,cam_width:220.}
+ }
+ fn lv(&self)->Level {LEVELS[self.level]}
+ /// Where the finish line is (for the progress bar): the level's, or its
+ /// `finish` trigger's, or the far end of the world.
+ fn finish_x(&self)->f32 {
+  self.lv().finish.or_else(||self.sim.triggers.iter().find(|t|t.actions.contains(&grave_engine::trigger::Action::Finish)).map(|t|t.x)).unwrap_or(self.sim.world.w as f32)
  }
  fn update_zoom(&mut self,dt:f32)->f32 {
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs());
@@ -41,17 +64,29 @@ impl Game {
   // A focus effect (`focus it`, `focus X Y`) looks there instead.
   let focus=self.sim.camera.focus_point(&self.sim);
   let target_x=match focus {Some((x,_))=>x,None=>b.as_ref().map_or(self.cam_x,|b|b.x+45.+b.vx.clamp(-100.,150.)*0.15)}.clamp(vw/2.,self.sim.world.w as f32-vw/2.);
-  let target_y=match focus {Some((_,y))=>y-vh*0.5,None=>b.as_ref().map_or(self.cam_y,|b|b.y-vh*0.67)}.clamp(0.,self.sim.world.h as f32-vh);
-  let blend=1.-(-dt*8.).exp();self.cam_x+=(target_x-self.cam_x)*blend;self.cam_y+=(target_y-self.cam_y)*blend;
+  // (Looks further down when you're dropping, further up when climbing.)
+  let target_y=match focus {Some((_,y))=>y-vh*0.5,None=>b.as_ref().map_or(self.cam_y,|b|b.y-vh*0.6+b.vy.clamp(-90.,140.)*0.3)}.clamp(0.,self.sim.world.h as f32-vh);
+  let blend=1.-(-dt*8.).exp();self.cam_x+=(target_x-self.cam_x)*blend;self.cam_y+=(target_y-self.cam_y)*(1.-(-dt*5.).exp());
   self.cam_x=self.cam_x.clamp(vw/2.,self.sim.world.w as f32-vw/2.);
   self.cam_y=self.cam_y.clamp(0.,self.sim.world.h as f32-vh);
  }
- fn retry(&mut self) {let best=self.best.max(self.score); *self=Self::new(); self.best=best; self.started=true; self.state="ACTION!".into();}
+ fn retry(&mut self) {let best=self.best.max(self.score); *self=Self::with_level(self.level); self.best=best; self.started=true; self.state="ACTION!".into();}
  fn retry_checkpoint(&mut self) {
-  let checkpoint=self.checkpoint;let score=self.score;let gates=self.gates;self.retry();
+  let checkpoint=self.checkpoint;let checkpoint_y=self.sim.checkpoint.map(|c|c.1);let score=self.score;let gates=self.gates.clone();self.retry();
   if checkpoint>0. {
-   let x=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap()).unwrap().x;
-   for p in &self.parts {self.sim.physics.edit(&mut self.sim.world,&self.mats,p.id,|b|b.x+=checkpoint-x);}
+   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap()).unwrap();
+   // On hilly levels, back on the ground at the checkpoint (the first solid
+   // ground from the top there); Wreck Run is flat, so it just slides along.
+   // (Best: where the level's checkpoint trigger says to come back to.)
+   let marked=self.sim.triggers.iter().flat_map(|t|t.actions.iter()).find_map(|a|match a {grave_engine::trigger::Action::Checkpoint(Some((cx,cy))) if (cx-checkpoint).abs()<1. => Some(*cy),_=>None});
+   let dy=if let (true,Some(y))=(self.lv().stages.is_empty(),marked) {y-b.y} else if self.lv().stages.is_empty() {
+    let x=(checkpoint as usize).min(self.sim.world.w-1);
+    let ground=(0..self.sim.world.h).find(|&y|{let i=self.sim.world.idx(x,y);!self.sim.world.is_owned(i) && matches!(self.mats.get(self.sim.world.mat[i]).state,grave_engine::material::State::Solid|grave_engine::material::State::Powder)});
+    ground.map_or(0.,|g|g as f32-16.-b.y)
+   } else {0.};
+   let _=checkpoint_y;
+   for p in &self.parts {self.sim.physics.edit(&mut self.sim.world,&self.mats,p.id,|bb|{bb.x+=checkpoint-b.x;bb.y+=dy;});}
+   self.sim.checkpoint=checkpoint_y.map(|y|(checkpoint,y));
    self.checkpoint=checkpoint;self.score=score;self.gates=gates;self.cam_x=checkpoint+40.;
    // Fuses and checkpoints behind the restart point stay done.
    self.sim.skip_triggers_before(checkpoint);
@@ -62,6 +97,22 @@ impl Game {
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap()).unwrap();
   let slow=(b.x>875. && b.x<1125.) || (b.x>2310. && b.x<2370.);
   (1.,slow && b.vx>38.)
+ }
+ /// An automatic rider for any course (for testing levels): full gas;
+ /// on the ground, lean against wheelies and nose-dives and brake when
+ /// going too fast downhill; in the air, lean to land slightly nose down.
+ fn ai_controls(&self)->(f32,f32,bool) {
+  let Some(b)=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)) else {return (0.,0.,false)};
+  let grounded=self.sim.physics.wheel_contact(&self.sim.world,&self.mats,self.sim.follow.unwrap_or(1)).grounded;
+  if grounded {
+   let lean=if b.angle< -0.25 {1.} else if b.angle>0.45 {-0.6} else {0.};
+   let brake=b.angle>0.2 && b.vx>115.;
+   (if brake {0.} else {1.},lean,brake)
+  } else {
+   let target=0.15;
+   let lean=((target-b.angle)*2.5-b.spin*0.5).clamp(-1.,1.);
+   (0.6,lean,false)
+  }
  }
  fn crash_test(&mut self) {
   self.retry();
@@ -88,14 +139,15 @@ impl Game {
  // solid scenery counts as a crash, even when the motorcycle fits underneath.
  fn helmet_blocked(&self,b:&grave_engine::physics::BodySpec)->bool {
   let (sn,cs)=b.angle.sin_cos();let cx=b.x-1.4*cs+17.*sn;let cy=b.y-1.4*sn-17.*cs;
-  let ids=self.sim.physics.ids();
   for dy in -3i32..=3 {for dx in -3i32..=3 {
    if dx*dx+dy*dy>9 {continue;}
    let (x,y)=((cx+dx as f32).round() as i32,(cy+dy as f32).round() as i32);
    if x<0||y<0||x>=self.sim.world.w as i32||y>=self.sim.world.h as i32 {continue;}
    let i=self.sim.world.idx(x as usize,y as usize);
    if self.mats.get(self.sim.world.mat[i]).state!=grave_engine::material::State::Solid {continue;}
-   if let Some(n)=self.sim.physics.body_at(i) {if ids.get(n).is_some_and(|id|self.parts.iter().any(|p|p.id==*id)){continue;}}
+   // Only fixed scenery counts: loose things (the bike's own parts, glass
+   // shards, debris from a blast) brush past the rider's head.
+   if self.sim.world.is_owned(i) {continue;}
    return true;
   }}false
  }
@@ -105,7 +157,14 @@ impl Game {
    grave_engine::trigger::Event::Message(m)=>self.state=m,
    grave_engine::trigger::Event::Checkpoint(x,_)=>if x>self.checkpoint {self.checkpoint=x;},
    grave_engine::trigger::Event::Score(n)=>self.score=(self.score as i64+n).max(0) as u32,
+   grave_engine::trigger::Event::Finish=>self.finish(),
   }}
+ }
+ fn finish(&mut self) {
+  if !self.started {return;}
+  self.score+=(self.lv().timeout/5).saturating_sub(self.frame/3);self.best=self.best.max(self.score);
+  self.state="THAT'S A WRAP! Course complete — BACKSPACE for another run".into();self.started=false;
+  self.sim.camera.slow_motion(0.35,2.);
  }
  fn tick(&mut self, throttle:f32, lean:f32) {
   if self.crashed {self.sim.physics.set_throttle(0.);self.sim.step(&self.mats);self.frame+=1;return;}
@@ -118,10 +177,13 @@ impl Game {
   let Some(b)=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)) else {self.state="CUT! Bike destroyed — R to retry".into();self.crashed=true;return};
   if self.helmet_blocked(&b) {self.crashed=true;self.state="CUT! Rider hit scenery — R for checkpoint".into();return;}
   self.read_events();
-  for (i,(x,name,points)) in STAGES.iter().enumerate() {if !self.gates[i] && b.x>*x {self.gates[i]=true;self.score+=points;self.state=format!("{name} — cleared!");}}
-  if b.angle.cos()<0.0 && b.y>180. {self.state="CUT! Crashed — R to retry".into();self.crashed=true;}
-  if b.x>FINISH {self.score+=3000u32.saturating_sub(self.frame/3);self.best=self.best.max(self.score);self.state="THAT'S A WRAP! Course complete — BACKSPACE for another run".into();self.started=false;}
-  if self.frame>14400 {self.state="CUT! Take timed out — R to retry".into();self.started=false;}
+  let lv=self.lv();
+  for (i,(x,name,points)) in lv.stages.iter().enumerate() {if !self.gates[i] && b.x>*x {self.gates[i]=true;self.score+=points;self.state=format!("{name} — cleared!");}}
+  // Stuck on its back (rolling about upside down, slowly): a crash.
+  self.upside_down=if b.angle.cos()< -0.3 && b.vx.hypot(b.vy)<12. {self.upside_down+1} else {0};
+  if self.upside_down>30 {self.state="CUT! Crashed — R to retry".into();self.crashed=true;}
+  if lv.finish.is_some_and(|f|b.x>f) {self.finish();}
+  if self.frame>lv.timeout {self.state="CUT! Take timed out — R to retry".into();self.started=false;}
  }
 }
 impl eframe::App for Game {
@@ -131,16 +193,30 @@ impl eframe::App for Game {
   if ctx.input(|i|i.key_pressed(egui::Key::R)){self.retry_checkpoint();}
   if ctx.input(|i|i.key_pressed(egui::Key::Backspace)){self.retry();}
   if ctx.input(|i|i.key_pressed(egui::Key::Space)) && self.frame==0 {self.started=true;self.state="ACTION!".into();}
+  // Pick a course before starting.
+  if self.frame==0 && !self.started {
+   for (k,key) in [egui::Key::Num1,egui::Key::Num2].into_iter().enumerate() {
+    if ctx.input(|i|i.key_pressed(key)) && k!=self.level {let best=self.best;*self=Self::with_level(k);self.best=best;}
+   }
+  }
   if ctx.input(|i|i.key_pressed(egui::Key::C)){self.crash_test();}
-  let throttle=ctx.input(|i| if i.key_down(egui::Key::D)||i.key_down(egui::Key::ArrowRight){1.}else if i.key_down(egui::Key::A)||i.key_down(egui::Key::ArrowLeft){-1.}else{0.});
-  if self.started && ctx.input(|i|i.focused){self.clock+=dt*self.sim.camera.time_scale() as f64;let mut n=0;while self.clock>=1./60. && n<6 && self.started {self.drive(throttle,ctx.input(|i|if i.key_down(egui::Key::E){1.}else if i.key_down(egui::Key::Q){-1.}else{0.}),ctx.input(|i|i.key_down(egui::Key::S)||i.key_down(egui::Key::ArrowDown)));self.clock-=1./60.;n+=1;}}else{self.clock=0.;}
-  ui.heading("STUNT YARD  /  WRECK RUN");
-  ui.label("360m MATERIAL PLAYGROUND  •  DUNES / MUD / DEMOLITION / ICE / LAVA");
+  // Trials controls: W / ↑ throttle, S / ↓ brake (and back up when stopped),
+  // A / ← lean back, D / → lean forward (Q / E too).
+  let down=|k:&[egui::Key]|ctx.input(|i|k.iter().any(|k|i.key_down(*k)));
+  let gas=down(&[egui::Key::W,egui::Key::ArrowUp]);
+  let brake=down(&[egui::Key::S,egui::Key::ArrowDown]);
+  let lean=if down(&[egui::Key::D,egui::Key::ArrowRight,egui::Key::E]){1.}else if down(&[egui::Key::A,egui::Key::ArrowLeft,egui::Key::Q]){-1.}else{0.};
+  let slow=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).is_some_and(|b|b.vx.abs()<4.);
+  let (throttle,brake)=if brake && slow && !gas {(-0.6,false)} else {(if gas {1.} else {0.},brake)};
+  if self.started && ctx.input(|i|i.focused){self.clock+=dt*self.sim.camera.time_scale() as f64;let mut n=0;while self.clock>=1./60. && n<6 && self.started {self.drive(throttle,lean,brake);self.clock-=1./60.;n+=1;}}else{self.clock=0.;}
+  let lv=self.lv();
+  ui.heading(format!("STUNT YARD  /  {}",lv.title));
+  ui.label(lv.blurb);
   ui.horizontal(|ui|{ui.label(format!("SCORE {:04}     BEST {:04}     TAKE {:.1}s",self.score,self.best,self.frame as f32/60.));if ui.button("Checkpoint [R]").clicked(){self.retry_checkpoint();}if ui.button("Crash test [C]").clicked(){self.crash_test();}});
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs()*0.36);
   ui.label(format!("{speed:.0} km/h   {}   |   CHECKPOINT {}m",if self.surface.is_empty(){"HARD SURFACE / AIR"}else{&self.surface},(self.checkpoint/10.) as u32));
   ui.label(egui::RichText::new(&self.state).color(Color32::from_rgb(255,190,65)).size(21.));
-  ui.label("SPACE: start  •  D / →: accelerate  •  A / ←: reverse  •  S / ↓: brake  •  Q / E: lean  •  R: checkpoint  •  BACKSPACE: restart  •  C: crash test");
+  ui.label("SPACE: start  •  W / ↑: throttle  •  S / ↓: brake (hold when stopped: back up)  •  A / ←: lean back  •  D / →: lean forward  •  R: checkpoint  •  BACKSPACE: restart  •  1 / 2: course  •  C: crash test");
   let (rect,_)=ui.allocate_exact_size(ui.available_size(),egui::Sense::hover());
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1));
   let vw=self.update_zoom(dt as f32);let vh=(vw*rect.height()/rect.width()).min(240.);
@@ -164,7 +240,7 @@ impl eframe::App for Game {
   match &mut self.texture {Some(t) if t.size()==[win.2,win.3]=>t.set(image,egui::TextureOptions::NEAREST),_=>self.texture=Some(ctx.load_texture("world",image,egui::TextureOptions::NEAREST))}
   let (ww,wh)=(win.2 as f32,win.3 as f32);let (wx,wy)=(win.0 as f32,win.1 as f32);
   let view=Rect::from_min_max(Pos2::new((cx-vw/2.-wx)/ww,(y0-wy)/wh),Pos2::new((cx+vw/2.-wx)/ww,(y0+vh-wy)/wh));
-  let desert=(430.0..1130.0).contains(&cx)||(2890.0..3200.0).contains(&cx);
+  let desert=self.level==0 && ((430.0..1130.0).contains(&cx)||(2890.0..3200.0).contains(&cx));
   ui.painter().rect_filled(rect,0.,if desert {Color32::from_rgb(37,29,30)}else{Color32::from_rgb(15,20,31)});
   let backdrop=ui.painter().with_clip_rect(rect);
   // Distant warehouse silhouettes move more slowly than the physical course.
@@ -186,16 +262,17 @@ impl eframe::App for Game {
   }
   }
   ui.painter().image(self.texture.as_ref().unwrap().id(),rect,view,Color32::WHITE);
-  let progress=b.as_ref().map_or(0.,|b|((b.x-57.)/(FINISH-57.)).clamp(0.,1.));
+  let finish_x=self.finish_x();
+  let progress=b.as_ref().map_or(0.,|b|((b.x-57.)/(finish_x-57.)).clamp(0.,1.));
   let p=ui.painter().with_clip_rect(rect);
   p.rect_filled(Rect::from_min_size(rect.min+Vec2::new(16.,16.),Vec2::new(rect.width()-32.,5.)),2.,Color32::from_rgb(45,50,60));
   p.rect_filled(Rect::from_min_size(rect.min+Vec2::new(16.,16.),Vec2::new((rect.width()-32.)*progress,5.)),2.,Color32::from_rgb(255,170,40));
-  for (start,name) in SIGNS {
+  for &(start,name) in lv.signs {
    let sx=rect.left()+(start-cx+vw/2.)/vw*rect.width();
    let sy=rect.top()+(150.-y0)/vh*rect.height();
    p.text(Pos2::new(sx,sy),egui::Align2::LEFT_BOTTOM,name,egui::FontId::proportional(15.),Color32::from_rgb(240,175,60));
   }
-  for (x,name,_) in STAGES {
+  for &(x,name,_) in lv.stages {
    let sx=rect.left()+(x-cx+vw/2.)/vw*rect.width();
    if sx>rect.left() && sx<rect.right() {
     p.text(Pos2::new(sx,rect.top()+36.),egui::Align2::CENTER_TOP,name,egui::FontId::proportional(15.),Color32::from_rgb(255,195,80));
@@ -219,6 +296,31 @@ impl eframe::App for Game {
 }
 fn main()->eframe::Result {
  std::env::set_current_dir(env!("CARGO_MANIFEST_DIR")).expect("project folder");
+ let level=std::env::args().find_map(|a|a.strip_prefix("--level=").and_then(|s|s.parse::<usize>().ok())).unwrap_or(0).min(LEVELS.len()-1);
+ if std::env::args().any(|a|a=="--verify-ai") {
+  // The automatic rider rides a course; prints progress and saves pictures.
+  let mut g=Game::with_level(level);g.started=true;
+  if let Some(x)=std::env::args().find_map(|a|a.strip_prefix("--from=").and_then(|s|s.parse::<f32>().ok())){g.checkpoint=x;g.retry_checkpoint();}
+  let mut best=(0.,0u32);
+  for _ in 0..60*60*8 {
+   if !g.started || (g.crashed && g.frame>60) {break;}
+   // No progress for 20 seconds: stuck.
+   if let Some(b)=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap_or(1)) {if b.x>best.0+3. {best=(b.x,g.frame);} else if g.frame-best.1>1200 {println!("STUCK at x={:.0}",b.x);
+    // What's around it (for fixing levels): one letter per cell.
+    for y in (b.y as usize).saturating_sub(16)..(b.y as usize+16).min(g.sim.world.h) {let row:String=((b.x as usize).saturating_sub(20)..(b.x as usize+30).min(g.sim.world.w)).map(|x|{let i=g.sim.world.idx(x,y);if g.sim.world.is_owned(i){'#'}else{g.mats.get(g.sim.world.mat[i]).name.chars().next().unwrap().to_ascii_uppercase()}}).collect();println!("{y:4} {}",row.replace('A',"."));}
+    break;}}
+   let (t,lean,brake)=g.ai_controls();g.drive(t,lean,brake);
+   let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap_or(1)).unwrap();
+   if g.frame%300==0 {
+    let (x,y)=(b.x as usize,b.y as usize);g.renderer.light(&g.sim);g.renderer.set_camera(b.x,b.y);
+    grave_engine::headless::shot_with_actors(&g.sim.world,&g.mats,&mut g.renderer,&[],Some((x.saturating_sub(130),y.saturating_sub(100),300,150)),std::path::Path::new(&format!("shots/ride-{}.png",g.frame)),3,false).unwrap();
+   }
+   let every=std::env::args().find_map(|a|a.strip_prefix("--every=").and_then(|s|s.parse::<u32>().ok())).unwrap_or(120).max(1);
+   if g.frame%every==0 {let (t,lean,brake)=g.ai_controls();println!("{} x={:.0} y={:.0} angle={:.2} vx={:.0} vy={:.0} gas={t:.1} lean={lean:.1} brake={brake} score={} {}",g.frame,b.x,b.y,b.angle,b.vx,b.vy,g.score,g.state);}
+  }
+  println!("END frame {} {} score={}",g.frame,g.state,g.score);
+  return Ok(());
+ }
  if std::env::args().any(|a|a.starts_with("--verify")) {let mut g=Game::new();g.started=true;if let Some(x)=std::env::args().find_map(|a|a.strip_prefix("--from=").and_then(|s|s.parse::<f32>().ok())){g.checkpoint=x;g.retry_checkpoint();}for _ in 0..6500{if !g.started || (g.crashed && g.frame>180){break;}let(t,brake)=if std::env::args().any(|a|a=="--verify-smart"){g.guided_controls()}else{(1.,false)};g.drive(t,0.,brake);if g.frame%600==0{let x=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap().x as usize;g.renderer.light(&g.sim);g.renderer.set_camera(x as f32+40.,180.);grave_engine::headless::shot_with_actors(&g.sim.world,&g.mats,&mut g.renderer,&[],Some((x.saturating_sub(90),100,260,160)),std::path::Path::new(&format!("shots/wreck-{}.png",g.frame)),3,false).unwrap();}if g.frame%120==0{let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap_or(1)).unwrap();println!("{} x={:.1} y={:.1} angle={:.1} score={} flying={} surface={}",g.frame,b.x,b.y,b.angle,g.score,g.sim.world.flying.len(),g.surface);}} println!("{} score={}",g.state,g.score);grave_engine::headless::shot(&g.sim.world,&g.mats,&mut g.renderer,std::path::Path::new("shots/stunt-verify.png"),2,false).unwrap();return Ok(());}
  eframe::run_native("Stunt Yard — Grave Engine",eframe::NativeOptions{viewport:egui::ViewportBuilder::default().with_inner_size(Vec2::new(1200.,760.)),..Default::default()},Box::new(|cc|{cc.egui_ctx.set_visuals(egui::Visuals::dark());Ok(Box::new(Game::new()))}))
 }
@@ -238,6 +340,15 @@ mod tests {
   assert!(g.state.starts_with("THAT'S A WRAP"),"{}",g.state);
   assert_eq!(g.gates,[true;9]);assert!(g.score>=1000);assert!(g.sim.triggers.iter().all(|t|t.fired),"every fuse and checkpoint went off");
   g.retry();assert_eq!(g.score,0);assert_eq!(g.frame,0);assert_eq!(g.gates,[false;9]);assert!(g.best>=1000);
+ }
+ #[test]
+ fn the_automatic_rider_finishes_mountain_run() {
+  // The whole long level, ridden by the test rider: it can be done.
+  let mut g=Game::with_level(1);g.started=true;
+  assert_eq!(g.lv().title,"MOUNTAIN RUN");
+  for _ in 0..60*60*3 {if !g.started || g.crashed {break;}let (t,lean,brake)=g.ai_controls();g.drive(t,lean,brake);}
+  assert!(g.state.starts_with("THAT'S A WRAP"),"{} at x {:?}",g.state,g.sim.physics.centre(g.sim.follow.unwrap()));
+  assert!(g.score>3000,"stages scored on the way: {}",g.score);
  }
  #[test]
  fn material_parts_break_loose_in_a_real_wall_crash() {
@@ -327,7 +438,9 @@ mod tests {
   for _ in 0..1800 {if g.crashed {break;}g.drive(1.,0.,false);}
   let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();
   println!("Unbraked route: x {} crashed {} joints {} state {}",b.x,g.crashed,g.sim.physics.joints().len(),g.state);
-  assert!(g.crashed && g.state.contains("Rider hit scenery") && (1000.0..1130.0).contains(&b.x),"full throttle must fail at the low gantry");
+  // Flat out, you don't get past it: the rider hits it, or the bike wedges
+  // under it (the heavier trials bike tends to land nose-up on the kicker).
+  assert!((1000.0..1130.0).contains(&b.x) && (g.crashed || b.vx.abs()<2.),"full throttle must fail at the low gantry");
  }
 
  #[test]

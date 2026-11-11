@@ -65,7 +65,13 @@ rect('oil',3306,197,18,3)
 landing(3340,3410,192,210)
 # Keep the initial prop before the bike for stable manifest ordering.
 lines+=['body rect wood 1360 193 1 17','depth 0.01']
-lines+=(r/'assets/stunt-bike/physical-bike.txt').read_text(encoding='utf-8').splitlines()
+# The bike, with trials handling: heavier, firmer suspension, a stronger
+# engine, and lean to rotate in the air.
+for line in (r/'assets/stunt-bike/physical-bike.txt').read_text(encoding='utf-8').splitlines():
+ w=line.split()
+ if w[:2]==['upright','frame']:line='upright frame strength 70 air 0.15 heavy 1.6'
+ elif w and w[0]=='wheel':line=line.replace('spring 4 damping 1','spring 7 damping 2.5').replace('strength 3','strength 6')
+ lines.append(line)
 lines += ['body rect iron 1040 166 90 8','depth 0.08','name low_gantry','weld low_gantry ground at 1085 166']
 for x in [1680,1980,2860,3450]:lines += [f'body rect wood {x} 193 1 17','depth 0.01']
 # Level events are engine triggers (see src/trigger.rs): when the bike's

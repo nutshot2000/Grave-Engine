@@ -91,7 +91,7 @@ pub struct Loaded {
     /// The object the camera follows, and how close (0 = editor decides).
     pub follow: Option<(usize, f32)>,
     /// Objects kept upright by a balance assist: (object number, strength).
-    pub upright: Vec<(usize, f32)>,
+    pub upright: Vec<(usize, crate::physics::Balance)>,
     /// Triggers (`by` an object = its number N+1, like joints).
     pub triggers: Vec<crate::trigger::Trigger>,
     /// Lighting (lamps `on` an object = its number N+1).
@@ -201,9 +201,9 @@ impl Loaded {
             }
             sim.triggers.push(t);
         }
-        for (n, strength) in self.upright {
+        for (n, bal) in self.upright {
             if let Some(id) = ids.get(n).copied().flatten() {
-                sim.physics.set_upright(id, strength);
+                sim.physics.set_balance(id, bal);
             }
         }
         if let Some((n, zoom)) = self.follow {
@@ -282,7 +282,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut names: HashMap<String, usize> = HashMap::new();
     let mut joints: Vec<PendingJoint> = Vec::new();
     let mut follow: Option<(usize, f32)> = None;
-    let mut upright: Vec<(usize, f32)> = Vec::new();
+    let mut upright: Vec<(usize, crate::physics::Balance)> = Vec::new();
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
     let mut lighting = crate::light::Lighting::default();
     let mut backdrop = crate::backdrop::Backdrop::default();
@@ -330,7 +330,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
         match cmd.as_str() {
             "size" => match nums(1, 2) {
                 Ok(v) => {
-                    let (w, h) = (v[0].clamp(8.0, 4096.0) as usize, v[1].clamp(8.0, 4096.0) as usize);
+                    let (w, h) = (v[0].clamp(8.0, 8192.0) as usize, v[1].clamp(8.0, 8192.0) as usize);
                     let mut nw = World::new(w, h);
                     nw.fill(mats, AIR);
                     if let Some(old) = &world {
@@ -770,15 +770,21 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
             },
             "upright" => match words.get(1).map(|w| w.to_lowercase()).and_then(|w| names.get(&w).copied()) {
                 Some(n) => {
-                    let strength = words
-                        .iter()
-                        .position(|w| w.eq_ignore_ascii_case("strength"))
-                        .and_then(|i| words.get(i + 1))
-                        .and_then(|z| z.parse::<f32>().ok())
-                        .unwrap_or(60.0);
-                    upright.push((n, strength.clamp(0.0, 1000.0)));
+                    let val = |key: &str, default: f32| {
+                        words
+                            .iter()
+                            .position(|w| w.eq_ignore_ascii_case(key))
+                            .and_then(|i| words.get(i + 1))
+                            .and_then(|z| z.parse::<f32>().ok())
+                            .unwrap_or(default)
+                    };
+                    upright.push((n, crate::physics::Balance {
+                        strength: val("strength", 60.0).clamp(0.0, 1000.0),
+                        air: val("air", 1.0).clamp(0.0, 1.0),
+                        heavy: val("heavy", 1.0).clamp(0.1, 5.0),
+                    }));
                 }
-                None => err("use `upright NAME [strength 60]` with a named object".into()),
+                None => err("use `upright NAME [strength 60] [air 1] [heavy 1]` with a named object".into()),
             },
             "follow" => match words.get(1).map(|w| w.to_lowercase()).and_then(|w| names.get(&w).copied()) {
                 Some(n) => {
@@ -1197,8 +1203,15 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if let Some(f) = snap.follow {
         out.push_str(&format!("\nfollow obj{f} zoom {}\n", snap.zoom));
     }
-    for &(n, strength) in &snap.upright {
-        out.push_str(&format!("upright obj{n} strength {strength}\n"));
+    for &(n, b) in &snap.upright {
+        out.push_str(&format!("upright obj{n} strength {}", b.strength));
+        if b.air < 1.0 {
+            out.push_str(&format!(" air {}", b.air));
+        }
+        if b.heavy != 1.0 {
+            out.push_str(&format!(" heavy {}", b.heavy));
+        }
+        out.push('\n');
     }
     for t in &snap.triggers {
         let by = match t.by {

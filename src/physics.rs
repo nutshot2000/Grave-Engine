@@ -77,7 +77,7 @@ mod actor;
 mod bend;
 mod vehicle;
 pub use actor::{ActorSpec, ActorStatus, Controls};
-pub use vehicle::WheelContact;
+pub use vehicle::{Balance, WheelContact};
 
 /// How tall a character's body is, in cells.
 pub fn actor_height() -> usize {
@@ -266,7 +266,7 @@ pub struct Physics {
     /// upright by a balance assist (id -> strength). See vehicle.rs.
     brake: f32,
     lean: f32,
-    upright: std::collections::BTreeMap<u64, f32>,
+    upright: std::collections::BTreeMap<u64, vehicle::Balance>,
     /// Hard hits on metal objects this frame, and how far each object has
     /// bent so far (radians). See bend.rs.
     bend_hits: Vec<bend::BendHit>,

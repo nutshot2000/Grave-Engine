@@ -1,0 +1,1250 @@
+# Mountain Run: a long trials ride into the night. Made by tools/make_mountain_run.py.
+size 5600 760
+seed 11
+fill air
+wind 1.5
+ambient 0                      # a cold evening: snow and ice stay frozen, water stays liquid
+# Backdrop: a dusk sky, far snowy peaks, nearer ridges, forest
+sky #1c2850 #e3875a stars
+layer clouds #f0b090 depth 0.04 y 120 height 30
+layer mountains #4d5480 depth 0.07 y 430 height 170 snow seed 4
+layer mountains #353b5e depth 0.18 y 560 height 120 seed 9
+layer forest #1e2c28 depth 0.45 y 720 height 70 seed 3
+# Lighting: a low evening sun; triggers bring the night on as you ride
+lighting 0.7 #ffcfa8
+sun 55 0.9 #ffb074
+# The ground: one long profile, filled solid underneath
+slope stone 0 700 290 700
+slope stone 290 700 335 686
+slope stone 335 686 338 700
+slope stone 338 700 380 692
+slope stone 380 692 430 700
+slope stone 430 700 520 700
+slope rock 520 700 600 688 cover gravel 3
+slope rock 600 688 660 664
+slope rock 660 664 700 664 cover gravel 3
+slope rock 700 664 703 658
+slope rock 703 658 760 646
+slope rock 760 646 820 646
+slope rock 820 646 900 616 cover gravel 4
+slope rock 900 616 960 612
+slope rock 960 612 963 606
+slope rock 963 606 1040 590
+slope rock 1040 590 1110 560
+slope rock 1110 560 1180 548
+slope rock 1180 548 1183 543
+slope rock 1183 543 1260 536
+slope rock 1260 536 1340 520
+slope rock 1340 520 1420 512
+slope rock 1420 512 1500 504
+slope rock 1500 504 1580 470
+slope rock 1580 470 1640 458
+slope rock 1640 458 1700 430
+slope rock 1700 430 1780 424
+slope rock 1780 424 1840 424
+slope rock 1840 424 1900 410
+slope rock 1900 410 1960 384
+slope rock 1960 384 2020 376
+slope rock 2020 376 2023 370
+slope rock 2023 370 2100 352
+slope rock 2100 352 2200 340
+slope rock 2200 340 2300 330 cover snow 4
+slope rock 2300 330 2420 332 cover snow 3
+slope rock 2420 332 2440 334 cover snow 3
+slope rock 2440 334 2580 334
+slope rock 2580 334 2600 334
+slope rock 2600 334 2700 314
+slope rock 2700 314 2740 298
+slope rock 2740 298 2760 294
+slope rock 2760 294 2775 294
+slope rock 2775 294 2790 297
+slope rock 2790 297 2805 302
+slope rock 2805 302 2865 322
+slope rock 2865 322 2876 325
+slope rock 2876 325 2885 326
+slope rock 2885 326 2893 325
+slope rock 2893 325 2899 323
+slope rock 2899 323 2905 320
+slope rock 2905 320 2906 700
+slope rock 2906 700 2995 700
+slope rock 2995 700 3005 404
+slope rock 3005 404 3200 462
+slope rock 3200 462 3260 476
+slope rock 3260 476 3340 492
+slope dirt 3340 492 3420 520
+slope dirt 3420 520 3470 522
+slope dirt 3470 522 3560 556
+slope dirt 3560 556 3600 560
+slope dirt 3600 560 3780 560
+slope dirt 3780 560 3860 594
+slope dirt 3860 594 3930 630
+slope dirt 3930 630 3970 640
+slope dirt 3970 640 4000 640
+slope rock 4000 640 4290 640
+slope rock 4290 640 4310 647
+slope rock 4310 647 4360 647
+slope rock 4360 647 4380 640
+slope rock 4380 640 4700 640
+slope rock 4700 640 4840 638
+slope concrete 4840 638 4855 650
+slope concrete 4855 650 4915 650
+slope concrete 4915 650 4930 638
+slope concrete 4930 638 4960 636
+slope concrete 4960 636 5120 636
+slope concrete 5120 636 5140 632
+slope concrete 5140 632 5170 618
+slope concrete 5170 618 5173 700
+slope concrete 5173 700 5222 700
+slope concrete 5222 700 5224 650
+slope concrete 5224 650 5340 660
+slope concrete 5340 660 5400 660
+slope concrete 5400 660 5600 660
+# Crevasse under the first bridge, with a stream at the bottom
+rect air 1782 300 56 330
+rect water 1782 620 56 20
+rect wood 1776 424 68 4    # the bridge planks
+# The frozen lake: water under a skin of ice (land hard and it cracks)
+rect ice 2440 334 140 2    # a frozen pond: glassy and slippery
+# The gorge below the big jump
+rect water 2910 690 85 10
+# Forest ravine and the trestle bridge over it
+rect air 3600 470 180 200
+rect water 3600 670 180 30
+rect wood 3592 560 196 4   # deck
+rect wood 3610 564 4 106
+line wood 3610 600 3638 566 2
+rect wood 3640 564 4 106
+line wood 3640 600 3668 566 2
+rect wood 3670 564 4 106
+line wood 3670 600 3698 566 2
+rect wood 3700 564 4 106
+line wood 3700 600 3728 566 2
+rect wood 3730 564 4 106
+line wood 3730 600 3758 566 2
+rect wood 3760 564 4 106
+line wood 3760 600 3788 566 2
+# Mine puddle, quarry mud bog, the oil pit
+rect water 4296 641 1 1
+rect water 4297 641 1 1
+rect water 4298 641 1 1
+rect water 4299 641 1 2
+rect water 4300 641 1 2
+rect water 4301 641 1 2
+rect water 4302 641 1 3
+rect water 4303 641 1 3
+rect water 4304 641 1 3
+rect water 4305 641 1 4
+rect water 4306 641 1 4
+rect water 4307 641 1 4
+rect water 4308 641 1 5
+rect water 4309 641 1 5
+rect water 4310 641 1 6
+rect water 4311 641 1 6
+rect water 4312 641 1 6
+rect water 4313 641 1 6
+rect water 4314 641 1 6
+rect water 4315 641 1 6
+rect water 4316 641 1 6
+rect water 4317 641 1 6
+rect water 4318 641 1 6
+rect water 4319 641 1 6
+rect water 4320 641 1 6
+rect water 4321 641 1 6
+rect water 4322 641 1 6
+rect water 4323 641 1 6
+rect water 4324 641 1 6
+rect water 4325 641 1 6
+rect water 4326 641 1 6
+rect water 4327 641 1 6
+rect water 4328 641 1 6
+rect water 4329 641 1 6
+rect water 4330 641 1 6
+rect water 4331 641 1 6
+rect water 4332 641 1 6
+rect water 4333 641 1 6
+rect water 4334 641 1 6
+rect water 4335 641 1 6
+rect water 4336 641 1 6
+rect water 4337 641 1 6
+rect water 4338 641 1 6
+rect water 4339 641 1 6
+rect water 4340 641 1 6
+rect water 4341 641 1 6
+rect water 4342 641 1 6
+rect water 4343 641 1 6
+rect water 4344 641 1 6
+rect water 4345 641 1 6
+rect water 4346 641 1 6
+rect water 4347 641 1 6
+rect water 4348 641 1 6
+rect water 4349 641 1 6
+rect water 4350 641 1 6
+rect water 4351 641 1 6
+rect water 4352 641 1 6
+rect water 4353 641 1 6
+rect water 4354 641 1 6
+rect water 4355 641 1 6
+rect water 4356 641 1 6
+rect water 4357 641 1 6
+rect water 4358 641 1 6
+rect water 4359 641 1 6
+rect water 4360 641 1 6
+rect water 4361 641 1 5
+rect water 4362 641 1 5
+rect water 4363 641 1 4
+rect water 4364 641 1 4
+rect water 4365 641 1 4
+rect water 4366 641 1 3
+rect water 4367 641 1 3
+rect water 4368 641 1 3
+rect water 4369 641 1 2
+rect water 4370 641 1 2
+rect water 4371 641 1 2
+rect water 4372 641 1 1
+rect water 4373 641 1 1
+rect water 4374 641 1 1
+rect mud 4840 637 1 1
+rect mud 4841 637 1 1
+rect mud 4842 637 1 2
+rect mud 4843 637 1 3
+rect mud 4844 637 1 4
+rect mud 4845 637 1 5
+rect mud 4846 637 1 5
+rect mud 4847 637 1 6
+rect mud 4848 637 1 7
+rect mud 4849 637 1 8
+rect mud 4850 637 1 9
+rect mud 4851 637 1 9
+rect mud 4852 637 1 10
+rect mud 4853 637 1 11
+rect mud 4854 637 1 12
+rect mud 4855 637 1 13
+rect mud 4856 637 1 13
+rect mud 4857 637 1 13
+rect mud 4858 637 1 13
+rect mud 4859 637 1 13
+rect mud 4860 637 1 13
+rect mud 4861 637 1 13
+rect mud 4862 637 1 13
+rect mud 4863 637 1 13
+rect mud 4864 637 1 13
+rect mud 4865 637 1 13
+rect mud 4866 637 1 13
+rect mud 4867 637 1 13
+rect mud 4868 637 1 13
+rect mud 4869 637 1 13
+rect mud 4870 637 1 13
+rect mud 4871 637 1 13
+rect mud 4872 637 1 13
+rect mud 4873 637 1 13
+rect mud 4874 637 1 13
+rect mud 4875 637 1 13
+rect mud 4876 637 1 13
+rect mud 4877 637 1 13
+rect mud 4878 637 1 13
+rect mud 4879 637 1 13
+rect mud 4880 637 1 13
+rect mud 4881 637 1 13
+rect mud 4882 637 1 13
+rect mud 4883 637 1 13
+rect mud 4884 637 1 13
+rect mud 4885 637 1 13
+rect mud 4886 637 1 13
+rect mud 4887 637 1 13
+rect mud 4888 637 1 13
+rect mud 4889 637 1 13
+rect mud 4890 637 1 13
+rect mud 4891 637 1 13
+rect mud 4892 637 1 13
+rect mud 4893 637 1 13
+rect mud 4894 637 1 13
+rect mud 4895 637 1 13
+rect mud 4896 637 1 13
+rect mud 4897 637 1 13
+rect mud 4898 637 1 13
+rect mud 4899 637 1 13
+rect mud 4900 637 1 13
+rect mud 4901 637 1 13
+rect mud 4902 637 1 13
+rect mud 4903 637 1 13
+rect mud 4904 637 1 13
+rect mud 4905 637 1 13
+rect mud 4906 637 1 13
+rect mud 4907 637 1 13
+rect mud 4908 637 1 13
+rect mud 4909 637 1 13
+rect mud 4910 637 1 13
+rect mud 4911 637 1 13
+rect mud 4912 637 1 13
+rect mud 4913 637 1 13
+rect mud 4914 637 1 13
+rect mud 4915 637 1 13
+rect mud 4916 637 1 12
+rect mud 4917 637 1 11
+rect mud 4918 637 1 10
+rect mud 4919 637 1 9
+rect mud 4920 637 1 9
+rect mud 4921 637 1 8
+rect mud 4922 637 1 7
+rect mud 4923 637 1 6
+rect mud 4924 637 1 5
+rect mud 4925 637 1 5
+rect mud 4926 637 1 4
+rect mud 4927 637 1 3
+rect mud 4928 637 1 2
+rect mud 4929 637 1 1
+rect oil 5172 684 50 16
+# Valley village: a fence to jump, street lamps
+rect wood 352 688 3 12
+rect wood 352 688 22 3
+rect wood 371 688 3 12
+rect iron 138 648 5 2
+anchor 138 648 5 2
+light 140 652 70 strength 1.4 color #ffd8a0
+rect iron 248 648 5 2
+anchor 248 648 5 2
+light 250 652 70 strength 1.4 color #ffd8a0
+rect iron 458 648 5 2
+anchor 458 648 5 2
+light 460 652 70 strength 1.4 color #ffd8a0
+# A fallen log on the first climb, and rocks to ride over
+body rect wood 780 638 18 4
+depth 0.4
+circle rock 1300 532 5       # a half-buried boulder to bump over
+# Summit lanterns: flickering fire light hung above the trail
+rect brass 2258 286 5 2
+anchor 2258 286 5 2
+light 2260 290 80 strength 1.7 color #ff9a4a flicker 0.35
+rect brass 2558 286 5 2
+anchor 2558 286 5 2
+light 2560 290 80 strength 1.7 color #ff9a4a flicker 0.35
+rect brass 2838 265 5 2
+anchor 2838 265 5 2
+light 2840 269 80 strength 1.7 color #ff9a4a flicker 0.35
+# Forest: a woodcutter hut down in the ravine, under the trestle bridge (it catches fire), fallen logs
+rect stone 3606 650 60 20
+rect wood 3612 628 44 22
+poly wood 3608 628 3634 614 3660 628
+rect cloth 3620 636 10 8
+body rect wood 3330 480 26 5
+depth 0.4
+body rect wood 3890 596 24 5
+depth 0.4
+# The mine: a mountain over the tunnel, lamps, a beam, gunpowder
+hill rock 4050 4720 200 590 to 580
+rect air 4045 584 1 56
+rect air 4046 584 1 56
+rect air 4047 584 1 56
+rect air 4048 584 1 56
+rect air 4049 584 1 56
+rect air 4050 584 1 56
+rect air 4051 584 1 56
+rect air 4052 584 1 56
+rect air 4053 584 1 56
+rect air 4054 584 1 56
+rect air 4055 584 1 56
+rect air 4056 584 1 56
+rect air 4057 584 1 56
+rect air 4058 584 1 56
+rect air 4059 584 1 56
+rect air 4060 584 1 56
+rect air 4061 584 1 56
+rect air 4062 584 1 56
+rect air 4063 584 1 56
+rect air 4064 584 1 56
+rect air 4065 584 1 56
+rect air 4066 584 1 56
+rect air 4067 584 1 56
+rect air 4068 584 1 56
+rect air 4069 584 1 56
+rect air 4070 584 1 56
+rect air 4071 584 1 56
+rect air 4072 584 1 56
+rect air 4073 584 1 56
+rect air 4074 584 1 56
+rect air 4075 584 1 56
+rect air 4076 584 1 56
+rect air 4077 584 1 56
+rect air 4078 584 1 56
+rect air 4079 584 1 56
+rect air 4080 584 1 56
+rect air 4081 584 1 56
+rect air 4082 584 1 56
+rect air 4083 584 1 56
+rect air 4084 584 1 56
+rect air 4085 584 1 56
+rect air 4086 584 1 56
+rect air 4087 584 1 56
+rect air 4088 584 1 56
+rect air 4089 584 1 56
+rect air 4090 584 1 56
+rect air 4091 584 1 56
+rect air 4092 584 1 56
+rect air 4093 584 1 56
+rect air 4094 584 1 56
+rect air 4095 584 1 56
+rect air 4096 584 1 56
+rect air 4097 584 1 56
+rect air 4098 584 1 56
+rect air 4099 584 1 56
+rect air 4100 584 1 56
+rect air 4101 584 1 56
+rect air 4102 584 1 56
+rect air 4103 584 1 56
+rect air 4104 584 1 56
+rect air 4105 584 1 56
+rect air 4106 584 1 56
+rect air 4107 584 1 56
+rect air 4108 584 1 56
+rect air 4109 584 1 56
+rect air 4110 584 1 56
+rect air 4111 584 1 56
+rect air 4112 584 1 56
+rect air 4113 584 1 56
+rect air 4114 584 1 56
+rect air 4115 584 1 56
+rect air 4116 584 1 56
+rect air 4117 584 1 56
+rect air 4118 584 1 56
+rect air 4119 584 1 56
+rect air 4120 584 1 56
+rect air 4121 584 1 56
+rect air 4122 584 1 56
+rect air 4123 584 1 56
+rect air 4124 584 1 56
+rect air 4125 584 1 56
+rect air 4126 584 1 56
+rect air 4127 584 1 56
+rect air 4128 584 1 56
+rect air 4129 584 1 56
+rect air 4130 584 1 56
+rect air 4131 584 1 56
+rect air 4132 584 1 56
+rect air 4133 584 1 56
+rect air 4134 584 1 56
+rect air 4135 584 1 56
+rect air 4136 584 1 56
+rect air 4137 584 1 56
+rect air 4138 584 1 56
+rect air 4139 584 1 56
+rect air 4140 584 1 56
+rect air 4141 584 1 56
+rect air 4142 584 1 56
+rect air 4143 584 1 56
+rect air 4144 584 1 56
+rect air 4145 584 1 56
+rect air 4146 584 1 56
+rect air 4147 584 1 56
+rect air 4148 584 1 56
+rect air 4149 584 1 56
+rect air 4150 584 1 56
+rect air 4151 584 1 56
+rect air 4152 584 1 56
+rect air 4153 584 1 56
+rect air 4154 584 1 56
+rect air 4155 584 1 56
+rect air 4156 584 1 56
+rect air 4157 584 1 56
+rect air 4158 584 1 56
+rect air 4159 584 1 56
+rect air 4160 584 1 56
+rect air 4161 584 1 56
+rect air 4162 584 1 56
+rect air 4163 584 1 56
+rect air 4164 584 1 56
+rect air 4165 584 1 56
+rect air 4166 584 1 56
+rect air 4167 584 1 56
+rect air 4168 584 1 56
+rect air 4169 584 1 56
+rect air 4170 584 1 56
+rect air 4171 584 1 56
+rect air 4172 584 1 56
+rect air 4173 584 1 56
+rect air 4174 584 1 56
+rect air 4175 584 1 56
+rect air 4176 584 1 56
+rect air 4177 584 1 56
+rect air 4178 584 1 56
+rect air 4179 584 1 56
+rect air 4180 584 1 56
+rect air 4181 584 1 56
+rect air 4182 584 1 56
+rect air 4183 584 1 56
+rect air 4184 584 1 56
+rect air 4185 584 1 56
+rect air 4186 584 1 56
+rect air 4187 584 1 56
+rect air 4188 584 1 56
+rect air 4189 584 1 56
+rect air 4190 584 1 56
+rect air 4191 584 1 56
+rect air 4192 584 1 56
+rect air 4193 584 1 56
+rect air 4194 584 1 56
+rect air 4195 584 1 56
+rect air 4196 584 1 56
+rect air 4197 584 1 56
+rect air 4198 584 1 56
+rect air 4199 584 1 56
+rect air 4200 584 1 56
+rect air 4201 584 1 56
+rect air 4202 584 1 56
+rect air 4203 584 1 56
+rect air 4204 584 1 56
+rect air 4205 584 1 56
+rect air 4206 584 1 56
+rect air 4207 584 1 56
+rect air 4208 584 1 56
+rect air 4209 584 1 56
+rect air 4210 584 1 56
+rect air 4211 584 1 56
+rect air 4212 584 1 56
+rect air 4213 584 1 56
+rect air 4214 584 1 56
+rect air 4215 584 1 56
+rect air 4216 584 1 56
+rect air 4217 584 1 56
+rect air 4218 584 1 56
+rect air 4219 584 1 56
+rect air 4220 584 1 56
+rect air 4221 584 1 56
+rect air 4222 584 1 56
+rect air 4223 584 1 56
+rect air 4224 584 1 56
+rect air 4225 584 1 56
+rect air 4226 584 1 56
+rect air 4227 584 1 56
+rect air 4228 584 1 56
+rect air 4229 584 1 56
+rect air 4230 584 1 56
+rect air 4231 584 1 56
+rect air 4232 584 1 56
+rect air 4233 584 1 56
+rect air 4234 584 1 56
+rect air 4235 584 1 56
+rect air 4236 584 1 56
+rect air 4237 584 1 56
+rect air 4238 584 1 56
+rect air 4239 584 1 56
+rect air 4240 584 1 56
+rect air 4241 584 1 56
+rect air 4242 584 1 56
+rect air 4243 584 1 56
+rect air 4244 584 1 56
+rect air 4245 584 1 56
+rect air 4246 584 1 56
+rect air 4247 584 1 56
+rect air 4248 584 1 56
+rect air 4249 584 1 56
+rect air 4250 584 1 56
+rect air 4251 584 1 56
+rect air 4252 584 1 56
+rect air 4253 584 1 56
+rect air 4254 584 1 56
+rect air 4255 584 1 56
+rect air 4256 584 1 56
+rect air 4257 584 1 56
+rect air 4258 584 1 56
+rect air 4259 584 1 56
+rect air 4260 584 1 56
+rect air 4261 584 1 56
+rect air 4262 584 1 56
+rect air 4263 584 1 56
+rect air 4264 584 1 56
+rect air 4265 584 1 56
+rect air 4266 584 1 56
+rect air 4267 584 1 56
+rect air 4268 584 1 56
+rect air 4269 584 1 56
+rect air 4270 584 1 56
+rect air 4271 584 1 56
+rect air 4272 584 1 56
+rect air 4273 584 1 56
+rect air 4274 584 1 56
+rect air 4275 584 1 56
+rect air 4276 584 1 56
+rect air 4277 584 1 56
+rect air 4278 584 1 56
+rect air 4279 584 1 56
+rect air 4280 584 1 56
+rect air 4281 584 1 56
+rect air 4282 584 1 56
+rect air 4283 584 1 56
+rect air 4284 584 1 56
+rect air 4285 584 1 56
+rect air 4286 584 1 56
+rect air 4287 584 1 56
+rect air 4288 584 1 56
+rect air 4289 584 1 56
+rect air 4290 584 1 56
+rect air 4291 584 1 56
+rect air 4292 584 1 56
+rect air 4293 584 1 57
+rect air 4294 584 1 57
+rect air 4295 584 1 57
+rect air 4296 584 1 58
+rect air 4297 584 1 58
+rect air 4298 584 1 58
+rect air 4299 584 1 59
+rect air 4300 584 1 59
+rect air 4301 584 1 59
+rect air 4302 584 1 60
+rect air 4303 584 1 60
+rect air 4304 584 1 60
+rect air 4305 584 1 61
+rect air 4306 584 1 61
+rect air 4307 584 1 61
+rect air 4308 584 1 62
+rect air 4309 584 1 62
+rect air 4310 584 1 63
+rect air 4311 584 1 63
+rect air 4312 584 1 63
+rect air 4313 584 1 63
+rect air 4314 584 1 63
+rect air 4315 584 1 63
+rect air 4316 584 1 63
+rect air 4317 584 1 63
+rect air 4318 584 1 63
+rect air 4319 584 1 63
+rect air 4320 584 1 63
+rect air 4321 584 1 63
+rect air 4322 584 1 63
+rect air 4323 584 1 63
+rect air 4324 584 1 63
+rect air 4325 584 1 63
+rect air 4326 584 1 63
+rect air 4327 584 1 63
+rect air 4328 584 1 63
+rect air 4329 584 1 63
+rect air 4330 584 1 63
+rect air 4331 584 1 63
+rect air 4332 584 1 63
+rect air 4333 584 1 63
+rect air 4334 584 1 63
+rect air 4335 584 1 63
+rect air 4336 584 1 63
+rect air 4337 584 1 63
+rect air 4338 584 1 63
+rect air 4339 584 1 63
+rect air 4340 584 1 63
+rect air 4341 584 1 63
+rect air 4342 584 1 63
+rect air 4343 584 1 63
+rect air 4344 584 1 63
+rect air 4345 584 1 63
+rect air 4346 584 1 63
+rect air 4347 584 1 63
+rect air 4348 584 1 63
+rect air 4349 584 1 63
+rect air 4350 584 1 63
+rect air 4351 584 1 63
+rect air 4352 584 1 63
+rect air 4353 584 1 63
+rect air 4354 584 1 63
+rect air 4355 584 1 63
+rect air 4356 584 1 63
+rect air 4357 584 1 63
+rect air 4358 584 1 63
+rect air 4359 584 1 63
+rect air 4360 584 1 63
+rect air 4361 584 1 62
+rect air 4362 584 1 62
+rect air 4363 584 1 61
+rect air 4364 584 1 61
+rect air 4365 584 1 61
+rect air 4366 584 1 60
+rect air 4367 584 1 60
+rect air 4368 584 1 60
+rect air 4369 584 1 59
+rect air 4370 584 1 59
+rect air 4371 584 1 59
+rect air 4372 584 1 58
+rect air 4373 584 1 58
+rect air 4374 584 1 58
+rect air 4375 584 1 57
+rect air 4376 584 1 57
+rect air 4377 584 1 57
+rect air 4378 584 1 56
+rect air 4379 584 1 56
+rect air 4380 584 1 56
+rect air 4381 584 1 56
+rect air 4382 584 1 56
+rect air 4383 584 1 56
+rect air 4384 584 1 56
+rect air 4385 584 1 56
+rect air 4386 584 1 56
+rect air 4387 584 1 56
+rect air 4388 584 1 56
+rect air 4389 584 1 56
+rect air 4390 584 1 56
+rect air 4391 584 1 56
+rect air 4392 584 1 56
+rect air 4393 584 1 56
+rect air 4394 584 1 56
+rect air 4395 584 1 56
+rect air 4396 584 1 56
+rect air 4397 584 1 56
+rect air 4398 584 1 56
+rect air 4399 584 1 56
+rect air 4400 584 1 56
+rect air 4401 584 1 56
+rect air 4402 584 1 56
+rect air 4403 584 1 56
+rect air 4404 584 1 56
+rect air 4405 584 1 56
+rect air 4406 584 1 56
+rect air 4407 584 1 56
+rect air 4408 584 1 56
+rect air 4409 584 1 56
+rect air 4410 584 1 56
+rect air 4411 584 1 56
+rect air 4412 584 1 56
+rect air 4413 584 1 56
+rect air 4414 584 1 56
+rect air 4415 584 1 56
+rect air 4416 584 1 56
+rect air 4417 584 1 56
+rect air 4418 584 1 56
+rect air 4419 584 1 56
+rect air 4420 584 1 56
+rect air 4421 584 1 56
+rect air 4422 584 1 56
+rect air 4423 584 1 56
+rect air 4424 584 1 56
+rect air 4425 584 1 56
+rect air 4426 584 1 56
+rect air 4427 584 1 56
+rect air 4428 584 1 56
+rect air 4429 584 1 56
+rect air 4430 584 1 56
+rect air 4431 584 1 56
+rect air 4432 584 1 56
+rect air 4433 584 1 56
+rect air 4434 584 1 56
+rect air 4435 584 1 56
+rect air 4436 584 1 56
+rect air 4437 584 1 56
+rect air 4438 584 1 56
+rect air 4439 584 1 56
+rect air 4440 584 1 56
+rect air 4441 584 1 56
+rect air 4442 584 1 56
+rect air 4443 584 1 56
+rect air 4444 584 1 56
+rect air 4445 584 1 56
+rect air 4446 584 1 56
+rect air 4447 584 1 56
+rect air 4448 584 1 56
+rect air 4449 584 1 56
+rect air 4450 584 1 56
+rect air 4451 584 1 56
+rect air 4452 584 1 56
+rect air 4453 584 1 56
+rect air 4454 584 1 56
+rect air 4455 584 1 56
+rect air 4456 584 1 56
+rect air 4457 584 1 56
+rect air 4458 584 1 56
+rect air 4459 584 1 56
+rect air 4460 584 1 56
+rect air 4461 584 1 56
+rect air 4462 584 1 56
+rect air 4463 584 1 56
+rect air 4464 584 1 56
+rect air 4465 584 1 56
+rect air 4466 584 1 56
+rect air 4467 584 1 56
+rect air 4468 584 1 56
+rect air 4469 584 1 56
+rect air 4470 584 1 56
+rect air 4471 584 1 56
+rect air 4472 584 1 56
+rect air 4473 584 1 56
+rect air 4474 584 1 56
+rect air 4475 584 1 56
+rect air 4476 584 1 56
+rect air 4477 584 1 56
+rect air 4478 584 1 56
+rect air 4479 584 1 56
+rect air 4480 584 1 56
+rect air 4481 584 1 56
+rect air 4482 584 1 56
+rect air 4483 584 1 56
+rect air 4484 584 1 56
+rect air 4485 584 1 56
+rect air 4486 584 1 56
+rect air 4487 584 1 56
+rect air 4488 584 1 56
+rect air 4489 584 1 56
+rect air 4490 584 1 56
+rect air 4491 584 1 56
+rect air 4492 584 1 56
+rect air 4493 584 1 56
+rect air 4494 584 1 56
+rect air 4495 584 1 56
+rect air 4496 584 1 56
+rect air 4497 584 1 56
+rect air 4498 584 1 56
+rect air 4499 584 1 56
+rect air 4500 584 1 56
+rect air 4501 584 1 56
+rect air 4502 584 1 56
+rect air 4503 584 1 56
+rect air 4504 584 1 56
+rect air 4505 584 1 56
+rect air 4506 584 1 56
+rect air 4507 584 1 56
+rect air 4508 584 1 56
+rect air 4509 584 1 56
+rect air 4510 584 1 56
+rect air 4511 584 1 56
+rect air 4512 584 1 56
+rect air 4513 584 1 56
+rect air 4514 584 1 56
+rect air 4515 584 1 56
+rect air 4516 584 1 56
+rect air 4517 584 1 56
+rect air 4518 584 1 56
+rect air 4519 584 1 56
+rect air 4520 584 1 56
+rect air 4521 584 1 56
+rect air 4522 584 1 56
+rect air 4523 584 1 56
+rect air 4524 584 1 56
+rect air 4525 584 1 56
+rect air 4526 584 1 56
+rect air 4527 584 1 56
+rect air 4528 584 1 56
+rect air 4529 584 1 56
+rect air 4530 584 1 56
+rect air 4531 584 1 56
+rect air 4532 584 1 56
+rect air 4533 584 1 56
+rect air 4534 584 1 56
+rect air 4535 584 1 56
+rect air 4536 584 1 56
+rect air 4537 584 1 56
+rect air 4538 584 1 56
+rect air 4539 584 1 56
+rect air 4540 584 1 56
+rect air 4541 584 1 56
+rect air 4542 584 1 56
+rect air 4543 584 1 56
+rect air 4544 584 1 56
+rect air 4545 584 1 56
+rect air 4546 584 1 56
+rect air 4547 584 1 56
+rect air 4548 584 1 56
+rect air 4549 584 1 56
+rect air 4550 584 1 56
+rect air 4551 584 1 56
+rect air 4552 584 1 56
+rect air 4553 584 1 56
+rect air 4554 584 1 56
+rect air 4555 584 1 56
+rect air 4556 584 1 56
+rect air 4557 584 1 56
+rect air 4558 584 1 56
+rect air 4559 584 1 56
+rect air 4560 584 1 56
+rect air 4561 584 1 56
+rect air 4562 584 1 56
+rect air 4563 584 1 56
+rect air 4564 584 1 56
+rect air 4565 584 1 56
+rect air 4566 584 1 56
+rect air 4567 584 1 56
+rect air 4568 584 1 56
+rect air 4569 584 1 56
+rect air 4570 584 1 56
+rect air 4571 584 1 56
+rect air 4572 584 1 56
+rect air 4573 584 1 56
+rect air 4574 584 1 56
+rect air 4575 584 1 56
+rect air 4576 584 1 56
+rect air 4577 584 1 56
+rect air 4578 584 1 56
+rect air 4579 584 1 56
+rect air 4580 584 1 56
+rect air 4581 584 1 56
+rect air 4582 584 1 56
+rect air 4583 584 1 56
+rect air 4584 584 1 56
+rect air 4585 584 1 56
+rect air 4586 584 1 56
+rect air 4587 584 1 56
+rect air 4588 584 1 56
+rect air 4589 584 1 56
+rect air 4590 584 1 56
+rect air 4591 584 1 56
+rect air 4592 584 1 56
+rect air 4593 584 1 56
+rect air 4594 584 1 56
+rect air 4595 584 1 56
+rect air 4596 584 1 56
+rect air 4597 584 1 56
+rect air 4598 584 1 56
+rect air 4599 584 1 56
+rect air 4600 584 1 56
+rect air 4601 584 1 56
+rect air 4602 584 1 56
+rect air 4603 584 1 56
+rect air 4604 584 1 56
+rect air 4605 584 1 56
+rect air 4606 584 1 56
+rect air 4607 584 1 56
+rect air 4608 584 1 56
+rect air 4609 584 1 56
+rect air 4610 584 1 56
+rect air 4611 584 1 56
+rect air 4612 584 1 56
+rect air 4613 584 1 56
+rect air 4614 584 1 56
+rect air 4615 584 1 56
+rect air 4616 584 1 56
+rect air 4617 584 1 56
+rect air 4618 584 1 56
+rect air 4619 584 1 56
+rect air 4620 584 1 56
+rect air 4621 584 1 56
+rect air 4622 584 1 56
+rect air 4623 584 1 56
+rect air 4624 584 1 56
+rect air 4625 584 1 56
+rect air 4626 584 1 56
+rect air 4627 584 1 56
+rect air 4628 584 1 56
+rect air 4629 584 1 56
+rect air 4630 584 1 56
+rect air 4631 584 1 56
+rect air 4632 584 1 56
+rect air 4633 584 1 56
+rect air 4634 584 1 56
+rect air 4635 584 1 56
+rect air 4636 584 1 56
+rect air 4637 584 1 56
+rect air 4638 584 1 56
+rect air 4639 584 1 56
+rect air 4640 584 1 56
+rect air 4641 584 1 56
+rect air 4642 584 1 56
+rect air 4643 584 1 56
+rect air 4644 584 1 56
+rect air 4645 584 1 56
+rect air 4646 584 1 56
+rect air 4647 584 1 56
+rect air 4648 584 1 56
+rect air 4649 584 1 56
+rect air 4650 584 1 56
+rect air 4651 584 1 56
+rect air 4652 584 1 56
+rect air 4653 584 1 56
+rect air 4654 584 1 56
+rect air 4655 584 1 56
+rect air 4656 584 1 56
+rect air 4657 584 1 56
+rect air 4658 584 1 56
+rect air 4659 584 1 56
+rect air 4660 584 1 56
+rect air 4661 584 1 56
+rect air 4662 584 1 56
+rect air 4663 584 1 56
+rect air 4664 584 1 56
+rect air 4665 584 1 56
+rect air 4666 584 1 56
+rect air 4667 584 1 56
+rect air 4668 584 1 56
+rect air 4669 584 1 56
+rect air 4670 584 1 56
+rect air 4671 584 1 56
+rect air 4672 584 1 56
+rect air 4673 584 1 56
+rect air 4674 584 1 56
+rect air 4675 584 1 56
+rect air 4676 584 1 56
+rect air 4677 584 1 56
+rect air 4678 584 1 56
+rect air 4679 584 1 56
+rect air 4680 584 1 56
+rect air 4681 584 1 56
+rect air 4682 584 1 56
+rect air 4683 584 1 56
+rect air 4684 584 1 56
+rect air 4685 584 1 56
+rect air 4686 584 1 56
+rect air 4687 584 1 56
+rect air 4688 584 1 56
+rect air 4689 584 1 56
+rect air 4690 584 1 56
+rect air 4691 584 1 56
+rect air 4692 584 1 56
+rect air 4693 584 1 56
+rect air 4694 584 1 56
+rect air 4695 584 1 56
+rect air 4696 584 1 56
+rect air 4697 584 1 56
+rect air 4698 584 1 56
+rect air 4699 584 1 56
+rect air 4700 584 1 56
+rect air 4701 584 1 55
+rect air 4702 584 1 55
+rect air 4703 584 1 55
+rect air 4704 584 1 55
+rect air 4705 584 1 55
+rect air 4706 584 1 55
+rect air 4707 584 1 55
+rect air 4708 584 1 55
+rect air 4709 584 1 55
+rect air 4710 584 1 55
+rect air 4711 584 1 55
+rect air 4712 584 1 55
+rect air 4713 584 1 55
+rect air 4714 584 1 55
+rect air 4715 584 1 55
+rect air 4716 584 1 55
+rect air 4717 584 1 55
+rect air 4718 584 1 55
+rect air 4719 584 1 55
+rect air 4720 584 1 55
+rect air 4721 584 1 55
+rect air 4722 584 1 55
+rect air 4723 584 1 55
+rect air 4724 584 1 55
+rect air 4725 584 1 55
+rect air 4726 584 1 55
+rect air 4727 584 1 55
+rect air 4728 584 1 55
+rect air 4729 584 1 55
+rect air 4730 584 1 55
+rect air 4731 584 1 55
+rect air 4732 584 1 55
+rect air 4733 584 1 55
+rect air 4734 584 1 55
+rect rock 4060 580 640 4
+rect iron 4100 584 2 4
+light 4101 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4190 584 2 4
+light 4191 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4280 584 2 4
+light 4281 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4370 584 2 4
+light 4371 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4460 584 2 4
+light 4461 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4550 584 2 4
+light 4551 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect iron 4640 584 2 4
+light 4641 590 80 strength 1.6 color #ffcf8a flicker 0.2 cone 90 70
+rect wood 4060 580 640 2    # ceiling boards
+rect air 4396 568 22 4
+rect gunpowder 4400 572 14 8   # charges in a niche above the tunnel
+# Quarry: floodlights, glass panes to smash, concrete blocks
+body rect glass 4770 622 2 16
+depth 0.3
+body rect glass 4810 622 2 16
+depth 0.3
+rect steel 4738 567 5 2
+anchor 4738 567 5 2
+light 4740 571 170 strength 2.2 color #e8f0ff cone 50 30
+rect steel 5128 562 5 2
+anchor 5128 562 5 2
+light 5130 566 170 strength 2.2 color #e8f0ff cone 110 30
+rect steel 5328 587 5 2
+anchor 5328 587 5 2
+light 5330 591 170 strength 2.2 color #e8f0ff cone 60 30
+# Finish arena: floodlights, a banner overhead, fireworks past the line
+rect steel 5418 598 5 2
+anchor 5418 598 5 2
+light 5420 602 150 strength 2.0 color #ffe0b0 cone 90 45
+rect steel 5498 598 5 2
+anchor 5498 598 5 2
+light 5500 602 150 strength 2.0 color #ffe0b0 cone 90 45
+rect brass 5460 610 30 4
+anchor 5460 610 30 4     # the finish banner
+rect concrete 5530 600 8 60
+rect gunpowder 5532 596 4 4
+rect concrete 5580 600 8 60
+rect gunpowder 5582 596 4 4
+# Everything starts at the cold evening air temperature
+heat rect 0 0 5600 760 0
+# The bike (assets/stunt-bike/physical-bike.txt), moved to the start, trials handling
+# Motorcycle assemblies
+legend I iron
+legend R rubber
+legend B brass
+legend . air
+body 57.500 686.700 0
+....II.............IIII
+....IIIII.BBIIIIIIIIIII
+......IIIIIIIIIII...II.
+.........IIB.......II..
+.........BII......II...
+........BBII.....II....
+........BB.II...II.....
+.......BBB..II.III.....
+..B....BB...IIIII......
+BBIBIIIIIIIIIIII.......
+B.IIIIIIIIIIIIIIIIII...
+B.IIIIII....IIIIIIII...
+B.IIBIIIIIII...........
+.BBB...................
+end
+name frame
+depth 0.02
+body 62.000 686.200 0
+.....I..
+...IIIII
+...IIIII
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIIII.
+IIIIII..
+end
+name engine
+depth 0.02
+body 72.500 683.700 0
+RRI........
+.II........
+....III....
+..BBIIII...
+..IIIIII...
+...BBIII...
+....BB.....
+....BB.....
+.....BB....
+.....BBB...
+......BI...
+.......II..
+........II.
+........II.
+.........II
+..........I
+end
+name fork
+depth 0.02
+body 63.000 682.200 0
+..IIIIIII...
+.IIIIIIIIII.
+IIIIIIIIIII.
+IIIIIIIIIIII
+IIIIIIIIIIII
+.........RII
+........RRII
+........R.II
+..........I.
+end
+name tank
+depth 0.02
+body 51.000 681.700 0
+IIIIIIIIII..
+.IIIIIIIIIII
+.....IIIIIII
+.....IIIIIII
+.....IIIIIII
+.....IIIIII.
+end
+name tail
+depth 0.02
+body 77.500 683.200 0
+IIII.........
+IIIIIIIIIIII.
+.......IIIIII
+end
+name mudguard
+depth 0.02
+body 57.500 685.700 0
+IIII...................
+IIIIII.................
+.IIIIIII...............
+...IIIIII..........I...
+.....IIIII.........III.
+.......IIIII........III
+...........IIII......II
+.............IIIII...II
+................IIIIII.
+..................III..
+end
+name exhaust
+depth 0.02
+body 54.500 679.700 0
+RRRRRRRRRRR
+RRRRRRRRRRR
+end
+name seat
+depth 0.02
+body 48.500 691.200 0
+.....RRRRR.....
+...RRRRRRRRR...
+..RRRRRIRRRRR..
+.RRRIIRRRIIRRR.
+.RRIRRIIIRRIRR.
+RRRIRIIIIBRIRRR
+RRRRIIIIIBBRRRR
+RRRRIIIIIIIRRRR
+RRRRIIIIIIIRRRR
+.RRIRIIIIIRIRR.
+.RRRIRRIRRIRRR.
+..RRRIIRIIRRR..
+..RRRRRRRRRRR..
+....RRRRRRR....
+.......R.......
+end
+name rear-wheel
+depth 0.02
+body 77.500 691.200 0
+.....RRRRR.....
+...RRRRRRRRR...
+..RRRRIIRRRRR..
+.RRRIIRRRIIRRR.
+.RRIRRIIIRRIRR.
+RRRIRIIIIBRIRR.
+RRRRIIIIIBBRRRR
+RRRRIIIIIIIRRRR
+RRRRIIIIIIRRRRR
+.RRIRIIIIIRIRR.
+.RRRIRRIRRIRRR.
+..RRRIIIIIRRR..
+..RRRRRRRRRRR..
+....RRRRRRR....
+.......R.......
+end
+name front-wheel
+depth 0.02
+weld frame engine break 5000
+weld frame fork break 2000
+weld frame tank break 500
+weld frame tail break 500
+weld frame mudguard break 500
+weld frame exhaust break 500
+weld frame seat break 500
+wheel frame rear-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
+wheel frame front-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
+follow frame zoom 3
+upright frame strength 70 air 0.15 heavy 1.6   # trials handling: heavier, lean to rotate in the air
+# Its headlight and tail light ride along with it
+light 70.5 683.7 120 strength 1.8 color #fff0d0 cone 0 22 on frame
+light 45.5 685.7 14 strength 1.2 color #ff3020 on frame
+# Messages, checkpoints, light changes and events along the way
+trigger 260 0 40 760 by frame : message JUMP THE FENCE
+trigger 520 0 40 760 by frame : checkpoint 540 683 ; score 300 ; message THE CLIMB — lean forward on the steep bits
+trigger 1500 0 40 760 by frame : checkpoint 1520 482 ; score 400 ; message STEEPER — mind the crevasse bridge
+trigger 1700 0 40 760 by frame : sun 68 0.7 #ff8a50 8 ; lighting 0.5 8
+trigger 2200 0 40 760 by frame : checkpoint 2220 324 ; score 500 ; message THE SUMMIT — snow and ice, easy on the gas
+trigger 2420 0 40 760 by frame : message FROZEN POND — no grip, carry your speed
+trigger 2600 0 40 760 by frame : sun 74 0.35 #c86a5a 10 ; lighting 0.3 10
+trigger 2895 0 20 760 by frame : message SEND IT! ; slowmo 0.35 1.4 ; zoom 1.25 1.6
+trigger 3200 0 40 760 by frame : checkpoint 3220 453 ; score 800 ; message NIGHT FALLS — the forest is burning
+trigger 3200 0 40 760 by frame : sun 60 0.18 #8090c0 6 ; lighting 0.16 6
+trigger 3380 0 20 760 by frame : heat rect 3612 640 44 10 700 ; message FIRE UNDER THE BRIDGE — keep your speed!
+trigger 4000 0 40 760 by frame : checkpoint 4020 626 ; score 600 ; message THE MINE — lights out
+trigger 4030 0 40 760 by frame : lighting 0.04 1.5
+trigger 4590 0 20 760 by frame : heat rect 4400 572 14 8 900 ; shake 5 ; message THE ROOF IS COMING DOWN — GO GO GO!
+trigger 4700 0 40 760 by frame : checkpoint 4720 626 ; score 600 ; message THE QUARRY — smash on through
+trigger 4700 0 40 760 by frame : lighting 0.14 2
+trigger 4990 0 20 760 by frame : heat rect 5176 684 44 4 400 ; message OIL FIRE — FULL RUN-UP!
+trigger 5300 0 40 760 by frame : checkpoint 5320 644 ; score 400 ; message HOME STRAIGHT
+trigger 5470 0 20 760 by frame : finish ; heat rect 5532 596 4 4 900 ; heat rect 5582 596 4 4 900 ; zoom 1.2 2

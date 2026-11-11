@@ -313,10 +313,10 @@ weld frame tail break 500
 weld frame mudguard break 500
 weld frame exhaust break 500
 weld frame seat break 500
-wheel frame rear-wheel spring 4 damping 1 travel 2 motor 10 strength 3 drive break 2000
-wheel frame front-wheel spring 4 damping 1 travel 2 motor 10 strength 3 drive break 2000
+wheel frame rear-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
+wheel frame front-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
 follow frame zoom 3
-upright frame strength 60
+upright frame strength 70 air 0.15 heavy 1.6
 body rect iron 1040 166 90 8
 depth 0.08
 name low_gantry

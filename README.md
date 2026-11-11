@@ -562,6 +562,32 @@ Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycl
 
 Scenes can set `depth 0.02` after a body for its physical thickness in metres (default 1). Joints accept an optional `break 500` failure load in kN. Both survive scene saves and snapshots; fragments inherit thickness. Omit these settings for the existing behaviour. See `assets/stunt-bike/README.md` for the complete model/export and material notes.
 
-## Wreck Run course
+## Stunt Yard courses
 
-Stunt Yard opens a 360-metre scrolling material course: sand hills, a muddy bog, a low gantry after a descent, proximity-triggered demolition charges, timber bridge, ice and a lava jump. S/down brakes; R returns to a checkpoint; Backspace restarts. See docs/WRECK-RUN.md. tools/make_stunt_course.py regenerates the scene and ignition cues.
+`Play-Stunt-Yard.cmd`. On the start screen press **1** or **2** to pick a course, then
+SPACE. Trials controls: **W / ↑** throttle, **S / ↓** brake (hold it when stopped to
+back up), **A / ←** lean back, **D / →** lean forward. R returns to the last
+checkpoint, Backspace restarts.
+
+The bike handles like a trials bike (`upright frame strength 70 air 0.15 heavy 1.6`):
+heavy, it lands hard; on the ground it follows the slope and leaning shifts your
+weight (wheelies, keeping the front down on climbs); in the air leaning spins it, so
+line up your landings. It has a headlight and a tail light at night.
+
+1. **Wreck Run** (360 m): sand hills, a muddy bog, a low gantry after a descent,
+   demolition charges, a timber bridge, ice and a lava jump. See docs/WRECK-RUN.md;
+   `tools/make_stunt_course.py` regenerates it.
+2. **Mountain Run** (560 m, tall): from a valley village at dusk up two rocky climbs
+   and a wooden bridge to a snowy summit with a frozen pond, as the sun goes down; a
+   big jump in slow motion off the peak; down through the forest at night while a hut
+   burns under the trestle bridge ahead (embers set the bridge alight: keep your
+   speed); through a pitch-dark mine with flickering lamps where gunpowder brings the
+   roof down behind you; a quarry under floodlights with glass panes to smash, a mud
+   bog and a jump over burning oil; a floodlit finish with fireworks.
+   `tools/make_mountain_run.py` builds it. Levels say their own stages, checkpoints,
+   lighting changes and finish with triggers (`checkpoint X Y`, `score`, `message`,
+   `sun`, `lighting`, `finish`).
+
+`stunt-yard --verify-ai --level=1` lets an automatic rider ride a course (it prints
+progress, says where it got stuck, and saves pictures to `shots/ride-*.png`): use it
+to check a new level can be finished. `--from=X` starts at the checkpoint at X.
