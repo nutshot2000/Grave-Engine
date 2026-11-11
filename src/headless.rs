@@ -68,15 +68,17 @@ pub fn shot_with_actors(
     scale: u32,
     heat: bool,
 ) -> Result<(), String> {
-    let rgba = r.draw(world, mats, View { heat });
     let (x0, y0, cw, ch) = window.unwrap_or((0, 0, world.w, world.h));
+    // Only draw the part being saved.
+    let win = crate::render::clip(world, (x0, y0, cw, ch));
+    let rgba = r.draw_window(world, mats, View { heat }, win);
     let s = scale.max(1) as usize;
     let (ow, oh) = (cw * s, ch * s);
     let mut out = vec![0u8; ow * oh * 4];
     for oy in 0..oh {
         for ox in 0..ow {
-            let (wx, wy) = ((x0 + ox / s).min(world.w - 1), (y0 + oy / s).min(world.h - 1));
-            let src = (wy * world.w + wx) * 4;
+            let (wx, wy) = ((x0 + ox / s).min(win.0 + win.2 - 1), (y0 + oy / s).min(win.1 + win.3 - 1));
+            let src = ((wy - win.1) * win.2 + wx - win.0) * 4;
             out[(oy * ow + ox) * 4..(oy * ow + ox) * 4 + 4].copy_from_slice(&rgba[src..src + 4]);
         }
     }

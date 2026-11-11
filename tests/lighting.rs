@@ -105,3 +105,41 @@ fn a_trigger_fades_the_lights_and_lighting_survives_saving() {
     }
     assert!((s.lighting.ambient - 0.1).abs() < 0.02, "faded to dark: {}", s.lighting.ambient);
 }
+
+#[test]
+fn drawing_just_the_view_matches_drawing_everything() {
+    let m = mats();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/scenes");
+    for file in ["house-night.txt", "house.txt", "stunt-yard.txt"] {
+        let text = std::fs::read_to_string(format!("{dir}/{file}")).unwrap();
+        let (mut s, _) = scene::load(&text, &m, Some(std::path::Path::new(dir))).into_sim(&m);
+        // Some fire, so glow and embers are in the picture too.
+        let (w, h) = (s.world.w, s.world.h);
+        for y in h / 3..h / 3 + 4 {
+            for x in w / 2..w / 2 + 6 {
+                let i = s.world.idx(x, y);
+                s.world.temp[i] = 900.0;
+            }
+        }
+        for _ in 0..60 {
+            s.step(&m);
+        }
+        let mut r = Renderer::default();
+        r.light(&s);
+        r.set_camera(w as f32 * 0.4, h as f32 * 0.5);
+        let all = r.draw(&s.world, &m, View::default()).to_vec();
+        let win = (w / 3, h / 4, (w / 3).min(300), h / 2);
+        let part = r.draw_window(&s.world, &m, View::default(), win).to_vec();
+        assert_eq!(part.len(), win.2 * win.3 * 4);
+        let mut wrong = 0;
+        for y in 0..win.3 {
+            for x in 0..win.2 {
+                let (a, b) = ((y * win.2 + x) * 4, ((win.1 + y) * w + win.0 + x) * 4);
+                if part[a..a + 3] != all[b..b + 3] {
+                    wrong += 1;
+                }
+            }
+        }
+        assert_eq!(wrong, 0, "{file}: {wrong} pixels differ");
+    }
+}

@@ -141,26 +141,28 @@ impl eframe::App for Game {
   ui.label(format!("{speed:.0} km/h   {}   |   CHECKPOINT {}m",if self.surface.is_empty(){"HARD SURFACE / AIR"}else{&self.surface},(self.checkpoint/10.) as u32));
   ui.label(egui::RichText::new(&self.state).color(Color32::from_rgb(255,190,65)).size(21.));
   ui.label("SPACE: start  •  D / →: accelerate  •  A / ←: reverse  •  S / ↓: brake  •  Q / E: lean  •  R: checkpoint  •  BACKSPACE: restart  •  C: crash test");
-  // Always draw the real material cells, for intact parts and wreckage alike.
-  self.renderer.light(&self.sim);
-  self.renderer.set_camera(self.cam_x,self.cam_y+self.cam_width*0.3);
-  let mut rgba=self.renderer.draw(&self.sim.world,&self.mats,View::default()).to_vec();
-  // Show the distant film-set backdrop through unlit empty air; retain fire glow.
-  let air=self.mats.get(grave_engine::material::AIR).color;
-  for (i,px) in rgba.chunks_exact_mut(4).enumerate() {
-   if self.sim.world.mat[i]==grave_engine::material::AIR && (0..3).all(|k|px[k].abs_diff(air[k])<3) {px[3]=0;}
-  }
-  let image=egui::ColorImage::from_rgba_unmultiplied([self.sim.world.w,self.sim.world.h],&rgba);
-  if let Some(t)=&mut self.texture {t.set(image,egui::TextureOptions::NEAREST);}else{self.texture=Some(ctx.load_texture("world",image,egui::TextureOptions::NEAREST));}
   let (rect,_)=ui.allocate_exact_size(ui.available_size(),egui::Sense::hover());
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1));
   let vw=self.update_zoom(dt as f32);let vh=(vw*rect.height()/rect.width()).min(240.);
-  let world_w=self.sim.world.w as f32;let world_h=self.sim.world.h as f32;
   self.update_camera(vw,vh,dt as f32);
   let shake=self.sim.camera.shake_offset();
   let cx=self.cam_x+shake.0;let y0=self.cam_y+shake.1;
-
-  let view=Rect::from_min_max(Pos2::new((cx-vw/2.)/world_w,y0/world_h),Pos2::new((cx+vw/2.)/world_w,(y0+vh)/world_h));
+  // Draw only what the camera sees (plus a margin): the real material cells,
+  // for intact parts and wreckage alike.
+  let win=grave_engine::render::clip(&self.sim.world,((cx-vw/2.-24.).max(0.) as usize,(y0-24.).max(0.) as usize,(vw+48.) as usize,(vh+48.) as usize));
+  self.renderer.light(&self.sim);
+  self.renderer.set_camera(cx,y0+vh/2.);
+  let mut rgba=self.renderer.draw_window(&self.sim.world,&self.mats,View::default(),win).to_vec();
+  // Show the distant film-set backdrop through unlit empty air; retain fire glow.
+  let air=self.mats.get(grave_engine::material::AIR).color;
+  for (j,px) in rgba.chunks_exact_mut(4).enumerate() {
+   let i=(win.1+j/win.2)*self.sim.world.w+win.0+j%win.2;
+   if self.sim.world.mat[i]==grave_engine::material::AIR && (0..3).all(|k|px[k].abs_diff(air[k])<3) {px[3]=0;}
+  }
+  let image=egui::ColorImage::from_rgba_unmultiplied([win.2,win.3],&rgba);
+  match &mut self.texture {Some(t) if t.size()==[win.2,win.3]=>t.set(image,egui::TextureOptions::NEAREST),_=>self.texture=Some(ctx.load_texture("world",image,egui::TextureOptions::NEAREST))}
+  let (ww,wh)=(win.2 as f32,win.3 as f32);let (wx,wy)=(win.0 as f32,win.1 as f32);
+  let view=Rect::from_min_max(Pos2::new((cx-vw/2.-wx)/ww,(y0-wy)/wh),Pos2::new((cx+vw/2.-wx)/ww,(y0+vh-wy)/wh));
   let desert=(430.0..1130.0).contains(&cx)||(2890.0..3200.0).contains(&cx);
   ui.painter().rect_filled(rect,0.,if desert {Color32::from_rgb(37,29,30)}else{Color32::from_rgb(15,20,31)});
   let backdrop=ui.painter().with_clip_rect(rect);

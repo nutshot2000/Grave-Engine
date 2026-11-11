@@ -208,9 +208,16 @@ fn passes(mats: &Materials) -> Vec<[f32; 3]> {
 /// Work out the light falling on every cell: `out[i]` = how lit (1 = full
 /// white daylight), per colour. Glow from hot things is added by the renderer.
 /// `lamp_only` gets just the lamps' share (for the haze lamps make in the air).
-pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>, lamp_only: &mut Vec<[f32; 3]>) {
-    let (w, h) = (world.w, world.h);
-    let n = w * h;
+///
+/// Only for the window `win` = (x, y, w, h) of the world (what's being
+/// drawn): `out` is `w * h`, row by row. Shadows from outside it still count.
+#[allow(clippy::too_many_arguments)]
+pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], win: (usize, usize, usize, usize), out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>, lamp_only: &mut Vec<[f32; 3]>) {
+    let (wx0, wy0, ww, wh) = win;
+    let n = ww * wh;
+    let inside = |x: i32, y: i32| -> Option<usize> {
+        (x >= wx0 as i32 && y >= wy0 as i32 && x < (wx0 + ww) as i32 && y < (wy0 + wh) as i32).then(|| (y as usize - wy0) * ww + x as usize - wx0)
+    };
     // Sun and lamps go into `out` first, get softened a little (light spills
     // just round edges), then the overall light is added.
     out.clear();
@@ -232,22 +239,30 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
         let slope = sun.angle.to_radians().tan().clamp(-3.0, 3.0);
         scratch.clear();
         scratch.resize(n, [0.0; 3]);
-        let mut prev = vec![[1.0f32; 3]; w]; // light leaving the row above (open sky)
-        let mut row = vec![[0.0f32; 3]; w];
-        for y in 0..h {
+        // Sweep from the top of the world down to the window's bottom, over
+        // the window's columns plus those the slanted light comes in from.
+        let bottom = wy0 + wh;
+        let reach = (slope.abs() * bottom as f32).ceil() as usize + 2;
+        let (c0, c1) = (wx0.saturating_sub(reach), (wx0 + ww + reach).min(world.w));
+        let cols = c1 - c0;
+        let mut prev = vec![[1.0f32; 3]; cols]; // light leaving the row above (open sky)
+        let mut row = vec![[0.0f32; 3]; cols];
+        for y in 0..bottom {
             for (x, r) in row.iter_mut().enumerate() {
                 let src = x as f32 - slope;
                 let x0 = src.floor();
                 let k = src - x0;
                 let get = |xi: f32| -> [f32; 3] {
-                    if xi < 0.0 || xi >= w as f32 { [1.0; 3] } else { prev[xi as usize] }
+                    if xi < 0.0 || xi >= cols as f32 { [1.0; 3] } else { prev[xi as usize] }
                 };
                 let (l0, l1) = (get(x0), get(x0 + 1.0));
                 *r = [l0[0] * (1.0 - k) + l1[0] * k, l0[1] * (1.0 - k) + l1[1] * k, l0[2] * (1.0 - k) + l1[2] * k];
             }
-            for x in 0..w {
-                let i = y * w + x;
-                scratch[i] = row[x];
+            for x in 0..cols {
+                let i = y * world.w + c0 + x;
+                if let Some(j) = inside((c0 + x) as i32, y as i32) {
+                    scratch[j] = row[x];
+                }
                 let t = through(i);
                 prev[x] = [row[x][0] * t[0], row[x][1] * t[1], row[x][2] * t[2]];
             }
@@ -268,6 +283,10 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
     let mut tint: Vec<[f32; 3]> = Vec::new();
     for lamp in lamps {
         let r = lamp.radius.min(400.0);
+        // Too far from the window to light any of it.
+        if lamp.x + r < wx0 as f32 || lamp.y + r < wy0 as f32 || lamp.x - r > (wx0 + ww) as f32 || lamp.y - r > (wy0 + wh) as f32 {
+            continue;
+        }
         let ri = r.ceil() as i32;
         let side = (2 * ri + 1) as usize;
         local.clear();
@@ -336,10 +355,7 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
                     continue;
                 }
                 let (x, y) = (ox + lx as i32, oy + ly as i32);
-                if !world.in_bounds(x, y) {
-                    continue;
-                }
-                let i = world.idx(x as usize, y as usize);
+                let Some(i) = inside(x, y) else { continue };
                 let tn = tint[ly * side + lx];
                 for k in 0..3 {
                     out[i][k] += v * c[k] * tn[k];
@@ -352,7 +368,7 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
     }
     if !lamps.is_empty() || lighting.sun.is_some() {
         scratch.resize(n, [0.0; 3]);
-        crate::render::blur(out, scratch, w, h, 1);
+        crate::render::blur(out, scratch, ww, wh, 1);
     }
     for v in out.iter_mut() {
         for k in 0..3 {

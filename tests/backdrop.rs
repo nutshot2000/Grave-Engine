@@ -38,8 +38,8 @@ fn far_layers_slide_slower_than_near_ones() {
     let mut pics = Default::default();
     let (mut a, mut b, mut g) = (Vec::new(), Vec::new(), Vec::new());
     let mut moved = |bd: &Backdrop| {
-        bd.draw(w, h, 100.0, 50.0, 0, &mut pics, &mut a, &mut g);
-        bd.draw(w, h, 150.0, 50.0, 0, &mut pics, &mut b, &mut g);
+        bd.draw(w, h, (0, 0, w, h), 100.0, 50.0, 0, &mut pics, &mut a, &mut g);
+        bd.draw(w, h, (0, 0, w, h), 150.0, 50.0, 0, &mut pics, &mut b, &mut g);
         shift(&a, &b, w, 60)
     };
     let (f, n) = (moved(&far), moved(&near));

@@ -19,6 +19,8 @@ pub struct Renderer {
     tmp: Vec<[f32; 3]>,
     scratch: Vec<[f32; 3]>,
     pub rgba: Vec<u8>,
+    /// The part of the world the last picture shows: (x, y, w, h) in cells.
+    pub window: (usize, usize, usize, usize),
     /// The lighting to draw with (see light.rs; set it with `light`).
     lighting: crate::light::Lighting,
     lamps: Vec<crate::light::Placed>,
@@ -132,7 +134,22 @@ impl Renderer {
         self.lamps = lamps;
     }
 
+    /// Draw the whole world: RGBA, one pixel per cell, `world.w` x `world.h`.
     pub fn draw(&mut self, world: &World, mats: &Materials, view: View) -> &[u8] {
+        self.draw_window(world, mats, view, (0, 0, world.w, world.h))
+    }
+
+    /// Draw just part of the world, `(x, y, w, h)` in cells (what's on
+    /// screen): RGBA, `w` x `h` (clipped to the world; see `window`). Much
+    /// faster than drawing everything when the world is big. Glow and light
+    /// from just outside it still spill in.
+    pub fn draw_window(&mut self, world: &World, mats: &Materials, view: View, win: (usize, usize, usize, usize)) -> &[u8] {
+        let win = clip(world, win);
+        self.window = win;
+        // Work on the window plus a margin (glow spreads ~40 cells).
+        let e = grow(world, win, 40);
+        let (ex0, ey0, ew, eh) = e;
+        let at = |j: usize| (ey0 + j / ew) * world.w + ex0 + j % ew;
         // Load any textures not seen yet.
         let pics: Vec<Option<crate::import::Picture>> = mats
             .list
@@ -142,7 +159,8 @@ impl Renderer {
                 self.textures.entry(p.clone()).or_insert_with(|| crate::import::Picture::open(p).ok()).clone()
             })
             .collect();
-        let n = world.w * world.h;
+        let n = ew * eh;
+        self.light.clear();
         self.light.resize(n, [0.0; 3]);
         self.self_lit.clear();
         self.self_lit.resize(n, false);
@@ -153,14 +171,17 @@ impl Renderer {
         self.hot.resize(n, [0.0; 3]);
         self.tmp.resize(n, [0.0; 3]);
         self.scratch.resize(n, [0.0; 3]);
-        self.rgba.resize(n * 4, 255);
+        self.rgba.clear();
+        self.rgba.resize(win.2 * win.3 * 4, 255);
         let air = c3(mats.get(0).color);
         let flicker_frame = world.frame / 3;
 
-        for i in 0..n {
+        for j in 0..n {
+            let i = at(j);
             if world.flags[i] & crate::world::HIDDEN != 0 {
-                self.light[i] = [0.0; 3];
-                self.tmp[i] = if view.heat { lerp3(air, heat_color(world.temp[i]), 0.8) } else { air };
+                self.light[j] = [0.0; 3];
+                self.self_lit[j] = false;
+                self.tmp[j] = if view.heat { lerp3(air, heat_color(world.temp[i]), 0.8) } else { air };
                 continue;
             }
             let m = mats.get(world.mat[i]);
@@ -194,11 +215,11 @@ impl Renderer {
                 if m.state == State::Gas && world.mat[i] != crate::material::AIR {
                     let a = m.lifetime.map_or(1.0, |l| (world.life[i] as f32 / l as f32 * 1.6).clamp(0.0, 1.0));
                     if m.glow > 0.0 {
-                        self.gas_alpha[i] = 0.95 * (a * 2.0).min(1.0);
-                        self.gas_col[i] = lerp3([200.0, 30.0, 10.0], col, a);
+                        self.gas_alpha[j] = 0.95 * (a * 2.0).min(1.0);
+                        self.gas_col[j] = lerp3([200.0, 30.0, 10.0], col, a);
                     } else {
-                        self.gas_alpha[i] = 0.6 * a;
-                        self.gas_col[i] = col;
+                        self.gas_alpha[j] = 0.6 * a;
+                        self.gas_col[j] = col;
                     }
                 }
                 // Things that only last a while fade out as they run out.
@@ -228,46 +249,45 @@ impl Renderer {
                     let hc = hot_color(t);
                     col = lerp3(col, hc, k * 0.9);
                     emit = [emit[0] + hc[0] * k * 0.5, emit[1] + hc[1] * k * 0.5, emit[2] + hc[2] * k * 0.5];
-                    self.hot[i] = [hc[0] * k * 0.8, hc[1] * k * 0.8, hc[2] * k * 0.8];
+                    self.hot[j] = [hc[0] * k * 0.8, hc[1] * k * 0.8, hc[2] * k * 0.8];
                 }
             }
-            self.light[i] = emit;
+            self.light[j] = emit;
             // Flames and glowing materials are light themselves; merely hot
             // things (ash, metal) stay dark and add their heat glow on top.
-            self.self_lit[i] = m.glow > 0.0 || world.is_burning(i);
-            self.tmp[i] = col;
+            self.self_lit[j] = m.glow > 0.0 || world.is_burning(i);
+            self.tmp[j] = col;
         }
 
         // Hidden cells (under a character's pictures) take the look of
         // whatever is next to them in the row, so a swimmer sits in water,
         // not in a dark hole.
-        for y in 0..world.h {
-            let row = y * world.w;
-            for x in 0..world.w {
-                let i = row + x;
-                if world.flags[i] & crate::world::HIDDEN == 0 {
+        for y in 0..eh {
+            for x in 0..ew {
+                let j = y * ew + x;
+                if world.flags[at(j)] & crate::world::HIDDEN == 0 {
                     continue;
                 }
-                let shown = |j: usize| world.flags[j] & crate::world::HIDDEN == 0;
-                let left = (1..=24).take_while(|d| *d <= x).map(|d| i - d).find(|&j| shown(j));
-                let right = (1..=24).take_while(|d| x + d < world.w).map(|d| i + d).find(|&j| shown(j));
+                let shown = |k: usize| world.flags[at(k)] & crate::world::HIDDEN == 0;
+                let left = (1..=24).take_while(|d| *d <= x).map(|d| j - d).find(|&k| shown(k));
+                let right = (1..=24).take_while(|d| x + d < ew).map(|d| j + d).find(|&k| shown(k));
                 let pick = match (left, right) {
-                    (Some(l), Some(r)) => Some(if i - l <= r - i { l } else { r }),
+                    (Some(l), Some(r)) => Some(if j - l <= r - j { l } else { r }),
                     (l, r) => l.or(r),
                 };
-                if let Some(j) = pick {
-                    self.tmp[i] = self.tmp[j];
-                    self.light[i] = self.light[j];
+                if let Some(k) = pick {
+                    self.tmp[j] = self.tmp[k];
+                    self.light[j] = self.light[k];
                 }
             }
         }
 
         // Cells flying through the air, drawn on top.
         for f in &world.flying {
-            if f.x < 0.0 || f.y < 0.0 || f.x >= world.w as f32 || f.y >= world.h as f32 {
+            if f.x < ex0 as f32 || f.y < ey0 as f32 || f.x >= (ex0 + ew) as f32 || f.y >= (ey0 + eh) as f32 {
                 continue;
             }
-            let i = world.idx(f.x as usize, f.y as usize);
+            let i = (f.y as usize - ey0) * ew + f.x as usize - ex0;
             let m = mats.get(f.mat);
             let s = (f.shade as f32 / 255.0) * 2.0 - 1.0;
             let k = 1.0 + m.color_variation * s;
@@ -289,8 +309,8 @@ impl Renderer {
         }
 
         if !view.heat {
-            blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
-            blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
+            blur(&mut self.light, &mut self.scratch, ew, eh, 5);
+            blur(&mut self.light, &mut self.scratch, ew, eh, 5);
         }
         let lit = !view.heat && !(self.lighting.is_plain() && self.lamps.is_empty());
         // In the dark, glow also reaches far: a wide, soft spread of it,
@@ -299,26 +319,32 @@ impl Renderer {
         if dark > 0.05 {
             self.wide.clear();
             self.wide.extend_from_slice(&self.light);
-            blur(&mut self.wide, &mut self.scratch, world.w, world.h, 16);
-            blur(&mut self.wide, &mut self.scratch, world.w, world.h, 16);
+            blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
+            blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
         }
         if lit {
-            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
+            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
         }
         let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
         let backdrop = !view.heat && !self.backdrop.is_empty();
         if backdrop {
             let (cx, cy) = self.camera.unwrap_or((world.w as f32 / 2.0, world.h as f32 / 2.0));
-            self.backdrop.draw(world.w, world.h, cx, cy, world.frame, &mut self.pictures, &mut self.bg, &mut self.bg_glow);
+            self.backdrop.draw(world.w, world.h, e, cx, cy, world.frame, &mut self.pictures, &mut self.bg, &mut self.bg_glow);
         }
         let amb = {
             let (a, c) = (self.lighting.ambient.max(0.0), self.lighting.ambient_color);
             [a * c[0] as f32 / 255.0, a * c[1] as f32 / 255.0, a * c[2] as f32 / 255.0]
         };
 
-        for i in 0..n {
+        let (wx0, wy0, ww, wh) = win;
+        for o_idx in 0..ww * wh {
+            // This pixel of the window, its cell in the margin buffers (`i`)
+            // and in the world (`wi`).
+            let (ox, oy) = (o_idx % ww, o_idx / ww);
+            let i = (wy0 + oy - ey0) * ew + (wx0 + ox - ex0);
+            let wi = (wy0 + oy) * world.w + wx0 + ox;
             // Empty air shows the backdrop (not flying cells drawn there).
-            let open = backdrop && world.mat[i] == crate::material::AIR && self.tmp[i] == air;
+            let open = backdrop && world.mat[wi] == crate::material::AIR && self.tmp[i] == air;
             let veil = backdrop && !open && self.gas_alpha[i] > 0.0;
             let c = if open {
                 self.bg[i]
@@ -335,7 +361,7 @@ impl Renderer {
                 // Sky, sun and lamps light what they fall on; glow adds its
                 // own light and halo; in the air, beams show as a soft haze.
                 let e = self.illum[i];
-                let gas = mats.get(world.mat[i]).state == State::Gas;
+                let gas = mats.get(world.mat[wi]).state == State::Gas;
                 let haze = |k: usize| if gas { (e[k] - amb[k]).max(0.0) * 12.0 } else { 0.0 };
                 // The far backdrop isn't shadowed by the world: it gets the
                 // overall light and the sun; lamps only haze the air in front.
@@ -363,7 +389,7 @@ impl Renderer {
                 ];
                 (lit[0], lit[1], lit[2])
             };
-            let o = i * 4;
+            let o = o_idx * 4;
             self.rgba[o] = r.clamp(0.0, 255.0) as u8;
             self.rgba[o + 1] = g.clamp(0.0, 255.0) as u8;
             self.rgba[o + 2] = b.clamp(0.0, 255.0) as u8;
@@ -371,6 +397,20 @@ impl Renderer {
         }
         &self.rgba
     }
+}
+
+/// A window clipped to the world (at least one cell).
+pub fn clip(world: &World, (x, y, w, h): (usize, usize, usize, usize)) -> (usize, usize, usize, usize) {
+    let x = x.min(world.w - 1);
+    let y = y.min(world.h - 1);
+    (x, y, w.clamp(1, world.w - x), h.clamp(1, world.h - y))
+}
+
+/// A window grown by `m` cells on every side, clipped to the world.
+pub fn grow(world: &World, (x, y, w, h): (usize, usize, usize, usize), m: usize) -> (usize, usize, usize, usize) {
+    let (x0, y0) = (x.saturating_sub(m), y.saturating_sub(m));
+    let (x1, y1) = ((x + w + m).min(world.w), (y + h + m).min(world.h));
+    (x0, y0, x1 - x0, y1 - y0)
 }
 
 /// Box blur, horizontal then vertical, radius `r`.

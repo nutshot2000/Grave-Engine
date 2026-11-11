@@ -213,30 +213,38 @@ impl Backdrop {
     /// Draw the backdrop at world resolution for a camera centred at
     /// (cx, cy) (cells): `out[i]` = colour, `glow[i]` = light it gives off
     /// itself (lit windows, stars), for every cell. `frame` drifts clouds.
-    pub fn draw(&self, w: usize, h: usize, cx: f32, cy: f32, frame: u32, pictures: &mut std::collections::HashMap<std::path::PathBuf, Option<Picture>>, out: &mut Vec<[f32; 3]>, glow: &mut Vec<[f32; 3]>) {
-        let n = w * h;
+    ///
+    /// Only the window `win` = (x, y, w, h) of the world is drawn: `out` and
+    /// `glow` are `w * h`, row by row.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw(&self, w: usize, h: usize, win: (usize, usize, usize, usize), cx: f32, cy: f32, frame: u32, pictures: &mut std::collections::HashMap<std::path::PathBuf, Option<Picture>>, out: &mut Vec<[f32; 3]>, glow: &mut Vec<[f32; 3]>) {
+        let (wx0, wy0, ww, wh) = win;
+        let n = ww * wh;
+        let (wx1, wy1) = (wx0 + ww, wy0 + wh);
+        let local = |x: usize, y: usize| (y - wy0) * ww + (x - wx0);
         out.clear();
         glow.clear();
         glow.resize(n, [0.0; 3]);
         let (top, bottom, stars) = self.sky.unwrap_or(([0, 0, 0], [0, 0, 0], false));
         let f3 = |c: [u8; 3]| [c[0] as f32, c[1] as f32, c[2] as f32];
         out.reserve(n);
-        for y in 0..h {
+        for y in wy0..wy1 {
             let t = y as f32 / (h.max(2) - 1) as f32;
             let (a, b) = (f3(top), f3(bottom));
             let c = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-            for _ in 0..w {
+            for _ in 0..ww {
                 out.push(c);
             }
         }
         if stars {
             // Stars stay put (they're infinitely far) and twinkle a little.
-            for i in 0..n {
-                let r = hash(i as u32 ^ 0x5bd1e995);
-                if r % 173 == 0 && (i / w) < h * 2 / 3 {
+            for j in 0..n {
+                let (x, y) = (wx0 + j % ww, wy0 + j / ww);
+                let r = hash((y * w + x) as u32 ^ 0x5bd1e995);
+                if r % 173 == 0 && y < h * 2 / 3 {
                     let tw = 0.6 + 0.4 * rand(r ^ (frame / 20));
                     let v = 150.0 * tw;
-                    glow[i] = [v, v, v * 1.1];
+                    glow[j] = [v, v, v * 1.1];
                 }
             }
         }
@@ -246,7 +254,7 @@ impl Backdrop {
             [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
         };
         let y_mid = h as f32 / 2.0;
-        let mut tops = vec![0.0f32; w];
+        let mut tops = vec![0.0f32; ww];
         for l in &self.layers {
             let shift_x = cx * (1.0 - l.depth);
             let shift_y = (cy - y_mid) * (1.0 - l.depth);
@@ -258,18 +266,18 @@ impl Backdrop {
                     let Some(p) = pic else { continue };
                     let s = l.scale.max(0.1);
                     let (pw, ph) = (p.w as f32 * s, p.h as f32 * s);
-                    for y in 0..h {
+                    for y in wy0..wy1 {
                         let ly = y as f32 - shift_y - (l.y - ph); // from the picture's top
                         if ly < 0.0 || ly >= ph {
                             continue;
                         }
-                        for x in 0..w {
+                        for x in wx0..wx1 {
                             let lx = (x as f32 - shift_x).rem_euclid(pw);
                             let (c, a) = p.sample(lx / pw, ly / ph);
                             if a < 128 {
                                 continue;
                             }
-                            let i = y * w + x;
+                            let i = local(x, y);
                             let k = l.haze;
                             let sky = sky_at(y);
                             out[i] = [c[0] as f32 * (1.0 - k) + sky[0] * k, c[1] as f32 * (1.0 - k) + sky[1] * k, c[2] as f32 * (1.0 - k) + sky[2] * k];
@@ -283,7 +291,7 @@ impl Backdrop {
                     // centred on the band, with soft edges.
                     let drift = frame as f32 * 0.02;
                     let mid = l.y + l.height / 2.0 + shift_y;
-                    for x in 0..w {
+                    for x in wx0..wx1 {
                         let lx = x as f32 - shift_x + drift;
                         let d = noise(lx / 30.0, seed) * 0.65 + noise(lx / 9.0, seed ^ 99) * 0.35;
                         let thick = ((d - 0.45) * 2.2).clamp(0.0, 1.0) * l.height / 2.0;
@@ -291,12 +299,12 @@ impl Backdrop {
                             continue;
                         }
                         // Flatter bottoms, rounder tops.
-                        let (y0, y1) = ((mid - thick).floor().max(0.0) as usize, (mid + thick * 0.45).ceil().min(h as f32) as usize);
+                        let (y0, y1) = ((mid - thick).floor().max(wy0 as f32) as usize, (mid + thick * 0.45).ceil().min(wy1 as f32).max(0.0) as usize);
                         for y in y0..y1 {
                             let dy = (y as f32 + 0.5 - mid) / if (y as f32) < mid { thick } else { thick * 0.45 };
                             let a = ((1.0 - dy.abs()) * 3.0).clamp(0.0, 1.0) * 0.85 * (1.0 - l.haze);
                             let shade = 1.0 - (dy.max(0.0)) * 0.25; // a little darker underneath
-                            let i = y * w + x;
+                            let i = local(x, y);
                             for k in 0..3 {
                                 out[i][k] = out[i][k] * (1.0 - a) + col[k] * shade * a;
                                 glow[i][k] *= 1.0 - a; // clouds hide the stars
@@ -309,7 +317,7 @@ impl Backdrop {
             }
             // Solid silhouettes: the top of the shape in each column.
             for (x, t) in tops.iter_mut().enumerate() {
-                let lx = x as f32 - shift_x;
+                let lx = (wx0 + x) as f32 - shift_x;
                 let height = match l.kind {
                     Kind::Hills => noise(lx / 70.0, seed) * 0.7 + noise(lx / 23.0, seed ^ 7) * 0.3,
                     Kind::Mountains => {
@@ -338,15 +346,15 @@ impl Backdrop {
                 };
                 *t = l.y - height * l.height + shift_y;
             }
-            for x in 0..w {
-                let t0 = tops[x].max(0.0);
+            for x in 0..ww {
+                let t0 = tops[x].max(wy0 as f32);
                 let y0 = t0.ceil() as usize;
-                if y0 >= h {
+                if y0 >= wy1 {
                     continue;
                 }
-                let lx = x as f32 - shift_x;
-                for y in y0..h {
-                    let i = y * w + x;
+                let lx = (wx0 + x) as f32 - shift_x;
+                for y in y0..wy1 {
+                    let i = (y - wy0) * ww + x;
                     let below = y as f32 - tops[x];
                     // A little darker further down; haze blends into the sky.
                     let shade = 1.0 - (below / (l.height * 2.0)).min(1.0) * 0.25;
