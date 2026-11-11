@@ -887,6 +887,8 @@ impl Physics {
                     // The nearest cell on this side tells us what got hit.
                     let Some(cell) = nearest_cell(world, mats, &owners, which, px, py, 2.0) else { continue };
                     let Some(tough) = mats.get(world.mat[cell]).toughness else { continue };
+                    // Hot metal (past `softens_at`) is weaker.
+                    let tough = tough * mats.get(world.mat[cell]).firmness(world.temp[cell]).max(0.02);
                     if force <= tough {
                         continue;
                     }
@@ -943,6 +945,7 @@ impl Physics {
                 }
                 let m = mats.get(world.mat[i]);
                 let Some(tough) = m.toughness else { continue };
+                let tough = tough * m.firmness(world.temp[i]).max(0.02);
                 if force_at(d) <= tough {
                     continue;
                 }
@@ -1471,6 +1474,12 @@ impl Physics {
         self.solid_prev = now;
         let mut out = Vec::new();
         // Strength is checked a few times a second, not every frame.
+        // Hot scenery that softens (red-hot iron) is checked again now and
+        // then, so a heated beam sags and gives way.
+        if self.tick % 30 == 0 && !self.strength_dirty {
+            let soft: Vec<Option<f32>> = mats.list.iter().map(|m| m.softens_at).collect();
+            self.strength_dirty = (0..n).any(|i| self.solid_prev[i] && soft[world.mat[i] as usize].is_some_and(|t| world.temp[i] > t));
+        }
         if self.strength_dirty && self.tick % 4 == 0 {
             out.extend(self.snap_overhangs(world, mats));
         }
@@ -1593,7 +1602,11 @@ impl Physics {
         self.strength_dirty = false;
         let (w, h) = (world.w, world.h);
         let n = w * h;
-        let strength: Vec<i32> = mats.list.iter().map(|m| m.strength.max(0.0).round() as i32).collect();
+        // Each cell's strength, weaker when hot (`softens_at`).
+        let strength: Vec<i32> = (0..n).map(|i| {
+            let m = mats.get(world.mat[i]);
+            (m.strength.max(0.0) * m.firmness(world.temp[i])).round() as i32
+        }).collect();
         let scenery: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
         let mut left = vec![i32::MIN; n];
         let mut heap = BinaryHeap::new();
@@ -1606,7 +1619,7 @@ impl Physics {
                 let anchored = world.flags[i] & crate::world::ANCHORED != 0;
                 if scenery[i] && (edge || anchored || grounded[i + w]) {
                     grounded[i] = true;
-                    left[i] = strength[world.mat[i] as usize];
+                    left[i] = strength[i];
                     heap.push((left[i], i));
                 }
             }
@@ -1620,7 +1633,7 @@ impl Physics {
                 if !scenery[j] {
                     return;
                 }
-                let cap = strength[world.mat[j] as usize];
+                let cap = strength[j];
                 // Attached straight to solid ground (a beam on a pillar): it
                 // reaches as far as its own material allows.
                 let s = if grounded[i] { cap.max(s) } else { s };

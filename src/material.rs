@@ -109,6 +109,10 @@ pub struct Material {
     pub clump: u8,
     /// A solid whose top layer tyres chew up and throw (dirt).
     pub tyres_dig: bool,
+    /// Above this temperature it gets weaker the hotter it is (strength,
+    /// toughness and bending all fall), down to nothing at its melting
+    /// point: red-hot iron sags and bends easily.
+    pub softens_at: Option<f32>,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -153,6 +157,19 @@ pub struct Material {
 }
 
 impl Material {
+    /// How strong it still is at this temperature, 1 (full) to 0: falls
+    /// from `softens_at` to the melting point.
+    pub fn firmness(&self, temp: f32) -> f32 {
+        match (self.softens_at, self.melts) {
+            (Some(soft), Some(melt)) if temp > soft && melt.at > soft => {
+                let k = ((temp - soft) / (melt.at - soft)).clamp(0.0, 1.0);
+                (1.0 - k) * (1.0 - k)
+            }
+            (Some(soft), None) if temp > soft => (1.0 - (temp - soft) / 500.0).clamp(0.0, 1.0),
+            _ => 1.0,
+        }
+    }
+
     fn blank(name: &str) -> Self {
         Material {
             name: name.to_string(),
@@ -182,6 +199,7 @@ impl Material {
             rolling_resistance: 0.0,
             clump: 1,
             tyres_dig: false,
+            softens_at: None,
             melts: None,
             boils: None,
             freezes: None,
@@ -654,6 +672,7 @@ fn apply(
         "launch" => m.launch = num(v)?.clamp(0.0, 60.0),
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
+        "softens_at" => m.softens_at = opt_num(v)?,
         "tyres_dig" => m.tyres_dig = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,

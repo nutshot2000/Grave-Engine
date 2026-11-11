@@ -13,3 +13,4 @@ toughness = 30000                # almost nothing breaks it
 friction = 0.4
 metal = yes                      # imported metallic parts can become iron
 texture = textures/iron.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+softens_at = 500                 # red hot: weaker and bendier the hotter it gets

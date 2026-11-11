@@ -13,3 +13,4 @@ strength = 90
 toughness = 15000
 friction = 0.35
 metal = yes
+softens_at = 400
