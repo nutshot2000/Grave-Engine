@@ -378,6 +378,23 @@ impl World {
         true
     }
 
+    /// Like `throw`, but the cell starts flying from somewhere else (`fx`,
+    /// `fy`, which must be open air): a tyre carrying sand round and
+    /// flinging it off the top. Returns false if it can't.
+    #[allow(clippy::too_many_arguments)]
+    pub fn throw_from(&mut self, mats: &Materials, x: usize, y: usize, fx: f32, fy: f32, vx: f32, vy: f32) -> bool {
+        if fx < 0.0 || fy < 0.0 || fx >= self.w as f32 || fy >= self.h as f32 {
+            return false;
+        }
+        let start = self.idx(fx as usize, fy as usize);
+        if !self.open(mats, start) || !self.throw(mats, x, y, vx, vy) {
+            return false;
+        }
+        let f = self.flying.last_mut().unwrap();
+        (f.x, f.y) = (fx, fy);
+        true
+    }
+
     /// Move everything that's flying; whatever hits something lands.
     fn fly(&mut self, mats: &Materials) {
         if self.flying.is_empty() {

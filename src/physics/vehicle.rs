@@ -201,6 +201,20 @@ impl Physics {
                 let per_frame = 1.0 / CELL / 60.0;
                 let back = -dir * (ground_speed * 0.5 + 1.5) * jitter;
                 let up = -(ground_speed * 0.35 + 1.5) * (1.6 - jitter * 0.6);
+                // Some grains stick to the tread and come off over the top of
+                // the tyre (up between it and the mudguard), moving on with
+                // the bike, then dropping back behind it.
+                let carried = hash(j as u32 ^ 0xC0FFEE ^ self.tick) % 4 == 0;
+                if carried {
+                    let a = 0.15 + (hash(j as u32 ^ 0xA11 ^ self.tick) % 1000) as f32 / 1000.0 * 0.45; // radians before straight up, towards the back
+                    let r = radius + 1.2;
+                    let (fx, fy) = (cx - dir * r * a.sin(), cy - r * a.cos());
+                    let (cvx, cvy) = (v.x * 0.9 - dir * 0.6, v.y - (1.5 + ground_speed * 0.15) * jitter);
+                    if world.throw_from(mats, x as usize, y as usize, fx, fy, cvx * per_frame, cvy * per_frame) {
+                        thrown += 1;
+                        continue;
+                    }
+                }
                 if world.throw(mats, x as usize, y as usize, back * per_frame, up * per_frame) {
                     thrown += 1;
                 }
