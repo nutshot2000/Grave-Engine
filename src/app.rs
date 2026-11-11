@@ -173,6 +173,16 @@ struct NoteDraft {
     focused: bool,
 }
 
+/// Which Stunt Yard course (its `--level=` number) a scene file is, if any.
+fn game_level(scene_path: &str) -> Option<usize> {
+    let name = std::path::Path::new(scene_path).file_name()?.to_str()?;
+    match name {
+        "stunt-yard.txt" => Some(0),
+        "mountain-run.txt" => Some(1),
+        _ => None,
+    }
+}
+
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -1307,6 +1317,22 @@ impl Sandbox {
         self.history.commit(&mut self.sim);
     }
 
+    /// Open Stunt Yard on a course: the built game next to this program if
+    /// there is one, otherwise build and run it with cargo.
+    fn play_as_game(&mut self, level: usize) {
+        let arg = format!("--level={level}");
+        let name = if cfg!(windows) { "stunt-yard.exe" } else { "stunt-yard" };
+        let sibling = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name))).filter(|p| p.exists());
+        let started = match sibling {
+            Some(exe) => std::process::Command::new(exe).arg(&arg).spawn(),
+            None => std::process::Command::new("cargo").args(["run", "--release", "--bin", "stunt-yard", "--", &arg]).spawn(),
+        };
+        match started {
+            Ok(_) => self.say("Opening the game (it may take a moment to build the first time)".to_string()),
+            Err(e) => self.say(format!("Couldn't start the game: {e}")),
+        }
+    }
+
     fn load_scene_inner(&mut self) {
         let path = PathBuf::from(&self.scene_path);
         match std::fs::read_to_string(&path) {
@@ -1607,6 +1633,12 @@ impl Sandbox {
             }
             if ui.button("📂 Load").clicked() {
                 self.load_scene();
+            }
+            // Scenes that are courses in a game can be played as that game.
+            if let Some(level) = game_level(&self.scene_path)
+                && ui.button("🎮 Play as game").on_hover_text("Open this course in Stunt Yard, with the bike controls, score and riding camera (it plays the saved file: save first to include your changes)").clicked()
+            {
+                self.play_as_game(level);
             }
             ui.menu_button("Scenes...", |ui| {
                 let mut files: Vec<PathBuf> = std::fs::read_dir("scenes")
@@ -2989,6 +3021,13 @@ mod tests {
     use egui_kittest::Harness;
     use egui_kittest::kittest::Queryable;
     use eframe::egui::{Event, PointerButton};
+
+    #[test]
+    fn course_scenes_can_be_played_as_a_game() {
+        assert_eq!(game_level("scenes/mountain-run.txt"), Some(1));
+        assert_eq!(game_level("scenes/stunt-yard.txt"), Some(0));
+        assert_eq!(game_level("scenes/weather-house.txt"), None);
+    }
 
     const SCENE: &str = "size 200 120
 fill air
