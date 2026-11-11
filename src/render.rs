@@ -27,6 +27,10 @@ pub struct Renderer {
     /// Cells that give off their own light (fire, lava, red-hot metal,
     /// burning embers): drawn at full brightness however dark it is.
     self_lit: Vec<bool>,
+    /// See-through gases (smoke, steam, flames): how solid they look (0..1)
+    /// and their own colour, so a backdrop shows through them.
+    gas_alpha: Vec<f32>,
+    gas_col: Vec<[f32; 3]>,
     /// Glow spread wide (fires light up a big area in the dark).
     wide: Vec<[f32; 3]>,
     lamp_only: Vec<[f32; 3]>,
@@ -140,6 +144,9 @@ impl Renderer {
         self.light.resize(n, [0.0; 3]);
         self.self_lit.clear();
         self.self_lit.resize(n, false);
+        self.gas_alpha.clear();
+        self.gas_alpha.resize(n, 0.0);
+        self.gas_col.resize(n, [0.0; 3]);
         self.tmp.resize(n, [0.0; 3]);
         self.scratch.resize(n, [0.0; 3]);
         self.rgba.resize(n * 4, 255);
@@ -179,6 +186,17 @@ impl Renderer {
                 let k = 1.0 + m.color_variation * s;
                 col = [col[0] * k, col[1] * k, col[2] * k];
 
+                // Smoke, steam and flames are see-through: remember how much.
+                if m.state == State::Gas && world.mat[i] != crate::material::AIR {
+                    let a = m.lifetime.map_or(1.0, |l| (world.life[i] as f32 / l as f32 * 1.6).clamp(0.0, 1.0));
+                    if m.glow > 0.0 {
+                        self.gas_alpha[i] = 0.95 * (a * 2.0).min(1.0);
+                        self.gas_col[i] = lerp3([200.0, 30.0, 10.0], col, a);
+                    } else {
+                        self.gas_alpha[i] = 0.6 * a;
+                        self.gas_col[i] = col;
+                    }
+                }
                 // Things that only last a while fade out as they run out.
                 if let Some(l) = m.lifetime {
                     let a = (world.life[i] as f32 / l as f32 * 1.6).clamp(0.0, 1.0);
@@ -255,6 +273,7 @@ impl Renderer {
                 col = lerp3(col, flame, 0.7);
                 self.light[i] = [flame[0] * 0.5, flame[1] * 0.5, flame[2] * 0.5];
                 self.self_lit[i] = true;
+                self.gas_alpha[i] = 0.0;
             } else if f.temp > 450.0 {
                 let k = ((f.temp - 450.0) / 700.0).clamp(0.0, 1.0);
                 col = lerp3(col, hot_color(f.temp), k * 0.9);
@@ -293,7 +312,14 @@ impl Renderer {
         for i in 0..n {
             // Empty air shows the backdrop (not flying cells drawn there).
             let open = backdrop && world.mat[i] == crate::material::AIR && self.tmp[i] == air;
-            let c = if open { self.bg[i] } else { self.tmp[i] };
+            let veil = backdrop && !open && self.gas_alpha[i] > 0.0;
+            let c = if open {
+                self.bg[i]
+            } else if veil {
+                lerp3(self.bg[i], self.gas_col[i], self.gas_alpha[i])
+            } else {
+                self.tmp[i]
+            };
             let l = self.light[i];
             let own = if open { self.bg_glow[i] } else { [0.0; 3] };
             let (r, g, b) = if view.heat {
@@ -313,7 +339,9 @@ impl Renderer {
                 // and their glow lights up what's around them strongly.
                 let e = if self.self_lit[i] { [e[0].max(1.0), e[1].max(1.0), e[2].max(1.0)] } else { e };
                 let far = if dark > 0.05 { self.wide[i] } else { [0.0; 3] };
-                let px = |k: usize| c[k] * (e[k] + (l[k] * 2.0 + far[k] * 8.0 * dark) / 255.0) + l[k] * 1.1 + far[k] * 2.5 * dark + haze(k) + own[k];
+                // (Capped, so a big fire doesn't wash things out to white.)
+                let glow = |k: usize| ((l[k] * 2.0 + far[k] * 8.0 * dark) / 255.0).min(1.2);
+                let px = |k: usize| c[k] * (e[k] + glow(k)) + (l[k] * 1.1 + far[k] * 2.5 * dark).min(120.0) + haze(k) + own[k];
                 (px(0), px(1), px(2))
             } else {
                 // Light brightens what it falls on, and adds a soft halo in the air.
