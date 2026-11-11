@@ -2,12 +2,14 @@ use grave_engine::headless;
 use std::path::PathBuf;
 
 mod app;
+mod workshop;
 
 const HELP: &str = "\
 Grave Engine - a 2D material sandbox
 
   grave-engine                      open the sandbox window
   grave-engine scenes/x.txt         open the window with a scene loaded
+  grave-engine --workshop           open the material asset workshop
 
 Headless (no window), for agents and scripts:
   grave-engine --run scenes/x.txt --frames 600 --shot shots/out.png
@@ -59,6 +61,7 @@ fn main() {
                 print!("{HELP}");
                 return;
             }
+            "--workshop" => {},
             "--run" => run = Some(PathBuf::from(val("--run"))),
             "--frames" => frames = val("--frames").parse().unwrap_or(600),
             "--shot" => shot = Some(PathBuf::from(val("--shot"))),

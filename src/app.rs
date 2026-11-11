@@ -83,6 +83,7 @@ enum Clipboard {
 }
 
 struct Sandbox {
+    workshop:crate::workshop::Workshop,
     mats: Materials,
     sim: Sim,
     history: History,
@@ -239,7 +240,9 @@ impl Sandbox {
         let mats = Materials::load_dir(&materials);
         let mut sim = Sim::empty(scene::DEFAULT_W, scene::DEFAULT_H, &mats);
         let brush_mat = mats.id("sand").unwrap_or(AIR);
+        let mut workshop=crate::workshop::Workshop::new(&mats);workshop.open=std::env::args().any(|a|a=="--workshop");
         let mut app = Sandbox {
+            workshop,
             snapshot: sim.snapshot(),
             sim,
             mats,
@@ -1621,6 +1624,7 @@ impl Sandbox {
             if ui.toggle_value(&mut slow, big("🐢")).on_hover_text("Slow motion: a quarter speed (click again for normal)").changed() {
                 self.speed = if slow { 0.25 } else { 1.0 };
             }
+            if ui.button(big("Asset workshop")).clicked(){self.playing=false;self.workshop.open=true;}
             ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
             ui.menu_button(big("💡 Lighting"), |ui| self.look_menu(ui, "lighting", Self::lighting_menu));
             ui.menu_button(big("🏞 Background"), |ui| self.look_menu(ui, "background", Self::background_menu));
@@ -2938,6 +2942,22 @@ impl eframe::App for Sandbox {
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame).as_secs_f64().min(0.1);
         self.last_frame = now;
+        if self.workshop.open {
+            let mut action=None;
+            egui::CentralPanel::default().show(ui,|ui|{action=self.workshop.ui(ui,&self.mats,dt);});
+            if let Some(crate::workshop::Action::Place(asset))=action {
+                self.playing=false;
+                let (x,y)=self.cam.map_or((self.sim.world.w as f32/2.,self.sim.world.h as f32/2.),|(x,y,_)|(x,y));
+                self.change("place material asset",|app|{
+                    match asset.instantiate(&mut app.sim,&app.mats,x,y){
+                        Ok(parts)=>{app.selection=Selection::Objects(parts.iter().map(|(_,id)|*id).collect());app.tool=Tool::Select;app.say(format!("Placed {} with {} named parts. Drag the selection to position it.",asset.name,parts.len()));app.workshop.open=false;},
+                        Err(e)=>app.say(e),
+                    }
+                });
+            }
+            return;
+        }
+
         if dt > 0.0 {
             self.fps = self.fps * 0.95 + (1.0 / dt as f32) * 0.05;
         }
@@ -3551,4 +3571,29 @@ player 50 100
         h.run_steps(2);
         assert!(h.state().cam.is_none() && h.state().sim.follow.is_none());
     }
+    #[test]
+    fn asset_workshop_tests_are_isolated_and_placement_is_undoable(){
+        let mut h=editor();let count=h.state().sim.physics.body_count();
+        h.get_by_label("Asset workshop").click();h.run_steps(3);assert!(h.state().workshop.open);
+        let draft=h.state().workshop.asset.clone();
+        h.get_by_label("Burn").click();h.run_steps(10);
+        assert_eq!(h.state().workshop.asset,draft);assert_eq!(h.state().sim.physics.body_count(),count);
+        h.get_by_label("Reset preview").click();h.run_steps(2);
+        h.get_by_label("Place at scene centre").click();h.run_steps(3);
+        assert!(!h.state().workshop.open);assert_eq!(h.state().sim.physics.body_count(),count+3);assert_eq!(h.state().sim.physics.joints().len(),2);
+        h.get_by_label_contains("Undo").click();h.run_steps(3);assert_eq!(h.state().sim.physics.body_count(),count);
+    }
+    #[test]
+    fn asset_workshop_grid_strokes_undo_and_new_asset_remains_editable(){
+        let mut h=editor();h.get_by_label("Asset workshop").click();h.run_steps(3);
+        let before=h.state().workshop.asset.clone();let grid=h.get_by_label("Material asset drawing grid").rect();
+        let a=grid.min+Vec2::new(2.5*9.,2.5*9.);let b=grid.min+Vec2::new(5.5*9.,2.5*9.);
+        drag(&mut h,a,b);assert!(h.state().workshop.asset!=before,"grid stroke must paint");
+        h.get_by_label("Undo").click();h.run_steps(3);assert_eq!(h.state().workshop.asset,before);
+        h.get_by_label("New asset").click();h.run_steps(3);assert_eq!(h.state().workshop.asset.parts.len(),1);
+        h.get_by_label("Rectangle").click();h.run_steps(2);let grid=h.get_by_label("Material asset drawing grid").rect();
+        drag(&mut h,grid.min+Vec2::splat(2.5*9.),grid.min+Vec2::splat(5.5*9.));
+        assert!(h.state().workshop.asset.parts[0].cells.iter().any(|m|*m!=AIR));
+    }
+
 }

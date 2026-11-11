@@ -1,0 +1,15 @@
+format 1
+asset window_frame 48 40
+depth 0.05
+pivot 24 20
+part frame
+rect wood 8 4 32 3
+rect wood 8 7 3 27
+rect wood 37 7 3 27
+rect wood 11 31 26 3
+part glass
+rect glass 11 7 26 24
+part feet
+rect iron 5 34 38 3
+weld frame glass 24 20 200
+weld frame feet 24 34 800

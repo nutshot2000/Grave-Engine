@@ -48,6 +48,8 @@
 //! ......SSSS......
 //! end
 //!
+//! # Named material assets (see asset.rs and the editor Asset workshop)
+//! asset ../assets/workshop/fuel_crate.asset 100 80 as crate
 //! # Objects: solid things that fall, tumble and break apart
 //! body rect wood 100 50 20 10        # material x y width height
 //! body circle stone 200 40 6         # material centre-x centre-y radius
@@ -897,6 +899,23 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 spec.spin = 0.0;
                 placed.push((bodies.len(), template::Instance { template: name, changes }));
                 bodies.push(spec);
+            }
+            "asset" => {
+                let file=words.get(1).copied().unwrap_or("");
+                let pos=match nums(2,2){Ok(p)=>p,Err(e)=>{err(e);continue;}};
+                let path=base.map(|b|b.join(file)).filter(|p|p.exists()).unwrap_or_else(||std::path::PathBuf::from(file));
+                match crate::asset::Asset::load_file(&path,mats){
+                    Err(e)=>err(format!("asset {file}: {e}")),
+                    Ok(asset)=>{
+                        let loaded=load_part(&asset.scene_text(mats,pos[0],pos[1]),mats,None,false);
+                        if !loaded.problems.is_empty(){for p in loaded.problems{err(p);}continue;}
+                        let offset=bodies.len();
+                        let prefix=words.iter().position(|w|*w=="as").and_then(|i|words.get(i+1)).map(|s|s.to_string()).unwrap_or_else(||format!("{}_{}",asset.name,offset));
+                        for (i,(name,_)) in asset.bodies(mats,pos[0],pos[1]).iter().enumerate(){names.insert(format!("{prefix}.{name}").to_lowercase(),offset+i);}
+                        bodies.extend(loaded.bodies);
+                        for mut j in loaded.joints{if let End::Object(n)=j.a{j.a=End::Object(n+offset);}if let End::Object(n)=j.b{j.b=End::Object(n+offset);}joints.push(j);}
+                    }
+                }
             }
             "object" => {
                 let Some(file) = words.get(1) else {

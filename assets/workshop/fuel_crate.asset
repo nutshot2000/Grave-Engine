@@ -1,0 +1,16 @@
+# A wooden prop with a separate explosive tank and breakable metal base.
+format 1
+asset fuel_crate 48 40
+depth 0.04
+pivot 24 20
+part frame
+rect wood 9 10 30 3
+rect wood 9 13 3 20
+rect wood 36 13 3 20
+rect wood 12 30 24 3
+part base
+rect iron 7 33 34 3
+part tank
+rect gunpowder 16 17 16 10
+weld frame base 24 33 50
+weld frame tank 24 23 25

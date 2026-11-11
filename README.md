@@ -632,3 +632,8 @@ Open `Play-Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with
 Voidrunner now adds synthesised music and combat sounds, Shift dodge, telegraphed heavy lasers, a small visible player hitbox, chain scoring, magnetic pickups and escalating reactor attacks. `voidrunner --verify-normal` checks a complete run with ordinary damage enabled. M toggles sound.
 
 Voidrunner also has shield/repair convoys, minelayer siege groups, hunter wings and a seven-module carrier. The wider arena shows more of the battle; the opening and primary gun have been tightened following play feedback. See `docs/VOIDRUNNER.md` for current behaviour and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md` for follow-up engine work.
+
+
+## Material Asset Workshop
+
+Click **Asset workshop** in the editor, or run `grave-engine --workshop`. Draw actual materials into named parts using a zoomable grid, shapes and fill; set a pivot and breakable welds; then drop, crash or burn a separate copy in the test bay. Save `.asset` files in `assets/workshop/` for reuse by people and AI tools, and place assemblies into the scene with one undoable action. Includes fuel-crate and framed-glass examples. See `docs/ASSET-WORKSHOP.md` for the workflow and text format. Scenes support `asset FILE X Y [as NAME]`.

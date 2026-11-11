@@ -1,0 +1,7 @@
+# Workshop samples placed as independent assembled assets. No editor needed.
+size 400 220
+seed 42
+fill air
+rect stone 0 200 400 20
+asset ../assets/workshop/fuel_crate.asset 115 85 as crate
+asset ../assets/workshop/window_frame.asset 275 85 as window

@@ -24,3 +24,5 @@ pub mod world;
 pub use material::{MatId, Material, Materials, State};
 pub use sim::Sim;
 pub use world::World;
+
+pub mod asset;
