@@ -137,7 +137,23 @@ pub struct World {
     new_temp: Vec<f32>,
     k: Vec<f32>,
     inv_cap: Vec<f32>,
+    /// Sleeping areas: the world in 32x32 blocks. Each block counts down
+    /// frames since something last happened in it (0 = asleep); a block is
+    /// worked on while it or a neighbour is awake (`active`). Anything that
+    /// changes a cell wakes its block (`wake_at`).
+    awake: Vec<u8>,
+    active: Vec<bool>,
+    /// Let quiet areas sleep (on by default; off works on everything every
+    /// frame, for comparing).
+    pub sleeping: bool,
+    bw: usize,
+    bh: usize,
 }
+
+/// Block size for sleeping areas (cells).
+const BLOCK: usize = 32;
+/// How long a block stays awake after something happens in it (frames).
+const AWAKE_FRAMES: u8 = 60;
 
 /// Per-material numbers the hot loops need, gathered once per frame.
 struct Fast {
@@ -173,11 +189,94 @@ impl World {
             new_temp: vec![0.0; n],
             k: vec![0.0; n],
             inv_cap: vec![0.0; n],
+            awake: vec![AWAKE_FRAMES; w.div_ceil(BLOCK) * h.div_ceil(BLOCK)],
+            active: vec![true; w.div_ceil(BLOCK) * h.div_ceil(BLOCK)],
+            bw: w.div_ceil(BLOCK),
+            bh: h.div_ceil(BLOCK),
+            sleeping: true,
         };
         for i in 0..n {
             world.shade[i] = world.rand() as u8;
         }
         world
+    }
+
+    /// Something happened at cell `i`: wake its block.
+    #[inline]
+    pub fn wake_at(&mut self, i: usize) {
+        let b = (i / self.w / BLOCK) * self.bw + (i % self.w) / BLOCK;
+        self.awake[b] = AWAKE_FRAMES;
+    }
+
+    /// Wake every block touching a box of cells (inclusive, clipped).
+    pub fn wake_box(&mut self, x0: i32, y0: i32, x1: i32, y1: i32) {
+        let (x0, x1, y0, y1) = self.clip(x0, x1, y0, y1);
+        if x0 > x1 || y0 > y1 {
+            return;
+        }
+        for by in y0 as usize / BLOCK..=y1 as usize / BLOCK {
+            for bx in x0 as usize / BLOCK..=x1 as usize / BLOCK {
+                self.awake[by * self.bw + bx] = AWAKE_FRAMES;
+            }
+        }
+    }
+
+    /// Wake the whole world (after editing it from outside).
+    pub fn wake_all(&mut self) {
+        self.awake.fill(AWAKE_FRAMES);
+    }
+
+    /// How much of the world is being worked on (0..1): the rest is asleep.
+    pub fn awake_fraction(&self) -> f32 {
+        self.active.iter().filter(|a| **a).count() as f32 / self.active.len().max(1) as f32
+    }
+
+    /// Which blocks get worked on this frame: awake ones and their neighbours.
+    fn plan_blocks(&mut self) {
+        if !self.sleeping {
+            self.awake.fill(AWAKE_FRAMES);
+        }
+        let (bw, bh) = (self.bw, self.bh);
+        for by in 0..bh {
+            for bx in 0..bw {
+                let mut on = false;
+                for dy in by.saturating_sub(1)..=(by + 1).min(bh - 1) {
+                    for dx in bx.saturating_sub(1)..=(bx + 1).min(bw - 1) {
+                        on |= self.awake[dy * bw + dx] > 0;
+                    }
+                }
+                self.active[by * bw + bx] = on;
+            }
+        }
+    }
+
+    /// How many sleeping-area blocks there are (32x32 cells, row by row).
+    pub fn blocks(&self) -> usize {
+        self.bw * self.bh
+    }
+
+    /// Has nothing in block `b` or next to it changed for a while (so
+    /// anything worked out from its cells last time still holds)?
+    pub fn block_still(&self, b: usize) -> bool {
+        if self.active[b] {
+            return false;
+        }
+        let (bx, by) = (b % self.bw, b / self.bw);
+        for dy in by.saturating_sub(1)..=(by + 1).min(self.bh - 1) {
+            for dx in bx.saturating_sub(1)..=(bx + 1).min(self.bw - 1) {
+                if self.awake[dy * self.bw + dx] > 0 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// The cells of block `b`: x range and y range.
+    #[inline]
+    pub fn block_cells(&self, b: usize) -> (usize, usize, usize, usize) {
+        let (bx, by) = (b % self.bw, b / self.bw);
+        (bx * BLOCK, ((bx + 1) * BLOCK).min(self.w), by * BLOCK, ((by + 1) * BLOCK).min(self.h))
     }
 
     pub fn seed(&mut self, seed: u32) {
@@ -222,6 +321,7 @@ impl World {
 
     /// Change a cell's material, keeping its temperature.
     fn become_(&mut self, mats: &Materials, i: usize, id: MatId) {
+        self.wake_at(i);
         self.mat[i] = id;
         self.flags[i] = 0;
         self.burn[i] = 0;
@@ -266,6 +366,7 @@ impl World {
                 if dx * dx + dy * dy <= r * r + r / 2 && self.in_bounds(x, y) {
                     let i = self.idx(x as usize, y as usize);
                     self.temp[i] = (self.temp[i] + amount).clamp(-273.0, 5000.0);
+                    self.wake_at(i);
                 }
             }
         }
@@ -283,6 +384,7 @@ impl World {
 
     /// Turn a cell into air, keeping its temperature.
     pub fn make_air(&mut self, i: usize) {
+        self.wake_at(i);
         self.mat[i] = AIR;
         self.flags[i] = 0;
         self.life[i] = 0;
@@ -337,10 +439,21 @@ impl World {
     pub fn step(&mut self, mats: &Materials) {
         self.frame = self.frame.wrapping_add(1).max(1);
         self.blasts.clear();
+        self.plan_blocks();
         self.heat(mats);
         self.changes(mats);
         self.movement(mats);
         self.fly(mats);
+        // Blasts wake everything they can reach.
+        for k in 0..self.blasts.len() {
+            let b = &self.blasts[k];
+            let r = (b.size * 2.0) as i32 + 2;
+            let (x, y) = (b.x as i32, b.y as i32);
+            self.wake_box(x - r, y - r, x + r, y + r);
+        }
+        for a in self.awake.iter_mut() {
+            *a = a.saturating_sub(1);
+        }
     }
 
     // -------------------------------------------------------------- flying --
@@ -502,6 +615,7 @@ impl World {
             let Some(y) = found else { continue };
             let i = self.idx(x, y);
             {
+                self.wake_at(i);
                 self.mat[i] = f.mat;
                 self.temp[i] = f.temp;
                 self.life[i] = f.life;
@@ -520,58 +634,99 @@ impl World {
     fn heat(&mut self, mats: &Materials) {
         let (w, h) = (self.w, self.h);
         let ml = &mats.list;
-        for i in 0..w * h {
-            let m = &ml[self.mat[i] as usize];
-            self.k[i] = m.conducts_heat;
-            self.inv_cap[i] = 1.0 / m.heat_capacity;
-        }
+        let blocks = self.bw * self.bh;
         // Heat flows across each edge between two cells. The edge conducts as
         // well as the worse of the two (like insulation), and each side's
-        // temperature moves by flow / heat_capacity.
+        // temperature moves by flow / heat_capacity. Sleeping blocks keep
+        // their temperatures as they are.
         const RATE: f32 = 0.24;
-        for y in 0..h {
-            for x in 0..w {
-                let i = y * w + x;
-                let t = self.temp[i];
-                let ki = self.k[i];
-                let mut flow = 0.0;
-                let mut edge = |j: usize| {
-                    let kj = self.k[j];
-                    let k = if ki < kj { ki } else { kj };
-                    flow += k * (self.temp[j] - t);
-                };
-                if x > 0 {
-                    edge(i - 1);
+        for b in 0..blocks {
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            if !self.active[b] {
+                continue;
+            }
+            // (Block edges read their neighbours' conductivity: work it out
+            // one cell further out.)
+            let (ex0, ex1, ey0, ey1) = (x0.saturating_sub(1), (x1 + 1).min(w), y0.saturating_sub(1), (y1 + 1).min(h));
+            for y in ey0..ey1 {
+                for x in ex0..ex1 {
+                    let i = y * w + x;
+                    let m = &ml[self.mat[i] as usize];
+                    self.k[i] = m.conducts_heat;
+                    self.inv_cap[i] = 1.0 / m.heat_capacity;
                 }
-                if x + 1 < w {
-                    edge(i + 1);
+            }
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let i = y * w + x;
+                    let t = self.temp[i];
+                    let ki = self.k[i];
+                    let mut flow = 0.0;
+                    let mut edge = |j: usize| {
+                        let kj = self.k[j];
+                        let k = if ki < kj { ki } else { kj };
+                        flow += k * (self.temp[j] - t);
+                    };
+                    if x > 0 {
+                        edge(i - 1);
+                    }
+                    if x + 1 < w {
+                        edge(i + 1);
+                    }
+                    if y > 0 {
+                        edge(i - w);
+                    }
+                    if y + 1 < h {
+                        edge(i + w);
+                    }
+                    let coef = (RATE * self.inv_cap[i]).min(0.24);
+                    self.new_temp[i] = t + coef * flow;
                 }
-                if y > 0 {
-                    edge(i - w);
-                }
-                if y + 1 < h {
-                    edge(i + w);
-                }
-                let coef = (RATE * self.inv_cap[i]).min(0.24);
-                self.new_temp[i] = t + coef * flow;
             }
         }
-        std::mem::swap(&mut self.temp, &mut self.new_temp);
+        // New temperatures in, for awake blocks only (`new_temp` keeps the old
+        // ones, to see what changed).
+        for b in 0..blocks {
+            if !self.active[b] {
+                continue;
+            }
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            for y in y0..y1 {
+                let r = y * w;
+                self.temp[r + x0..r + x1].swap_with_slice(&mut self.new_temp[r + x0..r + x1]);
+            }
+        }
 
         // Heat sources, burning, and slowly settling back to room temperature.
+        // A block whose temperatures are still changing stays awake.
         let ambient = self.ambient;
-        for i in 0..w * h {
-            let m = &ml[self.mat[i] as usize];
-            let t = &mut self.temp[i];
-            if let Some(s) = m.stays_at {
-                *t = s;
-            } else if self.flags[i] & BURNING != 0 {
-                // Burning makes its own heat: it stays at least this hot.
-                if *t < m.burn_temperature {
-                    *t = m.burn_temperature;
+        for b in 0..blocks {
+            if !self.active[b] {
+                continue;
+            }
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            let mut busy = false;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let i = y * w + x;
+                    let m = &ml[self.mat[i] as usize];
+                    let t = &mut self.temp[i];
+                    if let Some(s) = m.stays_at {
+                        *t = s;
+                    } else if self.flags[i] & BURNING != 0 {
+                        // Burning makes its own heat: it stays at least this hot.
+                        if *t < m.burn_temperature {
+                            *t = m.burn_temperature;
+                        }
+                    } else if m.cools_off > 0.0 {
+                        *t += (ambient - *t) * m.cools_off;
+                    }
+                    // (`new_temp` now holds last frame's temperatures.)
+                    busy |= (*t - self.new_temp[i]).abs() > 0.02;
                 }
-            } else if m.cools_off > 0.0 {
-                *t += (ambient - *t) * m.cools_off;
+            }
+            if busy {
+                self.awake[b] = AWAKE_FRAMES;
             }
         }
     }
@@ -589,9 +744,25 @@ impl World {
     }
 
     fn changes(&mut self, mats: &Materials) {
-        let n = self.w * self.h;
         let ml = &mats.list;
-        for i in 0..n {
+        let w = self.w;
+        for b in 0..self.bw * self.bh {
+            if !self.active[b] {
+                continue;
+            }
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    self.change(mats, ml, y * w + x);
+                }
+            }
+        }
+    }
+
+    /// Temperature changes, running out, explosions, fire and reactions for
+    /// one cell.
+    fn change(&mut self, mats: &Materials, ml: &[crate::material::Material], i: usize) {
+        {
             let id = self.mat[i];
             let m = &ml[id as usize];
             let t = self.temp[i];
@@ -609,15 +780,16 @@ impl World {
             }
             if let Some(into) = changed {
                 self.become_(mats, i, into);
-                continue;
+                return;
             }
 
             // Short-lived things (fire, smoke) run out.
             if m.lifetime.is_some() {
+                self.wake_at(i);
                 if self.life[i] <= 1 {
                     let into = if self.chance(m.decays_into_chance) { m.decays_into } else { AIR };
                     self.become_(mats, i, into);
-                    continue;
+                    return;
                 }
                 self.life[i] -= 1;
             }
@@ -637,7 +809,7 @@ impl World {
                         let (into, bt) = (m.burns_into, m.burn_temperature);
                         self.become_(mats, i, into);
                         self.temp[i] = self.temp[i].max(bt);
-                        continue;
+                        return;
                     }
                 }
             }
@@ -646,6 +818,7 @@ impl World {
             if let Some(ignite) = m.catches_fire_at {
                 let burning = self.flags[i] & BURNING != 0;
                 if burning || t >= ignite {
+                    self.wake_at(i);
                     // Fire needs something to feed it (air).
                     let mut air = [0usize; 4];
                     let mut n_air = 0;
@@ -685,7 +858,7 @@ impl World {
                         if self.burn[i] <= 1 {
                             let into = if self.chance(m.burns_into_chance) { m.burns_into } else { AIR };
                             self.become_(mats, i, into);
-                            continue;
+                            return;
                         }
                         self.burn[i] -= 1;
                     }
@@ -698,6 +871,8 @@ impl World {
                 if let Some(j) = self.neighbours(i)[dir] {
                     let other = self.mat[j];
                     if let Some(r) = m.reactions.iter().find(|r| r.with == other) {
+                        // Something that could react stays awake (wet sand drying).
+                        self.wake_at(i);
                         let (me, it, p) = (r.me_into, r.other_into, r.chance);
                         if self.chance(p) {
                             // Products start at their own normal temperature.
@@ -769,8 +944,18 @@ impl World {
         // sideways direction so nothing drifts one way.
         for y in (0..h).rev() {
             let left_to_right = self.rand() & 1 == 0;
-            for xi in 0..w {
+            let row_blocks = (y as usize / BLOCK) * self.bw;
+            let mut xi = 0;
+            while xi < w {
                 let x = if left_to_right { xi } else { w - 1 - xi };
+                if !self.active[row_blocks + x as usize / BLOCK] {
+                    // Jump to the next block in this direction.
+                    let bx = x as usize / BLOCK;
+                    let edge = if left_to_right { ((bx + 1) * BLOCK) as i32 } else { w - (bx * BLOCK) as i32 };
+                    xi = edge.max(xi + 1);
+                    continue;
+                }
+                xi += 1;
                 let i = (y * w + x) as usize;
                 if self.moved[i] == frame || self.flags[i] & OWNED != 0 {
                     continue;
@@ -813,6 +998,11 @@ impl World {
     }
 
     fn swap(&mut self, a: usize, b: usize) {
+        // Swapping two identical cells (air with air) changes nothing.
+        if self.mat[a] != self.mat[b] || (self.temp[a] - self.temp[b]).abs() > 0.05 {
+            self.wake_at(a);
+            self.wake_at(b);
+        }
         self.mat.swap(a, b);
         self.temp.swap(a, b);
         self.life.swap(a, b);

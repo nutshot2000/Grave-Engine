@@ -216,6 +216,7 @@ impl Loaded {
                 sim.world.temp[i] = t;
             }
         }
+        sim.world.wake_all();
         (sim, problems_out)
     }
 }

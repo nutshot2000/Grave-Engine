@@ -508,6 +508,18 @@ usable in any game:
   message DEMOLITION CHARGE!` lights a fuse when the bike gets there;
   `... : checkpoint X Y`, `score N`. No code needed.
 
+## Speed: big worlds
+
+- **Only what's on screen is drawn** (plus a margin so glow and light from just
+  off screen still show).
+- **Quiet areas sleep.** The world is split into 32x32 blocks; blocks where
+  nothing has happened for a second are skipped, and wake the moment anything
+  near them moves, burns, flows, heats up or is hit. Results match running
+  everything (tested).
+- Numbers: Wreck Run (3,600 x 260) went from about 30 ms a frame (simulate +
+  draw) to about 5 ms; a world five times as tall (3,600 x 1,300) runs at about
+  1 ms a frame once settled. So tall levels (hill climbs, long drops) are fine.
+
 ## Known limits
 
 - Wood grain always runs the same way, even along horizontal beams.

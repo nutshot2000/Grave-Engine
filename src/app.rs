@@ -1800,6 +1800,7 @@ impl Sandbox {
                                     let i = app.sim.world.idx(x as usize, y as usize);
                                     if !app.sim.world.is_owned(i) {
                                         app.sim.world.temp[i] = set_to;
+                                        app.sim.world.wake_at(i);
                                     }
                                 }
                             }

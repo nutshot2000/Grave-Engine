@@ -227,7 +227,8 @@ impl Sim {
     /// Put things back exactly as they were (objects aren't nudged out of
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
-        let world = snap.world.clone();
+        let mut world = snap.world.clone();
+        world.wake_all(); // restored: look at everything again
         let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone() };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();

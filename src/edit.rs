@@ -63,6 +63,7 @@ fn cell_at(world: &World, i: usize) -> BodyCell {
 }
 
 fn put(world: &mut World, i: usize, c: BodyCell) {
+    world.wake_at(i);
     world.mat[i] = c.mat;
     world.temp[i] = c.temp;
     world.burn[i] = c.burn;
@@ -312,6 +313,8 @@ impl History {
 
     /// About to change something: remember how things were (once per step).
     pub fn touch(&mut self, sim: &mut Sim, label: &str) {
+        // Edited by hand: everything wakes up and gets looked at again.
+        sim.world.wake_all();
         if self.pending.is_none() {
             self.pending = Some((sim.snapshot(), label.to_string()));
         }

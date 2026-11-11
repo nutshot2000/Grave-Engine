@@ -590,6 +590,7 @@ impl Physics {
                     }
                     State::Gas => {}
                 }
+                world.wake_at(wi); // objects keep the area round them awake
                 world.mat[wi] = cell.mat;
                 world.temp[wi] = cell.temp;
                 world.burn[wi] = cell.burn;
@@ -1153,6 +1154,7 @@ impl Physics {
                     let k = 1.0 - d / r;
                     // A quick hot flash: enough to light things, not melt rock.
                     world.temp[i] = world.temp[i].max((world.temp[i] + 350.0 * k * k).min(800.0));
+                    world.wake_at(i);
                     if let Some(f) = fire {
                         let gas = mats.get(world.mat[i]).state == State::Gas && !world.is_owned(i);
                         if gas && d < r * 0.7 && hash(i as u32 ^ self.tick) % 100 < 45 {
@@ -1188,6 +1190,7 @@ impl Physics {
                     if mat.explosion_size > 0.0 {
                         if let Some(c) = mat.catches_fire_at {
                             world.temp[i] = world.temp[i].max(c);
+                            world.wake_at(i);
                         }
                         continue;
                     }
@@ -1289,6 +1292,11 @@ impl Physics {
         let mut rebuilt: Vec<(usize, usize)> = Vec::new();
         for cy in 0..self.ch {
             for cx in 0..self.cw {
+                // Nothing changed here for a while (the world's sleeping
+                // blocks are these same 32x32 chunks): the ground is as it was.
+                if CHUNK == 32 && self.chunks[cy * self.cw + cx].sig != 0 && world.block_still(cy * self.cw + cx) {
+                    continue;
+                }
                 let (x0, y0) = (cx * CHUNK, cy * CHUNK);
                 let (x1, y1) = ((x0 + CHUNK).min(self.w), (y0 + CHUNK).min(self.h));
                 // Fingerprint of which cells are solid.
@@ -1493,25 +1501,51 @@ impl Physics {
     /// things painted floating in the air stay put until they're damaged.
     fn collapse(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
         let n = world.w * world.h;
-        let now: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
         self.tick = self.tick.wrapping_add(1);
         if self.solid_prev.len() != n {
-            self.solid_prev = now;
+            self.solid_prev = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
             self.strength_dirty = true;
             return self.snap_overhangs(world, mats);
         }
-        let lost: Vec<usize> = (0..n).filter(|&i| self.solid_prev[i] && !now[i]).collect();
-        if !lost.is_empty() || (0..n).any(|i| now[i] && !self.solid_prev[i]) {
+        // What scenery appeared or went away (only where the world isn't
+        // asleep: nothing changes in sleeping blocks).
+        let mut lost: Vec<usize> = Vec::new();
+        let mut gained = false;
+        for b in 0..world.blocks() {
+            if world.block_still(b) {
+                continue;
+            }
+            let (x0, x1, y0, y1) = world.block_cells(b);
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let i = y * world.w + x;
+                    let now = Self::is_scenery(world, mats, i);
+                    let was = self.solid_prev[i];
+                    if was && !now {
+                        lost.push(i);
+                    }
+                    gained |= now && !was;
+                    self.solid_prev[i] = now;
+                }
+            }
+        }
+        lost.sort_unstable();
+        if !lost.is_empty() || gained {
             self.strength_dirty = true;
         }
-        self.solid_prev = now;
         let mut out = Vec::new();
         // Strength is checked a few times a second, not every frame.
         // Hot scenery that softens (red-hot iron) is checked again now and
         // then, so a heated beam sags and gives way.
         if self.tick % 30 == 0 && !self.strength_dirty {
             let soft: Vec<Option<f32>> = mats.list.iter().map(|m| m.softens_at).collect();
-            self.strength_dirty = (0..n).any(|i| self.solid_prev[i] && soft[world.mat[i] as usize].is_some_and(|t| world.temp[i] > t));
+            self.strength_dirty = (0..world.blocks()).filter(|&b| !world.block_still(b)).any(|b| {
+                let (x0, x1, y0, y1) = world.block_cells(b);
+                (y0..y1).any(|y| (x0..x1).any(|x| {
+                    let i = y * world.w + x;
+                    self.solid_prev[i] && soft[world.mat[i] as usize].is_some_and(|t| world.temp[i] > t)
+                }))
+            });
         }
         if self.strength_dirty && self.tick % 4 == 0 {
             out.extend(self.snap_overhangs(world, mats));

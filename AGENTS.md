@@ -77,7 +77,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 
 | Path | What |
 | --- | --- |
-| `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** |
+| `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells**. **Sleeping areas**: 32x32 blocks with an awake countdown; only blocks awake or next to one are worked on. Anything that writes a cell must wake it: world helpers (`become_`, `make_air`, `swap`, `land`, `heat_circle`) do; direct writes elsewhere call `world.wake_at(i)` (physics stamping, explosions, triggers, editor `put`; `History::touch`, scene load and `Sim::restore` call `wake_all`). Physics skips terrain/collapse work in `block_still` blocks. `world.sleeping = false` turns it off (tests compare) |
 | `src/material.rs` | material files, ids, **your settings** layered over defaults (`my_settings/`) |
 | `src/physics.rs` | rigid objects (Rapier 2D): read back, collapse, terrain colliders, joints, impacts, explosions, bounce pads, one-way powder |
 | `src/physics/bend.rs` | metal objects bend: a hard hit levers the object round its nearest weld/hinge (or middle); if force × lever beats `yield` × thickness² × depth × firmness (heat), the far side's cells are redrawn turned (joint anchors there move too); a huge hit or > ~70° in total tears it in two (bigger half keeps the id). `BEND_K` is the tuning (a bike fork bends in a 250 km/h wall crash, not on landings). `Physics::bent(id)` = total bend |
@@ -95,7 +95,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/import.rs` | images, glTF/GLB, OBJ, FBX and .blend (via Blender), material picking by name/texture/colour, `make_character` |
 | `src/look.rs` | character looks: animation frames + `character.txt`, outline masks |
 | `src/notes.rs` | sticky notes: `.notes.md` format, what a spot is (`describe`), notes following objects |
-| `src/render.rs` | cells to RGBA pixels (CPU), textures, glow, heat view, hidden cells |
+| `src/render.rs` | cells to RGBA pixels (CPU), textures, glow, heat view, hidden cells. `draw_window(x, y, w, h)` draws only that part (plus a 40-cell margin for glow): the editor, Stunt Yard and screenshots draw just the view (pixel-identical to a full draw; tested) |
 | `src/headless.rs` | headless runs, screenshots with sharp characters |
 | `src/app.rs` | the editor (egui): tools (Select drags objects; during Play letting go mid-swing throws them: `fling`, `MAX_THROW`), inspector, right-click menu, notes, material settings, camera, HUD, UI tests |
 | `src/main.rs` | command line |

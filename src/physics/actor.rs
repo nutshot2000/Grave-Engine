@@ -636,6 +636,7 @@ impl Physics {
                     }
                     State::Gas => {}
                 }
+                world.wake_at(wi);
                 world.mat[wi] = a.spec.mat;
                 let li = row * MASK_W + col;
                 world.temp[wi] = a.temps[li];

@@ -113,6 +113,7 @@ impl Trigger {
                             if (x - cx).pow(2) + (y - cy).pow(2) <= r * r + r / 2 {
                                 let i = world.idx(x as usize, y as usize);
                                 world.temp[i] = *t;
+                                world.wake_at(i);
                             }
                         }
                     }
@@ -123,6 +124,7 @@ impl Trigger {
                         for xx in x0..=x1 {
                             let i = world.idx(xx as usize, yy as usize);
                             world.temp[i] = *t;
+                                world.wake_at(i);
                         }
                     }
                 }
