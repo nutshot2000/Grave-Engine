@@ -1,0 +1,7 @@
+# Reusable cutaway placed by its foundation pivot.
+size 240 180
+seed 19
+fill air
+sky #60809a #bec4ba
+rect stone 0 160 240 20
+asset ../assets/workshop/two_storey_house.asset 120 160 as house
