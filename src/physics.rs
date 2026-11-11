@@ -1668,30 +1668,190 @@ impl Physics {
     /// Pieces not connected to the edge at all are left alone here (see
     /// `collapse`).
     fn snap_overhangs(&mut self, world: &mut World, mats: &Materials) -> Vec<BodySpec> {
-        use std::collections::BinaryHeap;
         self.strength_dirty = false;
-        let (w, h) = (world.w, world.h);
+        let mut out = Vec::new();
+        for region in Self::snap_regions(world, mats) {
+            out.extend(self.snap_region(world, mats, region));
+        }
+        out
+    }
+
+    /// The parts of the world worth re-checking: where something has lately
+    /// changed (awake sleeping-area blocks), padded by as far as the
+    /// strongest material can reach, merged into boxes (x, y, w, h). In a big
+    /// level that's a few small boxes, not the whole world.
+    fn snap_regions(world: &World, mats: &Materials) -> Vec<(usize, usize, usize, usize)> {
+        let (bw, bh) = world.block_dims();
+        let reach = mats.list.iter().map(|m| m.strength).fold(0.0f32, f32::max);
+        let pad = (((reach + 8.0) / 32.0).ceil() as usize).clamp(2, 8);
+        let mut need = vec![false; bw * bh];
+        let mut any = false;
+        for b in 0..bw * bh {
+            if world.block_still(b) {
+                continue;
+            }
+            any = true;
+            let (bx, by) = (b % bw, b / bw);
+            for y in by.saturating_sub(pad)..=(by + pad).min(bh - 1) {
+                for x in bx.saturating_sub(pad)..=(bx + pad).min(bw - 1) {
+                    need[y * bw + x] = true;
+                }
+            }
+        }
+        if !any {
+            return Vec::new();
+        }
+        if need.iter().all(|&n| n) {
+            return vec![(0, 0, world.w, world.h)];
+        }
+        // Connected groups of needed blocks, each as its bounding box.
+        let mut regions = Vec::new();
+        let mut seen = vec![false; bw * bh];
+        for start in 0..bw * bh {
+            if !need[start] || seen[start] {
+                continue;
+            }
+            let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+            let mut stack = vec![start];
+            seen[start] = true;
+            while let Some(b) = stack.pop() {
+                let (bx, by) = (b % bw, b / bw);
+                (x0, x1, y0, y1) = (x0.min(bx), x1.max(bx), y0.min(by), y1.max(by));
+                for (ok, nb) in [(bx > 0, b.wrapping_sub(1)), (bx + 1 < bw, b + 1), (by > 0, b.wrapping_sub(bw)), (by + 1 < bh, b + bw)] {
+                    if ok && need[nb] && !seen[nb] {
+                        seen[nb] = true;
+                        stack.push(nb);
+                    }
+                }
+            }
+            regions.push((x0 * 32, y0 * 32, ((x1 + 1) * 32).min(world.w) - x0 * 32, ((y1 + 1) * 32).min(world.h) - y0 * 32));
+        }
+        regions
+    }
+
+    /// `snap_overhangs` for one box of the world. The box's own edge counts
+    /// as solid ground (as the world's edge does): things that really hang
+    /// from further out than the padding aren't judged here.
+    fn snap_region(&mut self, world: &mut World, mats: &Materials, (rx, ry, w, h): (usize, usize, usize, usize)) -> Vec<BodySpec> {
+        use std::collections::BinaryHeap;
         let n = w * h;
-        // Each cell's strength, weaker when hot (`softens_at`).
-        let strength: Vec<i32> = (0..n).map(|i| {
-            let m = mats.get(world.mat[i]);
-            (m.strength.max(0.0) * m.firmness(world.temp[i])).round() as i32
-        }).collect();
-        let scenery: Vec<bool> = (0..n).map(|i| Self::is_scenery(world, mats, i)).collect();
+        let ww = world.w;
+        let at = move |i: usize| (ry + i / w) * ww + rx + i % w; // box cell -> world cell
+        // Which cells are scenery (loose in the box: fixed solids), and each
+        // one's strength, weaker when hot (`softens_at`). Per-material tables,
+        // and empty air (most of the box) costs nothing.
+        let solid: Vec<bool> = mats.list.iter().map(|m| m.state == State::Solid).collect();
+        let base: Vec<f32> = mats.list.iter().map(|m| m.strength.max(0.0)).collect();
+        let mut scenery = vec![false; n];
+        let mut strength = vec![0i32; n];
+        for y in 0..h {
+            let row = (ry + y) * ww + rx;
+            for x in 0..w {
+                let wi = row + x;
+                let mat = world.mat[wi] as usize;
+                if solid[mat] && world.flags[wi] & OWNED == 0 {
+                    scenery[y * w + x] = true;
+                    let m = &mats.list[mat];
+                    strength[y * w + x] = if m.softens_at.is_some() { (base[mat] * m.firmness(world.temp[wi])).round() as i32 } else { base[mat] as i32 };
+                }
+            }
+        }
         let mut left = vec![i32::MIN; n];
         let mut heap = BinaryHeap::new();
+        // The box's edge counts as ground (as the world's edge does), but only
+        // where the structure there really is connected to the world's ground
+        // or edge: a floating island that crosses the box's edge must not
+        // look supported (it would then be judged, and snap).
+        let mut edge_ground = vec![false; n];
+        let (world_w, world_h) = (world.w, world.h);
+        self.epoch = self.epoch.wrapping_add(4).max(4);
+        let (visiting, supported, island) = (self.epoch, self.epoch + 1, self.epoch + 2);
+        let ring = (0..w).map(|x| (x, 0)).chain((0..w).map(|x| (x, h - 1))).chain((1..h.saturating_sub(1)).flat_map(|y| [(0, y), (w - 1, y)]));
+        for (x, y) in ring {
+            let i = y * w + x;
+            if !scenery[i] {
+                continue;
+            }
+            let start = at(i);
+            let real_edge = |c: usize| c % world_w == 0 || c / world_w == 0 || c % world_w + 1 == world_w || c / world_w + 1 == world_h;
+            edge_ground[i] = if real_edge(start) {
+                true
+            } else {
+                match self.mark[start] {
+                    m if m == supported => true,
+                    m if m == island => false,
+                    _ => {
+                        // Flood out through connected scenery until it reaches
+                        // the world's edge or an anchor (supported), runs out
+                        // (an island), or is clearly huge (supported).
+                        let mut seen = vec![start];
+                        let mut stack = vec![start];
+                        self.mark[start] = visiting;
+                        let mut verdict = None;
+                        'flood: while let Some(c) = stack.pop() {
+                            if real_edge(c) || world.flags[c] & crate::world::ANCHORED != 0 {
+                                verdict = Some(true);
+                                break;
+                            }
+                            let (cx, cy) = (c % world_w, c / world_w);
+                            for (ok, nb) in [(cx > 0, c.wrapping_sub(1)), (cx + 1 < world_w, c + 1), (cy > 0, c.wrapping_sub(world_w)), (cy + 1 < world_h, c + world_w)] {
+                                if !ok || !Self::is_scenery(world, mats, nb) {
+                                    continue;
+                                }
+                                match self.mark[nb] {
+                                    m if m == supported => {
+                                        verdict = Some(true);
+                                        break 'flood;
+                                    }
+                                    m if m == island => {
+                                        verdict = Some(false);
+                                        break 'flood;
+                                    }
+                                    m if m == visiting => {}
+                                    _ => {
+                                        self.mark[nb] = visiting;
+                                        seen.push(nb);
+                                        stack.push(nb);
+                                    }
+                                }
+                            }
+                            if seen.len() > 3_000_000 {
+                                verdict = Some(true);
+                                break;
+                            }
+                        }
+                        let ok = verdict.unwrap_or(false);
+                        for c in seen {
+                            self.mark[c] = if ok { supported } else { island };
+                        }
+                        ok
+                    }
+                }
+            };
+        }
         // Grounded: touching the edge, or standing on something grounded.
         let mut grounded = vec![false; n];
         for y in (0..h).rev() {
             for x in 0..w {
                 let i = y * w + x;
-                let edge = x == 0 || y == 0 || x + 1 == w || y + 1 == h;
-                let anchored = world.flags[i] & crate::world::ANCHORED != 0;
+                let edge = edge_ground[i];
+                let anchored = world.flags[at(i)] & crate::world::ANCHORED != 0;
                 if scenery[i] && (edge || anchored || grounded[i + w]) {
                     grounded[i] = true;
                     left[i] = strength[i];
-                    heap.push((left[i], i));
                 }
+            }
+        }
+        // Only grounded cells touching scenery that isn't grounded can pass
+        // anything on: the rest (the inside of the ground) needn't be queued.
+        for i in 0..n {
+            if !grounded[i] {
+                continue;
+            }
+            let (x, y) = (i % w, i / w);
+            let open = |j: usize| scenery[j] && !grounded[j];
+            if (y > 0 && open(i - w)) || (y + 1 < h && open(i + w)) || (x > 0 && open(i - 1)) || (x + 1 < w && open(i + 1)) {
+                heap.push((left[i], i));
             }
         }
         while let Some((s, i)) = heap.pop() {
@@ -1758,6 +1918,7 @@ impl Physics {
                     visit(i + w);
                 }
             }
+            let piece: Vec<usize> = piece.into_iter().map(at).collect();
             out.push(self.detach(world, &piece));
         }
         out

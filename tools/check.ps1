@@ -24,7 +24,7 @@ New-Item -ItemType Directory -Force shots\check | Out-Null
 $problems = 0
 foreach ($scene in Get-ChildItem scenes\*.txt) {
     $name = $scene.BaseName
-    $out = & .\target\release\grave-engine.exe --run $scene.FullName --frames $Frames --scale 2 --shot "shots\check\$name.png" 2>&1 | Out-String
+    $out = & (Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { 'target' }) 'release\grave-engine.exe') --run $scene.FullName --frames $Frames --scale 2 --shot "shots\check\$name.png" 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
         $problems++
         Write-Host "  ${name}: PROBLEMS (exit $LASTEXITCODE)"

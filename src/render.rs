@@ -38,7 +38,6 @@ pub struct Renderer {
     /// Glow spread wide (fires light up a big area in the dark).
     wide: Vec<[f32; 3]>,
     lamp_only: Vec<[f32; 3]>,
-    sun_cache: crate::light::SunCache,
     /// Sky and scenery layers behind the world, and where the camera is
     /// (their parallax depends on it).
     backdrop: crate::backdrop::Backdrop,
@@ -324,7 +323,7 @@ impl Renderer {
             blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
         }
         if lit {
-            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only, &mut self.sun_cache);
+            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
         }
         let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
         let backdrop = !view.heat && !self.backdrop.is_empty();

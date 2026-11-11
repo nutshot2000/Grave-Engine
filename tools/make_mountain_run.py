@@ -62,12 +62,12 @@ pt(2440, 334, 'rock'); pt(2580, 334, 'rock'); pt(2600, 334, 'rock'); pt(2700, 31
 pt(2740, 298, 'rock'); pt(2760, 294, 'rock'); pt(2775, 294, 'rock'); pt(2790, 297, 'rock'); pt(2805, 302, 'rock'); pt(2865, 322, 'rock'); pt(2876, 325, 'rock'); pt(2885, 326, 'rock'); pt(2893, 325, 'rock'); pt(2899, 323, 'rock'); pt(2905, 320, 'rock')
 # E. The gorge: drop off the peak for speed, kick off at 2905, land on the
 # far side going down
-pt(2906, 700, 'rock'); pt(2995, 700, 'rock')
-pt(3005, 404, 'rock'); pt(3200, 462, 'rock'); pt(3260, 476, 'rock')
+pt(2906, 700, 'rock'); pt(2975, 700, 'rock')
+pt(2985, 394, 'rock'); pt(3200, 462, 'rock'); pt(3260, 476, 'rock')
 # F. Forest descent (night): bumps, logs, a cabin, a trestle bridge
-pt(3340, 492, 'dirt'); pt(3420, 520, 'dirt'); pt(3470, 522, 'dirt'); pt(3560, 556, 'dirt')
+pt(3340, 492, 'rock', ('dirt', 6)); pt(3420, 520, 'rock', ('dirt', 6)); pt(3470, 522, 'rock', ('dirt', 6)); pt(3560, 556, 'rock', ('dirt', 6))
 RAVINE = (3600, 3780)
-pt(3600, 560, 'dirt'); pt(3780, 560, 'dirt'); pt(3860, 594, 'dirt'); pt(3930, 630, 'dirt'); pt(3970, 640, 'dirt')
+pt(3600, 560, 'rock', ('dirt', 6)); pt(3780, 560, 'rock', ('dirt', 6)); pt(3860, 594, 'rock', ('dirt', 6)); pt(3930, 630, 'rock', ('dirt', 6)); pt(3970, 640, 'rock', ('dirt', 6))
 # G. The mine: flat floor, a mountain overhead with a tunnel through it
 pt(4000, 640, 'rock'); pt(4290, 640, 'rock')
 PUDDLE = (4290, 4380)
@@ -76,8 +76,8 @@ pt(4310, 647, 'rock'); pt(4360, 647, 'rock'); pt(4380, 640, 'rock'); pt(4700, 64
 BOG = (4840, 4930)
 pt(4840, 638, 'concrete'); pt(4855, 650, 'concrete'); pt(4915, 650, 'concrete'); pt(4930, 638, 'concrete')
 pt(4960, 636, 'concrete'); pt(5120, 636, 'concrete'); pt(5140, 632, 'concrete'); pt(5170, 618, 'concrete')
-PIT = (5172, 5222)
-pt(5173, 700, 'concrete'); pt(5222, 700, 'concrete'); pt(5224, 650, 'concrete'); pt(5340, 660, 'concrete')
+PIT = (5172, 5212)
+pt(5173, 700, 'concrete'); pt(5212, 700, 'concrete'); pt(5214, 640, 'concrete'); pt(5340, 660, 'concrete')
 # I. Finish arena
 pt(5400, 660, 'concrete'); pt(5600, 660, 'concrete')
 
@@ -104,7 +104,7 @@ add(f'rect wood {CREV[0]-6} 424 {CREV[1]-CREV[0]+12} 4    # the bridge planks')
 add('# The frozen lake: water under a skin of ice (land hard and it cracks)')
 add(f'rect ice {LAKE[0]} 334 {LAKE[1]-LAKE[0]} 2    # a frozen pond: glassy and slippery')
 add('# The gorge below the big jump')
-add('rect water 2910 690 85 10')
+add('rect water 2910 690 65 10')
 add('# Forest ravine and the trestle bridge over it')
 add(f'rect air {RAVINE[0]} 470 {RAVINE[1]-RAVINE[0]} 200'); add(f'rect water {RAVINE[0]} 670 {RAVINE[1]-RAVINE[0]} 30')
 add(f'rect wood {RAVINE[0]-8} 560 {RAVINE[1]-RAVINE[0]+16} 4   # deck')
@@ -182,7 +182,7 @@ for line in bike:
     elif w[:2] == ['upright', 'frame']:
         line = 'upright frame strength 70 air 0.15 heavy 1.6   # trials handling: heavier, lean to rotate in the air'
     elif w and w[0] == 'wheel':
-        line = line.replace('spring 4 damping 1', 'spring 7 damping 2.5').replace('strength 3', 'strength 6')
+        line = line.replace('spring 4 damping 1', 'spring 7 damping 2.5').replace('strength 3', 'strength 12')
     out.append(line)
 add('# The bike (assets/stunt-bike/physical-bike.txt), moved to the start, trials handling')
 L.extend(out)
@@ -214,7 +214,7 @@ trig(4030, 'lighting 0.04 1.5')
 trig(4590, 'heat rect 4400 572 14 8 900 ; shake 5 ; message THE ROOF IS COMING DOWN — GO GO GO!', 20)
 checkpoint(4700, 'THE QUARRY — smash on through', 600)
 trig(4700, 'lighting 0.14 2')
-trig(4990, 'heat rect 5176 684 44 4 400 ; message OIL FIRE — FULL RUN-UP!', 20)
+trig(4990, 'heat rect 5176 684 34 4 400 ; message OIL FIRE — FULL RUN-UP!', 20)
 checkpoint(5300, 'HOME STRAIGHT', 400)
 trig(5470, 'finish ; heat rect 5532 596 4 4 900 ; heat rect 5582 596 4 4 900 ; zoom 1.2 2', 20)
 

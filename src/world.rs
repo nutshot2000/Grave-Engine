@@ -235,14 +235,6 @@ impl World {
         self.awake.fill(AWAKE_FRAMES);
     }
 
-    /// The highest row where anything may have changed lately (the top of
-    /// the highest block that's awake or being worked on); the world's
-    /// height if it's all asleep. Things worked out from rows above it
-    /// (like sunlight from the sky) still hold.
-    pub fn top_busy_row(&self) -> usize {
-        (0..self.awake.len()).find(|&b| self.awake[b] > 0 || self.active[b]).map_or(self.h, |b| (b / self.bw) * BLOCK)
-    }
-
     /// How much of the world is being worked on (0..1): the rest is asleep.
     pub fn awake_fraction(&self) -> f32 {
         self.active.iter().filter(|a| **a).count() as f32 / self.active.len().max(1) as f32
@@ -265,6 +257,11 @@ impl World {
                 self.active[by * bw + bx] = on;
             }
         }
+    }
+
+    /// The size of the sleeping-area grid: (blocks across, blocks down).
+    pub fn block_dims(&self) -> (usize, usize) {
+        (self.bw, self.bh)
     }
 
     /// How many sleeping-area blocks there are (32x32 cells, row by row).

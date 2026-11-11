@@ -12,3 +12,4 @@ strength = 35
 toughness = 1500
 breaks_into = gravel
 friction = 0.5
+texture = textures/ceramic.png     # concrete tile, tinted ceramic blue

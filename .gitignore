@@ -12,3 +12,6 @@ noita_gdc_talk_clean_transcript.md
 
 # Your own material settings (personal experiments)
 /materials/my_settings/
+
+# Blender backup files
+*.blend1

@@ -2,7 +2,7 @@
 import bpy, math, os
 from mathutils import Vector
 from pathlib import Path
-ROOT=Path(r'C:/Users/batti/Desktop/Grave-Engine/assets/stunt-bike')
+ROOT=Path(__file__).resolve().parent.parent/'assets'/'stunt-bike'
 bpy.ops.wm.read_factory_settings(use_empty=True)
 sc=bpy.context.scene
 sc.name='GRAVE • Ignition 450 stunt motorcycle'

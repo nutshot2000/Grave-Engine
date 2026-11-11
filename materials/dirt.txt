@@ -15,4 +15,4 @@ texture = textures/dirt.png          # pixel-art tile by piiixl (see textures/CR
 rolling_resistance = 0.15           # slows rolling wheels (per second)
 clump = 3                        # tyres throw it in clods
 tyres_dig = yes                  # tyres chew up its top layer
-reaction = water -> mud + air, chance 0.05   # soaks up water into mud
+reaction = water -> mud + air, chance 0.003   # soaks water into mud, slowly (about a minute)

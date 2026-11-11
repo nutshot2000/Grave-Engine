@@ -165,3 +165,29 @@ rect brick 300 150 40 40
     let left = s.world.mat.iter().filter(|&&c| c == brick).count();
     assert!(left < 100, "the sleeping brick melted too: {left} of 1600 cells left");
 }
+
+#[test]
+fn a_floating_island_isnt_judged_by_the_edge_of_a_rechecked_area() {
+    let m = mats();
+    // A big world with a long slab floating in the air (painted there, not
+    // held by anything), a floor, and a beam that really does hang too far
+    // out of the wall at the left.
+    let mut s = sim(&m, "size 1500 400\nfill air\nrect stone 0 380 1500 20\nrect stone 300 100 700 6\nrect stone 40 200 4 180\nrect wood 44 200 120 3\n");
+    let stone = m.id("stone").unwrap();
+    let slab = |s: &Sim| (300..1000).flat_map(|x| (100..106).map(move |y| (x, y))).filter(|&(x, y)| s.world.mat[s.world.idx(x, y)] == stone).count();
+    for _ in 0..200 {
+        s.step(&m);
+    }
+    assert_eq!(slab(&s), 700 * 6);
+    assert!(s.physics.body_count() >= 1, "the long wooden beam (wood holds 50 cells) snapped at the start");
+    // Something happens in the middle, under the slab: the area around it is
+    // re-checked, and the slab crosses the edge of that area.
+    for dx in 0..6 {
+        let i = s.world.idx(640 + dx, 380);
+        s.world.make_air(i);
+    }
+    for _ in 0..300 {
+        s.step(&m);
+    }
+    assert_eq!(slab(&s), 700 * 6, "the floating slab stays where it was painted");
+}

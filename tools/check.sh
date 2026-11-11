@@ -10,12 +10,15 @@
 set -u
 cd "$(dirname "$0")/.."
 FRAMES="${1:-300}"
-EXE=target/release/grave-engine
+# Set CARGO_TARGET_DIR (say, target/side) to build somewhere else while the
+# editor or a game is open (Windows won't replace a running program).
+TARGET="${CARGO_TARGET_DIR:-target}"
+EXE=$TARGET/release/grave-engine
 [ -f "$EXE.exe" ] && EXE="$EXE.exe"
 
 echo "== Building"
 cargo build --release || { echo "BUILD FAILED (is the editor open? close it and try again)"; exit 1; }
-[ -f target/release/grave-engine.exe ] && EXE=target/release/grave-engine.exe
+[ -f "$TARGET/release/grave-engine.exe" ] && EXE="$TARGET/release/grave-engine.exe"
 
 echo "== Tests"
 if cargo test --release 2>&1 | tee shots_test.log | grep -E "^test result|panicked|FAILED"; then :; fi

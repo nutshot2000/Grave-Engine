@@ -98,10 +98,13 @@ fn aluminium_melts_where_steel_stays_solid() {
 fn dirt_soaks_up_water_into_mud_and_snow_melts() {
     let m = mats();
     let mut s = sim(&m, "size 60 40\nfill air\nrect stone 0 30 60 10\nrect dirt 5 24 20 6\nrect water 5 20 20 4\nrect snow 40 26 10 4\n");
-    for _ in 0..600 {
+    // Dirt soaks water into mud slowly (about a minute): not a wall dissolving.
+    for _ in 0..2400 {
         s.step(&m);
     }
-    assert!(count(&s, &m, "mud") > 10, "mud: {}", count(&s, &m, "mud"));
+    let mud = count(&s, &m, "mud");
+    assert!(mud >= 3, "some mud after 40 seconds: {mud}");
+    assert!(count(&s, &m, "dirt") > 90, "but it hasn't dissolved: {} dirt left of 120", count(&s, &m, "dirt"));
     assert!(count(&s, &m, "snow") < 40, "snow melts on a warm day");
     let (mud, sand) = (m.get(m.id("mud").unwrap()), m.get(m.id("sand").unwrap()));
     assert!(mud.rolling_resistance > sand.rolling_resistance, "mud bogs wheels down more than sand");

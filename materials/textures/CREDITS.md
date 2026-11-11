@@ -13,3 +13,4 @@ materials use are included here, not the pack. Thank you, piiixl!
 | glass.png, snow.png, concrete.png, cloth.png, sandstone.png, rubber.png, bounce_pad.png, ash.png | 16x16 tiles from Textures-16.png |
 | mud.png | a 16x16 earth tile from Textures-16.png, darkened |
 | steel.png, aluminium.png, copper.png, brass.png | the iron tile, recoloured |
+| ceramic.png | the concrete tile, tinted blue |

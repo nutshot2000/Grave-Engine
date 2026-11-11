@@ -1,7 +1,7 @@
 """Render independently simulated motorcycle assemblies and material-cell masks."""
 import bpy, math, json
 from pathlib import Path
-root=Path(r'C:/Users/batti/Desktop/Grave-Engine/assets/stunt-bike')
+root=Path(__file__).resolve().parent.parent/'assets'/'stunt-bike'
 bpy.ops.wm.open_mainfile(filepath=str(root/'Ignition-450.blend'))
 s=bpy.context.scene;s.cycles.samples=16;s.render.film_transparent=True
 cam=s.camera;cam.location=(0,-6,.7);cam.rotation_euler=(math.pi/2,0,0);cam.data.ortho_scale=3.2

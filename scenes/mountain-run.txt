@@ -66,20 +66,20 @@ slope rock 2885 326 2893 325
 slope rock 2893 325 2899 323
 slope rock 2899 323 2905 320
 slope rock 2905 320 2906 700
-slope rock 2906 700 2995 700
-slope rock 2995 700 3005 404
-slope rock 3005 404 3200 462
+slope rock 2906 700 2975 700
+slope rock 2975 700 2985 394
+slope rock 2985 394 3200 462
 slope rock 3200 462 3260 476
 slope rock 3260 476 3340 492
-slope dirt 3340 492 3420 520
-slope dirt 3420 520 3470 522
-slope dirt 3470 522 3560 556
-slope dirt 3560 556 3600 560
-slope dirt 3600 560 3780 560
-slope dirt 3780 560 3860 594
-slope dirt 3860 594 3930 630
-slope dirt 3930 630 3970 640
-slope dirt 3970 640 4000 640
+slope rock 3340 492 3420 520 cover dirt 6
+slope rock 3420 520 3470 522 cover dirt 6
+slope rock 3470 522 3560 556 cover dirt 6
+slope rock 3560 556 3600 560 cover dirt 6
+slope rock 3600 560 3780 560 cover dirt 6
+slope rock 3780 560 3860 594 cover dirt 6
+slope rock 3860 594 3930 630 cover dirt 6
+slope rock 3930 630 3970 640 cover dirt 6
+slope rock 3970 640 4000 640 cover dirt 6
 slope rock 4000 640 4290 640
 slope rock 4290 640 4310 647
 slope rock 4310 647 4360 647
@@ -94,9 +94,9 @@ slope concrete 4960 636 5120 636
 slope concrete 5120 636 5140 632
 slope concrete 5140 632 5170 618
 slope concrete 5170 618 5173 700
-slope concrete 5173 700 5222 700
-slope concrete 5222 700 5224 650
-slope concrete 5224 650 5340 660
+slope concrete 5173 700 5212 700
+slope concrete 5212 700 5214 640
+slope concrete 5214 640 5340 660
 slope concrete 5340 660 5400 660
 slope concrete 5400 660 5600 660
 # Crevasse under the first bridge, with a stream at the bottom
@@ -106,7 +106,7 @@ rect wood 1776 424 68 4    # the bridge planks
 # The frozen lake: water under a skin of ice (land hard and it cracks)
 rect ice 2440 334 140 2    # a frozen pond: glassy and slippery
 # The gorge below the big jump
-rect water 2910 690 85 10
+rect water 2910 690 65 10
 # Forest ravine and the trestle bridge over it
 rect air 3600 470 180 200
 rect water 3600 670 180 30
@@ -293,7 +293,7 @@ rect mud 4926 637 1 4
 rect mud 4927 637 1 3
 rect mud 4928 637 1 2
 rect mud 4929 637 1 1
-rect oil 5172 684 50 16
+rect oil 5172 684 40 16
 # Valley village: a fence to jump, street lamps
 rect wood 352 688 3 12
 rect wood 352 688 22 3
@@ -1051,9 +1051,9 @@ light 4740 571 170 strength 2.2 color #e8f0ff cone 50 30
 rect steel 5128 562 5 2
 anchor 5128 562 5 2
 light 5130 566 170 strength 2.2 color #e8f0ff cone 110 30
-rect steel 5328 587 5 2
-anchor 5328 587 5 2
-light 5330 591 170 strength 2.2 color #e8f0ff cone 60 30
+rect steel 5328 586 5 2
+anchor 5328 586 5 2
+light 5330 590 170 strength 2.2 color #e8f0ff cone 60 30
 # Finish arena: floodlights, a banner overhead, fireworks past the line
 rect steel 5418 598 5 2
 anchor 5418 598 5 2
@@ -1221,8 +1221,8 @@ weld frame tail break 500
 weld frame mudguard break 500
 weld frame exhaust break 500
 weld frame seat break 500
-wheel frame rear-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
-wheel frame front-wheel spring 7 damping 2.5 travel 2 motor 10 strength 6 drive break 2000
+wheel frame rear-wheel spring 7 damping 2.5 travel 2 motor 10 strength 12 drive break 2000
+wheel frame front-wheel spring 7 damping 2.5 travel 2 motor 10 strength 12 drive break 2000
 follow frame zoom 3
 upright frame strength 70 air 0.15 heavy 1.6   # trials handling: heavier, lean to rotate in the air
 # Its headlight and tail light ride along with it
@@ -1245,6 +1245,6 @@ trigger 4030 0 40 760 by frame : lighting 0.04 1.5
 trigger 4590 0 20 760 by frame : heat rect 4400 572 14 8 900 ; shake 5 ; message THE ROOF IS COMING DOWN — GO GO GO!
 trigger 4700 0 40 760 by frame : checkpoint 4720 626 ; score 600 ; message THE QUARRY — smash on through
 trigger 4700 0 40 760 by frame : lighting 0.14 2
-trigger 4990 0 20 760 by frame : heat rect 5176 684 44 4 400 ; message OIL FIRE — FULL RUN-UP!
-trigger 5300 0 40 760 by frame : checkpoint 5320 644 ; score 400 ; message HOME STRAIGHT
+trigger 4990 0 20 760 by frame : heat rect 5176 684 34 4 400 ; message OIL FIRE — FULL RUN-UP!
+trigger 5300 0 40 760 by frame : checkpoint 5320 643 ; score 400 ; message HOME STRAIGHT
 trigger 5470 0 20 760 by frame : finish ; heat rect 5532 596 4 4 900 ; heat rect 5582 596 4 4 900 ; zoom 1.2 2
