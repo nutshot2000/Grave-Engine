@@ -226,6 +226,9 @@ fn hash(a: u32) -> u32 {
     x
 }
 
+/// Snow deeper than this many cells packs down.
+const SNOW_DEPTH: usize = 16;
+
 /// A random 0..1 from a few numbers.
 fn rnd(frame: u32, a: u32, b: u32) -> f32 {
     hash(frame.wrapping_mul(2654435761) ^ a.wrapping_mul(40503) ^ b.wrapping_mul(7919)) as f32 / u32::MAX as f32
@@ -342,6 +345,38 @@ pub fn step(
         for k in 0..count(w.dust * (y1 - y0) * 0.05, frame, 4) {
             let (x, y) = (if dir > 0.0 { (x0 - 3.0).max(0.5) } else { (x1 + 3.0).min(world.w as f32 - 1.5) }, y0 + rnd(frame, k, 4) * (y1 - y0));
             spawn(world, id("dust"), x, y, dir * (1.5 + wind_cells.abs() * 0.5), 0.0, None);
+        }
+    }
+
+    // Snow packs down under its own weight: deep drifts squash, so a long
+    // snowfall settles into a believable layer instead of a mountain.
+    if w.snow > 0.0 {
+        if let Some(snow) = id("snow") {
+            for k in 0..60u32 {
+                let x = (x0 + rnd(frame, k, 21) * width) as usize;
+                let x = x.min(world.w - 1);
+                let mut y = y0 as usize;
+                while y < world.h {
+                    let i = world.idx(x, y);
+                    if world.is_owned(i) || mats.get(world.mat[i]).state != State::Gas {
+                        break;
+                    }
+                    y += 1;
+                }
+                let mut run = 0;
+                while y + run < world.h && run < 40 {
+                    let i = world.idx(x, y + run);
+                    if world.mat[i] != snow || world.is_owned(i) {
+                        break;
+                    }
+                    run += 1;
+                }
+                if run > SNOW_DEPTH && rnd(frame, k, 22) < 0.5 {
+                    let i = world.idx(x, y + run - 1 - SNOW_DEPTH / 3);
+                    world.wake_at(i);
+                    world.transform(mats, i, crate::material::AIR);
+                }
+            }
         }
     }
 

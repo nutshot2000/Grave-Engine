@@ -36,6 +36,8 @@ fn snow_builds_up_on_the_ground_and_on_ledges() {
     }
     let snow = m.id("snow").unwrap();
     let on_shelf = (60..140).flat_map(|x| (60..70).map(move |y| (x, y))).filter(|&(x, y)| s.world.mat[s.world.idx(x, y)] == snow).count();
+    let deepest = (0..200).map(|x| (0..120).filter(|&y| s.world.mat[s.world.idx(x, y)] == snow).count()).max().unwrap();
+    assert!(deepest < 40, "deep snow packs down: {deepest} cells");
     println!("snow cells: {}, on the shelf: {on_shelf}", count(&s, &m, "snow"));
     assert!(count(&s, &m, "snow") > 600, "snow piles up");
     assert!(on_shelf > 100, "and settles on the ledge: {on_shelf}");
