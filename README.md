@@ -177,6 +177,10 @@ Try `scenes/forces.txt`.
   spot cracks: stone crumbles to gravel, wood splinters into flying pieces, and ice
   shatters. Drop an iron block on a wooden bridge and it smashes through. A gentle
   landing doesn't break anything.
+- **Metal bends.** Iron and brass objects hit hard enough bend and stay bent, at their
+  weld or hinge (a bike fork bends where it meets the frame) or in the middle. Thin
+  parts bend first, red-hot metal bends easily and gets weaker the hotter it is
+  (`softens_at`), and a huge hit tears it in two. Set it per material with `yield`.
 - **Friction and bounce** are per material. Things slide off ice, and grip stone.
   Slopes are smooth, so blocks slide and carts roll downhill.
 - **Explosions.** Gunpowder goes off when it gets hot, even buried. The blast cracks

@@ -80,6 +80,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** |
 | `src/material.rs` | material files, ids, **your settings** layered over defaults (`my_settings/`) |
 | `src/physics.rs` | rigid objects (Rapier 2D): read back, collapse, terrain colliders, joints, impacts, explosions, bounce pads, one-way powder |
+| `src/physics/bend.rs` | metal objects bend: a hard hit levers the object round its nearest weld/hinge (or middle); if force × lever beats `yield` × thickness² × depth × firmness (heat), the far side's cells are redrawn turned (joint anchors there move too); a huge hit or > ~70° in total tears it in two (bigger half keeps the id). `BEND_K` is the tuning (a bike fork bends in a 250 km/h wall crash, not on landings). `Physics::bent(id)` = total bend |
 | `src/physics/vehicle.rs` | vehicle controls: brakes, rolling resistance (material key), balance assist (`upright`) and lean, `wheel_contact`, tyre roost (`kick_up`: rear driven tyre flings top-layer loose cells back and up; only the rearmost tyre, or a front tyre's ruts trip the rear one) |
 | `src/trigger.rs` | triggers: scene boxes that fire actions (heat, message, checkpoint, score) when something enters; `Sim::events` |
 | `src/bin/stunt-yard.rs` | **Stunt Yard / Wreck Run**, the stunt-bike game built on the engine (`Play-Stunt-Yard.cmd`); course from `tools/make_stunt_course.py`; docs in `docs/` |
@@ -123,8 +124,9 @@ Units: **1 cell = 10 cm** (10 cells per metre), **60 frames per second**,
    terrain colliders are rebuilt for changed 32x32 chunks; buoyancy; bounce
    pads; characters think (controls, damage, breath); the Rapier step;
    everything is stamped back into the grid (pushing liquid/sand aside,
-   splashing); impacts crack things by `toughness`; explosions throw,
-   heat and crack.
+   splashing); impacts crack things by `toughness` (hot metal less:
+   `softens_at`) and bend metal objects (`yield`, bend.rs); explosions
+   throw, heat and crack.
 
 Key ideas:
 

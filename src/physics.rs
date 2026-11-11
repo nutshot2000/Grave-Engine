@@ -74,6 +74,7 @@ impl PhysicsHooks for OneWayPowder {
 }
 
 mod actor;
+mod bend;
 mod vehicle;
 pub use actor::{ActorSpec, ActorStatus, Controls};
 pub use vehicle::WheelContact;
@@ -266,6 +267,10 @@ pub struct Physics {
     brake: f32,
     lean: f32,
     upright: std::collections::BTreeMap<u64, f32>,
+    /// Hard hits on metal objects this frame, and how far each object has
+    /// bent so far (radians). See bend.rs.
+    bend_hits: Vec<bend::BendHit>,
+    bent: HashMap<u64, f32>,
     /// A number unique to this physics world (object ids restart in each).
     run_id: u64,
     /// What the player is pressing.
@@ -370,6 +375,8 @@ impl Physics {
             brake: 0.0,
             lean: 0.0,
             upright: Default::default(),
+            bend_hits: Vec::new(),
+            bent: HashMap::new(),
             run_id: NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             controls: Controls::default(),
             set,
@@ -772,6 +779,8 @@ impl Physics {
                 b.shard = true;
             }
         }
+        // Metal that was hit hard enough bends (or tears).
+        self.bends(world, mats);
     }
 
     /// Which object owns each world cell right now.
@@ -813,9 +822,12 @@ impl Physics {
             let (re, im) = (pose.rotation.re, pose.rotation.im);
             let mut impulse = 0.0;
             let mut patch = Vec::new();
+            let mut push = (0.0f32, 0.0f32);
             for m in pair.solver_manifolds() {
                 for pt in &m.points {
                     impulse += pt.data.impulse;
+                    push.0 += m.data.normal.x * pt.data.impulse;
+                    push.1 += m.data.normal.y * pt.data.impulse;
                     let l = pt.local_p1;
                     patch.push((
                         (pose.translation.x + re * l.x - im * l.y) / CELL,
@@ -825,7 +837,8 @@ impl Physics {
             }
             let force = impulse / DT / 1000.0;
             if force >= MIN_DAMAGE_KN / 4.0 && !patch.is_empty() {
-                hits.push((force, patch, b1, b2));
+                let len = push.0.hypot(push.1).max(1e-6);
+                hits.push((force, patch, b1, b2, (push.0 / len * force, push.1 / len * force)));
             }
         }
         if hits.is_empty() {
@@ -833,13 +846,15 @@ impl Physics {
         }
         // One object landing across several pieces of ground is one hit.
         let mut merged: Vec<Hit> = Vec::new();
-        for (f, patch, b1, b2) in hits {
+        for (f, patch, b1, b2, push) in hits {
             match merged.iter_mut().find(|m| (m.2 == b1 && m.3 == b2) || (m.2 == b2 && m.3 == b1)) {
                 Some(m) => {
                     m.0 += f;
                     m.1.extend(patch);
+                    let flip = if m.2 == b1 { 1.0 } else { -1.0 };
+                    m.4 = (m.4 .0 + push.0 * flip, m.4 .1 + push.1 * flip);
                 }
-                None => merged.push((f, patch, b1, b2)),
+                None => merged.push((f, patch, b1, b2, push)),
             }
         }
         let mut hits = merged;
@@ -848,7 +863,7 @@ impl Physics {
 
         let owners = self.owners();
         let mut out = Vec::new();
-        for (force, patch, b1, b2) in hits {
+        for (force, patch, b1, b2, push) in hits {
             if force < MIN_DAMAGE_KN {
                 continue;
             }
@@ -867,6 +882,18 @@ impl Physics {
             samples.push(*sorted.last().unwrap());
             samples.truncate(60);
 
+            // Metal objects may bend (bend.rs): the push on each side, at
+            // the middle of the patch.
+            let plen = push.0.hypot(push.1).max(1e-6);
+            let mid = patch.iter().fold((0.0, 0.0), |a, p| (a.0 + p.0 / patch.len() as f32, a.1 + p.1 / patch.len() as f32));
+            for (side, sign) in [(b1, -1.0f32), (b2, 1.0)] {
+                let Some(&n) = side.and_then(|h| index.get(&h)) else { continue };
+                let Some(cell) = nearest_cell(world, mats, &owners, Which::Body(n), mid.0, mid.1, 2.0) else { continue };
+                if Self::bendable(mats, world.mat[cell]) {
+                    let at = ((cell % world.w) as f32 + 0.5, (cell / world.w) as f32 + 0.5);
+                    self.bend_hits.push(bend::BendHit { id: self.bodies[n].id, force, at, dir: (push.0 / plen * sign, push.1 / plen * sign) });
+                }
+            }
             for side in [b1, b2] {
                 let which = match side {
                     Some(h) if h == self.ground => Which::Scenery,
@@ -2221,7 +2248,9 @@ fn simplify(pts: &[(f32, f32)], eps: f32) -> Vec<(f32, f32)> {
 
 /// A hard contact: total force (kN), the touching points (cells), and the two
 /// things touching (the ground or an object).
-type Hit = (f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>);
+/// A hard contact: force (kN), the touching points, the two bodies, and the
+/// push direction (from the first body towards the second, times force).
+type Hit = (f32, Vec<(f32, f32)>, Option<RigidBodyHandle>, Option<RigidBodyHandle>, (f32, f32));
 
 /// Which cells a crack can affect.
 #[derive(Clone, Copy, PartialEq)]

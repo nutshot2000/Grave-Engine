@@ -113,6 +113,11 @@ pub struct Material {
     /// toughness and bending all fall), down to nothing at its melting
     /// point: red-hot iron sags and bends easily.
     pub softens_at: Option<f32>,
+    /// Metals: how strong it is before it bends for good (MPa, the real
+    /// "yield strength": iron 200, aluminium 100, copper 70). Objects made of
+    /// it bend instead of only cracking: thicker parts and colder metal
+    /// take more. None = it doesn't bend.
+    pub yield_strength: Option<f32>,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -200,6 +205,7 @@ impl Material {
             clump: 1,
             tyres_dig: false,
             softens_at: None,
+            yield_strength: None,
             melts: None,
             boils: None,
             freezes: None,
@@ -673,6 +679,7 @@ fn apply(
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
         "softens_at" => m.softens_at = opt_num(v)?,
+        "yield" | "yield_strength" => m.yield_strength = opt_num(v)?.map(|y| y.max(0.0)).filter(|y| *y > 0.0),
         "tyres_dig" => m.tyres_dig = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,

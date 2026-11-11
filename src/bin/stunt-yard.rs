@@ -237,6 +237,14 @@ mod tests {
   grave_engine::headless::shot(&g.sim.world,&g.mats,&mut g.renderer,std::path::Path::new("shots/stunt-material-crash.png"),3,false).unwrap();
  }
  #[test]
+ fn a_wall_crash_bends_the_metal() {
+  let mut g=Game::new();g.crash_test();
+  for _ in 0..90 {g.sim.step(&g.mats);}
+  for p in &g.parts {println!("{} bent {:.2}",p.name,g.sim.physics.bent(p.id));}
+  assert!(g.parts.iter().any(|p|g.sim.physics.bent(p.id)>0.05),"some iron or brass part bends in a hard wall crash");
+  grave_engine::headless::shot_with_actors(&g.sim.world,&g.mats,&mut g.renderer,&[],g.parts.iter().find(|p|p.name=="fork").and_then(|p|g.sim.physics.centre(p.id)).map(|(x,y)|((x as usize).saturating_sub(40),(y as usize).saturating_sub(25).min(210),80,45)),std::path::Path::new("shots/stunt-bent-crash.png"),6,false).unwrap();
+ }
+ #[test]
  fn tyres_have_rubber_cells_and_really_burn() {
   let mut g=Game::new();let rubber=g.mats.id("rubber").unwrap();let iron=g.mats.id("iron").unwrap();
   let wheel=g.parts.iter().find(|p|p.name=="rear-wheel").unwrap().id;

@@ -26,6 +26,7 @@ the file and line number.
 | `clump` | Tyres throw it in clumps of this many cells (wet sand and dirt 3; dry sand and gravel 1) | 1 |
 | `tyres_dig` | `yes` for a solid whose top layer driven tyres chew up and throw (dirt) | no |
 | `softens_at` | Above this temperature (°C) it gets weaker the hotter it is (strength, toughness, bending), down to nothing at its melting point. Iron 500 | none |
+| `yield` | Metals: objects made of it **bend for good** when hit hard instead of only cracking. The number is the real-world yield strength in MPa (iron 200, brass 150; aluminium would be about 100, copper 70). Thin parts bend first (strength grows with thickness squared), red-hot metal bends easily (`softens_at`), and a huge hit or bending too far tears it in two | none |
 | `slides` | Powders: how readily it slides down the side of a pile, 0 to 1. Dry sand 1 (45° slopes); wet sand 0.002 holds steep shapes | 1 |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |
 | `strength` | Solids: how many cells it can stick out sideways (or hang down) from something holding it up before it snaps. Wood 50, stone 25, iron 150, ice 15. Standing on something solid counts as fully held up | 1 |
