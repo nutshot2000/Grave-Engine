@@ -3,6 +3,11 @@ size 3600 260
 seed 42
 fill air
 rect stone 0 210 3600 50
+sky #4f86c6 #f2d6a2
+layer clouds #fff4e8 depth 0.05 y 25 height 20
+layer mountains #c09a78 depth 0.1 y 180 height 80 seed 6 haze 0.35
+layer hills #d2ad7a depth 0.3 y 205 height 35 seed 7
+layer city #7a6656 depth 0.5 y 211 height 45 seed 4
 slope stone 170 210 255 178
 slope stone 300 188 390 210
 rect wood 266 199 24 11

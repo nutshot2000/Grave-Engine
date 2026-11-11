@@ -207,7 +207,8 @@ fn passes(mats: &Materials) -> Vec<[f32; 3]> {
 
 /// Work out the light falling on every cell: `out[i]` = how lit (1 = full
 /// white daylight), per colour. Glow from hot things is added by the renderer.
-pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>) {
+/// `lamp_only` gets just the lamps' share (for the haze lamps make in the air).
+pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &[Placed], out: &mut Vec<[f32; 3]>, scratch: &mut Vec<[f32; 3]>, lamp_only: &mut Vec<[f32; 3]>) {
     let (w, h) = (world.w, world.h);
     let n = w * h;
     // Sun and lamps go into `out` first, get softened a little (light spills
@@ -259,6 +260,9 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
         }
     }
 
+    // Remember the sunlight so the lamps' share can be told apart.
+    lamp_only.clear();
+    lamp_only.extend_from_slice(out);
     // Lamps: rays outward from each, stopping at solid things.
     let mut local: Vec<f32> = Vec::new();
     let mut tint: Vec<[f32; 3]> = Vec::new();
@@ -342,6 +346,9 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
                 }
             }
         }
+    }
+    for (l, o) in lamp_only.iter_mut().zip(out.iter()) {
+        *l = [(o[0] - l[0]).max(0.0), (o[1] - l[1]).max(0.0), (o[2] - l[2]).max(0.0)];
     }
     if !lamps.is_empty() || lighting.sun.is_some() {
         scratch.resize(n, [0.0; 3]);

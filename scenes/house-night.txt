@@ -6,6 +6,12 @@ seed 7
 fill air
 rect stone 0 205 460 25                       # ground
 
+# Behind it: a starry sky, dark mountains and a forest (parallax)
+sky #1a2850 #46588a stars
+layer clouds #8090c0 depth 0.05 y 30 height 18
+layer mountains #4a5888 depth 0.12 y 180 height 95 snow seed 9
+layer forest #2a3a44 depth 0.5 y 206 height 32 seed 4
+
 # The house (one metre = 10 cells), painted in place as scenery: brick,
 # timber, iron beams and roof sheets, brass fittings. Parts that lose their
 # support break off and fall; iron pieces that come loose bend when hit.

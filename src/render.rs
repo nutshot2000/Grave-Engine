@@ -24,6 +24,14 @@ pub struct Renderer {
     lamps: Vec<crate::light::Placed>,
     illum: Vec<[f32; 3]>,
     sun_scratch: Vec<[f32; 3]>,
+    lamp_only: Vec<[f32; 3]>,
+    /// Sky and scenery layers behind the world, and where the camera is
+    /// (their parallax depends on it).
+    backdrop: crate::backdrop::Backdrop,
+    camera: Option<(f32, f32)>,
+    bg: Vec<[f32; 3]>,
+    bg_glow: Vec<[f32; 3]>,
+    pictures: std::collections::HashMap<std::path::PathBuf, Option<crate::import::Picture>>,
 }
 
 fn lerp3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
@@ -98,6 +106,13 @@ impl Renderer {
     pub fn light(&mut self, sim: &crate::sim::Sim) {
         self.lighting = sim.lighting.clone();
         self.lamps = sim.lamps();
+        self.backdrop = sim.backdrop.clone();
+    }
+
+    /// Where the camera is centred (cells), for the backdrop's parallax.
+    /// Not set = the middle of the world.
+    pub fn set_camera(&mut self, x: f32, y: f32) {
+        self.camera = Some((x, y));
     }
 
     /// Draw with this lighting from now on.
@@ -244,7 +259,13 @@ impl Renderer {
         }
         let lit = !view.heat && !(self.lighting.is_plain() && self.lamps.is_empty());
         if lit {
-            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, &mut self.illum, &mut self.sun_scratch);
+            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
+        }
+        let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
+        let backdrop = !view.heat && !self.backdrop.is_empty();
+        if backdrop {
+            let (cx, cy) = self.camera.unwrap_or((world.w as f32 / 2.0, world.h as f32 / 2.0));
+            self.backdrop.draw(world.w, world.h, cx, cy, world.frame, &mut self.pictures, &mut self.bg, &mut self.bg_glow);
         }
         let amb = {
             let (a, c) = (self.lighting.ambient.max(0.0), self.lighting.ambient_color);
@@ -252,8 +273,11 @@ impl Renderer {
         };
 
         for i in 0..n {
-            let c = self.tmp[i];
+            // Empty air shows the backdrop (not flying cells drawn there).
+            let open = backdrop && world.mat[i] == crate::material::AIR && self.tmp[i] == air;
+            let c = if open { self.bg[i] } else { self.tmp[i] };
             let l = self.light[i];
+            let own = if open { self.bg_glow[i] } else { [0.0; 3] };
             let (r, g, b) = if view.heat {
                 (c[0], c[1], c[2])
             } else if lit {
@@ -262,14 +286,19 @@ impl Renderer {
                 let e = self.illum[i];
                 let gas = mats.get(world.mat[i]).state == State::Gas;
                 let haze = |k: usize| if gas { (e[k] - amb[k]).max(0.0) * 12.0 } else { 0.0 };
-                let px = |k: usize| c[k] * (e[k] + l[k] / 255.0) + l[k] * 1.1 + haze(k);
+                // The far backdrop isn't shadowed by the world: it gets the
+                // overall light and the sun; lamps only haze the air in front.
+                let lamp = self.lamp_only[i];
+                let haze = |k: usize| if open { lamp[k] * 30.0 } else { haze(k) };
+                let e = if open { [(amb[0] + sun_full[0]).min(1.0), (amb[1] + sun_full[1]).min(1.0), (amb[2] + sun_full[2]).min(1.0)] } else { e };
+                let px = |k: usize| c[k] * (e[k] + l[k] / 255.0) + l[k] * 1.1 + haze(k) + own[k];
                 (px(0), px(1), px(2))
             } else {
                 // Light brightens what it falls on, and adds a soft halo in the air.
                 let lit = [
-                    c[0] * (1.0 + l[0] / 255.0) + l[0] * 1.1,
-                    c[1] * (1.0 + l[1] / 255.0) + l[1] * 1.1,
-                    c[2] * (1.0 + l[2] / 255.0) + l[2] * 1.1,
+                    c[0] * (1.0 + l[0] / 255.0) + l[0] * 1.1 + own[0],
+                    c[1] * (1.0 + l[1] / 255.0) + l[1] * 1.1 + own[1],
+                    c[2] * (1.0 + l[2] / 255.0) + l[2] * 1.1 + own[2],
                 ];
                 (lit[0], lit[1], lit[2])
             };

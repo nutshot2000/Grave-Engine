@@ -26,6 +26,11 @@
 //! light 120 80 60 strength 1.2 color #ffb060 flicker 0.3   # a torch lighting 60 cells around
 //! light 300 150 90 cone 0 25 on bike     # a headlight on `bike` pointing right, 25° either side
 //!
+//! # Backdrop (see backdrop.rs): a sky and parallax layers, far to near
+//! sky #1b2a4a #d07050 stars
+//! layer mountains #40486a depth 0.15 y 150 height 90 snow
+//! layer city #1f2430 depth 0.5 y 200 height 70 windows
+//!
 //! # Triggers: a box that does things when something enters (see trigger.rs)
 //! trigger 1535 150 10 60 by bike : heat circle 1508 205 8 1200 ; message DEMOLITION CHARGE!
 //! trigger 1340 100 10 120 by bike : checkpoint ; score 500
@@ -91,6 +96,7 @@ pub struct Loaded {
     pub triggers: Vec<crate::trigger::Trigger>,
     /// Lighting (lamps `on` an object = its number N+1).
     pub lighting: crate::light::Lighting,
+    pub backdrop: crate::backdrop::Backdrop,
     /// Characters (the player), and how close the camera follows them.
     pub actors: Vec<crate::physics::ActorSpec>,
     pub player_zoom: f32,
@@ -172,6 +178,7 @@ impl Loaded {
             sim.zoom = self.player_zoom;
         }
         sim.lighting = self.lighting;
+        sim.backdrop = self.backdrop;
         sim.lighting.lights.retain_mut(|l| match l.on {
             Some(n) => match ids.get(n as usize - 1).copied().flatten() {
                 Some(id) => {
@@ -277,6 +284,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut upright: Vec<(usize, f32)> = Vec::new();
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
     let mut lighting = crate::light::Lighting::default();
+    let mut backdrop = crate::backdrop::Backdrop::default();
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -343,6 +351,16 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 Ok(v) => ensure(&mut world, mats).turbulence = v[0].clamp(0.0, 10.0),
                 Err(e) => err(e),
             },
+            "sky" | "layer" => {
+                if let Err(e) = backdrop.parse_line(&words) {
+                    err(e);
+                } else if let (Some(base), Some(crate::backdrop::Layer { kind: crate::backdrop::Kind::Image(p), .. })) = (base, backdrop.layers.last_mut()) {
+                    // Pictures are found next to the scene (or from the project folder).
+                    if p.is_relative() && !p.exists() && base.join(&*p).exists() {
+                        *p = base.join(&*p);
+                    }
+                }
+            }
             "lighting" => match nums(1, 1) {
                 Ok(v) => {
                     lighting.ambient = v[0].clamp(0.0, 1.5);
@@ -935,7 +953,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, actors, player_zoom }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1196,6 +1214,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if let Some((x, y)) = snap.checkpoint {
         out.push_str(&format!("# Last checkpoint reached: {x} {y}\n"));
     }
+    out.push_str(&snap.backdrop.to_lines());
     out.push_str(&snap.lighting.to_lines(|n| format!("obj{n}"), |n| snap.bodies.get(n as usize - 1).map(|b| (b.x, b.y, b.angle))));
     for a in &snap.actors {
         let (x, y) = a.feet();

@@ -7,6 +7,13 @@ seed 7
 fill air
 rect stone 0 205 460 25                       # ground
 
+# Behind it: a summer sky, far hills, near hills and a forest (parallax)
+sky #5b8fd0 #bfe0f5
+layer clouds #ffffff depth 0.05 y 25 height 22
+layer hills #7a9ab0 depth 0.15 y 170 height 60 seed 4 haze 0.3
+layer hills #5f8a5a depth 0.35 y 195 height 40 seed 2
+layer forest #3d6a40 depth 0.6 y 206 height 25
+
 # The house (one metre = 10 cells), painted in place as scenery: brick,
 # timber, iron beams and roof sheets, brass fittings. Parts that lose their
 # support break off and fall; iron pieces that come loose bend when hit.

@@ -3,6 +3,8 @@ from pathlib import Path
 import math
 r=Path(__file__).resolve().parent.parent
 lines=['# Stunt Yard: Wreck Run. Each section has a different riding problem.','size 3600 260','seed 42','fill air','rect stone 0 210 3600 50']
+# A desert film lot behind the course (parallax backdrop, see src/backdrop.rs)
+lines+=['sky #4f86c6 #f2d6a2','layer clouds #fff4e8 depth 0.05 y 25 height 20','layer mountains #c09a78 depth 0.1 y 180 height 80 seed 6 haze 0.35','layer hills #d2ad7a depth 0.3 y 205 height 35 seed 7','layer city #7a6656 depth 0.5 y 211 height 45 seed 4']
 def rect(m,x,y,w,h):
  if w>0 and h>0: lines.append(f'rect {m} {x} {y} {w} {h}')
 # Engine level shapes (see the top of src/scene.rs): hills, slopes and

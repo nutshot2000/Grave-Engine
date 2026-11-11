@@ -27,6 +27,8 @@ pub struct Sim {
     /// The scene's lighting: overall light, sun, lamps (see light.rs). Lamps
     /// `on` an object hold its id.
     pub lighting: crate::light::Lighting,
+    /// Sky and scenery layers behind the world (see backdrop.rs).
+    pub backdrop: crate::backdrop::Backdrop,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -49,6 +51,7 @@ pub struct Snapshot {
     pub checkpoint: Option<(f32, f32)>,
     /// Lighting (lamps `on` an object = its number N+1).
     pub lighting: crate::light::Lighting,
+    pub backdrop: crate::backdrop::Backdrop,
     /// Characters (the player).
     pub actors: Vec<crate::physics::ActorSpec>,
 }
@@ -56,7 +59,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), actors: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), backdrop: Default::default(), actors: Vec::new() }
     }
 }
 
@@ -69,7 +72,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default() };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -218,14 +221,14 @@ impl Sim {
             Some(id) => index(id).map(|n| l.on = Some(n)).is_some(),
             None => true,
         });
-        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, actors }
+        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, backdrop: self.backdrop.clone(), actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let world = snap.world.clone();
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone() };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {

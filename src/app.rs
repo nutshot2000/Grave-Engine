@@ -564,6 +564,95 @@ impl Sandbox {
 
     /// A material's settings, as sliders. Your changes go in
     /// materials/my_settings/NAME.txt over the defaults (materials/NAME.txt).
+    /// The 🏞 Background menu: sky and parallax layers behind the world.
+    fn background_menu(&mut self, ui: &mut egui::Ui) {
+        use grave_engine::backdrop::{Backdrop, Kind, Layer, PRESETS};
+        ui.set_min_width(320.0);
+        ui.label(RichText::new("Ready-made").strong());
+        let h = self.sim.world.h;
+        ui.horizontal_wrapped(|ui| {
+            for (name, lines) in PRESETS {
+                if ui.button(*name).clicked() {
+                    self.sim.backdrop = Backdrop::preset(lines, h);
+                }
+            }
+            if ui.button("✖ None").clicked() {
+                self.sim.backdrop = Backdrop::default();
+            }
+        });
+        ui.separator();
+        let b = &mut self.sim.backdrop;
+        let mut has_sky = b.sky.is_some();
+        if ui.checkbox(&mut has_sky, RichText::new("Sky").strong()).changed() {
+            b.sky = has_sky.then_some(([91, 143, 208], [191, 224, 245], false));
+        }
+        if let Some((top, bottom, stars)) = b.sky.as_mut() {
+            ui.horizontal(|ui| {
+                ui.label("top");
+                ui.color_edit_button_srgb(top);
+                ui.label("bottom");
+                ui.color_edit_button_srgb(bottom);
+                ui.checkbox(stars, "stars");
+            });
+        }
+        ui.separator();
+        ui.label(RichText::new(format!("Layers, far to near ({})", b.layers.len())).strong());
+        let mut remove = None;
+        egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+            for (n, l) in b.layers.iter_mut().enumerate() {
+                ui.push_id(n, |ui| {
+                    ui.horizontal(|ui| {
+                        let kind = match &l.kind {
+                            Kind::Hills => "hills",
+                            Kind::Mountains => "mountains",
+                            Kind::City => "city",
+                            Kind::Forest => "forest",
+                            Kind::Clouds => "clouds",
+                            Kind::Image(_) => "picture",
+                        };
+                        ui.label(format!("{}. {kind}", n + 1));
+                        ui.color_edit_button_srgb(&mut l.color);
+                        if matches!(l.kind, Kind::Mountains | Kind::City) {
+                            ui.checkbox(&mut l.extra, if matches!(l.kind, Kind::Mountains) { "snow" } else { "windows" });
+                        }
+                        if ui.small_button("🗑").on_hover_text("Remove this layer").clicked() {
+                            remove = Some(n);
+                        }
+                    });
+                    ui.add(egui::Slider::new(&mut l.depth, 0.0..=1.0).text("depth (0 far, 1 near)"));
+                    ui.add(egui::Slider::new(&mut l.y, 0.0..=h as f32).text("ground line"));
+                    ui.add(egui::Slider::new(&mut l.height, 1.0..=h as f32).text("height"));
+                    ui.add(egui::Slider::new(&mut l.haze, 0.0..=1.0).text("haze"));
+                    let mut seed = l.seed as f32;
+                    if ui.add(egui::Slider::new(&mut seed, 1.0..=99.0).step_by(1.0).text("shape")).changed() {
+                        l.seed = seed as u32;
+                    }
+                    ui.separator();
+                });
+            }
+        });
+        if let Some(n) = remove {
+            b.layers.remove(n);
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Add:");
+            for (name, kind, colour) in [
+                ("⛰ mountains", Kind::Mountains, [90, 96, 130]),
+                ("hills", Kind::Hills, [80, 110, 90]),
+                ("🏙 city", Kind::City, [35, 40, 55]),
+                ("🌲 forest", Kind::Forest, [40, 70, 50]),
+                ("☁ clouds", Kind::Clouds, [255, 255, 255]),
+            ] {
+                if ui.button(name).clicked() {
+                    let hf = h as f32;
+                    let (y, height) = if matches!(kind, Kind::Clouds) { (hf * 0.12, hf * 0.1) } else { (hf * 0.8, hf * 0.25) };
+                    b.layers.push(Layer::new(kind, colour, 0.4, y, height));
+                }
+            }
+        });
+        ui.label(RichText::new("In a scene: `sky #top #bottom stars`, `layer KIND #colour depth D y Y height H`. Pictures: `layer image FILE depth D y Y`").size(12.0).weak());
+    }
+
     /// The 💡 Lighting menu: overall light, sun, and each lamp.
     fn lighting_menu(&mut self, ui: &mut egui::Ui) {
         ui.set_min_width(300.0);
@@ -1454,6 +1543,7 @@ impl Sandbox {
             }
             ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
             ui.menu_button(big("💡 Lighting"), |ui| self.lighting_menu(ui));
+            ui.menu_button(big("🏞 Background"), |ui| self.background_menu(ui));
             ui.separator();
             ui.label("Scene");
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
@@ -2015,6 +2105,10 @@ impl Sandbox {
     fn canvas(&mut self, ui: &mut egui::Ui) {
         let (w, h) = (self.sim.world.w, self.sim.world.h);
         self.renderer.light(&self.sim);
+        // Backdrop layers slide by at their depth as the camera moves.
+        let (w0, h0) = (self.sim.world.w as f32, self.sim.world.h as f32);
+        let (cx0, cy0) = self.cam.map_or((w0 / 2.0, h0 / 2.0), |c| (c.0, c.1));
+        self.renderer.set_camera(cx0, cy0);
         let rgba = self.renderer.draw(&self.sim.world, &self.mats, self.view);
         let image = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
         match &mut self.texture {

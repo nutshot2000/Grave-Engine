@@ -354,6 +354,30 @@ light 26 22 30 cone 0 25 on bike                          # a headlight that rid
   adds one (on an object, it rides along). Undo works.
 - Triggers fade the lights: `lighting 0.05 2` (to nearly dark over 2 seconds).
 
+## Backgrounds with depth
+
+A sky and layers of scenery behind the world, sliding past at different speeds as
+the camera moves (parallax), so a flat scene feels deep. Empty air shows them; no
+background lines = the plain background as before.
+
+```text
+sky #1a2850 #46588a stars                             # gradient top to bottom; stars
+layer clouds #8090c0 depth 0.05 y 30 height 18        # drifting clouds
+layer mountains #4a5888 depth 0.12 y 180 height 95 snow
+layer hills #5f8a5a depth 0.35 y 195 height 40 seed 2 haze 0.2
+layer city #232838 depth 0.55 y 200 height 60 windows  # lit windows at night
+layer forest #2a3a44 depth 0.6 y 206 height 30
+layer image assets/backdrops/hills.png depth 0.3 y 200 scale 2   # your own picture
+```
+
+Layers go far to near. `depth` 0 = as far as the sky (still), 1 = moves with the
+world. `y` is the layer's ground line, `height` how tall it gets, `seed` changes the
+shapes, `haze` fades it into the sky. The scene's lighting dims it (night), lit
+windows and stars glow on their own. **🏞 Background** in the editor: ready-made
+Day hills, Sunset mountains, Night city, Desert and Forest, plus every layer's
+colour, depth, height, haze and shape, and buttons to add or remove layers. The
+house scenes and Wreck Run have them.
+
 ## Joints, motors and driving
 
 Try `scenes/racer.txt`: press Play and drive with **→ / D** (ahead) and **← / A**
