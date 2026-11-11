@@ -17,6 +17,9 @@ const SIM_HZ: f64 = 60.0;
 const SELECT_COLOR: Color32 = Color32::from_rgb(255, 214, 90);
 const AREA_COLOR: Color32 = Color32::from_rgb(90, 200, 255);
 
+/// The fastest the editor throws things (cells per second: 60 m/s).
+const MAX_THROW: f32 = 600.0;
+
 #[derive(Clone, Copy, PartialEq)]
 enum Tool {
     /// Click or drag a box to select; drag to move; handles to turn and resize.
@@ -103,6 +106,9 @@ struct Sandbox {
     snapshot: Snapshot,
     ran_since_snapshot: bool,
     playing: bool,
+    /// Where the pointer was lately while dragging objects (time, cell), so
+    /// letting go mid-swing throws them.
+    fling: Vec<(f64, (f32, f32))>,
     speed: f32,
     view: View,
     renderer: Renderer,
@@ -236,6 +242,7 @@ impl Sandbox {
             rewind_pos: None,
             ran_since_snapshot: false,
             playing: false,
+            fling: Vec::new(),
             speed: 1.0,
             view: View::default(),
             renderer: Renderer::default(),
@@ -2099,8 +2106,14 @@ impl Sandbox {
                 }
             }
             Drag::Objects(last) => {
+                // Time from summed frame lengths (steady even if the clock isn't).
+                let time = self.fling.last().map_or(0.0, |f| f.0) + ui.input(|i| i.stable_dt.clamp(0.001, 0.1)) as f64;
                 if let Some(p) = pointer {
                     let now = to_cells(p);
+                    self.fling.push((time, now));
+                    if self.fling.len() > 6 {
+                        self.fling.remove(0); // the last few frames (~0.1 s)
+                    }
                     let (dx, dy) = (now.0 - last.0, now.1 - last.1);
                     if dx != 0.0 || dy != 0.0 {
                         self.history.touch(&mut self.sim, "move");
@@ -2127,6 +2140,26 @@ impl Sandbox {
                 }
                 if released {
                     self.drag = Drag::None;
+                    // Let go while swinging (during Play): it flies off at
+                    // the pointer's speed. Throw things at things!
+                    if let (true, Some(&(t0, p0)), Some(&(t1, p1))) = (self.playing, self.fling.first(), self.fling.last()) {
+                        let dt = (t1 - t0) as f32;
+                        if dt > 0.02 {
+                            let (vx, vy) = ((p1.0 - p0.0) / dt, (p1.1 - p0.1) / dt);
+                            let speed = vx.hypot(vy);
+                            if speed > 15.0 {
+                                let k = speed.min(MAX_THROW) / speed;
+                                for id in self.selected_ids() {
+                                    self.sim.physics.edit(&mut self.sim.world, &self.mats, id, |b| {
+                                        b.vx = vx * k;
+                                        b.vy = vy * k;
+                                    });
+                                }
+                                self.say(format!("Thrown at {:.0} m/s", speed.min(MAX_THROW) * 0.1));
+                            }
+                        }
+                    }
+                    self.fling.clear();
                     self.history.commit(&mut self.sim);
                 }
             }
@@ -2674,6 +2707,21 @@ body rect wood 40 60 20 10
         let app = h.state();
         let id = app.mats.id(name).unwrap();
         app.sim.world.mat.iter().filter(|&&m| m == id).count()
+    }
+
+    #[test]
+    fn swing_an_object_and_let_go_to_throw_it() {
+        let mut h = editor();
+        h.key_press(Key::V);
+        h.run_steps(2);
+        h.state_mut().playing = true;
+        { let (a, b) = (at(&h, 50.0, 65.0), at(&h, 90.0, 55.0)); drag(&mut h, a, b); }
+        let thrown = object(&h);
+        assert!(thrown.vx > 20.0 && thrown.vy < 0.0, "it flies off the way it was swung: ({}, {})", thrown.vx, thrown.vy);
+        // Paused, a drag just moves it.
+        h.state_mut().playing = false;
+        { let p = object(&h); let (a, b) = (at(&h, p.x, p.y), at(&h, p.x + 30.0, p.y)); drag(&mut h, a, b); }
+        assert_eq!(object(&h).vx, 0.0, "while paused it's only moved");
     }
 
     #[test]

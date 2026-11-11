@@ -1,0 +1,29 @@
+# The Timber House: a detailed wood-and-metal house built in Blender
+# (tools/make_house_in_blender.py) as a cutaway, so you see into its rooms.
+# Throw things at it: press Play, then drag something from the pile on the
+# left and let go mid-swing. It flies at the speed you threw it.
+size 460 230
+seed 7
+fill air
+rect stone 0 205 460 25                       # ground
+
+# The house (one metre = 10 cells), painted in place as scenery: brick,
+# timber, iron beams and roof sheets, brass fittings. Parts that lose their
+# support break off and fall; iron pieces that come loose bend when hit.
+object assets/house/timber-house.glb 190 85 static
+
+# The throwing pile
+body circle iron 30 190 5                      # iron cannonballs
+body circle iron 45 192 4
+body circle iron 58 193 3
+body circle brass 70 193 3                     # brass ball
+body rect stone 82 185 10 10                   # stone blocks
+body rect stone 95 189 7 7
+body rect brick 105 191 8 5                    # bricks
+body rect brick 105 186 8 5
+body rect iron 20 172 40 2                     # a thin iron rod (bends!)
+depth 0.05
+body rect iron 20 165 30 3                     # an iron girder
+depth 0.3
+body rect wood 70 170 30 4                     # a wooden beam
+body rect wood 120 183 12 12                   # a crate

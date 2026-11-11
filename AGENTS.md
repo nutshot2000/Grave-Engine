@@ -94,7 +94,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/notes.rs` | sticky notes: `.notes.md` format, what a spot is (`describe`), notes following objects |
 | `src/render.rs` | cells to RGBA pixels (CPU), textures, glow, heat view, hidden cells |
 | `src/headless.rs` | headless runs, screenshots with sharp characters |
-| `src/app.rs` | the editor (egui): tools, inspector, right-click menu, notes, material settings, camera, HUD, UI tests |
+| `src/app.rs` | the editor (egui): tools (Select drags objects; during Play letting go mid-swing throws them: `fling`, `MAX_THROW`), inspector, right-click menu, notes, material settings, camera, HUD, UI tests |
 | `src/main.rs` | command line |
 | `materials/*.txt` | one file per material (keys in `materials/README.md`); `textures/` tiles + `CREDITS.md` |
 | `materials/my_settings/` | the owner's own tweaks (git-ignored): only changed keys, over the defaults |
@@ -219,6 +219,13 @@ field, default in `blank`, parse in `apply`), use it in `world.rs` or
 ### Characters
 - **The hero** (default look): built and animated in Blender by
   `tools/make_hero_in_blender.py` (empties as joints; renders 256 px frames).
+- **The timber house** (`scenes/house.txt`, `assets/house/timber-house.glb`):
+  built by `tools/make_house_in_blender.py` (a cutaway, parts named after
+  materials; run it in Blender for a "Grave House" scene, or
+  `blender -b --factory-startup -P tools/make_house_in_blender.py -- OUT.glb`).
+  Imported scenery must touch the ground and every part must be held up
+  (no long overhangs, no pixels joined only diagonally) or it falls when the
+  first thing changes; `tests/house.rs` checks it stands.
 - **From Mixamo or any rigged FBX:** one FBX per animation in a folder, then
   `grave-engine --make-character FOLDER --name NAME` (runs Blender in the
   background with `tools/fbx_to_character.py`; faces right, removes root

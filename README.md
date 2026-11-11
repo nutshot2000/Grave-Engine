@@ -25,7 +25,8 @@ cargo run --release
 - **👆 Select** (V): click an object, or drag a box. A box picks up the objects
   inside it, or, if there are none, an area of scenery.
 - **Move** by dragging. Objects are held still while you drag them, even during
-  Play. **Turn** with the round handle (hold Shift for 15° steps) and **resize**
+  Play. **Throw** during Play: swing an object and let go mid-swing, and it flies
+  off at the speed you swung it (up to 60 m/s). **Turn** with the round handle (hold Shift for 15° steps) and **resize**
   with the square corner handle.
 - **The Inspector** (right) shows what's selected in plain words: what it's made
   of, its mass, position, angle, speed and temperature. You can edit all of them.
@@ -321,6 +322,12 @@ hinge door ground at 40 100          # also: weld a b at x y, rope a b at x y to
 Headless runs can hold the drive controls too: `--throttle 1`.
 
 ## Importing from Blender and images
+
+Try `scenes/house.txt`: a detailed two-storey timber-and-iron house built in Blender
+(`tools/make_house_in_blender.py`) as a cutaway, so you see into its rooms: brick
+chimney, roof truss under iron sheets, iron beams and column, stairs, a balcony with an
+iron railing, furniture and brass fittings. Press Play and throw the cannonballs,
+stones and girders from the pile at it.
 
 **Drag a file onto the window** to drop it in as an object (tick "Drop as fixed scenery"
 to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
