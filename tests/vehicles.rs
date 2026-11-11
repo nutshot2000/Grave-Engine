@@ -182,3 +182,32 @@ fn driven_tyres_throw_sand_behind_them_but_not_stone() {
     assert_eq!(before, after, "every grain lands somewhere");
     assert!(x > 60.0, "and the cart still drives on: {x}");
 }
+
+#[test]
+fn dirt_and_wet_sand_come_off_in_clumps() {
+    let m = mats();
+    for ground in ["dirt", "wet_sand"] {
+        let mut s = sim(&m, &cart(ground));
+        let id = m.id(ground).unwrap();
+        // A running start (on mud the cart is too slow to throw much from
+        // a standstill, like a real bike bogging down).
+        for _ in 0..20 {
+            s.step(&m);
+        }
+        for b in s.physics.ids() {
+            s.physics.edit(&mut s.world, &m, b, |b| b.vx = 70.0);
+        }
+        s.physics.set_throttle(1.0);
+        let mut clumped = false;
+        let mut most = 0;
+        for _ in 0..90 {
+            s.step(&m);
+            let fl: Vec<_> = s.world.flying.iter().filter(|f| f.mat == id).collect();
+            most = most.max(fl.len());
+            // Two cells flying side by side with the same speed: a clump.
+            clumped |= fl.iter().any(|a| fl.iter().any(|b| (a.x - b.x).abs() > 0.5 && (a.x - b.x).abs() < 1.5 && (a.y - b.y).abs() < 1.5 && a.vx == b.vx && a.vy == b.vy));
+        }
+        assert!(most > 2, "{ground}: thrown by the tyre ({most})");
+        assert!(clumped, "{ground}: thrown in clumps");
+    }
+}

@@ -183,9 +183,11 @@ impl Physics {
                     continue;
                 };
                 let j = world.idx(x as usize, y as usize);
-                if !matches!(mats.get(world.mat[j]).state, State::Powder | State::Liquid) {
+                let m = mats.get(world.mat[j]);
+                if !(matches!(m.state, State::Powder | State::Liquid) || m.tyres_dig) {
                     continue;
                 }
+                let (material, clump) = (world.mat[j], m.clump.max(1) as usize);
                 // How much: harder on the gas and faster means more, plus
                 // any wheelspin (the tread scrubbing past the ground).
                 let (px, py) = ((x as f32 + 0.5) * CELL - c.x, (y as f32 + 0.5) * CELL - c.y);
@@ -212,12 +214,43 @@ impl Physics {
                     let (cvx, cvy) = (v.x * 0.9 - dir * 0.6, v.y - (1.5 + ground_speed * 0.15) * jitter);
                     if world.throw_from(mats, x as usize, y as usize, fx, fy, cvx * per_frame, cvy * per_frame) {
                         thrown += 1;
+                        Self::clump_with(world, mats, x, y, material, clump, Some((fx, fy)), (cvx * per_frame, cvy * per_frame));
                         continue;
                     }
                 }
                 if world.throw(mats, x as usize, y as usize, back * per_frame, up * per_frame) {
                     thrown += 1;
+                    Self::clump_with(world, mats, x, y, material, clump, None, (back * per_frame, up * per_frame));
                 }
+            }
+        }
+    }
+
+    /// Sticky stuff (wet sand, dirt) comes off in clumps: throw up to
+    /// `clump - 1` more touching cells of the same material with the same
+    /// speed, so they fly together. `from`: where the first one started (if
+    /// it was carried over the tyre), so the rest start next to it.
+    #[allow(clippy::too_many_arguments)]
+    fn clump_with(world: &mut World, mats: &Materials, x: i32, y: i32, material: MatId, clump: usize, from: Option<(f32, f32)>, v: (f32, f32)) {
+        let mut more = clump.saturating_sub(1);
+        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (1, 1), (-1, 1), (0, 2)] {
+            if more == 0 {
+                break;
+            }
+            let (nx, ny) = (x + dx, y + dy);
+            if !world.in_bounds(nx, ny) {
+                continue;
+            }
+            let i = world.idx(nx as usize, ny as usize);
+            if world.mat[i] != material || world.is_owned(i) {
+                continue;
+            }
+            let ok = match from {
+                Some((fx, fy)) => world.throw_from(mats, nx as usize, ny as usize, fx + dx as f32, fy + dy as f32, v.0, v.1),
+                None => world.throw(mats, nx as usize, ny as usize, v.0, v.1),
+            };
+            if ok {
+                more -= 1;
             }
         }
     }

@@ -105,6 +105,10 @@ pub struct Material {
     /// How much it slows rolling wheels down (per second): loose sand 0.6,
     /// mud 1.4, water 0.3, hard ground 0.
     pub rolling_resistance: f32,
+    /// Tyres throw it in clumps of this many cells (wet sand, dirt: 3).
+    pub clump: u8,
+    /// A solid whose top layer tyres chew up and throw (dirt).
+    pub tyres_dig: bool,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -176,6 +180,8 @@ impl Material {
             metal: false,
             launch: 0.0,
             rolling_resistance: 0.0,
+            clump: 1,
+            tyres_dig: false,
             melts: None,
             boils: None,
             freezes: None,
@@ -647,6 +653,8 @@ fn apply(
         "metal" => m.metal = yes_no(v)?,
         "launch" => m.launch = num(v)?.clamp(0.0, 60.0),
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
+        "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
+        "tyres_dig" => m.tyres_dig = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,
         "boils_at" => set_at(&mut m.boils, v)?,

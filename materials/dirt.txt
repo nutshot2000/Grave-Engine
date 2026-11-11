@@ -13,3 +13,5 @@ breaks_into = sand
 friction = 0.9
 texture = textures/dirt.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
 rolling_resistance = 0.15           # slows rolling wheels (per second)
+clump = 3                        # tyres throw it in clods
+tyres_dig = yes                  # tyres chew up its top layer
