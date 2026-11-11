@@ -31,6 +31,8 @@ pub struct Renderer {
     /// and their own colour, so a backdrop shows through them.
     gas_alpha: Vec<f32>,
     gas_col: Vec<[f32; 3]>,
+    /// Heat glow of hot things (embers, red-hot metal), added on top in the dark.
+    hot: Vec<[f32; 3]>,
     /// Glow spread wide (fires light up a big area in the dark).
     wide: Vec<[f32; 3]>,
     lamp_only: Vec<[f32; 3]>,
@@ -147,6 +149,8 @@ impl Renderer {
         self.gas_alpha.clear();
         self.gas_alpha.resize(n, 0.0);
         self.gas_col.resize(n, [0.0; 3]);
+        self.hot.clear();
+        self.hot.resize(n, [0.0; 3]);
         self.tmp.resize(n, [0.0; 3]);
         self.scratch.resize(n, [0.0; 3]);
         self.rgba.resize(n * 4, 255);
@@ -224,10 +228,13 @@ impl Renderer {
                     let hc = hot_color(t);
                     col = lerp3(col, hc, k * 0.9);
                     emit = [emit[0] + hc[0] * k * 0.5, emit[1] + hc[1] * k * 0.5, emit[2] + hc[2] * k * 0.5];
+                    self.hot[i] = [hc[0] * k * 0.8, hc[1] * k * 0.8, hc[2] * k * 0.8];
                 }
             }
             self.light[i] = emit;
-            self.self_lit[i] = emit != [0.0; 3];
+            // Flames and glowing materials are light themselves; merely hot
+            // things (ash, metal) stay dark and add their heat glow on top.
+            self.self_lit[i] = m.glow > 0.0 || world.is_burning(i);
             self.tmp[i] = col;
         }
 
@@ -340,8 +347,12 @@ impl Renderer {
                 let e = if self.self_lit[i] { [e[0].max(1.0), e[1].max(1.0), e[2].max(1.0)] } else { e };
                 let far = if dark > 0.05 { self.wide[i] } else { [0.0; 3] };
                 // (Capped, so a big fire doesn't wash things out to white.)
-                let glow = |k: usize| ((l[k] * 2.0 + far[k] * 8.0 * dark) / 255.0).min(1.2);
-                let px = |k: usize| c[k] * (e[k] + glow(k)) + (l[k] * 1.1 + far[k] * 2.5 * dark).min(120.0) + haze(k) + own[k];
+                // Keeping its colour: pale things go orange, not white.
+                let g = [(l[0] * 2.0 + far[0] * 8.0 * dark) / 255.0, (l[1] * 2.0 + far[1] * 8.0 * dark) / 255.0, (l[2] * 2.0 + far[2] * 8.0 * dark) / 255.0];
+                let top = g[0].max(g[1]).max(g[2]);
+                let squeeze = if top > 0.9 { 0.9 / top } else { 1.0 };
+                let hot = self.hot[i];
+                let px = |k: usize| c[k] * (e[k] + g[k] * squeeze) + (l[k] * 1.1 + far[k] * 2.5 * dark).min(120.0) + haze(k) + own[k] + hot[k] * dark;
                 (px(0), px(1), px(2))
             } else {
                 // Light brightens what it falls on, and adds a soft halo in the air.
