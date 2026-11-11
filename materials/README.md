@@ -24,6 +24,7 @@ the file and line number.
 | `launch` | Bounce pad: anything landing on top is flung upwards at this speed (m/s). 15 clears a 12 m gap at a walk; landing after a bounce does no harm | 0 |
 | `rolling_resistance` | How much it slows rolling wheels touching it, per second: loose sand 0.6, mud (wet sand) 1.4, water 0.3, gravel 0.3, hard ground 0. Brakes use `friction` instead (ice brakes badly) | 0 |
 | `clump` | Tyres throw it in clumps of this many cells (wet sand and dirt 3; dry sand and gravel 1) | 1 |
+| `melt_yield` | How much is left when it melts, 0..1 (snow 0.12: a drift melts to a puddle, not a flood) | 1 |
 | `tyres_dig` | `yes` for a solid whose top layer driven tyres chew up and throw (dirt) | no |
 | `softens_at` | Above this temperature (°C) it gets weaker the hotter it is (strength, toughness, bending), down to nothing at its melting point. Iron 500 | none |
 | `lets_light_through` | How much light passes through each cell, 0 to 1 (glass 0.9, water 0.85 so deep water gets dark, ice 0.75, smoke 0.85). Gases default to 1, liquids 0.85, solids and powders 0 | by state |

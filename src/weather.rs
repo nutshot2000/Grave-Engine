@@ -274,7 +274,7 @@ pub fn step(
         let base = *w.gust_base.get_or_insert(world.wind);
         let t = world.frame as f32;
         let wave = (t / 90.0).sin() + 0.6 * (t / 31.0 + 1.3).sin() + 0.3 * (t / 197.0).sin();
-        world.wind = (base + w.gusts * 9.0 * wave).clamp(-50.0, 50.0);
+        world.wind = (base + w.gusts * 5.0 * wave).clamp(-50.0, 50.0);
     } else if let Some(base) = w.gust_base.take() {
         world.wind = base;
     }
@@ -324,8 +324,8 @@ pub fn step(
         let top = |k: u32| (y0 - 4.0 - rnd(frame, k, 5) * 12.0).max(0.5);
         // Snow: slow, carried sideways by the wind.
         for k in 0..count(w.snow * width * 0.02, frame, 1) {
-            let x = x0 + rnd(frame, k, 1) * width - wind_cells * 60.0 * 0.5;
-            spawn(world, id("snow"), x, top(k), wind_cells * 0.6, 0.15, Some(-5.0));
+            let x = x0 + rnd(frame, k, 1) * width - wind_cells * 60.0 * 0.25;
+            spawn(world, id("snow"), x, top(k), wind_cells * 0.3, 0.3, Some(-5.0));
         }
         // Rain: fast, at a slant.
         for k in 0..count(w.rain * width * 0.03, frame, 2) {

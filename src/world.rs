@@ -571,7 +571,9 @@ impl World {
             if light > 0.0 && f.y >= 0.0 {
                 let (u, v) = self.flow_at(f.x as i32, f.y as i32);
                 let k = 0.12 * light;
-                f.vx += (u * 2.0 - f.vx) * k;
+                // Heavier flakes (snow) feel the wind far less than embers do:
+                // they come down, drifting, instead of streaming sideways.
+                f.vx += (u * 2.0 * light * light - f.vx) * k;
                 f.vy += (v * 2.0 - f.vy) * k;
                 if f.temp > 300.0 {
                     f.vy -= FLY_GRAVITY * 0.85 * light;
@@ -829,7 +831,8 @@ impl World {
             // Temperature thresholds: melt / boil when hot, freeze / condense when cold.
             let mut changed = None;
             if let Some(c) = m.melts.filter(|c| t >= c.at) {
-                changed = Some(c.into);
+                // Fluffy stuff (snow) is mostly air: most of it just vanishes.
+                changed = Some(if m.melt_yield < 1.0 && !self.chance(m.melt_yield) { AIR } else { c.into });
             } else if let Some(c) = m.boils.filter(|c| t >= c.at) {
                 changed = Some(c.into);
             } else if let Some(c) = m.freezes.filter(|c| t <= c.at) {
