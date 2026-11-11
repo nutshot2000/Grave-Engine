@@ -330,6 +330,30 @@ changes the brush size.
   Stunt Yard uses them: big jumps go slow-mo and closer, crashes play out in slow
   motion with a jolt.
 
+## Lighting
+
+Try `scenes/house-night.txt`: the timber house at night, moonlight casting long
+shadows and warm lamps inside. Scenes with no lighting lines are fully lit, as always.
+
+```text
+lighting 0.22 #6070b0          # overall light (0 dark .. 1 daylight) and its tint
+sun 25 0.45 #9fb0e0            # sun (or moon) 25° from straight down: real shadows
+light 245 177 50 strength 2 color #ffc070 flicker 0.15    # a flickering oil lamp
+light 374 141 60 cone 90 40                               # a beam pointing down
+light 26 22 30 cone 0 25 on bike                          # a headlight that rides on `bike`
+```
+
+- **Shadows:** sunlight and lamplight stop at solid things. Glass, ice, water,
+  smoke and oil let some through (material setting `lets_light_through`), tinted
+  by their colour, so deep water gets dark and blue-green.
+- **Glow** from fire, lava and red-hot metal still lights things up.
+- In the dark, beams and lamplight show as a soft haze in the air.
+- **💡 Lighting** menu: brightness and tint (Day, Dusk, Night, Cave presets), the
+  sun's angle, strength and colour, and every lamp (reach, strength, colour,
+  flicker, beam direction and width, remove). **Right-click → 💡 Put a lamp here**
+  adds one (on an object, it rides along). Undo works.
+- Triggers fade the lights: `lighting 0.05 2` (to nearly dark over 2 seconds).
+
 ## Joints, motors and driving
 
 Try `scenes/racer.txt`: press Play and drive with **→ / D** (ahead) and **← / A**

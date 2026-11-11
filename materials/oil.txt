@@ -16,3 +16,4 @@ gives_off_chance = 0.5
 flows = 6
 strength = 0
 rolling_resistance = 0.2           # slows rolling wheels (per second)
+lets_light_through = 0.5   # murky

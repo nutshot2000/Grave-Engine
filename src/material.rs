@@ -118,6 +118,9 @@ pub struct Material {
     /// it bend instead of only cracking: thicker parts and colder metal
     /// take more. None = it doesn't bend.
     pub yield_strength: Option<f32>,
+    /// How much light passes through each cell of it, 0..1 (None = gases
+    /// all, liquids 0.85, solids and powders none). Glass 0.9, water 0.85.
+    pub lets_light_through: Option<f32>,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -175,6 +178,15 @@ impl Material {
         }
     }
 
+    /// How much light passes through one cell of it (0..1).
+    pub fn light_through(&self) -> f32 {
+        self.lets_light_through.unwrap_or(match self.state {
+            State::Gas => 1.0,
+            State::Liquid => 0.85,
+            _ => 0.0,
+        })
+    }
+
     fn blank(name: &str) -> Self {
         Material {
             name: name.to_string(),
@@ -206,6 +218,7 @@ impl Material {
             tyres_dig: false,
             softens_at: None,
             yield_strength: None,
+            lets_light_through: None,
             melts: None,
             boils: None,
             freezes: None,
@@ -679,6 +692,7 @@ fn apply(
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
         "softens_at" => m.softens_at = opt_num(v)?,
+        "lets_light_through" | "transparency" => m.lets_light_through = opt_num(v)?.map(|t| t.clamp(0.0, 1.0)),
         "yield" | "yield_strength" => m.yield_strength = opt_num(v)?.map(|y| y.max(0.0)).filter(|y| *y > 0.0),
         "tyres_dig" => m.tyres_dig = yes_no(v)?,
         "melts_at" => set_at(&mut m.melts, v)?,

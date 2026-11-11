@@ -26,6 +26,7 @@ the file and line number.
 | `clump` | Tyres throw it in clumps of this many cells (wet sand and dirt 3; dry sand and gravel 1) | 1 |
 | `tyres_dig` | `yes` for a solid whose top layer driven tyres chew up and throw (dirt) | no |
 | `softens_at` | Above this temperature (°C) it gets weaker the hotter it is (strength, toughness, bending), down to nothing at its melting point. Iron 500 | none |
+| `lets_light_through` | How much light passes through each cell, 0 to 1 (glass 0.9, water 0.85 so deep water gets dark, ice 0.75, smoke 0.85). Gases default to 1, liquids 0.85, solids and powders 0 | by state |
 | `yield` | Metals: objects made of it **bend for good** when hit hard instead of only cracking. The number is the real-world yield strength in MPa (iron 200, brass 150; aluminium would be about 100, copper 70). Thin parts bend first (strength grows with thickness squared), red-hot metal bends easily (`softens_at`), and a huge hit or bending too far tears it in two | none |
 | `slides` | Powders: how readily it slides down the side of a pile, 0 to 1. Dry sand 1 (45° slopes); wet sand 0.002 holds steep shapes | 1 |
 | `flows` | Liquids and gases: how far it spreads sideways each frame | 4 |

@@ -11,3 +11,4 @@ freezes_at = 1420
 freezes_into = steel
 flows = 2
 metal = yes
+lets_light_through = 0

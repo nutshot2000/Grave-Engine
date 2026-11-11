@@ -14,3 +14,4 @@ toughness = 150                  # shatters easily
 friction = 0.25
 bounciness = 0.05
 texture = textures/glass.png
+lets_light_through = 0.9   # clear: light shines through

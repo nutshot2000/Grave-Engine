@@ -284,6 +284,9 @@ struct Step {
     joints_after: Vec<crate::physics::JointSpec>,
     follow_before: Option<u64>,
     follow_after: Option<u64>,
+    /// Lighting (lamps on objects numbered like joints).
+    lighting_before: crate::light::Lighting,
+    lighting_after: crate::light::Lighting,
 }
 
 /// Undo and redo for everything the editor does.
@@ -345,6 +348,8 @@ impl History {
                 joints_after: Vec::new(),
                 follow_before: None,
                 follow_after: None,
+                lighting_before: Default::default(),
+                lighting_after: Default::default(),
             }
         } else {
             let mut cells = Vec::new();
@@ -360,6 +365,7 @@ impl History {
                 && before.instances == after.instances
                 && before.joints == after.joints
                 && before.follow == after.follow
+                && before.lighting == after.lighting
             {
                 return; // nothing actually changed
             }
@@ -375,6 +381,8 @@ impl History {
                 joints_after: after.joints,
                 follow_before: before.follow,
                 follow_after: after.follow,
+                lighting_before: before.lighting,
+                lighting_after: after.lighting,
             }
         };
         self.undo.push(step);
@@ -456,6 +464,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
     snap.instances = if forward { step.links_after.clone() } else { step.links_before.clone() };
     snap.joints = if forward { step.joints_after.clone() } else { step.joints_before.clone() };
     snap.follow = if forward { step.follow_after } else { step.follow_before };
+    snap.lighting = if forward { step.lighting_after.clone() } else { step.lighting_before.clone() };
     for b in snap.bodies.iter_mut() {
         b.vx = 0.0;
         b.vy = 0.0;

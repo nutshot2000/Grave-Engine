@@ -1,0 +1,107 @@
+//! Lighting: overall light, sun with shadows, lamps, light through glass and
+//! water, lamps on objects, fading from triggers, saving.
+
+use grave_engine::render::{Renderer, View};
+use grave_engine::{Materials, Sim, scene};
+
+fn mats() -> Materials {
+    Materials::load_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/materials"))
+}
+
+fn sim(m: &Materials, text: &str) -> Sim {
+    let (s, p) = scene::load(text, m, None).into_sim(m);
+    assert!(p.is_empty(), "{p:?}");
+    s
+}
+
+/// The picture, and how bright the pixel at (x, y) is (0..765).
+fn picture(m: &Materials, s: &Sim) -> Vec<u8> {
+    let mut r = Renderer::default();
+    r.light(s);
+    r.draw(&s.world, m, View::default()).to_vec()
+}
+
+fn bright(px: &[u8], s: &Sim, x: usize, y: usize) -> u32 {
+    let o = (y * s.world.w + x) * 4;
+    px[o] as u32 + px[o + 1] as u32 + px[o + 2] as u32
+}
+
+const ROOM: &str = "size 120 60\nseed 3\nfill air\nrect stone 0 50 120 10\n";
+
+#[test]
+fn a_scene_without_lighting_looks_exactly_as_before() {
+    let m = mats();
+    let plain = sim(&m, ROOM);
+    let full = sim(&m, &format!("{ROOM}lighting 1\n"));
+    let mut r = Renderer::default();
+    let before = r.draw(&plain.world, &m, View::default()).to_vec();
+    assert_eq!(picture(&m, &plain), before);
+    assert_eq!(picture(&m, &full), before);
+}
+
+#[test]
+fn lamps_light_up_whats_near_them_in_the_dark() {
+    let m = mats();
+    let s = sim(&m, &format!("{ROOM}lighting 0.1\nlight 30 40 30 strength 2\n"));
+    let px = picture(&m, &s);
+    let (near, far) = (bright(&px, &s, 30, 50), bright(&px, &s, 100, 50));
+    println!("ground near the lamp {near}, far away {far}");
+    assert!(near > far * 3, "near {near} far {far}");
+}
+
+#[test]
+fn the_sun_casts_shadows_and_glass_lets_it_through() {
+    let m = mats();
+    // Three roofs: stone, glass, and none. The floor under each.
+    let s = sim(&m, &format!("{ROOM}lighting 0.1\nsun 0 1\nrect stone 10 20 20 3\nrect glass 50 20 20 3\n"));
+    let px = picture(&m, &s);
+    let (under_stone, under_glass, open) = (bright(&px, &s, 20, 50), bright(&px, &s, 60, 50), bright(&px, &s, 95, 50));
+    println!("under stone {under_stone}, under glass {under_glass}, open {open}");
+    assert!(under_stone * 3 < open, "stone casts a shadow");
+    assert!(under_glass > under_stone * 2 && under_glass <= open, "glass lets most of the light through");
+}
+
+#[test]
+fn deep_water_gets_darker() {
+    let m = mats();
+    let s = sim(&m, "size 60 80\nseed 3\nfill air\nrect stone 0 70 60 10\nrect water 0 10 60 60\nlighting 0.05\nsun 0 1\n");
+    let px = picture(&m, &s);
+    let (shallow, deep) = (bright(&px, &s, 30, 12), bright(&px, &s, 30, 65));
+    println!("shallow {shallow} deep {deep}");
+    assert!(shallow > deep * 2);
+}
+
+#[test]
+fn a_lamp_on_an_object_moves_with_it() {
+    let m = mats();
+    let mut s = sim(&m, &format!("{ROOM}lighting 0.1\nbody rect iron 20 20 6 4\nname cart\nlight 26 22 20 on cart\n"));
+    let before = s.lamps()[0];
+    let id = s.physics.ids()[0];
+    s.physics.edit(&mut s.world, &m, id, |b| b.x += 50.0);
+    let after = s.lamps()[0];
+    assert!((after.x - before.x - 50.0).abs() < 0.5 && (after.y - before.y).abs() < 0.5, "{before:?} -> {after:?}");
+}
+
+#[test]
+fn a_trigger_fades_the_lights_and_lighting_survives_saving() {
+    let m = mats();
+    let mut s = sim(&m, &format!("{ROOM}lighting 0.8 #ffeedd\nsun 30 0.7 #ffe0b0\nbody circle iron 20 20 3\nname ball\nlight 60 30 25 strength 1.5 color #ffb060 cone 90 30 flicker 0.2 on ball\ntrigger 0 30 120 20 by ball : lighting 0.1 1\n"));
+    let text = scene::save(&s.snapshot(), &m);
+    let (again, p) = scene::load(&text, &m, None).into_sim(&m);
+    assert!(p.is_empty(), "{p:?}\n{text}");
+    assert_eq!(again.lighting.sun, s.lighting.sun);
+    assert_eq!(again.lighting.ambient_color, [0xff, 0xee, 0xdd]);
+    let (a, b) = (&again.lighting.lights[0], &s.lighting.lights[0]);
+    assert!((a.x - b.x).abs() < 0.2 && (a.y - b.y).abs() < 0.2 && a.cone == b.cone && a.flicker == b.flicker && a.on.is_some(), "{a:?} vs {b:?}");
+    for _ in 0..200 {
+        s.step(&m);
+        if s.triggers[0].fired {
+            break;
+        }
+    }
+    assert!(s.triggers[0].fired);
+    for _ in 0..61 {
+        s.step(&m);
+    }
+    assert!((s.lighting.ambient - 0.1).abs() < 0.02, "faded to dark: {}", s.lighting.ambient);
+}

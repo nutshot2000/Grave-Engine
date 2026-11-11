@@ -10,3 +10,4 @@ heat_capacity = 0.8
 freezes_at = 1000
 freezes_into = glass
 flows = 1                        # thick and slow
+lets_light_through = 0.6

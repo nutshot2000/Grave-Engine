@@ -14,3 +14,4 @@ flows = 3
 strength = 0
 reaction = water -> stone + steam, chance 0.2
 texture = textures/lava.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+lets_light_through = 0   # glows, but you can't see through it

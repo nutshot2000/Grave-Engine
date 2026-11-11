@@ -417,6 +417,12 @@ impl Physics {
         Some((t.x / CELL, t.y / CELL))
     }
 
+    /// An object's centre (cells) and angle (radians), cheaply.
+    pub fn pose_of(&self, id: u64) -> Option<(f32, f32, f32)> {
+        let n = self.find(id)?;
+        Some(self.pose(&self.bodies[n]))
+    }
+
     pub fn body_count(&self) -> usize {
         self.bodies.len()
     }

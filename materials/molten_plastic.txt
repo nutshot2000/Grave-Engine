@@ -15,3 +15,4 @@ burns_into = smoke
 gives_off = smoke
 gives_off_chance = 0.4
 flows = 1                        # thick and slow
+lets_light_through = 0.3

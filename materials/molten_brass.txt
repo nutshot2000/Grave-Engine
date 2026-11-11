@@ -12,3 +12,4 @@ freezes_at = 900
 freezes_into = brass
 flows = 2
 metal = yes
+lets_light_through = 0

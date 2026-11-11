@@ -19,6 +19,11 @@ pub struct Renderer {
     tmp: Vec<[f32; 3]>,
     scratch: Vec<[f32; 3]>,
     pub rgba: Vec<u8>,
+    /// The lighting to draw with (see light.rs; set it with `light`).
+    lighting: crate::light::Lighting,
+    lamps: Vec<crate::light::Placed>,
+    illum: Vec<[f32; 3]>,
+    sun_scratch: Vec<[f32; 3]>,
 }
 
 fn lerp3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
@@ -86,6 +91,19 @@ impl Renderer {
     /// Forget loaded textures (material files changed).
     pub fn reload_textures(&mut self) {
         self.textures.clear();
+    }
+
+    /// Draw with a simulation's lighting (its sun, lamps and overall light)
+    /// from now on.
+    pub fn light(&mut self, sim: &crate::sim::Sim) {
+        self.lighting = sim.lighting.clone();
+        self.lamps = sim.lamps();
+    }
+
+    /// Draw with this lighting from now on.
+    pub fn set_lighting(&mut self, lighting: crate::light::Lighting, lamps: Vec<crate::light::Placed>) {
+        self.lighting = lighting;
+        self.lamps = lamps;
     }
 
     pub fn draw(&mut self, world: &World, mats: &Materials, view: View) -> &[u8] {
@@ -224,12 +242,28 @@ impl Renderer {
             blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
             blur(&mut self.light, &mut self.scratch, world.w, world.h, 5);
         }
+        let lit = !view.heat && !(self.lighting.is_plain() && self.lamps.is_empty());
+        if lit {
+            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, &mut self.illum, &mut self.sun_scratch);
+        }
+        let amb = {
+            let (a, c) = (self.lighting.ambient.max(0.0), self.lighting.ambient_color);
+            [a * c[0] as f32 / 255.0, a * c[1] as f32 / 255.0, a * c[2] as f32 / 255.0]
+        };
 
         for i in 0..n {
             let c = self.tmp[i];
             let l = self.light[i];
             let (r, g, b) = if view.heat {
                 (c[0], c[1], c[2])
+            } else if lit {
+                // Sky, sun and lamps light what they fall on; glow adds its
+                // own light and halo; in the air, beams show as a soft haze.
+                let e = self.illum[i];
+                let gas = mats.get(world.mat[i]).state == State::Gas;
+                let haze = |k: usize| if gas { (e[k] - amb[k]).max(0.0) * 12.0 } else { 0.0 };
+                let px = |k: usize| c[k] * (e[k] + l[k] / 255.0) + l[k] * 1.1 + haze(k);
+                (px(0), px(1), px(2))
             } else {
                 // Light brightens what it falls on, and adds a soft halo in the air.
                 let lit = [
@@ -250,7 +284,7 @@ impl Renderer {
 }
 
 /// Box blur, horizontal then vertical, radius `r`.
-fn blur(buf: &mut [[f32; 3]], tmp: &mut [[f32; 3]], w: usize, h: usize, r: usize) {
+pub(crate) fn blur(buf: &mut [[f32; 3]], tmp: &mut [[f32; 3]], w: usize, h: usize, r: usize) {
     let norm = 1.0 / (2 * r + 1) as f32;
     for y in 0..h {
         let row = &buf[y * w..(y + 1) * w];

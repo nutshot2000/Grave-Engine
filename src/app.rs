@@ -426,6 +426,26 @@ impl Sandbox {
             self.note_draft = Some(NoteDraft { x, y, text: String::new(), editing: None, focused: false });
             ui.close();
         }
+        if ui.button("💡 Put a lamp here").on_hover_text("A lamp lighting 40 cells around (change it in 💡 Lighting). On an object, it rides along").clicked() {
+            self.history.touch(&mut self.sim, "lamp");
+            let mut lamp = grave_engine::light::Light::at(x, y, 40.0);
+            if let Some(id) = object {
+                if let Some((cx, cy, a)) = self.sim.physics.pose_of(id) {
+                    let (dx, dy) = (x - cx, y - cy);
+                    let (c, s) = (a.cos(), a.sin());
+                    (lamp.x, lamp.y) = (c * dx + s * dy, -s * dx + c * dy);
+                    lamp.on = Some(id);
+                }
+            }
+            // A lamp in full daylight shows nothing: dim the scene the first time.
+            if self.sim.lighting.lights.is_empty() && self.sim.lighting.ambient > 0.6 {
+                self.sim.lighting.ambient = 0.35;
+            }
+            self.sim.lighting.lights.push(lamp);
+            self.history.commit(&mut self.sim);
+            self.say("Lamp placed: change it in 💡 Lighting");
+            ui.close();
+        }
         // The material right here (an object's cell, or scenery).
         let (cx, cy) = (x.floor() as i32, y.floor() as i32);
         if self.sim.world.in_bounds(cx, cy) {
@@ -544,6 +564,80 @@ impl Sandbox {
 
     /// A material's settings, as sliders. Your changes go in
     /// materials/my_settings/NAME.txt over the defaults (materials/NAME.txt).
+    /// The 💡 Lighting menu: overall light, sun, and each lamp.
+    fn lighting_menu(&mut self, ui: &mut egui::Ui) {
+        ui.set_min_width(300.0);
+        let colour = |ui: &mut egui::Ui, c: &mut [u8; 3]| ui.color_edit_button_srgb(c).changed();
+        let l = &mut self.sim.lighting;
+        let mut changed = false;
+        ui.label(RichText::new("Overall light").strong());
+        ui.horizontal(|ui| {
+            changed |= ui.add(egui::Slider::new(&mut l.ambient, 0.0..=1.0).text("brightness")).on_hover_text("0 = pitch dark, 1 = full daylight").changed();
+            changed |= colour(ui, &mut l.ambient_color);
+        });
+        ui.horizontal(|ui| {
+            for (name, a, c) in [("☀ Day", 1.0, [255, 255, 255]), ("🌇 Dusk", 0.5, [255, 190, 150]), ("🌙 Night", 0.2, [96, 112, 176]), ("🕳 Cave", 0.04, [255, 255, 255])] {
+                if ui.button(name).clicked() {
+                    l.ambient = a;
+                    l.ambient_color = c;
+                    changed = true;
+                }
+            }
+        });
+        ui.separator();
+        let mut sun = l.sun.is_some();
+        if ui.checkbox(&mut sun, RichText::new("Sun (casts shadows)").strong()).changed() {
+            l.sun = sun.then_some(grave_engine::light::Sun { angle: 30.0, strength: 0.8, color: [255, 240, 215] });
+            changed = true;
+        }
+        if let Some(s) = l.sun.as_mut() {
+            changed |= ui.add(egui::Slider::new(&mut s.angle, -75.0..=75.0).suffix("°").text("angle")).on_hover_text("From straight down: positive = sun on the left").changed();
+            ui.horizontal(|ui| {
+                changed |= ui.add(egui::Slider::new(&mut s.strength, 0.0..=2.0).text("strength")).changed();
+                changed |= colour(ui, &mut s.color);
+            });
+        }
+        ui.separator();
+        ui.label(RichText::new(format!("Lamps ({})", l.lights.len())).strong());
+        if l.lights.is_empty() {
+            ui.label(RichText::new("Right-click anywhere → 💡 Put a lamp here").weak());
+        }
+        let mut remove = None;
+        egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+            for (n, lamp) in l.lights.iter_mut().enumerate() {
+                ui.push_id(n, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}{}", n + 1, if lamp.on.is_some() { " (on an object)" } else { "" }));
+                        changed |= colour(ui, &mut lamp.color);
+                        if ui.small_button("🗑").on_hover_text("Remove this lamp").clicked() {
+                            remove = Some(n);
+                        }
+                    });
+                    changed |= ui.add(egui::Slider::new(&mut lamp.radius, 5.0..=300.0).logarithmic(true).text("reach")).changed();
+                    changed |= ui.add(egui::Slider::new(&mut lamp.strength, 0.0..=4.0).text("strength")).changed();
+                    changed |= ui.add(egui::Slider::new(&mut lamp.flicker, 0.0..=1.0).text("flicker")).changed();
+                    let mut cone = lamp.cone.is_some();
+                    if ui.checkbox(&mut cone, "Beam (a cone)").changed() {
+                        lamp.cone = cone.then_some((90.0, 30.0));
+                        changed = true;
+                    }
+                    if let Some((d, w)) = lamp.cone.as_mut() {
+                        changed |= ui.add(egui::Slider::new(d, -180.0..=180.0).suffix("°").text("points (0 right, 90 down)")).changed();
+                        changed |= ui.add(egui::Slider::new(w, 2.0..=90.0).suffix("°").text("width")).changed();
+                    }
+                    ui.separator();
+                });
+            }
+        });
+        if let Some(n) = remove {
+            l.lights.remove(n);
+            changed = true;
+        }
+        if changed {
+            self.ran_since_snapshot = true;
+        }
+    }
+
     /// The 🎬 Camera menu: how close, how smooth, looking ahead, effects.
     fn camera_menu(&mut self, ui: &mut egui::Ui) {
         ui.set_min_width(260.0);
@@ -1359,6 +1453,7 @@ impl Sandbox {
                 self.speed = if slow { 0.25 } else { 1.0 };
             }
             ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
+            ui.menu_button(big("💡 Lighting"), |ui| self.lighting_menu(ui));
             ui.separator();
             ui.label("Scene");
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
@@ -1919,6 +2014,7 @@ impl Sandbox {
 
     fn canvas(&mut self, ui: &mut egui::Ui) {
         let (w, h) = (self.sim.world.w, self.sim.world.h);
+        self.renderer.light(&self.sim);
         let rgba = self.renderer.draw(&self.sim.world, &self.mats, self.view);
         let image = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
         match &mut self.texture {
@@ -2800,6 +2896,31 @@ body rect wood 40 60 20 10
         let app = h.state();
         let id = app.mats.id(name).unwrap();
         app.sim.world.mat.iter().filter(|&&m| m == id).count()
+    }
+
+    #[test]
+    fn right_click_puts_a_lamp_and_the_lighting_menu_shows_it() {
+        let mut h = editor();
+        h.state_mut().tool = Tool::Select;
+        h.run_steps(2);
+        let p = at(&h, 30.0, 20.0);
+        right_click(&mut h, p);
+        h.run_steps(2);
+        h.get_by_label_contains("Put a lamp here").click();
+        h.run_steps(2);
+        let l = &h.state().sim.lighting;
+        assert_eq!(l.lights.len(), 1, "a lamp");
+        assert!((l.lights[0].x - 30.0).abs() < 1.0 && (l.lights[0].y - 20.0).abs() < 1.0);
+        assert!(l.ambient < 0.6, "the scene dims so the lamp shows");
+        h.get_by_label("💡 Lighting").click();
+        h.run_steps(2);
+        assert!(h.query_by_label_contains("Lamps (1)").is_some() && h.query_by_label_contains("Sun (casts shadows)").is_some());
+        // Undo takes the lamp away again.
+        h.key_press(Key::Escape);
+        h.run_steps(2);
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(3);
+        assert!(h.state().sim.lighting.lights.is_empty());
     }
 
     #[test]

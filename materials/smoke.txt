@@ -12,3 +12,4 @@ decays_into = air
 flows = 3
 # A smoke cell is really smoky air: still mostly air, so fires keep burning in it.
 feeds_fire = yes
+lets_light_through = 0.85   # dims light

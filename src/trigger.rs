@@ -22,6 +22,8 @@
 //!   `zoom Z [S]` (Z times closer), `focus [S]` (look at the box),
 //!   `focus X Y [S]`, `focus it [S]` (look at whatever set it off),
 //!   `shake N` (N cells), `camera reset` (back to normal).
+//! - Lighting: `lighting L [S]` fades the overall light to L (0 dark .. 1
+//!   full) over S seconds (see light.rs).
 //!
 //! Games read what happened from `Sim::events` (and `Sim::checkpoint`).
 
@@ -55,6 +57,8 @@ pub enum Action {
     Focus(FocusAt, f32),
     Shake(f32),
     CameraReset,
+    /// Fade the overall light to a level over seconds.
+    Lighting(f32, f32),
 }
 
 /// What a `focus` action looks at.
@@ -98,7 +102,7 @@ impl Trigger {
 
     /// Do its actions: changes to the world now, events for the game.
     /// `who` = what set it off (for `focus it`).
-    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, who: Option<crate::camera::Focus>) {
+    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, lighting: &mut crate::light::Lighting, who: Option<crate::camera::Focus>) {
         use crate::camera::Focus;
         for a in &self.actions {
             match a {
@@ -141,6 +145,7 @@ impl Trigger {
                 }
                 Action::Shake(n) => camera.shake(*n),
                 Action::CameraReset => camera.reset(),
+                Action::Lighting(l, s) => lighting.fade_to(*l, *s),
             }
         }
     }
@@ -174,6 +179,7 @@ impl Trigger {
                 Action::Focus(FocusAt::It, s) => format!("focus it {s}"),
                 Action::Shake(n) => format!("shake {n}"),
                 Action::CameraReset => "camera reset".into(),
+                Action::Lighting(l, s) => format!("lighting {l} {s}"),
             })
             .collect();
         s + " : " + &actions.join(" ; ")
@@ -229,8 +235,9 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
                 }
             }
             "shake" => Action::Shake(n(1)?.clamp(0.0, 20.0)),
+            "lighting" | "lights" => Action::Lighting(n(1)?.clamp(0.0, 1.5), n(2).unwrap_or(0.0).max(0.0)),
             "camera" if w.get(1).is_some_and(|v| v.eq_ignore_ascii_case("reset")) => Action::CameraReset,
-            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score, slowmo, zoom, focus, shake, camera reset)")),
+            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score, slowmo, zoom, focus, shake, camera reset, lighting)")),
         });
     }
     if list.is_empty() {

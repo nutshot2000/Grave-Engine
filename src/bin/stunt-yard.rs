@@ -142,6 +142,7 @@ impl eframe::App for Game {
   ui.label(egui::RichText::new(&self.state).color(Color32::from_rgb(255,190,65)).size(21.));
   ui.label("SPACE: start  •  D / →: accelerate  •  A / ←: reverse  •  S / ↓: brake  •  Q / E: lean  •  R: checkpoint  •  BACKSPACE: restart  •  C: crash test");
   // Always draw the real material cells, for intact parts and wreckage alike.
+  self.renderer.light(&self.sim);
   let mut rgba=self.renderer.draw(&self.sim.world,&self.mats,View::default()).to_vec();
   // Show the distant film-set backdrop through unlit empty air; retain fire glow.
   let air=self.mats.get(grave_engine::material::AIR).color;

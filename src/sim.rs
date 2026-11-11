@@ -24,6 +24,9 @@ pub struct Sim {
     /// Camera effects asked for by triggers or the game: slow motion, zoom,
     /// focus, shake (see camera.rs). Not saved: Reset and rewind clear them.
     pub camera: crate::camera::Effects,
+    /// The scene's lighting: overall light, sun, lamps (see light.rs). Lamps
+    /// `on` an object hold its id.
+    pub lighting: crate::light::Lighting,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -44,6 +47,8 @@ pub struct Snapshot {
     /// Triggers (`by` an object = number N+1) and the last checkpoint.
     pub triggers: Vec<crate::trigger::Trigger>,
     pub checkpoint: Option<(f32, f32)>,
+    /// Lighting (lamps `on` an object = its number N+1).
+    pub lighting: crate::light::Lighting,
     /// Characters (the player).
     pub actors: Vec<crate::physics::ActorSpec>,
 }
@@ -51,7 +56,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, actors: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), actors: Vec::new() }
     }
 }
 
@@ -64,7 +69,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default() };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -102,6 +107,7 @@ impl Sim {
             self.run_triggers();
         }
         self.camera.step();
+        self.lighting.step();
         if !self.instances.is_empty() {
             // A damaged copy has gone its own way: it's no longer linked to
             // its template (editing the template mustn't heal it).
@@ -118,6 +124,11 @@ impl Sim {
                 self.follow = None;
             }
         }
+    }
+
+    /// Where the lamps are right now (lamps on objects move with them).
+    pub fn lamps(&self) -> Vec<crate::light::Placed> {
+        self.lighting.place(self.world.frame, |id| self.physics.pose_of(id))
     }
 
     /// Set off triggers that something has entered.
@@ -140,7 +151,7 @@ impl Sim {
             };
             let inside = who.is_some();
             if inside && !t.occupied {
-                t.fire(&mut self.world, &mut self.events, &mut self.camera, who);
+                t.fire(&mut self.world, &mut self.events, &mut self.camera, &mut self.lighting, who);
                 t.fired = true;
             }
             t.occupied = inside;
@@ -202,14 +213,19 @@ impl Sim {
                 Some(t)
             })
             .collect();
-        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, actors }
+        let mut lighting = self.lighting.clone();
+        lighting.lights.retain_mut(|l| match l.on {
+            Some(id) => index(id).map(|n| l.on = Some(n)).is_some(),
+            None => true,
+        });
+        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let world = snap.world.clone();
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default() };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default() };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {
@@ -224,6 +240,17 @@ impl Sim {
             sim.physics.add_actor(&mut sim.world, mats, a.clone());
         }
         sim.follow = snap.follow.filter(|&n| n > 0).and_then(|n| new_ids.get(n as usize - 1).copied().flatten());
+        sim.lighting = snap.lighting.clone();
+        sim.lighting.lights.retain_mut(|l| match l.on {
+            Some(n) => match (n > 0).then(|| new_ids.get(n as usize - 1).copied().flatten()).flatten() {
+                Some(id) => {
+                    l.on = Some(id);
+                    true
+                }
+                None => false,
+            },
+            None => true,
+        });
         for t in &snap.triggers {
             let mut t = t.clone();
             if let crate::trigger::By::Object(n) = t.by {

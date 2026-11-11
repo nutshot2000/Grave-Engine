@@ -184,6 +184,7 @@ pub fn run(o: &Options) -> i32 {
             if f % every == 0 && f != o.frames {
                 let actors = sim.physics.actor_status();
                 let window = view_window(&sim.world, &actors, o.player_view);
+                r.light(&sim);
                 if let Err(e) = shot_with_actors(&sim.world, &mats, &mut r, &actors, window, &numbered(&shot_path, f), o.scale, o.heat) {
                     eprintln!("screenshot failed: {e}");
                 }
@@ -191,6 +192,7 @@ pub fn run(o: &Options) -> i32 {
         }
     }
     let elapsed = start.elapsed().as_secs_f64();
+    r.light(&sim);
     let specs = sim.physics.export(&mut sim.world);
     let world = &sim.world;
     let actors = sim.physics.actor_status();

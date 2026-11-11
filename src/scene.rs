@@ -20,6 +20,12 @@
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
 //!
+//! # Lighting (see light.rs): overall light and tint, a sun, lamps
+//! lighting 0.25 #7080c0                  # a blue night (1 = full daylight, the default)
+//! sun 35 0.9 #ffe0b0                     # sunlight from 35° left of straight down, with shadows
+//! light 120 80 60 strength 1.2 color #ffb060 flicker 0.3   # a torch lighting 60 cells around
+//! light 300 150 90 cone 0 25 on bike     # a headlight on `bike` pointing right, 25° either side
+//!
 //! # Triggers: a box that does things when something enters (see trigger.rs)
 //! trigger 1535 150 10 60 by bike : heat circle 1508 205 8 1200 ; message DEMOLITION CHARGE!
 //! trigger 1340 100 10 120 by bike : checkpoint ; score 500
@@ -83,6 +89,8 @@ pub struct Loaded {
     pub upright: Vec<(usize, f32)>,
     /// Triggers (`by` an object = its number N+1, like joints).
     pub triggers: Vec<crate::trigger::Trigger>,
+    /// Lighting (lamps `on` an object = its number N+1).
+    pub lighting: crate::light::Lighting,
     /// Characters (the player), and how close the camera follows them.
     pub actors: Vec<crate::physics::ActorSpec>,
     pub player_zoom: f32,
@@ -163,6 +171,17 @@ impl Loaded {
         if self.player_zoom > 0.0 {
             sim.zoom = self.player_zoom;
         }
+        sim.lighting = self.lighting;
+        sim.lighting.lights.retain_mut(|l| match l.on {
+            Some(n) => match ids.get(n as usize - 1).copied().flatten() {
+                Some(id) => {
+                    l.on = Some(id);
+                    true
+                }
+                None => false,
+            },
+            None => true,
+        });
         for mut t in self.triggers {
             if let crate::trigger::By::Object(n) = t.by {
                 match ids.get(n as usize - 1).copied().flatten() {
@@ -257,6 +276,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut follow: Option<(usize, f32)> = None;
     let mut upright: Vec<(usize, f32)> = Vec::new();
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
+    let mut lighting = crate::light::Lighting::default();
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -322,6 +342,100 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
             "turbulence" => match nums(1, 1) {
                 Ok(v) => ensure(&mut world, mats).turbulence = v[0].clamp(0.0, 10.0),
                 Err(e) => err(e),
+            },
+            "lighting" => match nums(1, 1) {
+                Ok(v) => {
+                    lighting.ambient = v[0].clamp(0.0, 1.5);
+                    if let Some(c) = words.get(2) {
+                        match crate::material::parse_color(c) {
+                            Ok(c) => lighting.ambient_color = c,
+                            Err(e) => err(e),
+                        }
+                    }
+                }
+                Err(_) => err("use `lighting LEVEL [#colour]` (0 = dark, 1 = full daylight)".into()),
+            },
+            "sun" => {
+                if words.get(1).is_some_and(|w| w.eq_ignore_ascii_case("off")) {
+                    lighting.sun = None;
+                } else {
+                    match nums(1, 2) {
+                        Ok(v) => {
+                            let color = match words.get(3).map(|c| crate::material::parse_color(c)) {
+                                Some(Ok(c)) => c,
+                                Some(Err(e)) => {
+                                    err(e);
+                                    [255, 245, 225]
+                                }
+                                None => [255, 245, 225],
+                            };
+                            lighting.sun = Some(crate::light::Sun { angle: v[0].clamp(-75.0, 75.0), strength: v[1].clamp(0.0, 5.0), color });
+                        }
+                        Err(_) => err("use `sun ANGLE STRENGTH [#colour]` (angle from straight down: 30 = from the upper left)".into()),
+                    }
+                }
+            }
+            "light" | "lamp" => match nums(1, 3) {
+                Ok(v) => {
+                    let mut l = crate::light::Light::at(v[0], v[1], v[2].clamp(1.0, 400.0));
+                    let mut i = 4;
+                    let mut cone_world: Option<(f32, f32)> = None;
+                    let mut bad: Option<String> = None;
+                    while i < words.len() {
+                        let num = |k: usize| words.get(k).and_then(|w| w.parse::<f32>().ok());
+                        match words[i].to_lowercase().as_str() {
+                            "strength" => {
+                                l.strength = num(i + 1).unwrap_or(1.0).clamp(0.0, 10.0);
+                                i += 2;
+                            }
+                            "color" | "colour" => {
+                                match words.get(i + 1).map(|c| crate::material::parse_color(c)) {
+                                    Some(Ok(c)) => l.color = c,
+                                    _ => bad = Some("`color` needs a colour like #ffb060".into()),
+                                }
+                                i += 2;
+                            }
+                            "cone" => {
+                                match (num(i + 1), num(i + 2)) {
+                                    (Some(d), Some(w)) => cone_world = Some((d, w.clamp(1.0, 180.0))),
+                                    _ => bad = Some("`cone` needs a direction and a width in degrees: `cone 0 25`".into()),
+                                }
+                                i += 3;
+                            }
+                            "flicker" => {
+                                l.flicker = num(i + 1).unwrap_or(0.3).clamp(0.0, 1.0);
+                                i += 2;
+                            }
+                            "on" => {
+                                match words.get(i + 1).and_then(|w| names.get(&w.to_lowercase()).copied()) {
+                                    Some(n) => l.on = Some(n as u64 + 1),
+                                    None => bad = Some("`on` needs a named object (name it before the light)".into()),
+                                }
+                                i += 2;
+                            }
+                            other => {
+                                bad = Some(format!("light: don't know `{other}`"));
+                                i += 1;
+                            }
+                        }
+                    }
+                    // On an object: keep where it is relative to the object (and its turn).
+                    let mut turn = 0.0f32;
+                    if let Some(n) = l.on {
+                        if let Some(b) = bodies.get(n as usize - 1) {
+                            let (dx, dy) = (l.x - b.x, l.y - b.y);
+                            let (c, s) = (b.angle.cos(), b.angle.sin());
+                            (l.x, l.y) = (c * dx + s * dy, -s * dx + c * dy);
+                            turn = b.angle.to_degrees();
+                        }
+                    }
+                    l.cone = cone_world.map(|(d, w)| (d - turn, w));
+                    match bad {
+                        Some(e) => err(e),
+                        None => lighting.lights.push(l),
+                    }
+                }
+                Err(_) => err("use `light X Y RADIUS [strength S] [color #c] [cone DIR WIDTH] [flicker F] [on NAME]`".into()),
             },
             "ambient" => match nums(1, 1) {
                 Ok(v) => ensure(&mut world, mats).ambient = v[0],
@@ -821,7 +935,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, actors, player_zoom }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -993,6 +1107,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         crate::trigger::By::Object(n) => Some(n),
         _ => None,
     }));
+    named.extend(snap.lighting.lights.iter().filter_map(|l| l.on));
     let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
@@ -1081,6 +1196,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if let Some((x, y)) = snap.checkpoint {
         out.push_str(&format!("# Last checkpoint reached: {x} {y}\n"));
     }
+    out.push_str(&snap.lighting.to_lines(|n| format!("obj{n}"), |n| snap.bodies.get(n as usize - 1).map(|b| (b.x, b.y, b.angle))));
     for a in &snap.actors {
         let (x, y) = a.feet();
         let mut line = format!("\nplayer {x:.1} {y:.1}");
