@@ -26,6 +26,12 @@
 //! light 120 80 60 strength 1.2 color #ffb060 flicker 0.3   # a torch lighting 60 cells around
 //! light 300 150 90 cone 0 25 on bike     # a headlight on `bike` pointing right, 25° either side
 //!
+//! # Weather (see weather.rs): snow that builds up, rain, hail, sandstorms, fog,
+//! # gusty wind, lightning that starts fires. How heavy: 0 (none) to 1.
+//! weather snow 0.6
+//! weather lightning 6                    # strikes per minute
+//! weather off                            # master switch (settings stay)
+//!
 //! # Backdrop (see backdrop.rs): a sky and parallax layers, far to near
 //! sky #1b2a4a #d07050 stars
 //! layer mountains #40486a depth 0.15 y 150 height 90 snow
@@ -97,6 +103,7 @@ pub struct Loaded {
     /// Lighting (lamps `on` an object = its number N+1).
     pub lighting: crate::light::Lighting,
     pub backdrop: crate::backdrop::Backdrop,
+    pub weather: crate::weather::Weather,
     /// Characters (the player), and how close the camera follows them.
     pub actors: Vec<crate::physics::ActorSpec>,
     pub player_zoom: f32,
@@ -178,6 +185,7 @@ impl Loaded {
         }
         sim.lighting = self.lighting;
         sim.backdrop = self.backdrop;
+        sim.weather = self.weather;
         sim.lighting.lights.retain_mut(|l| match l.on {
             Some(n) => match ids.get(n as usize - 1).copied().flatten() {
                 Some(id) => {
@@ -285,6 +293,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
     let mut lighting = crate::light::Lighting::default();
     let mut backdrop = crate::backdrop::Backdrop::default();
+    let mut weather = crate::weather::Weather::default();
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -351,6 +360,11 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 Ok(v) => ensure(&mut world, mats).turbulence = v[0].clamp(0.0, 10.0),
                 Err(e) => err(e),
             },
+            "weather" => {
+                if let Err(e) = weather.parse_line(&words) {
+                    err(e);
+                }
+            }
             "sky" | "layer" => {
                 if let Err(e) = backdrop.parse_line(&words) {
                     err(e);
@@ -954,7 +968,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, actors, player_zoom }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1057,8 +1071,10 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if world.ambient != crate::world::ROOM_TEMP {
         out.push_str(&format!("ambient {}\n", world.ambient));
     }
-    if world.wind != 0.0 {
-        out.push_str(&format!("wind {}\n", world.wind));
+    // (Gusts blow on top of the scene's wind: save the wind itself.)
+    let wind = snap.weather.gust_base.unwrap_or(world.wind);
+    if wind != 0.0 {
+        out.push_str(&format!("wind {}\n", wind));
     }
     if world.turbulence != 1.0 {
         out.push_str(&format!("turbulence {}\n", world.turbulence));
@@ -1223,6 +1239,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         out.push_str(&format!("# Last checkpoint reached: {x} {y}\n"));
     }
     out.push_str(&snap.backdrop.to_lines());
+    out.push_str(&snap.weather.to_lines());
     out.push_str(&snap.lighting.to_lines(|n| format!("obj{n}"), |n| snap.bodies.get(n as usize - 1).map(|b| (b.x, b.y, b.angle))));
     for a in &snap.actors {
         let (x, y) = a.feet();

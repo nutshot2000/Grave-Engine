@@ -290,6 +290,8 @@ struct Step {
     lighting_after: crate::light::Lighting,
     backdrop_before: crate::backdrop::Backdrop,
     backdrop_after: crate::backdrop::Backdrop,
+    weather_before: crate::weather::Weather,
+    weather_after: crate::weather::Weather,
 }
 
 /// Undo and redo for everything the editor does.
@@ -357,6 +359,8 @@ impl History {
                 lighting_after: Default::default(),
                 backdrop_before: Default::default(),
                 backdrop_after: Default::default(),
+                weather_before: Default::default(),
+                weather_after: Default::default(),
             }
         } else {
             let mut cells = Vec::new();
@@ -374,6 +378,7 @@ impl History {
                 && before.follow == after.follow
                 && before.lighting == after.lighting
                 && before.backdrop == after.backdrop
+                && before.weather == after.weather
             {
                 return; // nothing actually changed
             }
@@ -393,6 +398,8 @@ impl History {
                 lighting_after: after.lighting,
                 backdrop_before: before.backdrop,
                 backdrop_after: after.backdrop,
+                weather_before: before.weather,
+                weather_after: after.weather,
             }
         };
         self.undo.push(step);
@@ -476,6 +483,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
     snap.follow = if forward { step.follow_after } else { step.follow_before };
     snap.lighting = if forward { step.lighting_after.clone() } else { step.lighting_before.clone() };
     snap.backdrop = if forward { step.backdrop_after.clone() } else { step.backdrop_before.clone() };
+    snap.weather = if forward { step.weather_after.clone() } else { step.weather_before.clone() };
     for b in snap.bodies.iter_mut() {
         b.vx = 0.0;
         b.vy = 0.0;

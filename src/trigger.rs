@@ -26,6 +26,8 @@
 //!   full) over S seconds, and its tint, if given (see light.rs).
 //! - `sun ANGLE STRENGTH [#colour] [S]` moves the sun over S seconds (a sunset).
 //! - `sky #top #bottom [S]` fades the sky's colours over S seconds (dusk to night).
+//! - `weather snow|rain|hail|dust|fog|gusts V [S]` / `weather lightning PER_MINUTE [S]`
+//!   change the weather over S seconds; `weather clear [S]` fades it all out (see weather.rs).
 //! - `finish`: the end of the level (games read `Event::Finish`).
 //!
 //! Games read what happened from `Sim::events` (and `Sim::checkpoint`).
@@ -68,6 +70,9 @@ pub enum Action {
     Sun(crate::light::Sun, f32),
     /// Change the sky's colours (top, bottom) over seconds.
     Sky([u8; 3], [u8; 3], f32),
+    /// Change the weather: one kind to a value over seconds, or None = clear
+    /// everything.
+    Weather(Option<crate::weather::Kind>, f32, f32),
 }
 
 /// What a `focus` action looks at.
@@ -113,7 +118,7 @@ impl Trigger {
 
     /// Do its actions: changes to the world now, events for the game.
     /// `who` = what set it off (for `focus it`).
-    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, lighting: &mut crate::light::Lighting, backdrop: &mut crate::backdrop::Backdrop, who: Option<crate::camera::Focus>) {
+    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, lighting: &mut crate::light::Lighting, backdrop: &mut crate::backdrop::Backdrop, weather: &mut crate::weather::Weather, who: Option<crate::camera::Focus>) {
         use crate::camera::Focus;
         for a in &self.actions {
             match a {
@@ -167,6 +172,8 @@ impl Trigger {
                 Action::Finish => events.push(Event::Finish),
                 Action::Sun(to, s) => lighting.sun_to(*to, *s),
                 Action::Sky(top, bottom, s) => backdrop.sky_to(*top, *bottom, *s),
+                Action::Weather(Some(k), v, s) => weather.set(*k, *v, *s),
+                Action::Weather(None, _, s) => weather.clear(*s),
             }
         }
     }
@@ -203,6 +210,8 @@ impl Trigger {
                 Action::Lighting(l, s, None) => format!("lighting {l} {s}"),
                 Action::Lighting(l, s, Some(t)) => format!("lighting {l} {s} #{:02x}{:02x}{:02x}", t[0], t[1], t[2]),
                 Action::Finish => "finish".into(),
+                Action::Weather(Some(k), v, s) => format!("weather {} {v} {s}", k.name()),
+                Action::Weather(None, _, s) => format!("weather clear {s}"),
                 Action::Sky(t, b, s) => format!("sky #{:02x}{:02x}{:02x} #{:02x}{:02x}{:02x} {s}", t[0], t[1], t[2], b[0], b[1], b[2]),
                 Action::Sun(to, s) => format!("sun {} {} #{:02x}{:02x}{:02x} {s}", to.angle, to.strength, to.color[0], to.color[1], to.color[2]),
             })
@@ -261,6 +270,14 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
             }
             "shake" => Action::Shake(n(1)?.clamp(0.0, 20.0)),
             "finish" => Action::Finish,
+            "weather" => {
+                if w.get(1).is_some_and(|v| v.eq_ignore_ascii_case("clear") || v.eq_ignore_ascii_case("none")) {
+                    Action::Weather(None, 0.0, n(2).unwrap_or(0.0).max(0.0))
+                } else {
+                    let kind = w.get(1).and_then(|k| crate::weather::Kind::parse(k)).ok_or(format!("trigger action `{part}`: use `weather snow|rain|hail|dust|fog|gusts|lightning VALUE [S]` or `weather clear [S]`"))?;
+                    Action::Weather(Some(kind), n(2)?.clamp(0.0, kind.max()), n(3).unwrap_or(0.0).max(0.0))
+                }
+            }
             "sky" => {
                 let colour = |k: usize| w.get(k).ok_or(format!("trigger action `{part}`: use `sky #top #bottom [S]`")).and_then(|c| crate::material::parse_color(c));
                 Action::Sky(colour(1)?, colour(2)?, w.get(3).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0).max(0.0))
@@ -275,7 +292,7 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
                 Action::Lighting(n(1)?.clamp(0.0, 1.5), n(2).unwrap_or(0.0).max(0.0), tint)
             }
             "camera" if w.get(1).is_some_and(|v| v.eq_ignore_ascii_case("reset")) => Action::CameraReset,
-            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score, slowmo, zoom, focus, shake, camera reset, lighting, sun, sky, finish)")),
+            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score, slowmo, zoom, focus, shake, camera reset, lighting, sun, sky, weather, finish)")),
         });
     }
     if list.is_empty() {

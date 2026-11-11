@@ -15,6 +15,7 @@ pub mod physics;
 pub mod sim;
 pub mod template;
 pub mod trigger;
+pub mod weather;
 pub mod material;
 pub mod render;
 pub mod scene;

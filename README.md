@@ -125,7 +125,7 @@ and how likely each reaction is (like sand soaking up water).
   glowing gloop).
 - **Ground:** dirt (soaks up water into **mud**: sticky, bogs wheels down,
   dries back into dirt), sand, wet sand, gravel, snow (piles up steep, melts),
-  ice.
+  ice, hail and dust (the weather's: see Weather).
 - **Burnable:** wood, cloth (burns fast), plastic (softens when warm, melts at
   160°C, burns smoky), rubber, oil, gunpowder.
 - **Liquids and gases:** water, oil, lava, molten metals and glass, steam,
@@ -365,6 +365,37 @@ light 26 22 30 cone 0 25 on bike                          # a headlight that rid
 - Triggers change the mood over time, no code: `lighting 0.05 2 #7088c8` (to nearly
   dark over 2 seconds, with a moonlight tint), `sun 74 0.3 #c86a5a 10` (the sun sinks and
   reddens over 10 seconds), `sky #060a22 #1c2a52 6` (the sky goes from dusk to night).
+
+## Weather
+
+Try `scenes/weather-house.txt`: the timber house on a snowy night with a storm
+overhead. Everything is real material, so snow really builds up (on roofs, ledges,
+in drifts), rain really fills puddles and puts fires out, and lightning really sets
+things alight.
+
+```text
+weather snow 0.6          # how heavy: 0 (none) to 1 (blizzard)
+weather rain 0.4
+weather hail 0.3          # ice pellets that pile up, then melt
+weather dust 0.5          # a sandstorm: blown dust and a tan haze
+weather fog 0.5
+weather gusts 0.6         # the wind rises and falls in waves, on top of `wind`
+weather lightning 6       # strikes per minute
+weather off               # master switch (the settings stay)
+```
+
+- **Lightning** picks the tallest thing in view (so a lightning rod, a hilltop, a
+  rider on a ridge), flickers a warning, then strikes: a flash that lights the whole
+  scene, camera shake, a blast, fire on anything flammable, and sand fused into glass.
+- **☁ Weather** in the editor: presets (Clear, Snowfall, Blizzard, Rain, Storm,
+  Hailstorm, Sandstorm, Fog), a slider for how heavy each kind is, a master on/off,
+  and **⚡ Strike now**. Undo works.
+- Triggers change it as you ride: `weather snow 0.5 6` (to 0.5 over 6 seconds),
+  `weather lightning 4`, `weather clear 3` (fade everything out). Mountain Run has
+  snow on the summit, a storm after the burning bridge, and a sandstorm in the quarry.
+- It falls around what the camera sees, so a storm costs the same in a huge level.
+- Snow needs a cold world (`ambient -4` and `heat rect ... -4`), or every flake
+  melts as it lands. Snow slows wheels, so a deep drift is a real obstacle.
 
 ## Backgrounds with depth
 

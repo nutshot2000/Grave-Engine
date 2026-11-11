@@ -225,6 +225,8 @@ impl eframe::App for Game {
   self.update_camera(vw,vh,dt as f32);
   let shake=self.sim.camera.shake_offset();
   let cx=self.cam_x+shake.0;let y0=self.cam_y+shake.1;
+  // Weather falls around what the camera sees.
+  self.sim.weather_view=Some((cx-vw/2.-30.,y0-10.,cx+vw/2.+30.,y0+vh));
   // Draw only what the camera sees (plus a margin): the real material cells,
   // for intact parts and wreckage alike.
   // (A steady size from frame to frame, so the picture buffer is reused.)

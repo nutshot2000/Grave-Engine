@@ -26,6 +26,12 @@ pub struct Renderer {
     lamps: Vec<crate::light::Placed>,
     illum: Vec<[f32; 3]>,
     sun_scratch: Vec<[f32; 3]>,
+    /// Weather being drawn: fog (0..1) and how dusty/tan it is, the lightning
+    /// bolt's cells and how bright it still is.
+    fog: f32,
+    fog_tan: f32,
+    bolt: Vec<(i32, i32)>,
+    bolt_alpha: f32,
     /// Cells that give off their own light (fire, lava, red-hot metal,
     /// burning embers): drawn at full brightness however dark it is.
     self_lit: Vec<bool>,
@@ -120,6 +126,21 @@ impl Renderer {
         self.lighting = sim.lighting.clone();
         self.lamps = sim.lamps();
         self.backdrop = sim.backdrop.clone();
+        // Weather: fog and dust haze, and lightning (the sky flash, the bolt).
+        let w = &sim.weather;
+        let run = &sim.weather_run;
+        self.fog = if w.on { w.fog.max(w.dust * 0.5) } else { 0.0 };
+        self.fog_tan = if w.on { w.dust.min(1.0) } else { 0.0 };
+        self.bolt = if run.bolt_frames > 0 && w.on { run.bolt.clone() } else { Vec::new() };
+        self.bolt_alpha = (run.bolt_frames as f32 / 10.0).clamp(0.0, 1.0);
+        if run.flash > 0.0 && w.on {
+            // The whole sky lights up for an instant.
+            let f = run.flash;
+            self.lighting.ambient = (self.lighting.ambient + 0.9 * f).min(1.6);
+            for c in 0..3 {
+                self.lighting.ambient_color[c] = (self.lighting.ambient_color[c] as f32 * (1.0 - f) + [225.0, 232.0, 255.0][c] * f) as u8;
+            }
+        }
     }
 
     /// Where the camera is centred (cells), for the backdrop's parallax.
@@ -304,6 +325,9 @@ impl Renderer {
             } else if f.temp > 450.0 {
                 let k = ((f.temp - 450.0) / 700.0).clamp(0.0, 1.0);
                 col = lerp3(col, hot_color(f.temp), k * 0.9);
+            } else if col[0] + col[1] + col[2] > 640.0 {
+                // Pale specks (snowflakes, hail) catch the light even at night.
+                self.light[i] = [col[0] * 0.3, col[1] * 0.3, col[2] * 0.3];
             }
             self.tmp[i] = col;
         }
@@ -337,6 +361,13 @@ impl Renderer {
         };
 
         let (wx0, wy0, ww, wh) = win;
+        // Fog hides the far backdrop almost completely and softens the world.
+        let fog_k = self.fog.clamp(0.0, 1.0);
+        let fog_col = {
+            let bright = if lit { ((amb[0] + amb[1] + amb[2]) / 3.0 + (sun_full[0] + sun_full[1] + sun_full[2]) / 5.0 + 0.12).min(1.0) } else { 1.0 };
+            let (grey, tan) = ([196.0f32, 203.0, 216.0], [196.0f32, 168.0, 120.0]);
+            [0, 1, 2].map(|k| (grey[k] * (1.0 - self.fog_tan) + tan[k] * self.fog_tan) * bright)
+        };
         for o_idx in 0..ww * wh {
             // This pixel of the window, its cell in the margin buffers (`i`)
             // and in the world (`wi`).
@@ -389,11 +420,36 @@ impl Renderer {
                 ];
                 (lit[0], lit[1], lit[2])
             };
+            let (r, g, b) = if fog_k > 0.0 {
+                let k = fog_k * if open { 0.88 } else { 0.3 };
+                (r * (1.0 - k) + fog_col[0] * k, g * (1.0 - k) + fog_col[1] * k, b * (1.0 - k) + fog_col[2] * k)
+            } else {
+                (r, g, b)
+            };
             let o = o_idx * 4;
             self.rgba[o] = r.clamp(0.0, 255.0) as u8;
             self.rgba[o + 1] = g.clamp(0.0, 255.0) as u8;
             self.rgba[o + 2] = b.clamp(0.0, 255.0) as u8;
             self.rgba[o + 3] = 255;
+        }
+        // The lightning bolt: a white-hot core with a blue glow either side.
+        if !self.bolt.is_empty() {
+            let a = self.bolt_alpha;
+            for &(bx, by) in &self.bolt {
+                for dx in -2i32..=2 {
+                    let (x, y) = (bx + dx, by);
+                    if x < wx0 as i32 || y < wy0 as i32 || x >= (wx0 + ww) as i32 || y >= (wy0 + wh) as i32 {
+                        continue;
+                    }
+                    let o = ((y as usize - wy0) * ww + x as usize - wx0) * 4;
+                    let core = if dx == 0 { 1.0 } else if dx.abs() == 1 { 0.55 } else { 0.22 };
+                    let k = (core * a).min(1.0);
+                    let tint = [235.0, 240.0, 255.0];
+                    for c in 0..3 {
+                        self.rgba[o + c] = (self.rgba[o + c] as f32 * (1.0 - k) + tint[c] * k) as u8;
+                    }
+                }
+            }
         }
         &self.rgba
     }

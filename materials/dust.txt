@@ -1,0 +1,17 @@
+# Dust: what a sandstorm carries. Light, so the air and wind carry it; it
+# settles for a while, then blows away (fades).
+about = Fine blown dust. Carried by the wind, settles, then fades away.
+state = powder
+density = 400
+color = #c8a574
+color_variation = 0.15
+conducts_heat = 0.1
+heat_capacity = 0.8
+lifetime = 1500
+decays_into = air
+crushable = yes
+slides = 0.8
+strength = 1
+friction = 0.5
+rolling_resistance = 0.4
+lets_light_through = 0

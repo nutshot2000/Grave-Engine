@@ -1,0 +1,17 @@
+# Hail: hard pellets of ice thrown down by a storm. They pile up, then melt.
+about = Pellets of ice from a storm. Pile up, put out fires, melt into water.
+state = powder
+density = 900
+color = #d8e6f0
+color_variation = 0.1
+temperature = -2
+conducts_heat = 0.4
+heat_capacity = 2
+melts_at = 3
+melts_into = water
+puts_out_fire = yes
+slides = 0.5
+strength = 1
+friction = 0.15
+rolling_resistance = 0.3
+lets_light_through = 0

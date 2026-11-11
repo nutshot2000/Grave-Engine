@@ -566,14 +566,55 @@ impl Sandbox {
     /// Show a menu that changes the scene's look (lighting, background), and
     /// record any change as an undoable step.
     fn look_menu(&mut self, ui: &mut egui::Ui, label: &str, menu: fn(&mut Self, &mut egui::Ui)) {
-        let before = (self.sim.lighting.clone(), self.sim.backdrop.clone());
+        let before = (self.sim.lighting.clone(), self.sim.backdrop.clone(), self.sim.weather.clone());
         menu(self, ui);
-        if self.sim.lighting != before.0 || self.sim.backdrop != before.1 {
-            let after = (std::mem::replace(&mut self.sim.lighting, before.0), std::mem::replace(&mut self.sim.backdrop, before.1));
+        if self.sim.lighting != before.0 || self.sim.backdrop != before.1 || self.sim.weather != before.2 {
+            let after = (std::mem::replace(&mut self.sim.lighting, before.0), std::mem::replace(&mut self.sim.backdrop, before.1), std::mem::replace(&mut self.sim.weather, before.2));
             self.history.touch(&mut self.sim, label); // (remembers how it was)
             self.sim.lighting = after.0;
             self.sim.backdrop = after.1;
+            self.sim.weather = after.2;
         }
+    }
+
+    /// The ☁ Weather menu: how heavy each kind is, presets, strike now.
+    fn weather_menu(&mut self, ui: &mut egui::Ui) {
+        use grave_engine::weather::{Kind, Weather};
+        ui.set_min_width(300.0);
+        let w = &mut self.sim.weather;
+        ui.checkbox(&mut w.on, RichText::new("Weather on").strong()).on_hover_text("Switch it all off without losing the settings");
+        ui.horizontal_wrapped(|ui| {
+            for (name, preset) in Weather::presets() {
+                if ui.button(name).clicked() {
+                    let on = w.on;
+                    *w = Weather { on, ..preset };
+                }
+            }
+        });
+        ui.separator();
+        for (kind, label, help) in [
+            (Kind::Snow, "❄ Snow", "Flakes land and pile up: drifts, snow on roofs. 1 is a blizzard"),
+            (Kind::Rain, "🌧 Rain", "Real water: fills puddles, puts fires out, wets the ground"),
+            (Kind::Hail, "🧊 Hail", "Heavy ice pellets that pile up, then melt"),
+            (Kind::Dust, "🏜 Sandstorm", "Blown dust from upwind, with a tan haze"),
+            (Kind::Fog, "🌫 Fog", "Hides the distance and softens everything"),
+            (Kind::Gusts, "💨 Gusty wind", "The wind rises and falls in waves (on top of the scene's wind)"),
+        ] {
+            let mut v = w.get(kind);
+            if ui.add(egui::Slider::new(&mut v, 0.0..=1.0).text(label)).on_hover_text(help).changed() {
+                w.set(kind, v, 0.0);
+            }
+        }
+        let mut strikes = w.lightning;
+        if ui.add(egui::Slider::new(&mut strikes, 0.0..=30.0).text("⚡ Lightning (a minute)")).on_hover_text("How often it strikes: it picks the tallest thing in view, flickers a warning, then hits: fire, a blast, glass from sand").changed() {
+            w.set(Kind::Lightning, strikes, 0.0);
+        }
+        ui.separator();
+        if ui.button("⚡ Strike now").on_hover_text("Call a strike at the tallest thing in view (during Play)").clicked() {
+            self.sim.weather_run.strike_now = true;
+            self.playing = true;
+        }
+        ui.label(RichText::new("Weather falls around the part of the world you're looking at. Triggers can change it: `weather snow 0.5 6`").size(12.0).weak());
     }
 
     /// The 🏞 Background menu: sky and parallax layers behind the world.
@@ -1557,6 +1598,7 @@ impl Sandbox {
             ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
             ui.menu_button(big("💡 Lighting"), |ui| self.look_menu(ui, "lighting", Self::lighting_menu));
             ui.menu_button(big("🏞 Background"), |ui| self.look_menu(ui, "background", Self::background_menu));
+            ui.menu_button(big("☁ Weather"), |ui| self.look_menu(ui, "weather", Self::weather_menu));
             ui.separator();
             ui.label("Scene");
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
@@ -2169,6 +2211,8 @@ impl Sandbox {
         self.renderer.light(&self.sim);
         self.renderer.set_camera(cx, cy); // backdrop layers slide by at their depth
         let half = (outer.width() / scale / 2.0 + shake.0.abs(), outer.height() / scale / 2.0 + shake.1.abs());
+        // Weather falls around what's on screen.
+        self.sim.weather_view = Some((cx - half.0 - 25.0, cy - half.1, cx + half.0 + 25.0, cy + half.1));
         let win = grave_engine::render::view_window(&self.sim.world, (cx, cy), half, 4.0);
         let rgba = self.renderer.draw_window(&self.sim.world, &self.mats, self.view, win);
         let image = egui::ColorImage::from_rgba_unmultiplied([win.2, win.3], rgba);
@@ -3068,6 +3112,23 @@ body rect wood 40 60 20 10
         drag(&mut h, from, to);
         let v = object(&h);
         assert!(v.vx.abs() < 20.0, "a gentle nudge stays gentle: vx {}", v.vx);
+    }
+
+    #[test]
+    fn the_weather_menu_has_presets_a_master_switch_and_undo() {
+        let mut h = editor();
+        h.get_by_label("☁ Weather").click();
+        h.run_steps(2);
+        assert!(h.get_all_by_role(egui::accesskit::Role::Slider).count() >= 7, "a slider for each kind of weather");
+        h.get_by_label_contains("Storm").click();
+        h.run_steps(2);
+        let w = h.state().sim.weather.clone();
+        assert!(w.rain > 0.5 && w.lightning > 0.0 && w.on, "the storm preset: {w:?}");
+        h.key_press(Key::Escape);
+        h.run_steps(2);
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(3);
+        assert!(h.state().sim.weather.is_clear(), "undo clears the storm again");
     }
 
     #[test]
