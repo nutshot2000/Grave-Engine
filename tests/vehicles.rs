@@ -158,3 +158,27 @@ fn a_balance_assist_keeps_a_tall_thing_upright_and_lean_tips_it() {
     assert!(problems.is_empty());
     assert_eq!(back.physics.upright().len(), 1);
 }
+
+#[test]
+fn driven_tyres_throw_sand_behind_them_but_not_stone() {
+    let m = mats();
+    let count = |ground: &str| {
+        let mut s = sim(&m, &cart(ground));
+        let sand = m.id("sand").unwrap();
+        let before = s.world.census(&m).into_iter().find(|(n, _, _)| n == "sand").map_or(0, |c| c.1);
+        s.physics.set_throttle(1.0);
+        let mut most = 0;
+        for _ in 0..240 {
+            s.step(&m);
+            most = most.max(s.world.flying.iter().filter(|f| f.mat == sand).count());
+        }
+        let after = s.world.census(&m).into_iter().find(|(n, _, _)| n == "sand").map_or(0, |c| c.1);
+        (most, before, after, cart_body(&mut s).x)
+    };
+    let (sand_spray, before, after, x) = count("sand");
+    let (stone_spray, _, _, _) = count("stone");
+    assert!(sand_spray > 3, "sand flies off the back tyre: {sand_spray}");
+    assert_eq!(stone_spray, 0, "stone isn't loose: nothing flies");
+    assert_eq!(before, after, "every grain lands somewhere");
+    assert!(x > 60.0, "and the cart still drives on: {x}");
+}

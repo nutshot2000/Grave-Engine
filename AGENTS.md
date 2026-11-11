@@ -80,7 +80,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** |
 | `src/material.rs` | material files, ids, **your settings** layered over defaults (`my_settings/`) |
 | `src/physics.rs` | rigid objects (Rapier 2D): read back, collapse, terrain colliders, joints, impacts, explosions, bounce pads, one-way powder |
-| `src/physics/vehicle.rs` | vehicle controls: brakes, rolling resistance (material key), balance assist (`upright`) and lean, `wheel_contact` |
+| `src/physics/vehicle.rs` | vehicle controls: brakes, rolling resistance (material key), balance assist (`upright`) and lean, `wheel_contact`, tyre roost (`kick_up`: rear driven tyre flings top-layer loose cells back and up; only the rearmost tyre, or a front tyre's ruts trip the rear one) |
 | `src/trigger.rs` | triggers: scene boxes that fire actions (heat, message, checkpoint, score) when something enters; `Sim::events` |
 | `src/bin/stunt-yard.rs` | **Stunt Yard / Wreck Run**, the stunt-bike game built on the engine (`Play-Stunt-Yard.cmd`); course from `tools/make_stunt_course.py`; docs in `docs/` |
 | `src/physics/actor.rs` | characters (the player): movement, swimming, breathing, health, death, animation choice, body cells |

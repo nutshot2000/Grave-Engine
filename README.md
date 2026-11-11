@@ -400,7 +400,10 @@ usable in any game:
   lock the wheels, so stopping depends on real grip (hard on stone, a slide
   on ice, nothing in mid-air). Materials have a `rolling_resistance` (sand
   and mud slow you down). `upright NAME strength 60` keeps a vehicle
-  balanced, and lean tips it for jumps.
+  balanced, and lean tips it for jumps. **Tyres throw a roost**: under
+  throttle on sand, gravel, mud or water, the rear driven tyre flings the
+  top layer back and up (more when faster and on the gas), as flying cells
+  that land again.
 - **Level shapes** (each filled solid underneath): `slope stone 170 210 255
   178` (ramp), `hill sandstone 440 690 38 210 cover sand 5` (smooth hill with
   a sand top), `curve ...`, `poly ...` (any shape). `anchor x y w h` pins

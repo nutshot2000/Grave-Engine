@@ -13,6 +13,11 @@
 //!   upright, like a rider balancing; **lean** (`set_lean`, -1..1) tips it
 //!   forward or back for jumps and wheelies.
 //!
+//! - **Tyres throw loose stuff**: where a drive wheel's tread moves against
+//!   sand, gravel, mud or water (wheelspin, skids, fast rolling), those cells
+//!   are flung off at the tread's speed (flying cells: they land again), so
+//!   tyres spray sand, spatter mud and dig ruts.
+//!
 //! Games set throttle, brake and lean from their keys; everything else is
 //! scene and material data.
 
@@ -23,6 +28,10 @@ const BRAKE_STRENGTH: f32 = 6.0;
 /// How firmly brakes hold a wheel at a standstill (the motor's damping):
 /// much firmer than driving, or the wheel just keeps turning.
 const BRAKE_RESPONSE: f32 = 100_000.0;
+/// Tread speed against loose ground (m/s) before it starts throwing it.
+const KICK_SPEED: f32 = 1.2;
+/// The most cells one tyre throws per frame.
+const KICK_MAX: usize = 3;
 /// The most a balance assist turns an object (radians per second).
 const BALANCE_MAX_SPIN: f32 = 3.0;
 
@@ -118,6 +127,87 @@ impl Physics {
         (grounded, surface, resistance)
     }
 
+    /// Drive wheels fling the loose cells their tread moves against.
+    fn kick_up(&mut self, world: &mut World, mats: &Materials) {
+        let pairs: Vec<(u64, u64)> = self
+            .joints
+            .iter()
+            .filter(|j| matches!(j.spec.kind, JointKind::Wheel { .. }) && j.spec.motor.as_ref().is_some_and(|m| m.drive))
+            .map(|j| (j.spec.a, j.spec.b))
+            .collect();
+        // Only the rearmost driven tyre of each vehicle: a front tyre's ruts
+        // would trip the tyre behind it (like hitting a kerb at speed).
+        let mut wheels = Vec::new();
+        for &(body, id) in &pairs {
+            let Some(me) = self.centre(id) else { continue };
+            let Some(n) = self.find(id) else { continue };
+            let dir = self.set[self.bodies[n].handle].linvel().x.signum();
+            let behind_me = pairs.iter().any(|&(other_body, other)| {
+                other != id && (other_body == body || self.assembly_of(body).contains(&other)) && self.centre(other).is_some_and(|o| (o.0 - me.0) * dir < -1.0)
+            });
+            if !behind_me {
+                wheels.push(id);
+            }
+        }
+        for id in wheels {
+            let Some(n) = self.find(id) else { continue };
+            let b = &self.bodies[n];
+            let rb = &self.set[b.handle];
+            let (c, v, spin) = (rb.translation(), rb.linvel(), rb.angvel());
+            // Only while actually moving: a wheel spinning in place would
+            // otherwise dig itself a pit it can never climb out of.
+            if v.x.abs() < 1.5 {
+                continue;
+            }
+            // The ground just behind the tyre: in each column from under the
+            // axle back to the tyre's rear edge, the top grain within a few
+            // cells below the tyre. (Colliders are smoothed, so the tyre's
+            // own cells don't always quite touch the sand.)
+            let radius = (b.w.max(b.h) as f32) / 2.0;
+            let (cx, cy) = (c.x / CELL, c.y / CELL);
+            let dir = v.x.signum();
+            let ground_speed = v.x.abs();
+            let mut thrown = 0;
+            // (Not from right under the tyre: that is what it rolls on.)
+            for k in (radius * 0.7).ceil() as i32..=(radius.ceil() as i32 + 2) {
+                if thrown >= KICK_MAX {
+                    break;
+                }
+                let x = (cx - dir * k as f32).floor() as i32;
+                let Some(y) = (cy as i32..cy as i32 + radius as i32 + 4).find(|&y| {
+                    world.in_bounds(x, y) && {
+                        let i = world.idx(x as usize, y as usize);
+                        !world.is_owned(i) && mats.get(world.mat[i]).state != State::Gas
+                    }
+                }) else {
+                    continue;
+                };
+                let j = world.idx(x as usize, y as usize);
+                if !matches!(mats.get(world.mat[j]).state, State::Powder | State::Liquid) {
+                    continue;
+                }
+                // How much: harder on the gas and faster means more, plus
+                // any wheelspin (the tread scrubbing past the ground).
+                let (px, py) = ((x as f32 + 0.5) * CELL - c.x, (y as f32 + 0.5) * CELL - c.y);
+                let (tx, ty) = (v.x - spin * py, v.y + spin * px);
+                let scrub = (tx * tx + ty * ty).sqrt();
+                let chance = (self.throttle.abs() * (ground_speed / 10.0).min(1.0) * 0.8 + ((scrub - KICK_SPEED).max(0.0) / 12.0)).min(0.6);
+                let roll = (hash(j as u32 ^ self.tick.wrapping_mul(0x9E37_79B9)) % 1000) as f32 / 1000.0;
+                if roll > chance {
+                    continue;
+                }
+                // Back and up, faster at speed, a little random.
+                let jitter = 0.6 + (hash(j as u32 ^ 0x51ED ^ self.tick) % 800) as f32 / 1000.0;
+                let per_frame = 1.0 / CELL / 60.0;
+                let back = -dir * (ground_speed * 0.5 + 1.5) * jitter;
+                let up = -(ground_speed * 0.35 + 1.5) * (1.6 - jitter * 0.6);
+                if world.throw(mats, x as usize, y as usize, back * per_frame, up * per_frame) {
+                    thrown += 1;
+                }
+            }
+        }
+    }
+
     /// An object and everything welded to it, plus wheels on it.
     pub(super) fn assembly_of(&self, id: u64) -> std::collections::BTreeSet<u64> {
         let mut rigid = std::collections::BTreeSet::from([id]);
@@ -146,7 +236,8 @@ impl Physics {
 
     /// Every frame, before the physics step: drive motors and brakes,
     /// rolling resistance, balance.
-    pub(super) fn vehicles(&mut self, world: &World, mats: &Materials) {
+    pub(super) fn vehicles(&mut self, world: &mut World, mats: &Materials) {
+        self.kick_up(world, mats);
         // Motors: throttle, or brakes holding the wheel still.
         let (throttle, brake) = (self.throttle, self.brake);
         for j in &self.joints {
