@@ -32,6 +32,7 @@ pub struct Renderer {
     fog_tan: f32,
     bolt: Vec<(i32, i32)>,
     bolt_alpha: f32,
+    bolt_main: usize,
     /// Cells that give off their own light (fire, lava, red-hot metal,
     /// burning embers): drawn at full brightness however dark it is.
     self_lit: Vec<bool>,
@@ -132,7 +133,15 @@ impl Renderer {
         self.fog = if w.on { w.fog.max(w.dust * 0.5) } else { 0.0 };
         self.fog_tan = if w.on { w.dust.min(1.0) } else { 0.0 };
         self.bolt = if run.bolt_frames > 0 && w.on { run.bolt.clone() } else { Vec::new() };
-        self.bolt_alpha = (run.bolt_frames as f32 / 10.0).clamp(0.0, 1.0);
+        self.bolt_main = run.bolt_main;
+        // Bright, a dip, a bright re-strike down the same path, then fading.
+        self.bolt_alpha = match run.bolt_frames {
+            0 => 0.0,
+            13..=16 => 1.0,
+            10..=12 => 0.35,
+            7..=9 => 0.9,
+            n => n as f32 / 8.0,
+        };
         if run.flash > 0.0 && w.on {
             // The whole sky lights up for an instant.
             let f = run.flash;
@@ -435,15 +444,19 @@ impl Renderer {
         // The lightning bolt: a white-hot core with a blue glow either side.
         if !self.bolt.is_empty() {
             let a = self.bolt_alpha;
-            for &(bx, by) in &self.bolt {
+            for (n, &(bx, by)) in self.bolt.iter().enumerate() {
+                let thin = n >= self.bolt_main;
                 for dx in -2i32..=2 {
+                    if thin && dx.abs() > 1 {
+                        continue;
+                    }
                     let (x, y) = (bx + dx, by);
                     if x < wx0 as i32 || y < wy0 as i32 || x >= (wx0 + ww) as i32 || y >= (wy0 + wh) as i32 {
                         continue;
                     }
                     let o = ((y as usize - wy0) * ww + x as usize - wx0) * 4;
                     let core = if dx == 0 { 1.0 } else if dx.abs() == 1 { 0.55 } else { 0.22 };
-                    let k = (core * a).min(1.0);
+                    let k = (core * a * if thin { 0.7 } else { 1.0 }).min(1.0);
                     let tint = [235.0, 240.0, 255.0];
                     for c in 0..3 {
                         self.rgba[o + c] = (self.rgba[o + c] as f32 * (1.0 - k) + tint[c] * k) as u8;

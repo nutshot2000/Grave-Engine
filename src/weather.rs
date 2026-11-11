@@ -105,6 +105,8 @@ pub struct WeatherRun {
     pub flash: f32,
     /// The bolt's cells, and how many frames it stays.
     pub bolt: Vec<(i32, i32)>,
+    /// How many of the bolt's cells are the main trunk (the rest are thinner forks).
+    pub bolt_main: usize,
     pub bolt_frames: u32,
     /// Frames until the next strike is planned.
     pub timer: i32,
@@ -392,9 +394,8 @@ pub fn step(
     }
     if run.strike_now && run.pending.is_none() {
         run.strike_now = false;
-        // Lightning goes for what sticks up: sample many places in view, find
-        // the ground level, and strike a raised thing (the tallest, mostly)
-        // whenever there is one; bare ground only when nothing stands up.
+        // Lightning likes what sticks up (the tallest, mostly) but not always:
+        // about a third of strikes land on open ground, or on something lower.
         let mut tops: Vec<(f32, f32)> = Vec::new();
         for k in 0..32u32 {
             let x = (x0 + rnd(frame, k, 11) * width).min(world.w as f32 - 1.0);
@@ -412,8 +413,8 @@ pub fn step(
         let ground = ys.get(ys.len() * 3 / 4).copied().unwrap_or(0.0);
         let mut raised: Vec<(f32, f32)> = tops.iter().copied().filter(|t| t.1 < ground - 6.0).collect();
         raised.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let best = if raised.is_empty() {
-            tops.first().copied()
+        let best = if raised.is_empty() || rnd(frame, 5, 12) < 0.3 {
+            tops.get((rnd(frame, 6, 12) * tops.len() as f32) as usize % tops.len().max(1)).copied()
         } else if rnd(frame, 3, 12) < 0.7 {
             raised.first().copied()
         } else {
@@ -439,29 +440,72 @@ pub fn step(
 /// A bolt hits the top of the world at (x, y).
 fn strike(world: &mut World, mats: &Materials, run: &mut WeatherRun, camera: &mut Effects, x: f32, y: f32) {
     let frame = world.frame;
-    // The bolt: a jagged line down from the sky, ending exactly at the strike.
-    let from = (y - 300.0).max(0.0);
-    let mut pts = vec![(x + (rnd(frame, 1, 31) - 0.5) * 30.0, from)];
-    let mut py = from;
-    let mut k = 0;
-    while py + 7.0 < y {
-        py += 5.0 + rnd(frame, k, 32) * 6.0;
-        let along = ((py - from) / (y - from).max(1.0)).clamp(0.0, 1.0);
-        let sway = (1.0 - along) * 14.0;
-        pts.push((x + (rnd(frame, k, 33) - 0.5) * sway, py));
-        k += 1;
+    // The bolt: a jagged trunk down from the sky ending exactly at the strike,
+    // with forks branching off it. Every strike is shaped from scratch (how
+    // jagged, how many forks, which way they lean), so none looks the same.
+    let mut n = 0u32;
+    let mut r = |lo: f32, hi: f32| {
+        n += 1;
+        lo + (hi - lo) * rnd(frame, n, 31)
+    };
+    let height = r(220.0, 340.0);
+    let from = (y - height).max(0.0);
+    let start = (x + r(-40.0, 40.0), from);
+    let jagged = r(0.18, 0.4);
+    let mut trunk = vec![start, (x, y)];
+    // Split each segment at its middle and push the middle sideways, again and again.
+    let mut disp = (y - from) * jagged;
+    for _ in 0..6 {
+        let mut next = Vec::with_capacity(trunk.len() * 2);
+        for pair in trunk.windows(2) {
+            next.push(pair[0]);
+            let mid = ((pair[0].0 + pair[1].0) * 0.5 + r(-1.0, 1.0) * disp * 0.5, (pair[0].1 + pair[1].1) * 0.5);
+            next.push(mid);
+        }
+        next.push(*trunk.last().unwrap());
+        trunk = next;
+        disp *= 0.55;
     }
-    pts.push((x, y));
+    let draw = |pts: &[(f32, f32)], out: &mut Vec<(i32, i32)>| {
+        for pair in pts.windows(2) {
+            let ((ax, ay), (bx, by)) = (pair[0], pair[1]);
+            let steps = (bx - ax).abs().max((by - ay).abs()).ceil().max(1.0) as i32;
+            for s in 0..=steps {
+                let t = s as f32 / steps as f32;
+                out.push(((ax + (bx - ax) * t) as i32, (ay + (by - ay) * t) as i32));
+            }
+        }
+    };
     run.bolt.clear();
-    for pair in pts.windows(2) {
-        let ((ax, ay), (bx, by)) = (pair[0], pair[1]);
-        let steps = (bx - ax).abs().max((by - ay).abs()).ceil().max(1.0) as i32;
-        for s in 0..=steps {
-            let t = s as f32 / steps as f32;
-            run.bolt.push(((ax + (bx - ax) * t) as i32, (ay + (by - ay) * t) as i32));
+    draw(&trunk, &mut run.bolt);
+    run.bolt_main = run.bolt.len();
+    // Forks: thinner branches that leave the trunk heading down and out, some forking again.
+    let forks = r(2.0, 7.0) as usize;
+    for _ in 0..forks {
+        let at = (r(0.1, 0.9) * (trunk.len() - 1) as f32) as usize;
+        let side = if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 };
+        let mut stack = vec![(trunk[at], side * r(0.35, 1.4), r(30.0, 90.0), 0)];
+        while let Some((p, lean, len, depth)) = stack.pop() {
+            let mut pts = vec![p];
+            let (mut cx, mut cy) = p;
+            let steps = (len / 4.0) as usize;
+            for s in 0..steps {
+                cx += lean * 3.0 + r(-3.0, 3.0);
+                cy += 3.0 + r(0.0, 2.5);
+                if cy >= y - 2.0 {
+                    break;
+                }
+                pts.push((cx, cy));
+                if depth < 1 && s > 2 && s + 3 < steps && r(0.0, 1.0) < 0.1 {
+                    stack.push(((cx, cy), -lean * r(0.5, 1.2), len * r(0.25, 0.5), depth + 1));
+                }
+            }
+            if pts.len() > 1 {
+                draw(&pts, &mut run.bolt);
+            }
         }
     }
-    run.bolt_frames = 10;
+    run.bolt_frames = 16;
     run.flash = 1.0;
     camera.shake(5.0);
     let (cx, cy) = (x as i32, y as i32);
