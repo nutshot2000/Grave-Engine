@@ -1,0 +1,14 @@
+# Blue ceramic armour: light hull panels that crack into loose debris.
+about = Blue ceramic armour. Brittle under hard hits; tolerates heat.
+state = solid
+density = 2400
+color = #247eac
+color_variation = 0.04
+conducts_heat = 0.12
+heat_capacity = 1.1
+melts_at = 1600
+melts_into = lava
+strength = 35
+toughness = 1500
+breaks_into = gravel
+friction = 0.5

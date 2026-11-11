@@ -7,6 +7,31 @@ use grave_engine::{
     sim::Sim,
 };
 use std::time::Instant;
+#[path = "../voidrunner/audio.rs"]
+mod audio;
+struct Fx {
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    ttl: u32,
+    max: u32,
+    kind: u8,
+}
+struct Laser {
+    owner: u64,
+    x: f32,
+    y: f32,
+    angle: f32,
+    age: u32,
+}
+struct Notice {
+    x: f32,
+    y: f32,
+    ttl: u32,
+    text: String,
+}
+
 const W: usize = 480;
 const H: usize = 270;
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -62,6 +87,18 @@ struct Wave {
     y: f32,
 }
 struct Game {
+    audio: Option<audio::Audio>,
+    sounds: Vec<usize>,
+    fx: Vec<Fx>,
+    lasers: Vec<Laser>,
+    notices: Vec<Notice>,
+    dash_time: u32,
+    dash_cd: u32,
+    dash_dir: (f32, f32),
+    combo: u32,
+    combo_timer: u32,
+    best: u32,
+
     sim: Sim,
     mats: Materials,
     renderer: Renderer,
@@ -110,6 +147,18 @@ impl Game {
             })
             .collect();
         let mut g = Self {
+            audio: None,
+            sounds: vec![],
+            fx: vec![],
+            lasers: vec![],
+            notices: vec![],
+            dash_time: 0,
+            dash_cd: 0,
+            dash_dir: (1., 0.),
+            combo: 0,
+            combo_timer: 0,
+            best: 0,
+
             sim,
             mats,
             renderer: Renderer::default(),
@@ -163,7 +212,52 @@ impl Game {
                 }
             }
         };
-        if kind == Kind::Asteroid {
+        if kind == Kind::Player {
+            for yy in 0..h {
+                for xx in 2..w - 1 {
+                    let dy = (yy as f32 - h as f32 / 2.).abs();
+                    let spine = if xx < 10 {
+                        3.
+                    } else if xx < 30 {
+                        4.5
+                    } else {
+                        (w - xx) as f32 * 0.33
+                    };
+                    if dy <= spine {
+                        paint("aluminium", xx, yy, xx + 1, yy + 1);
+                    }
+                    if xx >= 5 && xx < 25 && dy > 3. && dy < 12. && (xx as f32) < 26. - dy * 0.95 {
+                        paint("steel", xx, yy, xx + 1, yy + 1);
+                        if xx > 7 {
+                            paint("ceramic", xx, yy, xx + 1, yy + 1);
+                        }
+                    }
+                }
+            }
+            paint("iron", 9, 11, 28, 15);
+            paint("glass", 24, 11, 33, 15);
+            paint("copper", 8, 5, 17, 7);
+            paint("copper", 8, 19, 17, 21);
+            paint("steel", 2, 9, 9, 17);
+            paint("glass", 3, 10, 5, 16);
+            paint("aluminium", 17, 3, 20, 9);
+            paint("aluminium", 17, 17, 20, 23);
+        } else if kind == Kind::Interceptor {
+            for yy in 0..h {
+                for xx in 2..w - 2 {
+                    let dy = (yy as f32 - h as f32 / 2.).abs();
+                    if dy < 3.5 || ((xx as f32) > 8. + dy * 0.8 && xx < w - 5) {
+                        paint("steel", xx, yy, xx + 1, yy + 1);
+                        if dy > 5. {
+                            paint("plastic", xx, yy, xx + 1, yy + 1);
+                        }
+                    }
+                }
+            }
+            paint("copper", 3, h / 2 - 1, w - 5, h / 2 + 1);
+            paint("gunpowder", w / 2, h / 2 - 2, w / 2 + 3, h / 2 + 2);
+            paint("glass", w / 2 - 3, h / 2 - 2, w / 2, h / 2 + 2);
+        } else if kind == Kind::Asteroid {
             for yy in 0..h {
                 for xx in 0..w {
                     let dx = xx as f32 - w as f32 / 2.;
@@ -246,7 +340,7 @@ impl Game {
                     for yy in [6, h - 14] {
                         paint("steel", 18, yy, w - 5, yy + 10);
                         paint("oil", 23, yy + 2, w - 10, yy + 8);
-                        paint("gunpowder", 26, yy + 3, w - 13, yy + 7);
+                        paint("gunpowder", w / 2 - 3, yy + 4, w / 2 + 3, yy + 6);
                         paint("glass", 18, yy + 3, 23, yy + 7);
                     }
                     paint("plastic", w - 13, mid - 5, w - 4, mid + 5);
@@ -295,6 +389,40 @@ impl Game {
             .iter()
             .filter(|s| s.kind == Kind::Player && !s.dead)
             .find_map(|s| self.sim.physics.centre(s.id).map(|(x, y)| (s.id, x, y)))
+    }
+    fn burst(&mut self, x: f32, y: f32, kind: u8, n: u32) {
+        for k in 0..n {
+            if self.fx.len() >= 240 {
+                break;
+            }
+            let a = k as f32 * 2.399 + self.frame as f32 * 0.31;
+            let v = 0.4 + (k % 5) as f32 * 0.32;
+            let ttl = 16 + (k % 17);
+            self.fx.push(Fx {
+                x,
+                y,
+                vx: a.cos() * v,
+                vy: a.sin() * v,
+                ttl,
+                max: ttl,
+                kind,
+            });
+        }
+    }
+    fn dash(&mut self, mx: f32, my: f32) {
+        if self.dash_cd > 0 || self.over || self.won {
+            return;
+        }
+        let len = (mx * mx + my * my).sqrt();
+        self.dash_dir = if len > 0.01 {
+            (mx / len, my / len)
+        } else {
+            (1., 0.)
+        };
+        self.dash_time = 11;
+        self.dash_cd = 100;
+        self.invuln = self.invuln.max(19);
+        self.sounds.push(5);
     }
     fn shoot(&mut self, x: f32, y: f32, angle: f32, speed: f32, friendly: bool, power: i32) {
         self.shots.push(Shot {
@@ -348,14 +476,18 @@ impl Game {
                 self.sim.world.make_air(i);
             }
         }
-        self.shake = self.shake.max(0.6);
+        self.shake = self.shake.max(0.2);
+        self.burst(x as f32, y as f32, 1, 5);
     }
     fn damage_player(&mut self, amount: f32) {
         if self.invuln > 0 || self.over {
             return;
         }
         self.shield -= amount;
-        self.invuln = 30;
+        self.combo = 0;
+        self.combo_timer = 0;
+        self.sounds.push(1);
+        self.invuln = 65;
         self.flash = 0.5;
         self.shake = 2.;
         if self.shield <= 0. {
@@ -400,6 +532,8 @@ impl Game {
         self.flash = 0.7;
         self.shake = 4.;
         self.shots.retain(|b| b.friendly);
+        self.lasers.clear();
+        self.sounds.push(2);
         let targets: Vec<_> = self
             .ships
             .iter()
@@ -415,6 +549,26 @@ impl Game {
             return;
         }
         self.frame += 1;
+        self.dash_cd = self.dash_cd.saturating_sub(1);
+        self.dash_time = self.dash_time.saturating_sub(1);
+        self.combo_timer = self.combo_timer.saturating_sub(1);
+        if self.combo_timer == 0 {
+            self.combo = 0;
+        }
+        for f in &mut self.fx {
+            f.x += f.vx;
+            f.y += f.vy;
+            f.vx *= 0.96;
+            f.vy *= 0.96;
+            f.ttl = f.ttl.saturating_sub(1);
+        }
+        self.fx.retain(|f| f.ttl > 0);
+        for n in &mut self.notices {
+            n.y -= 0.16;
+            n.ttl = n.ttl.saturating_sub(1);
+        }
+        self.notices.retain(|n| n.ttl > 0);
+
         self.invuln = self.invuln.saturating_sub(1);
         self.fire_cd = self.fire_cd.saturating_sub(1);
         self.bomb_cd = self.bomb_cd.saturating_sub(1);
@@ -465,6 +619,14 @@ impl Game {
         let speed = 125.;
         let mut vx = mx * speed;
         let mut vy = my * speed;
+        if self.dash_time > 0 {
+            vx = self.dash_dir.0 * 300.;
+            vy = self.dash_dir.1 * 300.;
+            if self.frame % 2 == 0 {
+                self.burst(px, py, 4, 3);
+            }
+        }
+
         if px < 25. {
             vx = vx.max(55.);
         }
@@ -481,6 +643,8 @@ impl Game {
         self.sim.physics.set_velocity(pid, vx, vy, 0.);
         if fire && self.fire_cd == 0 {
             self.fire_cd = 7;
+            self.sounds.push(0);
+            self.burst(px + 22., py, 0, 2);
             self.shoot(px + 23., py, 0., 410., true, 2);
             if self.weapon >= 2 {
                 self.shoot(px + 18., py - 7., -0.045, 400., true, 2);
@@ -495,11 +659,19 @@ impl Game {
             self.bomb();
         }
         let mut enemy_fire = vec![];
+        let mut charging = vec![];
+        let reactors = self.remaining_reactors();
         for s in &self.ships {
             if s.dead || s.kind == Kind::Player {
                 continue;
             }
-            let Some((x, y)) = self.sim.physics.centre(s.id) else {
+            let Some((x, y)) = self.sim.physics.centre(s.id).or_else(|| {
+                if s.kind == Kind::Boss {
+                    self.reactor_position()
+                } else {
+                    None
+                }
+            }) else {
                 continue;
             };
             let age = self.frame - s.born;
@@ -521,13 +693,41 @@ impl Game {
                 if s.kind == Kind::Asteroid { 0.12 } else { 0. },
             );
             let period = match s.kind {
-                Kind::Boss => 48,
+                Kind::Boss => {
+                    if reactors <= 1 {
+                        32
+                    } else {
+                        55
+                    }
+                }
                 Kind::Frigate => 85,
                 Kind::Tanker => 150,
                 Kind::Interceptor => 105,
                 _ => 130,
             };
+            if matches!(s.kind, Kind::Frigate | Kind::Boss)
+                && age > 60
+                && age % if s.kind == Kind::Boss { 210 } else { 240 } == 100
+            {
+                charging.push(Laser {
+                    owner: if self.sim.physics.centre(s.id).is_some() {
+                        s.id
+                    } else {
+                        0
+                    },
+                    x: x - 25.,
+                    y,
+                    angle: (py - y).atan2(px - x),
+                    age: 0,
+                });
+            }
             if age > 30 && age % period == 0 && s.kind != Kind::Asteroid && x > px + 35. {
+                if s.kind == Kind::Boss && reactors <= 2 {
+                    let sweep = std::f32::consts::PI + (age as f32 * 0.07).sin() * 0.7;
+                    for k in -2..=2 {
+                        enemy_fire.push((x - 15., y, sweep + k as f32 * 0.22, 80.));
+                    }
+                }
                 let aim = (py - y).atan2(px - x);
                 let spread = if s.kind == Kind::Boss || s.kind == Kind::Frigate {
                     2
@@ -544,8 +744,37 @@ impl Game {
                 }
             }
         }
+        if !charging.is_empty() {
+            self.sounds.push(4);
+        }
+        self.lasers.extend(charging);
         for (x, y, a, v) in enemy_fire {
             self.shoot(x, y, a, v, false, 1);
+        }
+        let mut beam_hit = false;
+        for l in &mut self.lasers {
+            l.age += 1;
+            if l.age < 55 && l.owner != 0 {
+                if let Some((x, y)) = self.sim.physics.centre(l.owner) {
+                    l.x = x - 25.;
+                    l.y = y;
+                } else {
+                    l.age = 100;
+                }
+            }
+            if (55..73).contains(&l.age) {
+                let dx = px - l.x;
+                let dy = py - l.y;
+                let along = dx * l.angle.cos() + dy * l.angle.sin();
+                let across = (dx * l.angle.sin() - dy * l.angle.cos()).abs();
+                if along > 0. && along < 520. && across < 6. {
+                    beam_hit = true;
+                }
+            }
+        }
+        self.lasers.retain(|l| l.age < 73);
+        if beam_hit {
+            self.damage_player(26.);
         }
         let old = std::mem::take(&mut self.shots);
         for mut shot in old {
@@ -557,6 +786,15 @@ impl Game {
                 let (x, y) = (shot.x + (nx - shot.x) * t, shot.y + (ny - shot.y) * t);
                 if !self.sim.world.in_bounds(x as i32, y as i32) {
                     continue;
+                }
+                if !shot.friendly {
+                    if (x - px).powi(2) + (y - py).powi(2) <= 4.5_f32.powi(2) {
+                        self.damage_player(16.);
+                        hit = true;
+                        break;
+                    } else {
+                        continue;
+                    }
                 }
                 let i = self.sim.world.idx(x as usize, y as usize);
                 if self.sim.world.mat[i] == AIR
@@ -609,6 +847,7 @@ impl Game {
         }
         let powder = self.mats.id("gunpowder").unwrap();
         let mut rewards = vec![];
+        let mut deathfx = vec![];
         let reactors_left = self.remaining_reactors();
         for s in &mut self.ships {
             if s.dead {
@@ -640,7 +879,24 @@ impl Game {
                 } else {
                     500
                 };
+                self.combo = (self.combo + 1).min(5);
+                self.combo_timer = 210;
+                self.score += self.combo.saturating_sub(1) * 125;
                 self.kills += 1;
+                self.sounds.push(2);
+                deathfx.push((x, y));
+                self.shake = self.shake.max(0.9);
+                self.notices.push(Notice {
+                    x,
+                    y,
+                    ttl: 65,
+                    text: if self.combo > 1 {
+                        format!("CHAIN x{}", self.combo)
+                    } else {
+                        "+500".into()
+                    },
+                });
+
                 if s.kind == Kind::Boss {
                     self.won = true;
                     self.started = false;
@@ -654,6 +910,9 @@ impl Game {
                     s.dead = true;
                 }
             }
+        }
+        for (x, y) in deathfx {
+            self.burst(x, y, 2, 18);
         }
         for (x, y, weapon) in rewards {
             self.pickups.push(Pickup { x, y, weapon });
@@ -679,10 +938,25 @@ impl Game {
         }
         for p in &mut self.pickups {
             p.x -= 0.65;
+            if (p.x - px).hypot(p.y - py) < 65. {
+                p.x += (px - p.x) * 0.065;
+                p.y += (py - p.y) * 0.065;
+            }
         }
         if let Some((_, px, py)) = self.player() {
             self.pickups.retain(|p| {
                 if (p.x - px).hypot(p.y - py) < 22. {
+                    self.sounds.push(3);
+                    self.notices.push(Notice {
+                        x: px,
+                        y: py - 12.,
+                        ttl: 90,
+                        text: if p.weapon {
+                            "WEAPON UPGRADE".into()
+                        } else {
+                            "SHIELD +35".into()
+                        },
+                    });
                     if p.weapon {
                         self.weapon = (self.weapon + 1).min(3);
                     } else {
@@ -694,6 +968,9 @@ impl Game {
                     p.x > 0.
                 }
             });
+        }
+        if self.sounds.len() > 32 {
+            self.sounds.drain(..self.sounds.len() - 32);
         }
         // Cull only offscreen wrecks, retaining visible physical fragments and fire.
         if self.frame % 30 == 0 {
@@ -752,6 +1029,20 @@ impl Game {
                 .retain(|s| !s.dead || self.sim.physics.centre(s.id).is_some());
         }
     }
+    fn reactor_position(&self) -> Option<(f32, f32)> {
+        let fuel = self.mats.id("gunpowder").unwrap();
+        let mut x = 0.;
+        let mut y = 0.;
+        let mut n = 0.;
+        for (i, m) in self.sim.world.mat.iter().enumerate() {
+            if *m == fuel {
+                x += (i % W) as f32;
+                y += (i / W) as f32;
+                n += 1.;
+            }
+        }
+        if n > 0. { Some((x / n, y / n)) } else { None }
+    }
     fn remaining_reactors(&self) -> usize {
         let fuel = self.mats.id("gunpowder").unwrap();
         self.sim.world.mat.iter().filter(|m| **m == fuel).count()
@@ -791,7 +1082,11 @@ impl eframe::App for Game {
         let dt = self.last.elapsed().as_secs_f64().min(0.1);
         self.last = Instant::now();
         if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+            let audio = self.audio.take();
+            let best = self.best.max(self.score);
             *self = Self::new();
+            self.audio = audio;
+            self.best = best;
             self.started = true;
         }
         if ctx.input(|i| i.key_pressed(egui::Key::P) || i.key_pressed(egui::Key::Escape)) {
@@ -808,6 +1103,14 @@ impl eframe::App for Game {
             (i.key_down(egui::Key::S) || i.key_down(egui::Key::ArrowDown)) as i32
                 - (i.key_down(egui::Key::W) || i.key_down(egui::Key::ArrowUp)) as i32
         }) as f32;
+        if ctx.input(|i| i.key_pressed(egui::Key::M)) {
+            if let Some(a) = &mut self.audio {
+                a.muted = !a.muted;
+            }
+        }
+        if self.started && !self.paused && ctx.input(|i| i.modifiers.shift) {
+            self.dash(mx, my);
+        }
         let fire = ctx.input(|i| i.key_down(egui::Key::Space) || i.key_down(egui::Key::Z));
         let mut bomb = ctx.input(|i| i.key_pressed(egui::Key::X));
         if self.started && !self.paused && ctx.input(|i| i.focused) {
@@ -822,6 +1125,18 @@ impl eframe::App for Game {
             }
         } else {
             self.clock = 0.;
+        }
+        if let Some(a) = &self.audio {
+            a.update(self.started && !self.paused && ctx.input(|i| i.focused));
+            let mut played = [false; 6];
+            for k in self.sounds.drain(..) {
+                if !played[k] {
+                    a.play(k);
+                    played[k] = true;
+                }
+            }
+        } else {
+            self.sounds.clear();
         }
         let available = ui.available_size();
         let scale = (available.x / W as f32).min(available.y / H as f32);
@@ -965,6 +1280,64 @@ impl eframe::App for Game {
                 }
             }
         }
+        for l in &self.lasers {
+            let end = to(l.x + l.angle.cos() * 520., l.y + l.angle.sin() * 520.);
+            if l.age < 55 {
+                let alpha = 80 + (l.age * 3).min(160) as u8;
+                p.line_segment(
+                    [to(l.x, l.y), end],
+                    Stroke::new(
+                        0.45 * scale,
+                        Color32::from_rgba_unmultiplied(255, 60, 85, alpha),
+                    ),
+                );
+                p.circle_stroke(
+                    to(l.x, l.y),
+                    (4. + l.age as f32 * 0.06) * scale,
+                    Stroke::new(scale, Color32::from_rgb(255, 100, 105)),
+                );
+            } else {
+                p.line_segment(
+                    [to(l.x, l.y), end],
+                    Stroke::new(6. * scale, Color32::from_rgba_unmultiplied(255, 35, 70, 75)),
+                );
+                p.line_segment(
+                    [to(l.x, l.y), end],
+                    Stroke::new(2. * scale, Color32::from_rgb(255, 200, 205)),
+                );
+            }
+        }
+        for f in &self.fx {
+            let alpha = (f.ttl as f32 / f.max as f32 * 230.) as u8;
+            let c = if f.kind == 4 {
+                Color32::from_rgba_unmultiplied(45, 195, 255, alpha)
+            } else {
+                Color32::from_rgba_unmultiplied(255, 180, 75, alpha)
+            };
+            p.line_segment(
+                [to(f.x, f.y), to(f.x - f.vx * 2., f.y - f.vy * 2.)],
+                Stroke::new(0.8 * scale, c),
+            );
+        }
+        for n in &self.notices {
+            p.text(
+                to(n.x, n.y),
+                egui::Align2::CENTER_BOTTOM,
+                &n.text,
+                egui::FontId::proportional(6. * scale),
+                Color32::from_rgba_unmultiplied(150, 245, 235, (n.ttl.min(40) * 6) as u8),
+            );
+        }
+        if let Some((_, x, y)) = self.player() {
+            p.circle_filled(to(x, y), 1. * scale, Color32::from_rgb(230, 255, 255));
+            if self.dash_time > 0 {
+                p.circle_stroke(
+                    to(x, y),
+                    18. * scale,
+                    Stroke::new(scale, Color32::from_rgb(75, 210, 255)),
+                );
+            }
+        }
         for b in &self.shots {
             let c = if b.friendly {
                 Color32::from_rgb(100, 235, 255)
@@ -1033,6 +1406,25 @@ impl eframe::App for Game {
             0.,
             Color32::from_rgb(65, 205, 210),
         );
+        p.text(
+            to(8., 29.),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "{}   {}",
+                if self.dash_cd == 0 {
+                    "DODGE READY"
+                } else {
+                    "DODGE RECHARGING"
+                },
+                if self.combo > 1 {
+                    format!("/ CHAIN x{}", self.combo)
+                } else {
+                    String::new()
+                }
+            ),
+            egui::FontId::proportional(6. * scale),
+            Color32::from_rgb(90, 190, 220),
+        );
         let (stage, objective) = self.stage();
         p.text(
             to(472., 23.),
@@ -1044,7 +1436,7 @@ impl eframe::App for Game {
         p.text(
             to(8., 261.),
             egui::Align2::LEFT_BOTTOM,
-            "WASD / ARROWS: MOVE    SPACE / Z: FIRE    X: PULSE BOMB    P: PAUSE    R: RESTART",
+            "MOVE: WASD / ARROWS    FIRE: SPACE    DODGE: SHIFT    BOMB: X    SOUND: M    PAUSE: P",
             egui::FontId::proportional(5.8 * scale),
             Color32::from_rgb(145, 165, 187),
         );
@@ -1079,9 +1471,15 @@ impl eframe::App for Game {
                     to(240., 29.),
                     egui::Align2::CENTER_TOP,
                     if self.boss_shielded(s.born) {
-                        "REACTOR CARRIER / SHIELD UP"
+                        "PHASE I / SHIELD UP"
                     } else {
-                        "REACTOR CARRIER / CORE PORTS OPEN"
+                        if self.remaining_reactors() >= 3 {
+                            "PHASE I / BREACH THE PORTS"
+                        } else if self.remaining_reactors() == 2 {
+                            "PHASE II / CORE INSTABILITY"
+                        } else {
+                            "PHASE III / REACTOR MELTDOWN"
+                        }
                     },
                     font.clone(),
                     Color32::from_rgb(255, 130, 100),
@@ -1152,10 +1550,13 @@ impl eframe::App for Game {
 }
 fn main() -> eframe::Result {
     std::env::set_current_dir(env!("CARGO_MANIFEST_DIR")).unwrap();
-    if std::env::args().any(|s| s == "--verify") {
+    if std::env::args().any(|s| s == "--verify" || s == "--verify-normal") {
         let mut g = Game::new();
         g.started = true;
-        g.invuln = 100000;
+        let normal = std::env::args().any(|s| s == "--verify-normal");
+        if !normal {
+            g.invuln = 100000;
+        }
         for _ in 0..14000 {
             if g.won || g.over {
                 break;
@@ -1189,12 +1590,54 @@ fn main() -> eframe::Result {
                     target = (i / W) as f32;
                 }
             }
+            if normal {
+                let px = g.player().map_or(75., |p| p.1);
+                let mut best = (f32::INFINITY, target);
+                for offset in [-48., -30., -15., 0., 15., 30., 48.] {
+                    let cy = (py + offset).clamp(30., 240.);
+                    let mut risk = (cy - target).abs() * 0.15 + offset.abs() * 0.2;
+                    for b in g.shots.iter().filter(|b| !b.friendly && b.vx < 0.) {
+                        let seconds = (px - b.x) / b.vx;
+                        if (0.0..1.0).contains(&seconds) {
+                            let by = b.y + b.vy * seconds;
+                            let d = (by - cy).abs();
+                            if d < 19. {
+                                risk += (19. - d) * 18.;
+                            }
+                        }
+                    }
+                    for l in &g.lasers {
+                        let across =
+                            ((px - l.x) * l.angle.sin() - (cy - l.y) * l.angle.cos()).abs();
+                        if across < 15. {
+                            risk += 500.;
+                        }
+                    }
+                    for s in g.ships.iter().filter(|s| !s.dead && s.kind != Kind::Player) {
+                        if let Some((x, y)) = g.sim.physics.centre(s.id) {
+                            if (x - px).abs() < 85. && (y - cy).abs() < 30. {
+                                risk += 400.;
+                            }
+                        }
+                    }
+                    if risk < best.0 {
+                        best = (risk, cy);
+                    }
+                }
+                target = best.1;
+            }
             let dy = if (target - py).abs() > 3. {
                 (target - py).signum()
             } else {
                 0.
             };
-            g.tick(0., dy, true, false);
+            if normal && g.shield < 35. && g.dash_cd == 0 {
+                g.dash(0., if dy == 0. { -1. } else { dy });
+            }
+            let bomb = normal
+                && g.shield < 32.
+                && g.shots.iter().filter(|b| !b.friendly && b.x < 160.).count() > 3;
+            g.tick(0., dy, true, bomb);
             if g.frame % 600 == 0 {
                 println!(
                     "frame={} score={} kills={} bodies={} won={}",
@@ -1216,8 +1659,8 @@ fn main() -> eframe::Result {
         )
         .unwrap();
         println!(
-            "END won={} frame={} kills={} score={}",
-            g.won, g.frame, g.kills, g.score
+            "END won={} frame={} kills={} score={} lives={} shield={} normal={}",
+            g.won, g.frame, g.kills, g.score, g.lives, g.shield, normal
         );
         if !g.won {
             std::process::exit(1);
@@ -1232,7 +1675,9 @@ fn main() -> eframe::Result {
         },
         Box::new(|cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            Ok(Box::new(Game::new()))
+            let mut g = Game::new();
+            g.audio = audio::Audio::open();
+            Ok(Box::new(g))
         }),
     )
 }
@@ -1376,5 +1821,83 @@ mod tests {
         assert_eq!(g.bombs, 2);
         g.bomb();
         assert_eq!(g.bombs, 2);
+    }
+    #[test]
+    fn charged_laser_warns_before_damage() {
+        let mut g = Game::new();
+        g.invuln = 0;
+        g.lasers.push(Laser {
+            owner: 0,
+            x: 400.,
+            y: 135.,
+            angle: std::f32::consts::PI,
+            age: 0,
+        });
+        for _ in 0..54 {
+            g.tick(0., 0., false, false);
+        }
+        assert_eq!(g.shield, 100.);
+        g.tick(0., 0., false, false);
+        assert_eq!(g.shield, 74.);
+    }
+    #[test]
+    fn dodge_moves_without_rotation_and_has_a_cooldown() {
+        let mut g = Game::new();
+        let (id, x, y) = g.player().unwrap();
+        g.invuln = 0;
+        g.dash(1., 0.);
+        for _ in 0..10 {
+            g.tick(0., 0., false, false);
+        }
+        let b = g.sim.physics.spec_of(&g.sim.world, id).unwrap();
+        assert!(b.x > x + 40.);
+        assert!((b.y - y).abs() < 0.1);
+        assert!(b.angle.abs() < 0.001);
+        assert!(g.invuln > 0);
+        let remaining = g.dash_cd;
+        g.dash(-1., 0.);
+        assert_eq!(g.dash_cd, remaining);
+    }
+    #[test]
+    fn wing_grazes_are_safe_but_core_hits_damage_shields() {
+        let mut g = Game::new();
+        g.invuln = 0;
+        g.shots.push(Shot {
+            x: 85.,
+            y: 145.,
+            vx: -600.,
+            vy: 0.,
+            friendly: false,
+            power: 1,
+            ttl: 20,
+        });
+        g.tick(0., 0., false, false);
+        assert_eq!(g.shield, 100.);
+        g.shots.push(Shot {
+            x: 85.,
+            y: 135.,
+            vx: -600.,
+            vy: 0.,
+            friendly: false,
+            power: 1,
+            ttl: 20,
+        });
+        g.tick(0., 0., false, false);
+        assert_eq!(g.shield, 84.);
+    }
+    #[test]
+    fn damage_breaks_combo_and_pickups_do_not() {
+        let mut g = Game::new();
+        g.invuln = 0;
+        g.combo = 4;
+        g.combo_timer = 100;
+        let (_, x, y) = g.player().unwrap();
+        g.pickups.push(Pickup { x, y, weapon: true });
+        g.tick(0., 0., false, false);
+        assert_eq!(g.combo, 4);
+        assert_eq!(g.weapon, 2);
+        g.damage_player(10.);
+        assert_eq!(g.combo, 0);
+        assert_eq!(g.combo_timer, 0);
     }
 }

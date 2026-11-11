@@ -65,3 +65,16 @@ Later: material-driven shot impacts, glass breaks, metal damage, shield hits, fi
 ## Verification limits
 
 Seven focused shooter checks and three library checks passed. An automatic pilot verifies progression with damage immunity; this does not establish fair difficulty for a normal player. Live visual inspection and the user's control/pickup feedback were used. Music, sound, a general projectile system, complete zero gravity and a general entity/fragment framework remain future work. The prior engine-review issues, including narrow-trigger crossings and the locally edited Wreck Run gantry, were not silently changed by this build.
+
+
+## Findings from the combat update — 11 November 2026
+
+The game now includes synthesised audio/music, small gameplay hitboxes, a timed dodge, charged beams, chain scoring, magnetic pickups and encounter-dependent attacks. These are game implementations, not a claim that the engine now provides general versions of them.
+
+1. **Separate gameplay hitboxes from physical shapes.** The player needs a small predictable bullet target while its material hull remains larger and destructible. Add named hurtboxes/hitboxes, allegiance masks and debug overlays, independent of Rapier contact shapes. Current swept bullet and beam tests are custom game logic.
+2. **Reusable warning/action timelines.** A heavy weapon needs charging, an aimed warning, firing and recovery, with cancellation if its source is destroyed. Put these states and timings in data rather than adding another custom laser struct in each game.
+3. **Audio events and mixing.** The shooter now has its own rodio-backed procedural sound/music module with bounded per-frame effect playback and mute/pause controls. A future engine sound layer should accept material/weapon/damage events, spatial positions, concurrency limits and volume buses. Keep device creation out of headless tests and handle unavailable devices gracefully.
+4. **Normal-rules playthrough checks.** The earlier immunity pilot could validate victory but could not expose unfair incoming fire. Retain both progression-only and damage-enabled bots, and log lives, shields, missed enemies, pickups and simulation cost. Current normal-rules completion is one deterministic automated route, not proof of broad human balance.
+5. **Critical-component continuity.** The boss must keep attacking after its primary hull fragments. The game currently derives positions from surviving fuel cells in an isolated arena. A general engine entity/component hierarchy and fragment lineage would remove that special case.
+
+The new regression checks cover warning time before laser damage, dodge cooldown without unwanted rotation, different handling of wing grazes and centre hits, and damage breaking combos while pickups preserve them. Keep the original material/bullet tests as well: polish should not replace actual fuel explosions with a scripted visual effect.

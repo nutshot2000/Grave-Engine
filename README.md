@@ -595,3 +595,5 @@ to check a new level can be finished. `--from=X` starts at the checkpoint at X.
 ## Voidrunner — space shooter
 
 Open `Play-Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with material-cell ships, explosive fuel, enemy formations, weapon/shield pickups, limited lives, pulse bombs and a reactor carrier. WASD/arrows move, Space/Z fires, X bombs, Enter starts. See `docs/VOIDRUNNER.md` and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md`.
+
+Voidrunner now adds synthesised music and combat sounds, Shift dodge, telegraphed heavy lasers, a small visible player hitbox, chain scoring, magnetic pickups and escalating reactor attacks. `voidrunner --verify-normal` checks a complete run with ordinary damage enabled. M toggles sound.
