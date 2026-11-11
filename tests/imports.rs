@@ -105,7 +105,8 @@ fn metallic_parts_become_metals_and_others_dont() {
     let (shape, _) = import::load(&asset("imported/cascade/cascade.glb"), &m, None).unwrap();
     // The machine is brass, chrome and enamelled metal, plus some ceramic.
     assert!(count(&shape, &m, "brass") > 500, "brass parts (named brass)");
-    assert!(count(&shape, &m, "iron") > 500, "chrome and enamel are metallic: iron");
+    let grey_metal: usize = ["iron", "steel", "aluminium"].iter().map(|n| count(&shape, &m, n)).sum();
+    assert!(grey_metal > 500, "chrome and enamel are metallic: iron, steel or aluminium");
     for not_metal in ["wood", "rubber"] {
         assert_eq!(count(&shape, &m, not_metal), 0, "no metallic part turns into {not_metal}");
     }

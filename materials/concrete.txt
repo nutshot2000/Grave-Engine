@@ -1,0 +1,15 @@
+# Concrete: poured stone. Heavy and strong; cracks into gravel.
+about = Poured stone. Strong; hard hits crack it to gravel.
+state = solid
+density = 2400
+color = #9a9a96
+color_variation = 0.05
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1500
+melts_into = lava
+strength = 40                    # stronger than stone
+toughness = 7000
+breaks_into = gravel
+friction = 0.8
+texture = textures/concrete.png

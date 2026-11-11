@@ -10,3 +10,6 @@ materials use are included here, not the pack. Thank you, piiixl!
 | wet_sand.png | the sand tile, darkened |
 | stone.png, rock.png, gravel.png, sand.png, dirt.png, ice.png, lava.png, wood.png (wood grain), brick.png | 16x16 tiles from Textures-16.png |
 | iron.png, cobblestone.png | 32x32 tiles from the seamless patterns sheet |
+| glass.png, snow.png, concrete.png, cloth.png, sandstone.png, rubber.png, bounce_pad.png, ash.png | 16x16 tiles from Textures-16.png |
+| mud.png | a 16x16 earth tile from Textures-16.png, darkened |
+| steel.png, aluminium.png, copper.png, brass.png | the iron tile, recoloured |

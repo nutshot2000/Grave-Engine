@@ -112,7 +112,24 @@ right-click something in the world and pick its ⚙ settings) to open its
 settings: sliders for colour, glow, weight, grip, bounce, bounce-pad launch,
 how powders slide and liquids flow, heat (melting, boiling, freezing points),
 fire (when it catches, how long it burns, how hot), strength and toughness,
-explosions, and how likely each reaction is (like sand soaking up water).
+how metals soften with heat and bend, how much it slows wheels, explosions,
+and how likely each reaction is (like sand soaking up water).
+
+### The materials
+
+- **Metals:** iron, steel (strongest, springiest), brass, copper (soft, carries
+  heat best), aluminium (light, melts at 660°C). They bend when hit hard (thin
+  parts first), go soft when red hot, and melt into glowing liquid metal.
+- **Stone and building:** stone, rock, sandstone, cobblestone, brick, concrete
+  (cracking into gravel or sand), glass (shatters at a knock; melts into a
+  glowing gloop).
+- **Ground:** dirt (soaks up water into **mud**: sticky, bogs wheels down,
+  dries back into dirt), sand, wet sand, gravel, snow (piles up steep, melts),
+  ice.
+- **Burnable:** wood, cloth (burns fast), plastic (softens when warm, melts at
+  160°C, burns smoky), rubber, oil, gunpowder.
+- **Liquids and gases:** water, oil, lava, molten metals and glass, steam,
+  smoke, fire.
 
 - Changes apply straight away, even while it's playing.
 - Hover a slider to see the default. Anything you've changed gets a **↺**
@@ -351,8 +368,8 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
   `crate.colors.txt` next to `crate.png` with lines like `#8b5a2b = wood`.
 - **Material looks:** a material file can say `texture = textures/wood.png`, and
   everything made of it is drawn with that picture tiled across it. The pattern
-  moves and turns with objects. Stone, rock, dirt, gravel, sand, wood, iron,
-  ice, lava, brick and cobblestone use pixel-art tiles from **"Textures" by
+  moves and turns with objects. Most solids and powders (stone, wood, iron and
+  the other metals, glass, concrete, snow, mud, cloth...) use pixel-art tiles from **"Textures" by
   piiixl** (https://piiixl.itch.io/textures; free for commercial use, credit
   appreciated; see `materials/textures/CREDITS.md`). Only the tiles in use
   are included, not the pack. Drop in your own pictures any time: small

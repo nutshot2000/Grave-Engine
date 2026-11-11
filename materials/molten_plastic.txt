@@ -1,0 +1,17 @@
+about = Melted plastic. Sets hard again as it cools.
+state = liquid
+density = 900
+color = #a83a2c
+color_variation = 0.05
+temperature = 200
+conducts_heat = 0.05
+heat_capacity = 1.7
+freezes_at = 150
+freezes_into = plastic
+catches_fire_at = 350
+burns_for = 100
+burn_temperature = 800
+burns_into = smoke
+gives_off = smoke
+gives_off_chance = 0.4
+flows = 1                        # thick and slow

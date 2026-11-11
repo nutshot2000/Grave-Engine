@@ -12,4 +12,4 @@ strength = 25
 toughness = 5000
 breaks_into = sand
 friction = 0.8
-texture = textures/sand.png
+texture = textures/sandstone.png

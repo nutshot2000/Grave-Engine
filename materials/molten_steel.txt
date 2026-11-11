@@ -1,0 +1,13 @@
+about = Liquid steel.
+state = liquid
+density = 7000
+color = #ffb347
+color_variation = 0.1
+glow = 0.9
+temperature = 1550
+conducts_heat = 0.8
+heat_capacity = 1
+freezes_at = 1420
+freezes_into = steel
+flows = 2
+metal = yes

@@ -260,7 +260,7 @@ Unreal `.uasset` can't be read: export to FBX from Unreal.
 - `cargo test --release` runs everything. Areas: `sim` (cells, heat,
   fire), `physics` (objects, breaking, explosions, determinism), `joints`,
   `editor` (undo, rewind), `templates`, `imports`, `flying`, `player`
-  (movement, health, looks, bounce pads, burial), `wet_sand`, `my_settings`,
+  (movement, health, looks, bounce pads, burial), `materials` (every material complete; new ones behave), `metals` (softening, bending), `wet_sand`, `my_settings`,
   `robust` (silly input), plus UI click-through tests in `src/app.rs`
   (egui_kittest: real mouse and key events).
 - Write a test for every behaviour you add, in the matching file. Tests load

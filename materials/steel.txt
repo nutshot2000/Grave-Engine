@@ -1,0 +1,17 @@
+# Steel: iron with a little carbon. Stronger and springier than iron.
+about = Strong, springy metal. Bends before it breaks.
+state = solid
+density = 7850
+color = #9aa3b0
+color_variation = 0.04
+conducts_heat = 0.8
+heat_capacity = 1
+melts_at = 1450
+melts_into = molten_steel
+softens_at = 550                 # red hot: weaker and bendier
+yield = 350                      # bends for good when hit hard (MPa): much more than iron
+strength = 200
+toughness = 40000
+friction = 0.45
+metal = yes
+texture = textures/steel.png     # the iron tile, recoloured

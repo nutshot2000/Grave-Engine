@@ -1,0 +1,17 @@
+# Aluminium: light, soft metal that melts at a low heat.
+about = Light metal. Bends easily; melts at 660 degrees.
+state = solid
+density = 2700
+color = #c4c8cc
+color_variation = 0.04
+conducts_heat = 1
+heat_capacity = 2                # takes a lot of heat to warm up
+melts_at = 660
+melts_into = molten_aluminium
+softens_at = 200
+yield = 100                      # half as strong as iron: dents easily
+strength = 80
+toughness = 10000
+friction = 0.4
+metal = yes
+texture = textures/aluminium.png # the iron tile, recoloured

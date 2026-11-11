@@ -1,0 +1,12 @@
+about = Glowing, gloopy liquid glass.
+state = liquid
+density = 2400
+color = #ffb060
+color_variation = 0.1
+glow = 0.8
+temperature = 1450
+conducts_heat = 0.3
+heat_capacity = 0.8
+freezes_at = 1000
+freezes_into = glass
+flows = 1                        # thick and slow

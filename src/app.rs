@@ -595,6 +595,21 @@ impl Sandbox {
                 num(ui, "friction", "Grip", "How much things grip it (ice 0.02, rubber 1.2)", cur.friction, def.friction, 0.0..=2.0, false);
                 num(ui, "bounciness", "Bounce", "How much things bounce off it (0 none, 1 perfect)", cur.bounciness, def.bounciness, 0.0..=1.0, false);
                 num(ui, "launch", "Bounce pad (m/s)", "Flings anything landing on it upwards this fast (0 = off)", cur.launch, def.launch, 0.0..=40.0, false);
+                if cur.state != State::Gas {
+                    num(ui, "rolling_resistance", "Slows wheels", "How much it slows wheels rolling on it, per second (sand 0.6, mud 1.8, hard ground 0)", cur.rolling_resistance, def.rolling_resistance, 0.0..=3.0, false);
+                }
+                if matches!(cur.state, State::Powder | State::Liquid) || cur.tyres_dig {
+                    num(ui, "clump", "Thrown in clumps of", "Tyres throw it in clumps of this many cells (dirt and mud 3-4, sand 1)", cur.clump as f32, def.clump as f32, 1.0..=8.0, false);
+                }
+                if cur.state == State::Solid {
+                    ui.horizontal(|ui| {
+                        ui.add_sized([150.0, 20.0], egui::Label::new("Tyres dig it up")).on_hover_text("Driven tyres chew up its top layer and throw it (dirt)");
+                        let mut v = cur.tyres_dig;
+                        if ui.checkbox(&mut v, "").on_hover_text(format!("Default: {}", if def.tyres_dig { "yes" } else { "no" })).changed() {
+                            edits.borrow_mut().push(("tyres_dig".into(), "tyres_dig".into(), (v != def.tyres_dig).then(|| if v { "yes" } else { "no" }.to_string())));
+                        }
+                    });
+                }
                 if cur.state == State::Powder {
                     num(ui, "slides", "Slides down piles", "How readily it slides down the side of a pile (1 = dry sand)", cur.slides, def.slides, 0.0..=1.0, false);
                 }
@@ -617,6 +632,9 @@ impl Sandbox {
                         num(ui, key, label, "Turns into something else past this temperature", now, was.unwrap_or(now), -273.0..=4000.0, false);
                     }
                 }
+                if let Some(now) = cur.softens_at {
+                    num(ui, "softens_at", "Softens at (°C)", "Past this it gets weaker the hotter it is (cracks, bends and sags more), down to nothing at its melting point", now, def.softens_at.unwrap_or(now), -100.0..=3000.0, false);
+                }
 
                 if cur.catches_fire_at.is_some() {
                     ui.heading("Fire");
@@ -634,6 +652,9 @@ impl Sandbox {
                 }
                 if let Some(t) = cur.toughness {
                     num(ui, "toughness", "Toughness (kN)", "How hard a hit it takes to crack it", t, def.toughness.unwrap_or(t), 10.0..=100_000.0, true);
+                }
+                if let Some(y) = cur.yield_strength {
+                    num(ui, "yield", "Bends at (MPa)", "Metals: how strong it is before it bends for good (iron 200, steel 350, copper 70). Thicker parts take more", y, def.yield_strength.unwrap_or(y), 1.0..=2000.0, true);
                 }
                 if cur.explosion_size > 0.0 {
                     ui.heading("Explosion");
@@ -3022,6 +3043,11 @@ body rect wood 40 60 20 10
         h.run_steps(2);
         assert_eq!(h.state().mat_settings, h.state().mats.id("sand"));
         assert!(h.query_by_label_contains("With water").is_some(), "sand's thirst for water is a setting");
+        assert!(h.query_by_label_contains("Slows wheels").is_some(), "and how it slows wheels");
+        // Metals: softening and bending are settings too.
+        h.state_mut().mat_settings = h.state().mats.id("steel");
+        h.run_steps(2);
+        assert!(h.query_by_label_contains("Softens at").is_some() && h.query_by_label_contains("Bends at").is_some());
     }
 
     #[test]

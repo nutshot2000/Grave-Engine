@@ -1,0 +1,20 @@
+# Cloth: canvas, sacking, sails. Light, weak, burns fast.
+# (Ropes are joints between objects: `rope` in a scene.)
+about = Canvas and sacking. Light and weak; burns quickly.
+state = solid
+density = 300
+color = #c9b98f
+color_variation = 0.06
+conducts_heat = 0.05
+heat_capacity = 1.3
+catches_fire_at = 250
+burns_for = 60
+burn_temperature = 800
+burns_into = ash
+burns_into_chance = 0.2
+gives_off = fire
+gives_off_chance = 0.2
+strength = 4
+toughness = 300
+friction = 0.9
+texture = textures/cloth.png

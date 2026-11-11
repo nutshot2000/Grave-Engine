@@ -160,7 +160,8 @@ fn blender_material_names_are_forgiving() {
     assert_eq!(import::material_from_name("Wood.001", &m), m.id("wood"));
     assert_eq!(import::material_from_name("old_wood_planks", &m), m.id("wood"));
     assert_eq!(import::material_from_name("Molten Iron", &m), m.id("molten_iron"));
-    assert_eq!(import::material_from_name("Plastic", &m), None);
+    assert_eq!(import::material_from_name("Plastic", &m), m.id("plastic"));
+    assert_eq!(import::material_from_name("Leather", &m), None);
 }
 
 #[test]

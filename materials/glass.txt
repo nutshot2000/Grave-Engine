@@ -1,0 +1,16 @@
+# Glass: hard but brittle. Shatters into shards; melts into a glowing gloop.
+about = Brittle. Shatters into shards at a knock; melts when very hot.
+state = solid
+density = 2500
+color = #a8d8e0
+color_variation = 0.04
+conducts_heat = 0.3
+heat_capacity = 0.8
+melts_at = 1400
+melts_into = molten_glass
+softens_at = 550                 # sags when red hot
+strength = 20
+toughness = 150                  # shatters easily
+friction = 0.25
+bounciness = 0.05
+texture = textures/glass.png

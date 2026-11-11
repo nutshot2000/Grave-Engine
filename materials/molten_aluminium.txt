@@ -1,0 +1,13 @@
+about = Liquid aluminium.
+state = liquid
+density = 2400
+color = #ffd9a0
+color_variation = 0.08
+glow = 0.7
+temperature = 750
+conducts_heat = 1
+heat_capacity = 2
+freezes_at = 640
+freezes_into = aluminium
+flows = 3
+metal = yes

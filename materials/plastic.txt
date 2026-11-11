@@ -1,0 +1,22 @@
+# Plastic: light, tough-ish, melts low and burns with black smoke.
+about = Light. Softens when warm, melts at 160 degrees, burns smoky.
+state = solid
+density = 950
+color = #d94c3a
+color_variation = 0.03
+conducts_heat = 0.05
+heat_capacity = 1.7
+softens_at = 80
+melts_at = 160
+melts_into = molten_plastic
+catches_fire_at = 350
+burns_for = 150
+burn_temperature = 800
+burns_into = ash
+burns_into_chance = 0.05
+gives_off = smoke
+gives_off_chance = 0.4
+strength = 15
+toughness = 1200
+friction = 0.5
+bounciness = 0.2

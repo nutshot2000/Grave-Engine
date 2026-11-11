@@ -11,3 +11,4 @@ feeds_fire = yes
 # Ash is so light that anything falling on it crushes it to nothing.
 crushable = yes
 rolling_resistance = 0.4           # slows rolling wheels (per second)
+texture = textures/ash.png

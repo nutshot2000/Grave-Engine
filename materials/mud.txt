@@ -1,0 +1,18 @@
+# Mud: wet dirt. Sticky, slow, thrown off tyres in clods; dries back to dirt.
+about = Wet dirt. Sticky and slow; dries out into dirt.
+state = powder
+density = 1700
+color = #4a3324
+color_variation = 0.08
+conducts_heat = 0.4
+heat_capacity = 2.5
+boils_at = 100
+boils_into = dirt
+puts_out_fire = yes
+slides = 0.001                   # holds its shape
+strength = 2
+friction = 0.5                   # slippery
+rolling_resistance = 1.8         # bogs wheels down worst of all
+clump = 4
+reaction = air -> dirt + air, chance 0.0002
+texture = textures/mud.png

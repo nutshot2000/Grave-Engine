@@ -1,0 +1,17 @@
+# Copper: soft, heavy, the best at carrying heat.
+about = Soft reddish metal. Carries heat best of all.
+state = solid
+density = 8960
+color = #b87333
+color_variation = 0.05
+conducts_heat = 1
+heat_capacity = 0.85
+melts_at = 1085
+melts_into = molten_copper
+softens_at = 350
+yield = 70                       # soft: bends very easily
+strength = 60
+toughness = 14000
+friction = 0.4
+metal = yes
+texture = textures/copper.png    # the iron tile, recoloured

@@ -1,0 +1,13 @@
+about = Liquid copper.
+state = liquid
+density = 8000
+color = #ff9a50
+color_variation = 0.1
+glow = 0.9
+temperature = 1150
+conducts_heat = 1
+heat_capacity = 0.85
+freezes_at = 1080
+freezes_into = copper
+flows = 2
+metal = yes

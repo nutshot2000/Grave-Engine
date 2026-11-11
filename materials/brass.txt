@@ -15,3 +15,4 @@ friction = 0.35
 metal = yes
 softens_at = 400
 yield = 150                      # bends a little more easily than iron
+texture = textures/brass.png      # the iron tile, recoloured
