@@ -384,6 +384,10 @@ pub fn step(
 
     // Lightning.
     if w.lightning > 0.0 {
+        if run.timer == 0 {
+            // Just started: the first strike comes after a few seconds of dread.
+            run.timer = (3600.0 / w.lightning * (0.3 + 0.5 * rnd(frame, 9, 7))) as i32 + 120;
+        }
         run.timer -= 1;
         if run.timer <= 0 && run.pending.is_none() {
             run.strike_now = true;
@@ -406,6 +410,14 @@ pub fn step(
             });
             if let Some(y) = top_y {
                 tops.push((x, y as f32));
+            }
+        }
+        // Never right on top of the player: a strike shouldn't wreck the ground
+        // under them (it would trap them in a crater).
+        if let Some((fx, fy)) = follow {
+            let far: Vec<(f32, f32)> = tops.iter().copied().filter(|t| (t.0 - fx).abs() > 90.0 || (t.1 - fy).abs() > 90.0).collect();
+            if !far.is_empty() {
+                tops = far;
             }
         }
         let mut ys: Vec<f32> = tops.iter().map(|t| t.1).collect();

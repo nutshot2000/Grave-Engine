@@ -1239,11 +1239,11 @@ trigger 2420 0 40 760 by frame : message FROZEN POND — no grip, carry your spe
 trigger 2600 0 40 760 by frame : sun 74 0.35 #c86a5a 10 ; lighting 0.3 10 #a8a8d8 ; sky #101a42 #5a3a52 10
 trigger 2895 0 20 760 by frame : message SEND IT! ; slowmo 0.35 1.4 ; zoom 1.25 1.6
 trigger 3200 0 40 760 by frame : checkpoint 3220 453 ; score 800 ; message NIGHT FALLS — the forest is burning
-trigger 2250 0 30 760 by frame : weather snow 0.2 5 ; weather gusts 0.3 4 ; message SNOW ON THE SUMMIT
-trigger 3000 0 30 760 by frame : weather snow 0 5 ; weather gusts 0 5
-trigger 3800 0 30 760 by frame : weather rain 0.5 5 ; weather lightning 4 3 ; weather fog 0.12 5 ; weather gusts 0.3 4 ; message A STORM BREAKS — LIGHTNING!
+trigger 2250 0 30 760 by frame : weather snow 0.12 5 ; weather gusts 0.3 4 ; message SNOW ON THE SUMMIT
+trigger 2700 0 30 760 by frame : weather snow 0 5 ; weather gusts 0 5
+trigger 3800 0 30 760 by frame : weather rain 0.3 5 ; weather lightning 3 3 ; weather fog 0.12 5 ; weather gusts 0.3 4 ; message A STORM BREAKS — LIGHTNING!
 trigger 4035 0 20 760 by frame : weather clear 1
-trigger 4730 0 20 760 by frame : weather dust 0.35 4 ; weather gusts 0.45 4 ; message SANDSTORM IN THE QUARRY
+trigger 4730 0 20 760 by frame : weather dust 0.18 4 ; weather gusts 0.6 4 ; message SANDSTORM IN THE QUARRY
 trigger 3200 0 40 760 by frame : sun 60 0.22 #8090c0 6 ; lighting 0.2 6 #7088c8 ; sky #060a22 #1c2a52 6
 trigger 3380 0 20 760 by frame : heat rect 3612 640 44 10 700 ; message FIRE UNDER THE BRIDGE — keep your speed!
 trigger 4000 0 40 760 by frame : checkpoint 4020 626 ; score 600 ; message THE MINE — lights out
