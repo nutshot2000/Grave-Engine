@@ -51,6 +51,7 @@ pub struct Flyer {
     pub burn: u16,
     pub flags: u8,
     pub shade: u8,
+    pub paint: u32,
 }
 
 /// Gravity for flying cells: 9.81 m/s² at 10 cells a metre, 60 frames a second.
@@ -116,6 +117,8 @@ pub struct World {
     pub flags: Vec<u8>,
     /// Per-cell random number for colour speckle.
     pub shade: Vec<u8>,
+    /// Opaque 0xffRRGGBB surface paint; zero means the native material appearance.
+    pub paint: Vec<u32>,
     /// Where in its material's texture picture each cell is (x in the low
     /// byte, y in the high byte). Scenery uses its world position; objects
     /// use their position within the object, so patterns move with them.
@@ -191,6 +194,7 @@ impl World {
             burn: vec![0; n],
             flags: vec![0; n],
             shade: vec![0; n],
+            paint: vec![0; n],
             tex: (0..n).map(|i| pack_tex(i % w, i / w)).collect(),
             moved: vec![0; n],
             frame: 1,
@@ -352,6 +356,7 @@ impl World {
     fn become_(&mut self, mats: &Materials, i: usize, id: MatId) {
         self.wake_at(i);
         self.mat[i] = id;
+        self.paint[i] = 0;
         self.flags[i] = 0;
         self.burn[i] = 0;
         self.life[i] = match mats.get(id).lifetime {
@@ -415,6 +420,7 @@ impl World {
     pub fn make_air(&mut self, i: usize) {
         self.wake_at(i);
         self.mat[i] = AIR;
+        self.paint[i] = 0;
         self.flags[i] = 0;
         self.life[i] = 0;
         self.burn[i] = 0;
@@ -515,6 +521,7 @@ impl World {
             burn: self.burn[i],
             flags: self.flags[i],
             shade: self.shade[i],
+            paint: self.paint[i],
         });
         self.make_air(i);
         true
@@ -550,7 +557,7 @@ impl World {
             ((l as f32 * jitter) as u16).max(1)
         });
         let shade = self.rand() as u8;
-        self.flying.push(Flyer { x, y, vx, vy, mat, temp: m.temperature, life, burn: 0, flags: 0, shade });
+        self.flying.push(Flyer { x, y, vx, vy, mat, temp: m.temperature, life, burn: 0, flags: 0, shade, paint: 0 });
         true
     }
 
@@ -687,6 +694,7 @@ impl World {
                 self.burn[i] = f.burn;
                 self.flags[i] = f.flags & !OWNED;
                 self.shade[i] = f.shade;
+                self.paint[i] = f.paint;
                 self.tex[i] = pack_tex(x, y);
                 return;
             }
@@ -1101,6 +1109,7 @@ impl World {
         self.burn.swap(a, b);
         self.flags.swap(a, b);
         self.shade.swap(a, b);
+        self.paint.swap(a, b);
         self.tex.swap(a, b);
         self.moved[a] = self.frame;
         self.moved[b] = self.frame;

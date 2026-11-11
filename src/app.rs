@@ -3596,4 +3596,22 @@ player 50 100
         assert!(h.state().workshop.asset.parts[0].cells.iter().any(|m|*m!=AIR));
     }
 
+    #[test]
+    fn workshop_surface_paint_controls_keep_materials_and_support_undo() {
+        let mut h=editor();h.get_by_label("Asset workshop").click();h.run_steps(3);
+        let before=h.state().workshop.asset.clone();
+        h.get_by_label("Surface paint").click();h.run_steps(3);
+        h.get_by_label("Red").click();h.run_steps(2);
+        let grid=h.get_by_label("Material asset drawing grid").rect();
+        drag(&mut h,grid.min+Vec2::new(10.5*9.,10.5*9.),grid.min+Vec2::new(20.5*9.,10.5*9.));
+        assert_eq!(h.state().workshop.asset.composite(),before.composite());
+        assert!(h.state().workshop.asset.parts[0].paint.iter().any(|v|*v!=0));
+        h.get_by_label("Undo").click();h.run_steps(3);
+        assert_eq!(h.state().workshop.asset,before);
+        h.get_by_label("Black").click();h.run_steps(2);
+        h.get_by_label("Stamp lettering").click();h.run_steps(2);
+        h.get_by_label("Drop").click();h.run_steps(3);
+        assert_eq!(h.state().workshop.asset,before);
+    }
+
 }

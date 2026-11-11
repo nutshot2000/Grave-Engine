@@ -15,6 +15,7 @@ pub const MAX_PARTS: usize = 24;
 pub struct Part {
     pub name: String,
     pub cells: Vec<MatId>,
+    pub paint: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Weld {
@@ -43,6 +44,19 @@ pub enum Brush {
     Rectangle,
     Circle,
 }
+pub fn paint_rgb(value: u32) -> Option<[u8; 3]> {
+    (value != 0).then_some([(value >> 16) as u8, (value >> 8) as u8, value as u8])
+}
+pub fn pack_paint(rgb: [u8; 3]) -> u32 {
+    0xff000000 | ((rgb[0] as u32) << 16) | ((rgb[1] as u32) << 8) | rgb[2] as u32
+}
+pub fn parse_paint(s: &str) -> Option<u32> {
+    let s = s.strip_prefix('#').unwrap_or(s);
+    (s.len() == 6)
+        .then(|| u32::from_str_radix(s, 16).ok())
+        .flatten()
+        .map(|v| v | 0xff000000)
+}
 pub fn valid_name(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 48
@@ -65,6 +79,7 @@ impl Asset {
             parts: vec![Part {
                 name: "frame".into(),
                 cells: vec![AIR; w * h],
+                paint: vec![0; w * h],
             }],
             welds: vec![],
         })
@@ -79,6 +94,7 @@ impl Asset {
         self.parts.push(Part {
             name: name.into(),
             cells: vec![AIR; self.w * self.h],
+            paint: vec![0; self.w * self.h],
         });
         Ok(self.parts.len() - 1)
     }
@@ -118,12 +134,15 @@ impl Asset {
         }
         for p in &mut self.parts {
             let mut cells = vec![AIR; w * h];
+            let mut paint = vec![0; w * h];
             for y in 0..h.min(self.h) {
                 for x in 0..w.min(self.w) {
                     cells[y * w + x] = p.cells[y * self.w + x];
+                    paint[y * w + x] = p.paint[y * self.w + x];
                 }
             }
             p.cells = cells;
+            p.paint = paint;
         }
         self.w = w;
         self.h = h;
@@ -141,8 +160,12 @@ impl Asset {
             for (k, p) in self.parts.iter_mut().enumerate() {
                 if k != part {
                     p.cells[i] = AIR;
+                    p.paint[i] = 0;
                 }
             }
+        }
+        if self.parts[part].cells[i] != mat || mat == AIR {
+            self.parts[part].paint[i] = 0;
         }
         self.parts[part].cells[i] = mat;
     }
@@ -227,17 +250,120 @@ impl Asset {
             }
         }
     }
+    /// Surface paint never changes material, ownership, mass or ignition rules.
+    pub fn paint_surface(
+        &mut self,
+        part: usize,
+        brush: Brush,
+        a: (i32, i32),
+        b: (i32, i32),
+        color: Option<[u8; 3]>,
+    ) {
+        if part >= self.parts.len() {
+            return;
+        }
+        let value = if brush == Brush::Erase {
+            0
+        } else {
+            color.map(pack_paint).unwrap_or(0)
+        };
+        let mut mask = Self::blank("mask", self.w, self.h).unwrap();
+        if brush == Brush::Fill {
+            if a.0 < 0 || a.1 < 0 || a.0 >= self.w as i32 || a.1 >= self.h as i32 {
+                return;
+            }
+            let start = a.1 as usize * self.w + a.0 as usize;
+            let material = self.parts[part].cells[start];
+            let original = self.parts[part].paint[start];
+            if material == AIR {
+                return;
+            }
+            let mut queue = VecDeque::from([a]);
+            let mut seen = vec![false; self.w * self.h];
+            while let Some((x, y)) = queue.pop_front() {
+                if x < 0 || y < 0 || x >= self.w as i32 || y >= self.h as i32 {
+                    continue;
+                }
+                let i = y as usize * self.w + x as usize;
+                if seen[i]
+                    || self.parts[part].cells[i] != material
+                    || self.parts[part].paint[i] != original
+                {
+                    continue;
+                }
+                seen[i] = true;
+                mask.parts[0].cells[i] = 1;
+                queue.extend([(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]);
+            }
+        } else {
+            mask.draw(
+                0,
+                if brush == Brush::Erase {
+                    Brush::Pencil
+                } else {
+                    brush
+                },
+                a,
+                b,
+                1,
+            );
+        }
+        for i in 0..self.w * self.h {
+            if mask.parts[0].cells[i] != AIR && self.parts[part].cells[i] != AIR {
+                self.parts[part].paint[i] = value;
+            }
+        }
+    }
+    /// Five by seven capital lettering, clipped to the chosen physical part.
+    pub fn paint_text(
+        &mut self,
+        part: usize,
+        at: (i32, i32),
+        text: &str,
+        scale: usize,
+        color: [u8; 3],
+    ) {
+        if part >= self.parts.len() {
+            return;
+        }
+        let scale = scale.clamp(1, 4) as i32;
+        let mut x = at.0;
+        for ch in text.chars().take(48) {
+            let rows = glyph(ch.to_ascii_uppercase());
+            for (y, row) in rows.iter().enumerate() {
+                for col in 0..5 {
+                    if row & (1 << (4 - col)) != 0 {
+                        self.paint_surface(
+                            part,
+                            Brush::Rectangle,
+                            (x + col * scale, at.1 + y as i32 * scale),
+                            (x + (col + 1) * scale - 1, at.1 + (y as i32 + 1) * scale - 1),
+                            Some(color),
+                        );
+                    }
+                }
+            }
+            x += 6 * scale;
+        }
+    }
     pub fn move_part(&mut self, part: usize, dx: i32, dy: i32) {
         if part >= self.parts.len() {
             return;
         }
         let old = self.parts[part].cells.clone();
+        let colors = self.parts[part].paint.clone();
+        self.parts[part].paint.fill(0);
         self.parts[part].cells.fill(AIR);
         for y in 0..self.h {
             for x in 0..self.w {
                 let m = old[y * self.w + x];
                 if m != AIR {
-                    self.put(part, x as i32 + dx, y as i32 + dy, m);
+                    let (xx, yy) = (x as i32 + dx, y as i32 + dy);
+                    self.put(part, xx, yy, m);
+                    if xx >= 0 && yy >= 0 && xx < self.w as i32 && yy < self.h as i32 {
+                        self.parts[part].paint[yy as usize * self.w + xx as usize] =
+                            colors[y * self.w + x];
+                    }
                 }
             }
         }
@@ -366,6 +492,11 @@ impl Asset {
                     y + self.h as f32 / 2. - self.pivot.1,
                 );
                 b.depth = self.depth;
+                for (i, c) in b.cells.iter_mut().enumerate() {
+                    if let Some(c) = c {
+                        c.paint = p.paint[i];
+                    }
+                }
                 (p.name.clone(), b)
             })
             .collect()
@@ -434,6 +565,16 @@ impl Asset {
                 out.push('\n');
             }
             out.push_str("end\n");
+            for (i, c) in p.paint.iter().enumerate() {
+                if *c != 0 && p.cells[i] != AIR {
+                    out.push_str(&format!(
+                        "paint {} {} #{:06x}\n",
+                        i % self.w,
+                        i / self.w,
+                        c & 0xffffff
+                    ));
+                }
+            }
         }
         for j in &self.welds {
             out.push_str(&format!(
@@ -469,6 +610,18 @@ impl Asset {
                 out.push('\n');
             }
             out.push_str(&format!("end\nname {name}\ndepth {}\n", b.depth));
+            for (i, c) in b.cells.iter().enumerate() {
+                if let Some(c) = c {
+                    if c.paint != 0 {
+                        out.push_str(&format!(
+                            "bodypaint {} {} #{:06x}\n",
+                            i % b.w,
+                            i / b.w,
+                            c.paint & 0xffffff
+                        ));
+                    }
+                }
+            }
         }
         for j in &self.welds {
             out.push_str(&format!(
@@ -550,6 +703,22 @@ impl Asset {
                 .as_mut()
                 .ok_or_else(|| err("start with: asset NAME WIDTH HEIGHT"))?;
             match v[0] {
+                "paint" => {
+                    let (x, y) = (int(1)?, int(2)?);
+                    let c = v
+                        .get(3)
+                        .and_then(|s| parse_paint(s))
+                        .ok_or_else(|| err("paint needs X Y #RRGGBB"))?;
+                    if x < 0
+                        || y < 0
+                        || x >= a.w as i32
+                        || y >= a.h as i32
+                        || a.parts[selected].cells[y as usize * a.w + x as usize] == AIR
+                    {
+                        return Err(err("paint must be on a material cell in the current part"));
+                    }
+                    a.parts[selected].paint[y as usize * a.w + x as usize] = c;
+                }
                 "depth" => {
                     let d = f(1)?;
                     if d <= 0. || d > 10. {
@@ -700,5 +869,49 @@ impl Asset {
             }
         }
         Ok(a)
+    }
+}
+
+fn glyph(ch: char) -> [u8; 7] {
+    match ch {
+        'A' => [14, 17, 17, 31, 17, 17, 17],
+        'B' => [30, 17, 17, 30, 17, 17, 30],
+        'C' => [14, 17, 16, 16, 16, 17, 14],
+        'D' => [30, 17, 17, 17, 17, 17, 30],
+        'E' => [31, 16, 16, 30, 16, 16, 31],
+        'F' => [31, 16, 16, 30, 16, 16, 16],
+        'G' => [14, 17, 16, 23, 17, 17, 15],
+        'H' => [17, 17, 17, 31, 17, 17, 17],
+        'I' => [14, 4, 4, 4, 4, 4, 14],
+        'J' => [7, 2, 2, 2, 18, 18, 12],
+        'K' => [17, 18, 20, 24, 20, 18, 17],
+        'L' => [16, 16, 16, 16, 16, 16, 31],
+        'M' => [17, 27, 21, 21, 17, 17, 17],
+        'N' => [17, 25, 25, 21, 19, 19, 17],
+        'O' => [14, 17, 17, 17, 17, 17, 14],
+        'P' => [30, 17, 17, 30, 16, 16, 16],
+        'Q' => [14, 17, 17, 17, 21, 18, 13],
+        'R' => [30, 17, 17, 30, 20, 18, 17],
+        'S' => [15, 16, 16, 14, 1, 1, 30],
+        'T' => [31, 4, 4, 4, 4, 4, 4],
+        'U' => [17, 17, 17, 17, 17, 17, 14],
+        'V' => [17, 17, 17, 17, 17, 10, 4],
+        'W' => [17, 17, 17, 21, 21, 27, 17],
+        'X' => [17, 17, 10, 4, 10, 17, 17],
+        'Y' => [17, 17, 10, 4, 4, 4, 4],
+        'Z' => [31, 1, 2, 4, 8, 16, 31],
+        '0' => [14, 17, 19, 21, 25, 17, 14],
+        '1' => [4, 12, 4, 4, 4, 4, 14],
+        '2' => [14, 17, 1, 2, 4, 8, 31],
+        '3' => [30, 1, 1, 14, 1, 1, 30],
+        '4' => [2, 6, 10, 18, 31, 2, 2],
+        '5' => [31, 16, 16, 30, 1, 1, 30],
+        '6' => [14, 16, 16, 30, 17, 17, 14],
+        '7' => [31, 1, 2, 4, 8, 8, 8],
+        '8' => [14, 17, 17, 14, 17, 17, 14],
+        '9' => [14, 17, 17, 15, 1, 1, 14],
+        '!' => [4, 4, 4, 4, 4, 0, 4],
+        '-' => [0, 0, 0, 31, 0, 0, 0],
+        _ => [0; 7],
     }
 }

@@ -62,6 +62,7 @@ fn main() {
                 return;
             }
             "--workshop" => {},
+            "--workshop-file" => { let _ = val("--workshop-file"); },
             "--run" => run = Some(PathBuf::from(val("--run"))),
             "--frames" => frames = val("--frames").parse().unwrap_or(600),
             "--shot" => shot = Some(PathBuf::from(val("--shot"))),

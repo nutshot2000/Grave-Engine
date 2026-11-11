@@ -1,6 +1,6 @@
 # Asset Workshop
 
-Open Grave Engine and click **Asset workshop**, or launch `grave-engine --workshop` from the project folder. The workshop opens with a fuel-crate example. A framed-glass example is in **Open saved asset...**.
+Open Grave Engine and click **Asset workshop**, or launch `grave-engine --workshop` from the project folder. The workshop opens with a fuel-crate example. `--workshop --workshop-file assets/workshop/NAME.asset` opens a particular saved draft. A framed-glass example is in **Open saved asset...**.
 
 ## Make and test a prop
 
@@ -16,6 +16,22 @@ Each cell is 10 cm. Grid dimensions can be 1–128 cells each, with up to 24 nam
 The preview uses actual engine cells, gravity, material heat/burning, contact damage and breakable joints. Wood may survive an impact that shatters glass: survival is a valid test result, not a canned break animation. Gunpowder in the sample really detonates. The impact test advances a few settling frames before launch so a newly spawned body's impact-grace period does not hide the result.
 
 The checks panel highlights empty parts, overlapping cells, disconnected islands and an entirely unjoined multi-part prop. These are authoring diagnostics, not proof of structural stability; use the test bay. Painting into another part's cell transfers ownership, so the physical bodies do not overlap. Fill treats other occupied parts as boundaries.
+
+## Paint colours and lettering
+
+**Material** chooses what a cell physically is. **Surface paint** changes its visible colour while keeping that material, temperature, density, strength and burning/explosive rules. Click the colour swatch for the RGB/HSV colour picker, or use the Red, Black and White shortcuts. Pencil, Fill, Line, Rectangle and Ellipse all work with surface paint. In this mode Erase removes only the paint. Fill stops at material and existing paint boundaries and only affects the selected part.
+
+For a TNT crate:
+
+1. Draw the case and its middle plank using wood in Material mode.
+2. Select Surface paint, Red and Rectangle to paint the middle plank.
+3. Choose Black, enter `TNT`, select Stamp lettering, and click its top-left corner on the plank. Letter size is in cells; capitals, digits, spaces, hyphens and exclamation marks are supported. Letters only paint cells that already exist in the selected part.
+4. Add a separate named part for gunpowder and draw it into the enclosed space. Weld it to the case if it should move together. These are real material cells, not an explosive-looking colour.
+5. Save, inspect the preview, then use Burn to test a copy. Open the supplied `tnt_box` example to see the arrangement.
+
+This is a 2D material cross-section: two parts cannot occupy the same cell. The example has two gunpowder pockets above and below a solid painted wooden middle plank. It is not a second hidden layer behind the writing.
+
+Surface paint follows moving bodies, fragments, flying chips, copied cells and Undo/Redo. Heat and burning still affect the surface appearance. When the underlying material turns into another substance (for example wood into ash), its paint is removed. Paint is saved in both assets and placed scene copies.
 
 ## Save and AI collaboration
 
@@ -51,6 +67,7 @@ Commands:
 - `part NAME`: select/create a named component.
 - `rect MATERIAL X Y WIDTH HEIGHT`, `line MATERIAL X1 Y1 X2 Y2`, `circle MATERIAL CX CY RADIUS`, `fill MATERIAL`: draw into the current part. `air` erases cells in that part. New non-air paint takes ownership of its cells from other parts.
 - `legend CHARACTER MATERIAL`, then `grid`, exactly HEIGHT rows of WIDTH characters, then `end`: an exact part bitmap. Dot is empty. Overlapping explicit part grids are rejected.
+- `paint X Y #RRGGBB`: paint an occupied cell of the current part without changing its physical material. Exact black (`#000000`) is supported. This is optional in format 1, so older unpainted assets still load. Scene files use `bodypaint X Y #RRGGBB` for the preceding body, or `paint X Y #RRGGBB` for scenery.
 - `weld PARENT CHILD X Y BREAK_KN`: an attachment at a grid-space anchor; 0 = no break limit.
 
 AI workflow: load the file; preserve unrelated named parts; edit shapes or cell grids; reload the workshop; inspect diagnostics and preview; run a destructive test. For a headless preview, put the asset in a scene and use the engine's existing screenshot command. The parser reports invalid materials, duplicate names, bad grid dimensions and missing joint references, and bounds the input size.
@@ -68,3 +85,5 @@ Coordinates place the asset's pivot. `as crate` exposes names such as `crate.fra
 94 targeted checks passed: 25 editor/workshop checks and 69 integration checks across assets, editor history, imports, joints, physics, input robustness, templates and triggers. The new coverage includes real grid strokes and their undo, new-asset editing, isolated burning tests, undoable assembly placement, save/load, part renaming, multiple scene assemblies, actual explosive ignition, brittle-glass impact fracture, sample weld detachment and pivot-safe preview placement.
 
 The two sample assemblies also ran headless for 300 frames with no load problems, retaining their six bodies. Inspected the resulting scene, destructive-test screenshot and live workshop layout. This is an initial workshop: it provides welds rather than every joint type, whole-part movement rather than arbitrary region copy/paste, and explicit source reload rather than live instance synchronisation. It does not contain a hosted AI service; assistants can edit the same local files without one.
+
+Surface-paint update: the full release test suite passed, including seven new paint checks and the colour/lettering controls test. Coverage includes material invariance, paint boundaries, asset/scene saving, moving bodies, fracture, flying chips, clipboard, history, ignition and a real TNT detonation.

@@ -59,6 +59,7 @@ fn cell_at(world: &World, i: usize) -> BodyCell {
         life: world.life[i],
         flags: world.flags[i] & !OWNED,
         shade: world.shade[i],
+        paint: world.paint[i],
     }
 }
 
@@ -70,6 +71,7 @@ fn put(world: &mut World, i: usize, c: BodyCell) {
     world.life[i] = c.life;
     world.flags[i] = c.flags & !OWNED;
     world.shade[i] = c.shade;
+    world.paint[i] = c.paint;
 }
 
 /// Copy everything that isn't air (or an object) inside a region.
@@ -252,11 +254,12 @@ struct CellState {
     life: u16,
     flags: u8,
     shade: u8,
+    paint: u32,
     tex: u16,
 }
 
 fn state(w: &World, i: usize) -> CellState {
-    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i], tex: w.tex[i] }
+    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i], paint: w.paint[i], tex: w.tex[i] }
 }
 
 fn restore_state(w: &mut World, i: usize, s: CellState) {
@@ -266,6 +269,7 @@ fn restore_state(w: &mut World, i: usize, s: CellState) {
     w.life[i] = s.life;
     w.flags[i] = s.flags;
     w.shade[i] = s.shade;
+    w.paint[i] = s.paint;
     w.tex[i] = s.tex;
 }
 
@@ -630,6 +634,7 @@ impl Timeline {
                     && now.burn == was.burn
                     && now.life == was.life
                     && now.shade == was.shade
+                    && now.paint == was.paint
                     && (now.temp - was.temp).abs() < TEMP_STEP;
                 if !same {
                     cells.push((i as u32, now));

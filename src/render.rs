@@ -226,6 +226,10 @@ impl Renderer {
                 }
                 None => c3(m.color),
             };
+            if let Some(rgb) = crate::asset::paint_rgb(world.paint[i]) {
+                let grain = ((col[0] + col[1] + col[2]) / (m.color.iter().map(|v| *v as f32).sum::<f32>().max(1.))).clamp(0.65, 1.35);
+                col = rgb.map(|v| v as f32 * grain);
+            }
             let mut emit = [0.0f32; 3];
 
             if view.heat {
@@ -321,7 +325,7 @@ impl Renderer {
             let m = mats.get(f.mat);
             let s = (f.shade as f32 / 255.0) * 2.0 - 1.0;
             let k = 1.0 + m.color_variation * s;
-            let mut col = c3(m.color);
+            let mut col = c3(crate::asset::paint_rgb(f.paint).unwrap_or(m.color));
             col = [col[0] * k, col[1] * k, col[2] * k];
             if view.heat {
                 col = lerp3(col, heat_color(f.temp), 0.8);

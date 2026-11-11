@@ -168,6 +168,7 @@ pub struct BodyCell {
     pub life: u16,
     pub flags: u8,
     pub shade: u8,
+    pub paint: u32,
 }
 
 /// An object's shape and where it is. Used to create objects, save them and
@@ -204,6 +205,7 @@ impl BodySpec {
                     burn: 0,
                     life: 0,
                     flags: 0,
+                    paint: 0,
                     shade: (hash(i as u32 ^ (cx as u32).wrapping_mul(7919) ^ (cy as u32).wrapping_mul(104729)) >> 24) as u8,
                 })
             })
@@ -599,6 +601,7 @@ impl Physics {
                 world.life[wi] = cell.life;
                 world.flags[wi] = cell.flags | OWNED;
                 world.shade[wi] = cell.shade;
+                world.paint[wi] = cell.paint;
                 world.tex[wi] = crate::world::pack_tex(li, lj);
                 body.stamped.push((wi as u32, local as u32));
             }
@@ -614,6 +617,7 @@ impl Physics {
             let (wi, li) = (wi as usize, li as usize);
             let Some(cell) = body.cells[li].as_mut() else { continue };
             if world.is_owned(wi) && world.mat[wi] == cell.mat {
+                cell.paint = world.paint[wi];
                 cell.temp = world.temp[wi];
                 cell.burn = world.burn[wi];
                 cell.life = world.life[wi];
@@ -1636,6 +1640,7 @@ impl Physics {
                 life: world.life[i],
                 flags: world.flags[i] & !OWNED,
                 shade: world.shade[i],
+                paint: world.paint[i],
             });
             world.make_air(i);
             if i < self.solid_prev.len() {
@@ -1940,6 +1945,7 @@ impl Physics {
                         life: world.life[i],
                         flags: world.flags[i],
                         shade: world.shade[i],
+                paint: world.paint[i],
                     });
                 }
             }

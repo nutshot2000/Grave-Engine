@@ -10,6 +10,7 @@ use std::path::Path;
 #[derive(Clone, Copy, PartialEq)]
 enum Tool {
     Paint(Brush),
+    Text,
     Move,
     Pivot,
     Joint,
@@ -19,6 +20,10 @@ pub struct Workshop {
     pub asset: Asset,
     selected: usize,
     material: MatId,
+    surface_paint: bool,
+    paint_color: [u8; 3],
+    lettering: String,
+    text_scale: usize,
     tool: Tool,
     zoom: f32,
     grid: bool,
@@ -50,7 +55,11 @@ pub enum Action {
 }
 impl Workshop {
     pub fn new(mats: &Materials) -> Self {
-        let asset = Asset::load_file(Path::new("assets/workshop/fuel_crate.asset"), mats)
+        let requested = std::env::args()
+            .skip_while(|a| a != "--workshop-file")
+            .nth(1)
+            .unwrap_or_else(|| "assets/workshop/fuel_crate.asset".into());
+        let asset = Asset::load_file(Path::new(&requested), mats)
             .unwrap_or_else(|_| Asset::blank("new_asset", 48, 40).unwrap());
         let name = asset.name.clone();
         let (width, height) = (asset.w, asset.h);
@@ -61,6 +70,10 @@ impl Workshop {
             asset,
             selected: 0,
             material: mats.id("wood").unwrap_or(AIR),
+            surface_paint: false,
+            paint_color: [195, 35, 30],
+            lettering: "TNT".into(),
+            text_scale: 1,
             tool: Tool::Paint(Brush::Pencil),
             zoom: 9.,
             grid: true,
@@ -412,7 +425,40 @@ impl Workshop {
             }
         });
         ui.separator();
-        ui.strong("Material");
+        ui.strong("Draw with");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.surface_paint, false, "Material");
+            ui.selectable_value(&mut self.surface_paint, true, "Surface paint");
+        });
+        if self.surface_paint {
+            ui.horizontal(|ui| {
+                ui.label("Colour");
+                ui.color_edit_button_srgb(&mut self.paint_color)
+                    .on_hover_text("Choose surface paint colour");
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Red").clicked() {
+                    self.paint_color = [195, 35, 30];
+                }
+                if ui.button("Black").clicked() {
+                    self.paint_color = [8, 8, 8];
+                }
+                if ui.button("White").clicked() {
+                    self.paint_color = [235, 235, 225];
+                }
+            });
+            ui.label("Paint changes appearance only. Erase removes paint; material stays.");
+            ui.text_edit_singleline(&mut self.lettering);
+            ui.add(egui::Slider::new(&mut self.text_scale, 1..=4).text("Letter size"));
+            if ui
+                .selectable_label(self.tool == Tool::Text, "Stamp lettering")
+                .clicked()
+            {
+                self.tool = Tool::Text;
+            }
+            ui.label("Choose black, then click the grid for TNT lettering (A–Z, 0–9).");
+        }
+        ui.strong("Physical material");
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text("filter materials")
@@ -435,6 +481,10 @@ impl Workshop {
                         .clicked()
                     {
                         self.material = i as MatId;
+                        self.surface_paint = false;
+                        if self.tool == Tool::Text {
+                            self.tool = Tool::Paint(Brush::Pencil);
+                        }
                     }
                 }
             });
@@ -578,7 +628,11 @@ impl Workshop {
             self.asset.h,
             self.asset.w as f32 * 0.1,
             self.asset.h as f32 * 0.1,
-            mats.get(self.material).name
+            if self.surface_paint {
+                "Surface paint: physical materials stay unchanged"
+            } else {
+                &mats.get(self.material).name
+            }
         ));
         let mut finish = false;
         egui::ScrollArea::both()
@@ -615,7 +669,14 @@ impl Workshop {
                                 .unwrap_or(AIR)
                         };
                         if cell != AIR {
-                            let c = mats.get(cell).color;
+                            let paint = self
+                                .asset
+                                .parts
+                                .iter()
+                                .find(|p| p.cells[i] != AIR)
+                                .map_or(0, |p| p.paint[i]);
+                            let c = grave_engine::asset::paint_rgb(paint)
+                                .unwrap_or(mats.get(cell).color);
                             let color = Color32::from_rgb(c[0], c[1], c[2]);
                             painter.rect_filled(
                                 Rect::from_min_size(
@@ -696,7 +757,7 @@ impl Workshop {
                                 let Tool::Paint(b) = self.tool else {
                                     unreachable!()
                                 };
-                                self.asset.draw(self.selected, b, last, c, self.material);
+                                self.draw(b, last, c);
                             }
                             _ => {}
                         }
@@ -739,11 +800,26 @@ impl Workshop {
         if finish {
             self.changed();
         }
-        ui.label(egui::RichText::new("Bright cells = selected part; dim cells = other parts. Painting transfers cell ownership. White cross = placement pivot; amber circles = weld anchors.").small());
+        ui.label(egui::RichText::new("Bright cells = selected part; dim cells = other parts. Material drawing transfers cell ownership; surface paint only colours existing cells. White cross = placement pivot; amber circles = weld anchors.").small());
+    }
+    fn draw(&mut self, brush: Brush, a: (i32, i32), b: (i32, i32)) {
+        if self.surface_paint {
+            self.asset
+                .paint_surface(self.selected, brush, a, b, Some(self.paint_color));
+        } else {
+            self.asset.draw(self.selected, brush, a, b, self.material);
+        }
     }
     fn apply(&mut self, a: (i32, i32), b: (i32, i32)) {
         match self.tool {
-            Tool::Paint(brush) => self.asset.draw(self.selected, brush, a, b, self.material),
+            Tool::Paint(brush) => self.draw(brush, a, b),
+            Tool::Text => self.asset.paint_text(
+                self.selected,
+                b,
+                &self.lettering,
+                self.text_scale,
+                self.paint_color,
+            ),
             Tool::Move => self.asset.move_part(self.selected, b.0 - a.0, b.1 - a.1),
             Tool::Pivot => self.asset.pivot = (b.0 as f32 + 0.5, b.1 as f32 + 0.5),
             Tool::Joint => {

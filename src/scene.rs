@@ -748,6 +748,19 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     }
                 }
             }
+            "paint" | "bodypaint" => {
+                let parsed = words.get(1).and_then(|x| x.parse::<usize>().ok()).zip(words.get(2).and_then(|x| x.parse::<usize>().ok())).zip(words.get(3).and_then(|s| crate::asset::parse_paint(s)));
+                if let Some(((x,y),color)) = parsed {
+                    if cmd == "bodypaint" {
+                        if let Some(b) = bodies.last_mut() {
+                            if x < b.w && y < b.h { if let Some(c) = b.cells[y*b.w+x].as_mut() { c.paint=color; } else { err("paint needs a material cell".into()); } } else { err("paint outside body grid".into()); }
+                        } else { err("bodypaint needs a preceding body".into()); }
+                    } else {
+                        let w=ensure(&mut world,mats);
+                        if x<w.w && y<w.h { let i=w.idx(x,y); if w.mat[i]!=AIR {w.paint[i]=color;} else {err("paint needs a material cell".into());} } else {err("paint outside world".into());}
+                    }
+                } else {err("use paint/bodypaint X Y #RRGGBB".into());}
+            }
             "depth" => {
                 match words.get(1).and_then(|s|s.parse::<f32>().ok()) {
                     Some(d) if d.is_finite() && d > 0.0 && d <= 10.0 && !bodies.is_empty() => bodies.last_mut().unwrap().depth = d,
@@ -1127,6 +1140,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         out.push('\n');
     }
     out.push_str("end\n");
+    for (i,color) in world.paint.iter().enumerate() { if *color != 0 && world.mat[i] != AIR && !world.is_owned(i) { out.push_str(&format!("paint {} {} #{:06x}\n",i%world.w,i/world.w,color & 0xffffff)); } }
     // Anchored scenery: one line per run of anchored cells in a row.
     let mut anchors = String::new();
     for y in 0..world.h {
@@ -1179,7 +1193,8 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
                     b.angle.to_degrees(),
                     changes.join(" ")
                 ));
-                if b.depth != 1.0 {out.push_str(&format!("depth {}\n",b.depth));}
+                for (i,c) in b.cells.iter().enumerate() { if let Some(c)=c { if c.paint!=0 { out.push_str(&format!("bodypaint {} {} #{:06x}\n",i%b.w,i/b.w,c.paint & 0xffffff)); } } }
+        if b.depth != 1.0 {out.push_str(&format!("depth {}\n",b.depth));}
                 out.push_str(&name_line(n));
                 continue;
             }
@@ -1192,6 +1207,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             out.push('\n');
         }
         out.push_str("end\n");
+        for (i,c) in b.cells.iter().enumerate() { if let Some(c)=c { if c.paint!=0 { out.push_str(&format!("bodypaint {} {} #{:06x}\n",i%b.w,i/b.w,c.paint & 0xffffff)); } } }
         if b.depth != 1.0 { out.push_str(&format!("depth {}\n", b.depth)); }
         out.push_str(&name_line(n));
     }
