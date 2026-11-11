@@ -1,6 +1,6 @@
 # Grave Engine — verdict and development feedback
 
-The earlier sections below record the build history. The current verdict and recommended update priorities are at the end. For current game controls, see WRECK-RUN.md.
+The earlier sections record the build history. The latest tested verdict is the 11 November 2026 update at the end; it supersedes the earlier recommendations where features have since shipped. For current game controls, see WRECK-RUN.md.
 
 ## First playable prototype
 
@@ -95,3 +95,52 @@ The eight focused Wreck Run checks passed together: controlled completion of the
 The controlled completion is automated and uses authored braking inputs; it is not evidence that the difficulty is balanced for a human player. The latest broader test run was started, but its final result was not collected before opening the game at your request. The earlier full-suite results above are historical. Long-session stability, sound, rider ragdolls, persistent scores and a general event system remain unfinished or unverified.
 
 My overall recommendation: keep developing it. The material interactions are the reason to use this engine. The next step is to make those interactions easier to author, understand and control, so building the next interesting level takes hours rather than repeated physics troubleshooting.
+
+
+## Tested update verdict — 11 November 2026
+
+Reviewed commit 114da89 with the current working copy, including the existing local changes to the Wreck Run gantry and its generator. Those changes were preserved. No engine or level fixes were made as part of this review.
+
+### My new verdict
+
+This is a substantial improvement: Grave Engine now has reusable systems for the kind of material-driven games it is meant to support. Vehicle controls, material resistance, terrain shapes, anchors, triggers, camera effects, lighting, backgrounds and simulation sleeping address much of my previous highest-priority feedback. These are implemented systems with useful automated coverage, rather than just items on a roadmap.
+
+I would now call it a capable experimental engine for small 2D physics games. Its strongest selling point remains that materials, vehicles, destruction, heat and fluids interact in the same world. The next update should prioritise reliability, visual authoring and readable feedback over adding another large batch of materials. I would not yet describe it as production-proven: long-session behaviour, human playability and predictable performance on demanding levels still need work.
+
+### What I actually tested
+
+- Release build succeeded.
+- The standard full test run produced 173 passing tests and one failure after also running the integration suites separately: 3 library tests, 19 editor tests, 10 passing game tests, and all 141 integration tests. The failing game test stops Cargo's normal run before the integration tests, so I explicitly ran all 22 integration-test files afterward; all passed. Counts exclude the extra diagnostic probes described below.
+- All 19 example scenes loaded and simulated for 300 frames each without reported scene errors. This is a smoke check, not proof that each scene stays stable indefinitely.
+- The passing checks cover braking on stone versus ice, no ground braking in the air, sand/mud resistance, tyre spray, trials balance, joints, softening and bending metal, materials, embers, triggers, save/restore, terrain shapes, lighting, backgrounds, camera effects and sleeping-area interactions.
+- Mountain Run's complete automatic-rider test passed. This verifies a scripted rider can finish; it does not establish human difficulty or enjoyment.
+- Inspected the generated house-night, Mountain Run and bonfire screenshots. The night house has readable local lamps against the layered sky and mountains; the fire scene shows a substantial spray of glowing particles. Lighting and backgrounds now provide a much stronger sense of place.
+
+### Findings that matter now
+
+**1. The current Wreck Run level edit breaks its known completion route.** The controlled-rider test failed twice at approximately x=1026.56 cells (103 m), with almost no forward speed. The local scene lowers the iron gantry from y=166 to y=179; its generator has the matching change. I ran the same completion test against a separate copy of the committed scene, without changing your working scene: that version passed. This isolates the failure to the changed level configuration, rather than demonstrating a general vehicle-engine regression. It does not prove that no human can pass the edited version. Next action: check rider/bike clearance and adjust the obstacle or establish a new repeatable safe route before accepting that edit.
+
+**2. Thin triggers can miss fast crossings.** A separate runtime probe moved an iron body from centre (40,41) to approximately (60,41) in one simulation step, across a trigger covering x=45..46. The trigger did not fire. Its speed was 1200 cells/s (120 m/s), representing a fast projectile or blast-thrown object. Current detection tests whether the centre is inside a box at a sampled position. Next action: test the swept path from the previous centre to the new one, with defined rules for teleports and repeat triggers. Also cover ordinary vehicle speeds with thinner boxes, overlapping bodies and actors. A finish/checkpoint should not depend on accidentally sampling the correct frame.
+
+**3. Performance is better supported, but the largest active scene remains expensive.** The scene sweep measured about 0.43–3.30 ms per simulation frame for the smaller examples, 8.31 ms for Wreck Run and 43.37 ms for Mountain Run over the first 300 frames. A separate 1200-frame Mountain Run run averaged 18.27 ms per simulation frame. The latter overlapped a course-test process, so these are indicative measurements on this machine, not controlled benchmarks. The timer covers simulation before the final screenshot, not complete rendering/UI cost, and I have not established steady-state frame rate. Sleeping and window rendering are meaningful improvements, but the data does not justify a blanket claim of 60 fps on large active levels. Next action: profile startup, active fire/water, terrain-collider work, settled simulation and the visible render separately; report median and slow frames, not only an average.
+
+**4. The checking script should trust process exit codes.** tools/check.ps1 determines test success by searching captured text for failure phrases. A compiler failure without those phrases can be labelled as successful. It also loses the detailed assertion output in its displayed summary. Next action: record Cargo's exit code immediately, retain the full log, and run independent test targets even if a game test fails. This review did encounter a real failing game assertion, which the script correctly reported.
+
+### What I would improve next, in order
+
+1. **Reliable triggers and a dependable release gate.** Fix swept crossings; retain regressions for actors and objects; repair the current level-clearance regression; make the check script fail accurately and report every suite. These protect existing work before expanding it.
+2. **Visual level and event authoring.** The new slope/hill/poly/anchor commands are a major improvement, but the editor still needs direct handles for these shapes and trigger boxes, an action inspector, an explicit anchor overlay and collision/rider-clearance previews. Add a settle preview and a button that runs the course checks. The gantry failure is a good example of what these tools should catch early.
+3. **Contact, damage and performance diagnostics.** Show wheel contact, slip, resistance, motor effort, joint load and bending strain. Add a frame-cost display separating world updates, physics, terrain rebuilds, lighting and drawing. Use a repeatable benchmark with fixed scene, seed, viewport and active effects before optimising further.
+4. **A physical rider and reusable attachment system.** This remains unfinished. The current rider is drawn over the bike and has a helmet-contact crash check, not a fully physical body. Mount points, body collisions, weight transfer, dismounting and ragdolls would make crashes much more convincing and help other games too.
+5. **Sound and impact feedback.** Engine pitch, tyre slip, gravel/sand contact, landing thuds, metal bending, joint failure, fire and explosions would make the existing simulation easier to understand. Scale effects from actual speed, force and material; avoid a loud effect for every individual cell.
+6. **Objectives and persistence beyond passage gates.** Judge a jump after a safe landing; expose failed-stunt reasons; support persistent settings/best scores and versioned save data. Test checkpoint recovery after destruction, changing lighting and timed camera effects, not just position and score. A rewind snapshot and a durable saved game need distinct, documented guarantees.
+
+### What should come off the old wish list
+
+Do not spend the next update reimplementing basic material resistance, brakes, terrain shapes, anchors, scene triggers, camera effects, lighting or backgrounds: they are already here and their relevant tests passed. Likewise, quiet-area sleeping and visible-window rendering are delivered foundations. Their next step is broader stress testing and better tools, not another claim that they still need to be invented.
+
+### Recommendation for the next release
+
+Ship a focused reliability-and-authoring update: robust trigger crossings, validated obstacle clearances, visual trigger/shape editing, trustworthy check results and performance diagnostics. Then add rider physics and sound. That would turn the new capabilities into a smoother process for building reliable, enjoyable levels.
+
+These results do not certify a full human playthrough, hours-long stability, all hardware, all user settings or every possible combination of materials. The failure in the edited Wreck Run scene is recorded, not silently fixed or hidden. The new engine systems are a clear advance; the next milestone is making their interactions easier to inspect and consistently dependable.
