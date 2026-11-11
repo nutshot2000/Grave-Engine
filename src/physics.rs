@@ -43,9 +43,8 @@ struct OneWayPowder { assemblies: HashMap<RigidBodyHandle, u64> }
 
 impl PhysicsHooks for OneWayPowder {
     fn filter_contact_pair(&self, ctx: &PairFilterContext) -> Option<SolverFlags> {
-        if let (Some(a), Some(b)) = (ctx.rigid_body1, ctx.rigid_body2) {
-            if self.assemblies.get(&a).is_some_and(|root| self.assemblies.get(&b) == Some(root)) { return None; }
-        }
+        if let (Some(a), Some(b)) = (ctx.rigid_body1, ctx.rigid_body2)
+            && self.assemblies.get(&a).is_some_and(|root| self.assemblies.get(&b) == Some(root)) { return None; }
         Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
     }
 
@@ -732,9 +731,8 @@ impl Physics {
             let mut changed=false;
             for j in &self.joints {
                 if j.spec.a==GROUND || j.spec.b==GROUND || !matches!(j.spec.kind,JointKind::Weld|JointKind::Wheel{..}) {continue;}
-                if let (Some(&a),Some(&b))=(roots.get(&j.spec.a),roots.get(&j.spec.b)) {
-                    if a!=b {let root=a.min(b);for value in roots.values_mut(){if *value==a || *value==b {*value=root;}}changed=true;}
-                }
+                if let (Some(&a),Some(&b))=(roots.get(&j.spec.a),roots.get(&j.spec.b))
+                    && a!=b {let root=a.min(b);for value in roots.values_mut(){if *value==a || *value==b {*value=root;}}changed=true;}
             }
             if !changed {break;}
         }
@@ -746,7 +744,7 @@ impl Physics {
             let grouped=roots.values().filter(|v|**v==root).count()>1;
             let new=if grouped {old | ActiveHooks::FILTER_CONTACT_PAIRS} else {old & !ActiveHooks::FILTER_CONTACT_PAIRS};
             // Mutating unchanged colliders invalidates cached contacts and friction.
-            if new!=old {if let Some(c)=self.colliders.get_mut(*h) {c.set_active_hooks(new);}}
+            if new!=old&& let Some(c)=self.colliders.get_mut(*h) {c.set_active_hooks(new);}
         }}
         self.pipeline.step(
             Vector::new(0.0, GRAVITY),
@@ -1540,7 +1538,7 @@ impl Physics {
         // Strength is checked a few times a second, not every frame.
         // Hot scenery that softens (red-hot iron) is checked again now and
         // then, so a heated beam sags and gives way.
-        if self.tick % 30 == 0 && !self.strength_dirty {
+        if self.tick.is_multiple_of(30) && !self.strength_dirty {
             let soft: Vec<Option<f32>> = mats.list.iter().map(|m| m.softens_at).collect();
             self.strength_dirty = (0..world.blocks()).filter(|&b| !world.block_still(b)).any(|b| {
                 let (x0, x1, y0, y1) = world.block_cells(b);
@@ -1550,7 +1548,7 @@ impl Physics {
                 }))
             });
         }
-        if self.strength_dirty && self.tick % 4 == 0 {
+        if self.strength_dirty && self.tick.is_multiple_of(4) {
             out.extend(self.snap_overhangs(world, mats));
         }
         if lost.is_empty() {
@@ -1773,7 +1771,7 @@ impl Physics {
                 continue;
             }
             let start = at(i);
-            let real_edge = |c: usize| c % world_w == 0 || c / world_w == 0 || c % world_w + 1 == world_w || c / world_w + 1 == world_h;
+            let real_edge = |c: usize| c.is_multiple_of(world_w) || c / world_w == 0 || c % world_w + 1 == world_w || c / world_w + 1 == world_h;
             edge_ground[i] = if real_edge(start) {
                 true
             } else {
@@ -1992,9 +1990,9 @@ impl Physics {
             return false;
         }
         // Wheels roll on round shapes.
-        if matches!(spec.kind, JointKind::Wheel { .. }) {
-            if let Some(n) = self.find(spec.b) {
-                if !self.bodies[n].round {
+        if matches!(spec.kind, JointKind::Wheel { .. })
+            && let Some(n) = self.find(spec.b)
+                && !self.bodies[n].round {
                     let mut b = std::mem::replace(
                         &mut self.bodies[n],
                         Body { depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
@@ -2003,8 +2001,6 @@ impl Physics {
                     self.build_colliders(&mut b, mats);
                     self.bodies[n] = b;
                 }
-            }
-        }
         let a1 = Vector::new(spec.anchor_a.0 * CELL, spec.anchor_a.1 * CELL);
         let a2 = Vector::new(spec.anchor_b.0 * CELL, spec.anchor_b.1 * CELL);
         let motor = spec.motor.clone();
@@ -2250,14 +2246,13 @@ impl Physics {
         let mut cells = b.cells.clone();
         for &(wi, li) in &b.stamped {
             let (wi, li) = (wi as usize, li as usize);
-            if let Some(c) = cells[li].as_mut() {
-                if world.is_owned(wi) && world.mat[wi] == c.mat {
+            if let Some(c) = cells[li].as_mut()
+                && world.is_owned(wi) && world.mat[wi] == c.mat {
                     c.temp = world.temp[wi];
                     c.burn = world.burn[wi];
                     c.life = world.life[wi];
                     c.flags = world.flags[wi] & !OWNED;
                 }
-            }
         }
         let (x, y, angle) = self.pose(b);
         let rb = &self.set[b.handle];
@@ -2311,11 +2306,10 @@ impl Physics {
         self.next_id = id;
         let added = self.add_raw(world, mats, spec);
         self.next_id = before;
-        if let Some(b) = self.bodies.last_mut() {
-            if added.is_some() {
+        if let Some(b) = self.bodies.last_mut()
+            && added.is_some() {
                 b.born = self.tick.wrapping_sub(SETTLE_TICKS); // edits aren't "new pieces"
             }
-        }
         if added.is_some() {
             if round {
                 let n = self.bodies.len() - 1;

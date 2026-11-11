@@ -855,9 +855,9 @@ impl World {
 
             // Explosives go off as soon as they're hot enough. They carry their
             // own oxygen, so they don't need air (buried gunpowder still blows).
-            if m.explosion_size > 0.0 {
-                if let Some(ignite) = m.catches_fire_at {
-                    if t >= ignite || self.flags[i] & BURNING != 0 {
+            if m.explosion_size > 0.0
+                && let Some(ignite) = m.catches_fire_at
+                    && (t >= ignite || self.flags[i] & BURNING != 0) {
                         self.blasts.push(Blast {
                             x: (i % self.w) as f32 + 0.5,
                             y: (i / self.w) as f32 + 0.5,
@@ -870,8 +870,6 @@ impl World {
                         self.temp[i] = self.temp[i].max(bt);
                         return;
                     }
-                }
-            }
 
             // Burning.
             if let Some(ignite) = m.catches_fire_at {
@@ -905,24 +903,22 @@ impl World {
                         let jitter = 0.7 + (self.rand() % 600) as f32 / 1000.0;
                         self.burn[i] = ((m.burns_for as f32 * jitter) as u16).max(1);
                     } else {
-                        if let Some(puff) = m.gives_off {
-                            if n_gas > 0 && self.chance(m.gives_off_chance) {
+                        if let Some(puff) = m.gives_off
+                            && n_gas > 0 && self.chance(m.gives_off_chance) {
                                 let j = air[self.rand() as usize % n_gas];
                                 let bt = m.burn_temperature;
                                 self.become_(mats, j, puff);
                                 self.temp[j] = self.temp[j].max(bt);
                                 self.shade[j] = self.rand() as u8;
                             }
-                        }
                         // Embers: now and then a glowing bit flies up and away.
-                        if let Some(spark) = m.sparks {
-                            if n_gas > 0 && self.chance(m.sparks_chance) {
+                        if let Some(spark) = m.sparks
+                            && n_gas > 0 && self.chance(m.sparks_chance) {
                                 let j = air[self.rand() as usize % n_gas];
                                 let vx = ((self.rand() % 1000) as f32 / 1000.0 - 0.5) * 0.9;
                                 let vy = -(0.35 + (self.rand() % 1000) as f32 / 1000.0 * 0.8);
                                 self.spawn_flyer(mats, spark, (j % self.w) as f32 + 0.5, (j / self.w) as f32 + 0.5, vx, vy);
                             }
-                        }
                         if self.burn[i] <= 1 {
                             let into = if self.chance(m.burns_into_chance) { m.burns_into } else { AIR };
                             self.become_(mats, i, into);
@@ -1209,7 +1205,7 @@ impl World {
         }
         let wi = self.weight(fast, i);
         // Rising isn't perfectly steady, so plumes break up.
-        if self.rand() % 8 == 0 {
+        if self.rand().is_multiple_of(8) {
             return;
         }
         let d = if self.rand() & 1 == 0 { 1 } else { -1 };
@@ -1224,7 +1220,7 @@ impl World {
             }
         }
         // Drift sideways under ceilings, a little at random.
-        if flows > 0 && self.rand() % 3 != 0 {
+        if flows > 0 && !self.rand().is_multiple_of(3) {
             let reach = 1 + (self.rand() as i32).rem_euclid(flows);
             let mut best = None;
             for step in 1..=reach {

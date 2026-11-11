@@ -123,11 +123,10 @@ impl Sim {
             self.instances.retain(|id, _| alive.contains(id));
         }
         // The followed object is gone (broke apart, burned up): stop following.
-        if let Some(id) = self.follow {
-            if self.physics.spec_of(&self.world, id).is_none() {
+        if let Some(id) = self.follow
+            && self.physics.spec_of(&self.world, id).is_none() {
                 self.follow = None;
             }
-        }
     }
 
     /// Material settings changed: objects get new shapes and weights, and

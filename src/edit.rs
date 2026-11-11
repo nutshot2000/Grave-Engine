@@ -607,7 +607,7 @@ impl Timeline {
         let snap = sim.snapshot();
         let w = &snap.world;
         let n = w.mat.len();
-        let key = force || self.last.len() != n || self.moments.len() % KEYFRAME_EVERY == 0;
+        let key = force || self.last.len() != n || self.moments.len().is_multiple_of(KEYFRAME_EVERY);
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();

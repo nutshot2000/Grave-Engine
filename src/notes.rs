@@ -129,8 +129,8 @@ pub fn describe(sim: &Sim, mats: &Materials, x: f32, y: f32) -> (String, Option<
     if !w.in_bounds(cx, cy) {
         return ("outside the world".into(), None);
     }
-    if let Some(id) = sim.physics.id_at(w, cx as usize, cy as usize) {
-        if let Some(b) = sim.physics.spec_of(w, id) {
+    if let Some(id) = sim.physics.id_at(w, cx as usize, cy as usize)
+        && let Some(b) = sim.physics.spec_of(w, id) {
             // Materials, most first.
             let mut count: std::collections::BTreeMap<u16, usize> = Default::default();
             for c in b.cells.iter().flatten() {
@@ -153,7 +153,6 @@ pub fn describe(sim: &Sim, mats: &Materials, x: f32, y: f32) -> (String, Option<
             );
             return (about, Some(id));
         }
-    }
     let m = w.mat[w.idx(cx as usize, cy as usize)];
     if m == AIR {
         ("empty space".into(), None)

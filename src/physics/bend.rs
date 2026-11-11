@@ -175,7 +175,7 @@ impl Physics {
         let on_hit_side = |p: (f32, f32)| (along(p) - sp) * side > 0.0;
 
         if ratio > TEAR_RATIO || total > TEAR_TOTAL {
-            self.tear(world, mats, &spec, &joints, hit.id, |k| on_hit_side(centre_of(k)), |p| on_hit_side(p), hit.dir);
+            self.tear(world, mats, &spec, &joints, hit.id, |k| on_hit_side(centre_of(k)), on_hit_side, hit.dir);
             return;
         }
         let lever = (sh - sp).abs();

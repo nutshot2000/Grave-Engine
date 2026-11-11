@@ -36,11 +36,10 @@ pub fn write_png(path: &Path, w: usize, h: usize, rgba: &[u8], scale: u32) -> Re
             data[dst..dst + 4].copy_from_slice(&rgba[src..src + 4]);
         }
     }
-    if let Some(dir) = path.parent() {
-        if !dir.as_os_str().is_empty() {
+    if let Some(dir) = path.parent()
+        && !dir.as_os_str().is_empty() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
-    }
     let file = std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), sw as u32, sh as u32);
     enc.set_color(png::ColorType::Rgba);
@@ -182,8 +181,8 @@ pub fn run(o: &Options) -> i32 {
     sim.physics.set_controls(grave_engine_controls(o.walk, o.jump));
     for f in 1..=o.frames {
         sim.step(&mats);
-        if let Some(every) = o.every.filter(|e| *e > 0) {
-            if f % every == 0 && f != o.frames {
+        if let Some(every) = o.every.filter(|e| *e > 0)
+            && f % every == 0 && f != o.frames {
                 let actors = sim.physics.actor_status();
                 let window = view_window(&sim.world, &actors, o.player_view);
                 r.light(&sim);
@@ -191,7 +190,6 @@ pub fn run(o: &Options) -> i32 {
                     eprintln!("screenshot failed: {e}");
                 }
             }
-        }
     }
     let elapsed = start.elapsed().as_secs_f64();
     r.light(&sim);

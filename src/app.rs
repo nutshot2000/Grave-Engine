@@ -429,14 +429,13 @@ impl Sandbox {
         if ui.button("💡 Put a lamp here").on_hover_text("A lamp lighting 40 cells around (change it in 💡 Lighting). On an object, it rides along").clicked() {
             self.history.touch(&mut self.sim, "lamp");
             let mut lamp = grave_engine::light::Light::at(x, y, 40.0);
-            if let Some(id) = object {
-                if let Some((cx, cy, a)) = self.sim.physics.pose_of(id) {
+            if let Some(id) = object
+                && let Some((cx, cy, a)) = self.sim.physics.pose_of(id) {
                     let (dx, dy) = (x - cx, y - cy);
                     let (c, s) = (a.cos(), a.sin());
                     (lamp.x, lamp.y) = (c * dx + s * dy, -s * dx + c * dy);
                     lamp.on = Some(id);
                 }
-            }
             // A lamp in full daylight shows nothing: dim the scene the first time.
             if self.sim.lighting.lights.is_empty() && self.sim.lighting.ambient > 0.6 {
                 self.sim.lighting.ambient = 0.35;
@@ -1950,8 +1949,8 @@ impl Sandbox {
                     }
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Reset to template").on_hover_text("Undo this copy's own changes").clicked() {
-                        if let Some(t) = self.templates.get(&inst.template).cloned() {
+                    if ui.button("Reset to template").on_hover_text("Undo this copy's own changes").clicked()
+                        && let Some(t) = self.templates.get(&inst.template).cloned() {
                             self.change("reset to template", |app| {
                                 app.sim.physics.edit(&mut app.sim.world, &app.mats, id, |s| {
                                     s.w = t.shape.w;
@@ -1963,7 +1962,6 @@ impl Sandbox {
                                 }
                             });
                         }
-                    }
                     if ui.button("Update template from this").on_hover_text("Make the template look like this copy: every copy updates").clicked() {
                         let dir = self.templates.dir().to_path_buf();
                         match template::save(&dir, &inst.template, b, &self.mats) {
@@ -2283,8 +2281,8 @@ impl Sandbox {
         let released = !primary && !secondary;
 
         // ---- start a drag
-        if pressed && matches!(self.drag, Drag::None) {
-            if let Some(p) = pointer {
+        if pressed && matches!(self.drag, Drag::None)
+            && let Some(p) = pointer {
                 let cell = to_cell(p);
                 let cf = to_cells(p);
                 self.drag = match self.tool {
@@ -2313,7 +2311,7 @@ impl Sandbox {
                                 self.join_first = Some((first, at));
                             }
                             Some((first, at)) => {
-                                let motor = (self.join_motor && matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel)).then(|| Motor {
+                                let motor = (self.join_motor && matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel)).then_some(Motor {
                                     speed: self.join_speed,
                                     strength: self.join_strength,
                                     drive: self.join_drive,
@@ -2364,7 +2362,6 @@ impl Sandbox {
                     }
                 };
             }
-        }
 
         // ---- continue / finish it
         match self.drag {
@@ -2522,13 +2519,12 @@ impl Sandbox {
                 }
                 if released {
                     self.drag = Drag::None;
-                    if let Some(f) = self.last_scale(id, start_d, pointer.map(to_cells)) {
-                        if (f - 1.0).abs() > 0.02 {
+                    if let Some(f) = self.last_scale(id, start_d, pointer.map(to_cells))
+                        && (f - 1.0).abs() > 0.02 {
                             self.change("resize", |app| {
                                 app.sim.physics.edit(&mut app.sim.world, &app.mats, id, |s| edit::transform_body(s, Transform::Scale(f)));
                             });
                         }
-                    }
                 }
             }
         }
@@ -2565,7 +2561,7 @@ impl Sandbox {
                 Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
             };
             // Hurt: flash red.
-            let tint = if a.hurt_by.is_some() && !a.dead && (self.sim.world.frame / 5) % 2 == 0 {
+            let tint = if a.hurt_by.is_some() && !a.dead && (self.sim.world.frame / 5).is_multiple_of(2) {
                 Color32::from_rgb(255, 150, 150)
             } else {
                 Color32::WHITE
@@ -2586,7 +2582,7 @@ impl Sandbox {
             painter.rect_filled(fill, 2.0, col);
             painter.text(r.right_center() + Vec2::new(8.0, 0.0), egui::Align2::LEFT_CENTER, label, egui::FontId::proportional(12.0), Color32::WHITE);
         };
-        let hurting = p.hurt_by.is_some() && (self.sim.world.frame / 6) % 2 == 0;
+        let hurting = p.hurt_by.is_some() && (self.sim.world.frame / 6).is_multiple_of(2);
         let health_col = if hurting { Color32::from_rgb(255, 230, 120) } else { Color32::from_rgb(220, 60, 60) };
         bar(0.0, p.health / 100.0, health_col, &format!("health {:.0}", p.health));
         let mut y = 16.0;
@@ -2648,8 +2644,8 @@ impl Sandbox {
     /// The mouse went down with the Select tool: decide what the drag does.
     fn start_select_drag(&mut self, p: Pos2, cell: (i32, i32), cf: (f32, f32), shift: bool, to_screen: &impl Fn((f32, f32)) -> Pos2) -> Drag {
         // Handles of a single selected object.
-        if let Selection::Objects(ids) = &self.selection {
-            if ids.len() == 1 {
+        if let Selection::Objects(ids) = &self.selection
+            && ids.len() == 1 {
                 let id = ids[0];
                 if let Some(b) = self.sim.physics.spec_of(&self.sim.world, id) {
                     let (rot, corner) = handles(&b);
@@ -2662,10 +2658,9 @@ impl Sandbox {
                     }
                 }
             }
-        }
         // An object under the mouse.
-        if self.sim.world.in_bounds(cell.0, cell.1) {
-            if let Some(id) = self.sim.physics.id_at(&self.sim.world, cell.0 as usize, cell.1 as usize) {
+        if self.sim.world.in_bounds(cell.0, cell.1)
+            && let Some(id) = self.sim.physics.id_at(&self.sim.world, cell.0 as usize, cell.1 as usize) {
                 let mut ids = if shift { self.selected_ids() } else { Vec::new() };
                 let already = self.selected_ids().contains(&id);
                 if !ids.contains(&id) {
@@ -2678,13 +2673,11 @@ impl Sandbox {
                 self.fling.clear(); // a new swing starts here
                 return Drag::Objects(cf);
             }
-        }
         // Inside the selected area: move it.
-        if let Selection::Area(r) = self.selection {
-            if r.contains(cell.0, cell.1) {
+        if let Selection::Area(r) = self.selection
+            && r.contains(cell.0, cell.1) {
                 return Drag::Area(cell);
             }
-        }
         Drag::Box(cell)
     }
 

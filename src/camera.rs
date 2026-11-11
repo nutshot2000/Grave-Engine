@@ -100,14 +100,13 @@ impl Effects {
     /// One simulation frame passed.
     pub fn step(&mut self) {
         fn tick<T>(t: &mut Option<Timed<T>>) {
-            if let Some(v) = t {
-                if v.frames != u32::MAX {
+            if let Some(v) = t
+                && v.frames != u32::MAX {
                     v.frames = v.frames.saturating_sub(1);
                     if v.frames == 0 {
                         *t = None;
                     }
                 }
-            }
         }
         tick(&mut self.slowmo);
         tick(&mut self.zoom);

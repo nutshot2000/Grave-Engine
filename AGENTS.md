@@ -18,7 +18,7 @@ material key. Each source file starts with a doc comment explaining itself.
   notes" means: read `scenes/*.notes.md`, look at each note's picture, do
   what it asks, tick it `[x]`, and add a short "(done: ...)" to its text.
 - Keep Grave Engine separate from their other game, Rendgrave
-  (`C:\Users\batti\Desktop\pixel-arpg`): never touch that folder.
+  (the sibling folder `..\pixel-arpg`, next to this one): never touch it.
 - Commit in small steps with clear messages and push to `origin main`
   (GitHub: nutshot2000/Grave-Engine, **public**). Don't commit third-party
   asset packs (see *Licences*).
@@ -79,7 +79,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 
 | Path | What |
 | --- | --- |
-| `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** (light ones drift on `flow_at`: embers, ash, snow; `spawn_flyer` for new ones), **embers** (burning cells with `sparks` throw them). **Sleeping areas**: 32x32 blocks with an awake countdown; only blocks awake or next to one are worked on. Anything that writes a cell must wake it: world helpers (`become_`, `make_air`, `swap`, `land`, `heat_circle`) do; direct writes elsewhere call `world.wake_at(i)` (physics stamping, explosions, triggers, editor `put`; `History::touch`, scene load and `Sim::restore` call `wake_all`). Physics skips terrain/collapse work in `block_still` blocks, and `snap_overhangs` (which scenery hangs too far) only re-checks boxes around awake blocks padded by the strongest material's reach (`snap_regions`/`snap_region`); a box's edge counts as ground only where that structure really connects to the world's ground or edge (flood-filled: floating islands must not look supported; `tests/sleep.rs` guards this). `world.sleeping = false` turns it off (tests compare) |
+| `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** (light ones drift on `flow_at`: embers, ash, snow; `spawn_flyer` for new ones), **embers** (burning cells with `sparks` throw them). **Sleeping areas**: 32x32 blocks with an awake countdown; only blocks awake or next to one are worked on. Anything that writes a cell must wake it: world helpers (`become_`, `make_air`, `swap`, `land`, `heat_circle`) do; direct writes elsewhere call `world.wake_at(i)` (physics stamping, explosions, triggers, editor `put`; `History::touch`, scene load and `Sim::restore` call `wake_all`). Physics skips terrain/collapse work in `block_still` blocks, and `snap_overhangs` (which scenery hangs too far) only re-checks boxes around awake blocks padded by the strongest material's reach (`snap_regions`/`snap_region`); a box's edge counts as ground only where that structure really connects to the world's ground or edge (flood-filled: floating islands must not look supported; `tests/sleep.rs` guards this). `world.sleeping = false` turns it off (tests compare). Slow reactions (chance < 0.02 per frame: mud/wet sand drying) don't keep an area awake: their block is visited every 16 frames with the chance scaled up 16x |
 | `src/material.rs` | material files, ids, **your settings** layered over defaults (`my_settings/`) |
 | `src/physics.rs` | rigid objects (Rapier 2D): read back, collapse, terrain colliders, joints, impacts, explosions, bounce pads, one-way powder |
 | `src/physics/bend.rs` | metal objects bend: a hard hit levers the object round its nearest weld/hinge (or middle); if force × lever beats `yield` × thickness² × depth × firmness (heat), the far side's cells are redrawn turned (joint anchors there move too); a huge hit or > ~70° in total tears it in two (bigger half keeps the id). `BEND_K` is the tuning (a bike fork bends in a 250 km/h wall crash, not on landings). `Physics::bent(id)` = total bend |
@@ -237,7 +237,7 @@ field, default in `blank`, parse in `apply`), use it in `world.rs` or
   motion). File names pick the animation (die/swim/fall/jump/walk/idle,
   most specific first: "Falling Idle" is a fall).
 - **From sentences with NVIDIA Kimodo** (installed by Codex at
-  `C:\Users\batti\Documents\Codex\2026-10-20\https-www-youtube-com-watch-v\outputs\kimodo-cpp`):
+  `%USERPROFILE%\Documents\Codex\2026-10-20\https-www-youtube-com-watch-v\outputs\kimodo-cpp`):
   `build/Release/kmd-generate.exe MODEL.gguf TEXT_ENCODER.gguf prompt.txt FRAMES STEPS SEED OUT_DIR`
   (see its `Generate-Motion.ps1`; ~1 minute per 4 s clip on the CPU) into
   `assets/motions/NAME/`, then
@@ -287,6 +287,10 @@ Unreal `.uasset` can't be read: export to FBX from Unreal.
 - Line endings: files are LF in git (git warns about CRLF; harmless).
 - Performance: ~3-4 ms per frame at 768x288 on the owner's PC. Big worlds
   need chunked updates (roadmap).
+
+## Privacy of the public repo
+
+The repo is public. Keep the owner's name, home folder and email out of it: use paths relative to the project (`Path(__file__)`), and note that Blender renders embed the source file's full path in PNG metadata and FBX files embed texture paths: strip them before committing (`tools/` scripts should write clean files). Never commit the third-party texture pack (`/textures/`).
 
 ## Licences
 

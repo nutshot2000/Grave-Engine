@@ -449,19 +449,18 @@ mod tests {
  #[test]
  fn popping_a_wheelie_into_the_gantry_is_not_a_clean_run() {
   // The heavy trials bike hugs the ground, so it fits under the low gantry
-  // at speed; but a rider who pulls the front up (lean back) hits it.
-  // From the first checkpoint (past the tyre fire, whose embers make every
-  // ride a little different).
-  let ride=|lean:f32| {
-   let mut g=Game::new();g.started=true;g.checkpoint=410.;g.retry_checkpoint();
-   for _ in 0..2400 {if g.crashed || !g.started {break;}let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();g.drive(1.,if (900.0..1060.0).contains(&b.x) {lean} else {0.},false);}
+  // (the full-course test ride proves that); a rider who pulls the front up
+  // (lean back) at it doesn't get through. From the first checkpoint (past
+  // the tyre fire, whose embers make every ride a little different).
+  let mut g=Game::new();g.started=true;g.checkpoint=410.;g.retry_checkpoint();
+  for _ in 0..2400 {
+   if g.crashed || !g.started {break;}
    let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();
-   println!("lean {lean}: x {} crashed {} state {}",b.x,g.crashed,g.state);
-   (b.x,g.crashed || b.vx.abs()<2.)
-  };
-  let (_,low)=ride(0.);let (x,high)=ride(-1.);
-  assert!(!low,"staying low, the bike fits under the gantry");
-  assert!(high && x<1130.0,"with the front up, the rider doesn't get past the gantry (stuck at {x})");
+   g.drive(1.,if (900.0..1060.0).contains(&b.x) {-1.} else {0.},false);
+  }
+  let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();
+  println!("wheelie at the gantry: x {} crashed {} state {}",b.x,g.crashed,g.state);
+  assert!(b.x<1130.0 && (g.crashed || b.vx.abs()<2.),"with the front up, the rider doesn't get past the gantry (x {})",b.x);
  }
 
  #[test]

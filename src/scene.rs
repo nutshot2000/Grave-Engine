@@ -166,9 +166,8 @@ impl Loaded {
             };
             if !sim.physics.join(mats, a, b, kind, at, to, j.motor) {
                 problems.push("scene: couldn't make a joint".into());
-            } else if let Some(force) = j.break_force {
-                if !sim.physics.set_joint_break_force(a, b, force) { problems.push("scene: break force must be finite and positive".into()); }
-            }
+            } else if let Some(force) = j.break_force
+                && !sim.physics.set_joint_break_force(a, b, force) { problems.push("scene: break force must be finite and positive".into()); }
         }
         let mut sim = sim;
         for a in self.actors {
@@ -437,14 +436,13 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     }
                     // On an object: keep where it is relative to the object (and its turn).
                     let mut turn = 0.0f32;
-                    if let Some(n) = l.on {
-                        if let Some(b) = bodies.get(n as usize - 1) {
+                    if let Some(n) = l.on
+                        && let Some(b) = bodies.get(n as usize - 1) {
                             let (dx, dy) = (l.x - b.x, l.y - b.y);
                             let (c, s) = (b.angle.cos(), b.angle.sin());
                             (l.x, l.y) = (c * dx + s * dy, -s * dx + c * dy);
                             turn = b.angle.to_degrees();
                         }
-                    }
                     l.cone = cone_world.map(|(d, w)| (d - turn, w));
                     match bad {
                         Some(e) => err(e),
@@ -623,11 +621,10 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                                 if !w.in_bounds(x, y) {
                                     continue;
                                 }
-                                if let Some((cx, cy, r)) = circle {
-                                    if ((x - cx) as i64).pow(2) + ((y - cy) as i64).pow(2) > (r * r + r / 2) as i64 {
+                                if let Some((cx, cy, r)) = circle
+                                    && ((x - cx) as i64).pow(2) + ((y - cy) as i64).pow(2) > (r * r + r / 2) as i64 {
                                         continue;
                                     }
-                                }
                                 let i = w.idx(x as usize, y as usize);
                                 w.temp[i] = t;
                                 heated.push((i, t));

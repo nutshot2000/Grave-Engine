@@ -451,7 +451,7 @@ fn load_gltf(path: &Path, mats: &Materials, per_metre: f32) -> Result<(Shape, Ve
                 Some(i) => i.into_u32().collect(),
                 None => (0..pos.len() as u32).collect(),
             };
-            for t in idx.chunks_exact(3) {
+            for t in idx.as_chunks::<3>().0 {
                 let (a, b, c) = (t[0] as usize, t[1] as usize, t[2] as usize);
                 tris.push(Tri { p: [pos[a], pos[b], pos[c]], uv: [uvs[a], uvs[b], uvs[c]], paint: paint.clone() });
             }
@@ -516,7 +516,7 @@ fn load_obj(path: &Path, mats: &Materials, per_metre: f32) -> Result<(Shape, Vec
                 [0.0, 0.0]
             }
         };
-        for t in mesh.indices.chunks_exact(3) {
+        for t in mesh.indices.as_chunks::<3>().0 {
             tris.push(Tri { p: [pos(t[0]), pos(t[1]), pos(t[2])], uv: [uv(t[0]), uv(t[1]), uv(t[2])], paint: paint.clone() });
         }
     }

@@ -1,5 +1,7 @@
 import os
-os.chdir(r'C:\Users\batti\Desktop\Grave-Engine')
+from pathlib import Path
+ROOT=str(Path(__file__).resolve().parent.parent)  # the project folder
+os.chdir(ROOT)
 import bpy, math
 from mathutils import Vector
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -18,7 +20,7 @@ for y in [-.14,.14]:
  limb((.08,y,1.35),(.43,y,1.15),.085,red);limb((.43,y,1.15),(1.12,y,1.13),.075,white)
 bpy.ops.object.camera_add(location=(0,-7,1));cam=bpy.context.object;cam.rotation_euler=(Vector((.2,0,1))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.type='ORTHO';cam.data.ortho_scale=2.25;bpy.context.scene.camera=cam
 bpy.ops.object.light_add(type='AREA',location=(-2,-4,5));bpy.context.object.data.energy=500;bpy.context.object.data.shape='DISK';bpy.context.object.data.size=5
-s=bpy.context.scene;s.render.engine='CYCLES';s.cycles.samples=16;s.render.resolution_x=192;s.render.resolution_y=192;s.render.resolution_percentage=100;s.render.film_transparent=True;s.render.filepath=r'C:\Users\batti\Desktop\Grave-Engine\assets\stunt-rider.png';bpy.ops.wm.save_as_mainfile(filepath=r'C:\Users\batti\Desktop\Grave-Engine\assets\stunt-rider.blend');bpy.ops.render.render(write_still=True)
+s=bpy.context.scene;s.render.engine='CYCLES';s.cycles.samples=16;s.render.resolution_x=192;s.render.resolution_y=192;s.render.resolution_percentage=100;s.render.film_transparent=True;s.render.filepath=os.path.join(ROOT,'assets','stunt-rider.png');bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT,'assets','stunt-rider.blend'));bpy.ops.render.render(write_still=True)
 
 
 

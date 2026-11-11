@@ -286,7 +286,7 @@ impl Physics {
                 // Some grains stick to the tread and come off over the top of
                 // the tyre (up between it and the mudguard), moving on with
                 // the bike, then dropping back behind it.
-                let carried = hash(j as u32 ^ 0xC0FFEE ^ self.tick) % 4 == 0;
+                let carried = hash(j as u32 ^ 0xC0FFEE ^ self.tick).is_multiple_of(4);
                 if carried {
                     let a = 0.15 + (hash(j as u32 ^ 0xA11 ^ self.tick) % 1000) as f32 / 1000.0 * 0.45; // radians before straight up, towards the back
                     let r = radius + 1.2;

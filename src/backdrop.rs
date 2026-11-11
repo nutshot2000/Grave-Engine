@@ -297,7 +297,7 @@ impl Backdrop {
             for j in 0..n {
                 let (x, y) = (wx0 + j % ww, wy0 + j / ww);
                 let r = hash((y * w + x) as u32 ^ 0x5bd1e995);
-                if r % 173 == 0 && y < h * 2 / 3 {
+                if r.is_multiple_of(173) && y < h * 2 / 3 {
                     let tw = 0.6 + 0.4 * rand(r ^ (frame / 20));
                     let v = 150.0 * tw;
                     glow[j] = [v, v, v * 1.1];

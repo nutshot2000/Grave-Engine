@@ -612,11 +612,10 @@ fn name_to_id(v: &str, by_name: &HashMap<String, MatId>) -> Result<MatId, String
 pub fn parse_color(v: &str) -> Result<[u8; 3], String> {
     let v = v.trim();
     if let Some(hex) = v.strip_prefix('#') {
-        if hex.len() == 6 {
-            if let Ok(n) = u32::from_str_radix(hex, 16) {
+        if hex.len() == 6
+            && let Ok(n) = u32::from_str_radix(hex, 16) {
                 return Ok([(n >> 16) as u8, (n >> 8) as u8, n as u8]);
             }
-        }
         return Err(format!("`{v}` isn't a colour like #ff8800"));
     }
     let parts: Vec<&str> = v.split([' ', ',']).filter(|s| !s.is_empty()).collect();
