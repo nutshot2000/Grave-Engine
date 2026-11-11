@@ -889,6 +889,9 @@ impl Sandbox {
                     num(ui, "burn_temperature", "Burns at (°C)", "How hot its flames are", cur.burn_temperature, def.burn_temperature, 100.0..=3000.0, false);
                     num(ui, "burns_into_chance", "Leaves ash", "Chance each burnt cell leaves what it burns into (ash)", cur.burns_into_chance, def.burns_into_chance, 0.0..=1.0, false);
                     num(ui, "gives_off_chance", "Smoke and flames", "How often burning puffs out fire or smoke", cur.gives_off_chance, def.gives_off_chance, 0.0..=1.0, false);
+                    if cur.sparks.is_some() {
+                        num(ui, "sparks_chance", "Sparks", "How often it throws glowing embers while burning (they drift, land, and can start new fires)", cur.sparks_chance, def.sparks_chance, 0.0..=0.05, false);
+                    }
                 }
 
                 ui.heading("Strength");

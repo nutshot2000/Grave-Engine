@@ -57,6 +57,9 @@ pub struct Flyer {
 pub const FLY_GRAVITY: f32 = 9.81 * 10.0 / 3600.0;
 /// Air slows flying cells a little every frame.
 const FLY_DRAG: f32 = 0.995;
+/// Flying things lighter than this (kg/m³) get carried by the air, the
+/// lighter the more (embers 150, snow 300, ash 600: not much).
+const AIR_CARRIES: f32 = 800.0;
 /// Fastest a flying cell can go (cells per frame; 6 = 36 m/s).
 const FLY_MAX_SPEED: f32 = 6.0;
 /// A flying cell this fast (cells per frame) knocks loose stuff it hits
@@ -508,6 +511,23 @@ impl World {
         true
     }
 
+    /// Send a brand-new flying cell of `mat` (at its own starting
+    /// temperature) from (x, y) at this speed: a fire's ember. Returns false
+    /// if too many things are flying already.
+    pub fn spawn_flyer(&mut self, mats: &Materials, mat: MatId, x: f32, y: f32, vx: f32, vy: f32) -> bool {
+        if self.flying.len() >= MAX_FLYING || x < 0.0 || y < 0.0 || x >= self.w as f32 || y >= self.h as f32 {
+            return false;
+        }
+        let m = mats.get(mat);
+        let life = m.lifetime.map_or(0, |l| {
+            let jitter = 0.5 + (self.rand() % 1000) as f32 / 1000.0;
+            ((l as f32 * jitter) as u16).max(1)
+        });
+        let shade = self.rand() as u8;
+        self.flying.push(Flyer { x, y, vx, vy, mat, temp: m.temperature, life, burn: 0, flags: 0, shade });
+        true
+    }
+
     /// Move everything that's flying; whatever hits something lands.
     fn fly(&mut self, mats: &Materials) {
         if self.flying.is_empty() {
@@ -517,10 +537,22 @@ impl World {
         let mut keep = Vec::with_capacity(list.len());
         let (w, h) = (self.w as f32, self.h as f32);
         for mut f in list {
+            let m = mats.get(f.mat);
             f.vy += FLY_GRAVITY;
+            // Light things (embers, ash, snow) are carried by the air: its
+            // swirls and the wind. Hot ones float up a little on their heat.
+            let light = ((AIR_CARRIES - m.density) / AIR_CARRIES).clamp(0.0, 1.0);
+            if light > 0.0 && f.y >= 0.0 {
+                let (u, v) = self.flow_at(f.x as i32, f.y as i32);
+                let k = 0.12 * light;
+                f.vx += (u * 2.0 - f.vx) * k;
+                f.vy += (v * 2.0 - f.vy) * k;
+                if f.temp > 300.0 {
+                    f.vy -= FLY_GRAVITY * 0.85 * light;
+                }
+            }
             f.vx = (f.vx * FLY_DRAG).clamp(-FLY_MAX_SPEED, FLY_MAX_SPEED);
             f.vy = (f.vy * FLY_DRAG).clamp(-FLY_MAX_SPEED, FLY_MAX_SPEED);
-            let m = mats.get(f.mat);
             // Explosives hot enough to go off do it right here: drop back
             // onto the grid where the normal rules set them off.
             if f.y >= 0.0 && m.explosion_size > 0.0 && (f.flags & BURNING != 0 || m.catches_fire_at.is_some_and(|c| f.temp >= c)) {
@@ -853,6 +885,15 @@ impl World {
                                 self.become_(mats, j, puff);
                                 self.temp[j] = self.temp[j].max(bt);
                                 self.shade[j] = self.rand() as u8;
+                            }
+                        }
+                        // Embers: now and then a glowing bit flies up and away.
+                        if let Some(spark) = m.sparks {
+                            if n_gas > 0 && self.chance(m.sparks_chance) {
+                                let j = air[self.rand() as usize % n_gas];
+                                let vx = ((self.rand() % 1000) as f32 / 1000.0 - 0.5) * 0.9;
+                                let vy = -(0.35 + (self.rand() % 1000) as f32 / 1000.0 * 0.8);
+                                self.spawn_flyer(mats, spark, (j % self.w) as f32 + 0.5, (j / self.w) as f32 + 0.5, vx, vy);
                             }
                         }
                         if self.burn[i] <= 1 {

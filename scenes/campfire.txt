@@ -1,0 +1,18 @@
+# Campfire on a windy night: embers fly off the fire, drift on the wind, and
+# land. On the wooden post and the cloth-covered log they start new fires;
+# in the pond they hiss out. Press Play (try changing `wind`).
+size 300 160
+seed 5
+fill air
+rect stone 0 140 300 20
+sky #1a2850 #46588a stars
+layer mountains #4a5888 depth 0.12 y 120 height 60 snow seed 9
+layer forest #2a3a44 depth 0.5 y 141 height 22 seed 4
+lighting 0.18 #6070b0
+wind 2
+rect wood 120 132 40 8
+rect wood 200 120 6 20
+rect wood 230 128 30 4
+rect cloth 230 124 30 4
+rect water 20 136 40 4
+heat circle 140 134 4 900

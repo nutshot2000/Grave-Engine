@@ -1,0 +1,23 @@
+# Ember: a glowing scrap flung off a fire. It drifts on the air (and the
+# wind), lands, and keeps glowing for a few seconds: on wood or cloth it can
+# start a new fire; water puts it out with a hiss; it ends up as ash.
+about = A glowing scrap thrown off a fire. Drifts, lands, can start new fires.
+state = powder
+density = 150                    # light: the air carries it
+color = #ff8a2a
+color_variation = 0.25
+glow = 0.7
+temperature = 800
+stays_at = 800                   # red hot until it burns out
+conducts_heat = 0.25
+heat_capacity = 1
+lifetime = 200                   # a few seconds
+decays_into = ash
+decays_into_chance = 0.4
+crushable = yes
+lets_light_through = 0
+reaction = water -> ash + steam, chance 0.6     # hiss
+reaction = wet_sand -> ash + sand, chance 0.3
+reaction = snow -> ash + water, chance 0.3
+reaction = ice -> ash + water, chance 0.2
+reaction = mud -> ash + dirt, chance 0.3

@@ -320,7 +320,9 @@ mod tests {
 
  #[test]
  fn holding_full_throttle_at_the_gantry_is_not_a_clean_run() {
-  let mut g=Game::new();g.started=true;
+  // From the first checkpoint (past the tyre fire, whose embers make every
+  // ride a little different), flat out towards the low gantry.
+  let mut g=Game::new();g.started=true;g.checkpoint=410.;g.retry_checkpoint();
   for _ in 0..1800 {if g.crashed {break;}g.drive(1.,0.,false);}
   let b=g.sim.physics.spec_of(&g.sim.world,g.sim.follow.unwrap()).unwrap();
   println!("Unbraked route: x {} crashed {} joints {} state {}",b.x,g.crashed,g.sim.physics.joints().len(),g.state);

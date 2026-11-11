@@ -71,6 +71,8 @@ so wood and air insulate and iron spreads heat quickly.
 | `burns_into_chance` | Chance (0 to 1) that a burned cell leaves `burns_into` behind; otherwise it burns away completely. Wood is 0.1, so a burned house leaves a little ash, not a house-sized pile | 1 |
 | `gives_off` | What it puffs into nearby air while burning | fire |
 | `gives_off_chance` | Chance per frame of puffing | 0.1 |
+| `sparks` | What it flings into the air while burning: glowing embers (`ember`) that drift on the air and wind, land, and can start new fires | none |
+| `sparks_chance` | Chance per burning cell per frame of throwing one (wood 0.0025, cloth 0.004) | 0 |
 | `feeds_fire` | `yes` if things can burn next to it (air and flames do) | no |
 | `puts_out_fire` | `yes` if it stops burning things it touches (water does) | no |
 

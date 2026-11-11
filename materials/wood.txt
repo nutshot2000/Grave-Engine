@@ -18,3 +18,5 @@ toughness = 1500                 # how hard a hit it takes to crack (kN); it spl
 friction = 0.6
 bounciness = 0.1
 texture = textures/wood.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+sparks = ember                   # throws glowing embers while it burns
+sparks_chance = 0.0025

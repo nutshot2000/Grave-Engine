@@ -205,6 +205,16 @@ Try `scenes/forces.txt`.
   things, throws objects, scatters burning splinters and lights fires. Neighbouring
   gunpowder sets off in a chain.
 
+## Embers
+
+Try `scenes/campfire.txt`. Burning wood, cloth, rubber and oil throw glowing
+**embers** (material setting `sparks`). Light things are carried by the air, so
+embers swirl up off a fire and drift with the `wind`. They glow for a few seconds
+where they land: on wood or cloth they can start a new fire downwind (spot fires),
+in water they hiss out into steam, on snow and ice they melt a little, and they
+end up as ash. Change how sparky a material is with the **Sparks** slider in its
+settings.
+
 ## Wet sand
 
 Try `scenes/beach.txt`. Sand slowly soaks up water that touches it (the

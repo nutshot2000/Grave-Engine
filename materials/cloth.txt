@@ -18,3 +18,5 @@ strength = 4
 toughness = 300
 friction = 0.9
 texture = textures/cloth.png
+sparks = ember
+sparks_chance = 0.004

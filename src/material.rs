@@ -90,6 +90,10 @@ pub struct Material {
     pub gives_off: Option<MatId>,
     /// Chance per frame of puffing out `gives_off`.
     pub gives_off_chance: f32,
+    /// What it flings into the air while burning (embers), and the chance
+    /// per burning cell per frame. They fly, drift on the air, and land.
+    pub sparks: Option<MatId>,
+    pub sparks_chance: f32,
     /// Does it feed fire? (Air does: things only burn when touching it.)
     pub feeds_fire: bool,
     /// Does it put out fires it touches? (Water does.)
@@ -208,6 +212,8 @@ impl Material {
             burns_into_chance: 1.0,
             gives_off: None,
             gives_off_chance: 0.1,
+            sparks: None,
+            sparks_chance: 0.0,
             feeds_fire: false,
             puts_out_fire: false,
             crushable: false,
@@ -684,6 +690,8 @@ fn apply(
             m.gives_off = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) };
         }
         "gives_off_chance" => m.gives_off_chance = num(v)?.clamp(0.0, 1.0),
+        "sparks" | "throws_sparks" => m.sparks = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
+        "sparks_chance" => m.sparks_chance = num(v)?.clamp(0.0, 1.0),
         "feeds_fire" => m.feeds_fire = yes_no(v)?,
         "puts_out_fire" => m.puts_out_fire = yes_no(v)?,
         "crushable" => m.crushable = yes_no(v)?,
