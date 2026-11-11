@@ -5,23 +5,25 @@ r=Path(__file__).resolve().parent.parent
 lines=['# Stunt Yard: Wreck Run. Each section has a different riding problem.','size 3600 260','seed 42','fill air','rect stone 0 210 3600 50']
 def rect(m,x,y,w,h):
  if w>0 and h>0: lines.append(f'rect {m} {x} {y} {w} {h}')
+# Engine level shapes (see the top of src/scene.rs): hills, slopes and
+# covers are single scene lines, filled solid underneath.
 def profile(a,b,height,material='stone',cover=None,depth=0):
- for x in range(a,b):
-  y=210-round(height*math.sin(math.pi*(x-a)/(b-a))**2)
-  rect(material,x,y+depth,1,260-y-depth)
-  if cover:rect('gravel' if cover=='ice' and x<(a+b)//2 else cover,x,y,1,depth)
-def ramp(a,b,h):
- for x in range(a,b):
-  y=210-round((x-a)/(b-a)*h);rect('stone',x,y,1,260-y)
+ if cover=='ice':
+  # Gravel on the way up, ice on the way down: one hill, two covers.
+  mid=(a+b)//2
+  lines.append(f'hill {material} {a} {b} {height} 210 cover gravel {depth}')
+  for x in range(mid,b):
+   y=210-round(height*math.sin(math.pi*(x-a)/(b-a))**2);rect('ice',x,y,1,depth)
+ elif cover:lines.append(f'hill {material} {a} {b} {height} 210 cover {cover} {depth}')
+ else:lines.append(f'hill {material} {a} {b} {height} 210')
+def ramp(a,b,h):lines.append(f'slope stone {a} 210 {b} {210-h}')
+def landing(a,b,y1,y2):lines.append(f'slope stone {a} {y1} {b} {y2}')
 def pit(a,b,material,depth):
  rect('air',a,210,b-a,depth);rect(material,a,212,b-a,depth-2)
- if material in ['water','wet_sand']:
-  for x in range(b-30,b):
-   y=210+round(depth*(b-x)/30);rect('stone',x,y,1,260-y)
+ if material in ['water','wet_sand']:lines.append(f'slope stone {b-30} {210+depth} {b} 210')
 # 1. Jump an actual wreck, fuel and tyre stacks.
 ramp(170,255,32)
-for x in range(300,390):
- y=188+round((x-300)*22/90);rect('stone',x,y,1,260-y)
+landing(300,390,188,210)
 rect('wood',266,199,24,11);rect('oil',268,196,20,3)
 for x in [269,280,290]:lines.append(f'circle rubber {x} 194 5')
 # 2. Broad dunes: substantial loose sand over a buried packed-earth core.
@@ -36,8 +38,7 @@ pit(1150,1250,'wet_sand',10)
 rect('water',1170,212,40,2)
 # 4. Demolition leap: charges below the flight path and a destructible tower.
 ramp(1370,1490,30)
-for x in range(1550,1650):
- y=194+round((x-1550)*16/100);rect('stone',x,y,1,260-y)
+landing(1550,1650,194,210)
 rect('brick',1497,207,32,3);rect('gunpowder',1505,205,5,2)
 rect('wood',1498,180,3,27);rect('wood',1525,180,3,27);rect('wood',1498,178,30,3)
 rect('oil',1507,201,13,3)
@@ -52,16 +53,14 @@ pit(2410,2470,'water',4)
 # 7. A longer lava jump with a burning timber scaffold.
 ramp(2520,2650,32)
 pit(2650,2700,'lava',24)
-for x in range(2700,2820):
- y=192+round((x-2700)*18/120);rect('stone',x,y,1,260-y)
+landing(2700,2820,192,210)
 rect('wood',2660,190,35,3);rect('wood',2660,193,3,17);rect('wood',2692,193,3,17)
 # 8. Final sand climb into an explosive demolition finish.
 profile(2900,3180,42,'sandstone','sand',5)
 ramp(3210,3290,28)
 rect('gunpowder',3310,207,5,2);rect('wood',3304,200,22,4)
 rect('oil',3306,197,18,3)
-for x in range(3340,3410):
- y=192+round((x-3340)*18/70);rect('stone',x,y,1,260-y)
+landing(3340,3410,192,210)
 # Keep the initial prop before the bike for stable manifest ordering.
 lines+=['body rect wood 1360 193 1 17','depth 0.01']
 lines+=(r/'assets/stunt-bike/physical-bike.txt').read_text(encoding='utf-8').splitlines()

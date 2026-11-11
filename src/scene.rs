@@ -11,6 +11,14 @@
 //! rect stone 0 270 512 18      # material x y width height
 //! circle water 100 200 20      # material centre-x centre-y radius
 //! line wood 10 10 50 50 3      # material x1 y1 x2 y2 thickness
+//!
+//! # Level shapes: each fills solid ground below its top surface (down to the
+//! # bottom of the world, or `to Y`), optionally with a `cover MAT DEPTH` layer
+//! slope stone 170 210 255 178              # a straight ramp/landing: from x1,y1 to x2,y2
+//! hill sandstone 440 690 38 210 cover sand 5   # a smooth hill: x1 x2 height base-y
+//! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
+//! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
+//! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
 //! heat circle 120 250 6 900    # set temperature (°C) in a circle
 //! heat rect 0 0 10 10 -40      # ...or in a rectangle
 //! legend . air                 # grid characters
@@ -331,6 +339,96 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                     Err(e) => err(e),
                 }
             }
+            "slope" | "hill" | "curve" => {
+                // Options at the end: `to Y` (bottom of the fill), `cover MAT DEPTH`.
+                let opt_at = |k: &str| words.iter().position(|w| w.eq_ignore_ascii_case(k));
+                let end = [opt_at("to"), opt_at("cover")].into_iter().flatten().min().unwrap_or(words.len());
+                let need = match cmd.as_str() {
+                    "slope" => 4,
+                    "hill" => 4,
+                    _ => 6,
+                };
+                let r = words.get(1).ok_or(format!("`{cmd}` needs a material")).and_then(|m| mat(m)).and_then(|id| {
+                    if end < 2 + need {
+                        return Err(format!("`{cmd}` needs {need} numbers after the material"));
+                    }
+                    nums(2, need).map(|v| (id, v))
+                });
+                let cover = opt_at("cover").and_then(|i| {
+                    let m = words.get(i + 1).and_then(|w| mat(w).ok())?;
+                    let d = words.get(i + 2).and_then(|w| w.parse::<f32>().ok())?;
+                    Some((m, d.clamp(0.0, 200.0) as i32))
+                });
+                if opt_at("cover").is_some() && cover.is_none() {
+                    err("use `cover MATERIAL DEPTH`".into());
+                }
+                match r {
+                    Ok((id, v)) => {
+                        let w = ensure(&mut world, mats);
+                        let bottom = opt_at("to").and_then(|i| words.get(i + 1)).and_then(|y| y.parse::<f32>().ok()).unwrap_or(w.h as f32) as i32;
+                        match cmd.as_str() {
+                            "slope" => {
+                                let (x1, y1, x2, y2) = (v[0], v[1], v[2], v[3]);
+                                let top = move |x: f32| y1 + ((x - x1) * (y2 - y1) / (x2 - x1).max(1e-6)).round();
+                                fill_under(w, mats, x1 as i32, x2 as i32, top, bottom, id, cover);
+                            }
+                            "hill" => {
+                                let (x1, x2, height, base) = (v[0], v[1], v[2], v[3]);
+                                let top = move |x: f32| base - (height * (std::f32::consts::PI * (x - x1) / (x2 - x1).max(1e-6)).sin().powi(2)).round();
+                                fill_under(w, mats, x1 as i32, x2 as i32, top, bottom, id, cover);
+                            }
+                            _ => {
+                                // A quadratic curve from (x1,y1) to (x2,y2), pulled towards (cx,cy).
+                                let (p0, p1, p2) = ((v[0], v[1]), (v[2], v[3]), (v[4], v[5]));
+                                let (lo, hi) = (p0.0.min(p2.0) as i32, p0.0.max(p2.0) as i32);
+                                let mut tops = vec![f32::INFINITY; (hi - lo + 1).clamp(1, 20_000) as usize];
+                                let steps = ((hi - lo).abs() * 8).clamp(8, 160_000);
+                                for k in 0..=steps {
+                                    let t = k as f32 / steps as f32;
+                                    let q = |a: f32, b: f32, c: f32| (1.0 - t) * (1.0 - t) * a + 2.0 * (1.0 - t) * t * b + t * t * c;
+                                    let (x, y) = (q(p0.0, p1.0, p2.0), q(p0.1, p1.1, p2.1));
+                                    let col = (x.round() as i32 - lo).clamp(0, tops.len() as i32 - 1) as usize;
+                                    tops[col] = tops[col].min(y.round());
+                                }
+                                let top = move |x: f32| tops[((x as i32 - lo).clamp(0, tops.len() as i32 - 1)) as usize];
+                                fill_under(w, mats, lo, hi + 1, top, bottom, id, cover);
+                            }
+                        }
+                    }
+                    Err(e) => err(e),
+                }
+            }
+            "poly" | "polygon" => {
+                let r = words.get(1).ok_or("`poly` needs a material".to_string()).and_then(|m| mat(m)).and_then(|id| {
+                    let n = words.len().saturating_sub(2);
+                    if n < 6 || n % 2 == 1 {
+                        return Err("use `poly MATERIAL x1 y1 x2 y2 x3 y3 ...` (three or more points)".into());
+                    }
+                    nums(2, n).map(|v| (id, v))
+                });
+                match r {
+                    Ok((id, v)) => {
+                        let pts: Vec<(f32, f32)> = v.chunks(2).map(|c| (c[0], c[1])).collect();
+                        fill_poly(ensure(&mut world, mats), mats, &pts, id);
+                    }
+                    Err(e) => err(e),
+                }
+            }
+            "anchor" => match nums(1, 4) {
+                Ok(v) => {
+                    let w = ensure(&mut world, mats);
+                    let (x0, x1, y0, y1) = w.clip(v[0] as i32, (v[0] + v[2]) as i32 - 1, v[1] as i32, (v[1] + v[3]) as i32 - 1);
+                    for y in y0..=y1 {
+                        for x in x0..=x1 {
+                            let i = w.idx(x as usize, y as usize);
+                            if w.mat[i] != AIR {
+                                w.flags[i] |= crate::world::ANCHORED;
+                            }
+                        }
+                    }
+                }
+                Err(_) => err("use `anchor x y width height` (after drawing what it pins)".into()),
+            },
             "heat" => {
                 let shape = words.get(1).map(|s| s.to_lowercase()).unwrap_or_default();
                 let r = match shape.as_str() {
@@ -686,6 +784,53 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     Loaded { world, bodies, problems, heated, instances, joints, follow, upright, actors, player_zoom }
 }
 
+/// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
+/// x1..x2: the first `cover.1` cells with the cover material.
+#[allow(clippy::too_many_arguments)]
+fn fill_under(w: &mut World, mats: &Materials, x1: i32, x2: i32, top: impl Fn(f32) -> f32, bottom: i32, id: MatId, cover: Option<(MatId, i32)>) {
+    let (a, b) = (x1.min(x2).max(0), x1.max(x2).min(w.w as i32));
+    for x in a..b {
+        let t = top(x as f32);
+        if !t.is_finite() {
+            continue;
+        }
+        let y0 = (t as i32).max(0);
+        for y in y0..bottom.min(w.h as i32) {
+            let m = match cover {
+                Some((c, d)) if y < y0 + d => c,
+                _ => id,
+            };
+            w.set(mats, x as usize, y as usize, m);
+        }
+    }
+}
+
+/// Fill a polygon (even-odd rule), cell centres inside.
+fn fill_poly(w: &mut World, mats: &Materials, pts: &[(f32, f32)], id: MatId) {
+    let ys = pts.iter().map(|p| p.1);
+    let (lo, hi) = (ys.clone().fold(f32::MAX, f32::min), ys.fold(f32::MIN, f32::max));
+    let (y0, y1) = ((lo.floor() as i32).max(0), (hi.ceil() as i32).min(w.h as i32 - 1));
+    for y in y0..=y1 {
+        let cy = y as f32 + 0.5;
+        let mut xs: Vec<f32> = Vec::new();
+        for k in 0..pts.len() {
+            let (a, b) = (pts[k], pts[(k + 1) % pts.len()]);
+            if (a.1 <= cy) != (b.1 <= cy) {
+                xs.push(a.0 + (cy - a.1) / (b.1 - a.1) * (b.0 - a.0));
+            }
+        }
+        xs.sort_by(|a, b| a.total_cmp(b));
+        for pair in xs.chunks(2) {
+            if let [a, b] = pair {
+                let (xa, xb) = (((a - 0.5).ceil() as i32).max(0), ((b - 0.5).floor() as i32).min(w.w as i32 - 1));
+                for x in xa..=xb {
+                    w.set(mats, x as usize, y as usize, id);
+                }
+            }
+        }
+    }
+}
+
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
     let (x0, x1, y0, y1) = w.clip(x, x.saturating_add(rw).saturating_sub(1), y, y.saturating_add(rh).saturating_sub(1));
     for yy in y0..=y1 {
@@ -774,6 +919,27 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         out.push('\n');
     }
     out.push_str("end\n");
+    // Anchored scenery: one line per run of anchored cells in a row.
+    let mut anchors = String::new();
+    for y in 0..world.h {
+        let mut x = 0;
+        while x < world.w {
+            let anchored = |x: usize| world.flags[world.idx(x, y)] & crate::world::ANCHORED != 0;
+            if anchored(x) {
+                let start = x;
+                while x < world.w && anchored(x) {
+                    x += 1;
+                }
+                anchors += &format!("anchor {start} {y} {} 1\n", x - start);
+            } else {
+                x += 1;
+            }
+        }
+    }
+    if !anchors.is_empty() {
+        out.push_str("# Pinned scenery (never collapses)\n");
+        out.push_str(&anchors);
+    }
     if !snap.bodies.is_empty() {
         out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");
     }

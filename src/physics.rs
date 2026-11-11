@@ -1495,7 +1495,8 @@ impl Physics {
                 let mut supported = false;
                 while let Some(i) = stack.pop() {
                     let (x, y) = (i % w, i / w);
-                    if x == 0 || y == 0 || x + 1 == w || y + 1 == h || piece.len() > MAX_FLOOD {
+                    let anchored = world.flags[i] & crate::world::ANCHORED != 0;
+                    if x == 0 || y == 0 || x + 1 == w || y + 1 == h || anchored || piece.len() > MAX_FLOOD {
                         supported = true;
                         break;
                     }
@@ -1595,7 +1596,8 @@ impl Physics {
             for x in 0..w {
                 let i = y * w + x;
                 let edge = x == 0 || y == 0 || x + 1 == w || y + 1 == h;
-                if scenery[i] && (edge || grounded[i + w]) {
+                let anchored = world.flags[i] & crate::world::ANCHORED != 0;
+                if scenery[i] && (edge || anchored || grounded[i + w]) {
                     grounded[i] = true;
                     left[i] = strength[world.mat[i] as usize];
                     heap.push((left[i], i));

@@ -20,6 +20,10 @@ pub const OWNED: u8 = 2;
 /// Drawn some other way (a character's pictures): the renderer shows what's
 /// behind instead of this cell.
 pub const HIDDEN: u8 = 4;
+/// Anchored scenery: counts as held up (like the world's edge), so it never
+/// collapses or snaps under its own weight. Set by a scene's `anchor` line;
+/// lost if the cell turns into something else (burns, melts, breaks).
+pub const ANCHORED: u8 = 8;
 
 /// An explosive cell went off here this frame (handled by `physics.rs`).
 #[derive(Clone, Copy, Debug)]
