@@ -21,6 +21,9 @@ pub struct Sim {
     pub triggers: Vec<crate::trigger::Trigger>,
     pub events: Vec<crate::trigger::Event>,
     pub checkpoint: Option<(f32, f32)>,
+    /// Camera effects asked for by triggers or the game: slow motion, zoom,
+    /// focus, shake (see camera.rs). Not saved: Reset and rewind clear them.
+    pub camera: crate::camera::Effects,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -61,7 +64,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default() };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -98,6 +101,7 @@ impl Sim {
         if !self.triggers.is_empty() {
             self.run_triggers();
         }
+        self.camera.step();
         if !self.instances.is_empty() {
             // A damaged copy has gone its own way: it's no longer linked to
             // its template (editing the template mustn't heal it).
@@ -125,13 +129,18 @@ impl Sim {
             if t.fired && !t.repeat {
                 continue;
             }
-            let inside = match t.by {
-                By::Object(id) => bodies.iter().any(|(b, p)| *b == id && t.contains(p.0, p.1)),
-                By::Player => actors.iter().any(|p| t.contains(p.0, p.1)),
-                By::Any => bodies.iter().any(|(_, p)| t.contains(p.0, p.1)) || actors.iter().any(|p| t.contains(p.0, p.1)),
+            use crate::camera::Focus;
+            let body_in = |only: Option<u64>| bodies.iter().find(|(b, p)| only.is_none_or(|o| o == *b) && t.contains(p.0, p.1)).map(|(b, _)| Focus::Object(*b));
+            let actor_in = || actors.iter().position(|p| t.contains(p.0, p.1)).map(Focus::Actor);
+            // What set it off (for `focus it`).
+            let who = match t.by {
+                By::Object(id) => body_in(Some(id)),
+                By::Player => actor_in(),
+                By::Any => actor_in().or_else(|| body_in(None)),
             };
+            let inside = who.is_some();
             if inside && !t.occupied {
-                t.fire(&mut self.world, &mut self.events);
+                t.fire(&mut self.world, &mut self.events, &mut self.camera, who);
                 t.fired = true;
             }
             t.occupied = inside;
@@ -200,7 +209,7 @@ impl Sim {
     /// the ground the way newly placed ones are).
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let world = snap.world.clone();
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default() };
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
         let mut new_ids = Vec::new();
         for (b, inst) in snap.bodies.iter().cloned().zip(links) {

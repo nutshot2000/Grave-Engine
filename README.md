@@ -310,6 +310,26 @@ The mouse wheel zooms in and out around the pointer, middle-drag pans, and **⤢
 object (or the car), and so does `follow car zoom 3` in a scene. Shift + wheel
 changes the brush size.
 
+- **Speed** runs from 0.05x (very slow motion) to 4x; **🐢** toggles quarter speed.
+- **🎬 Camera** menu: how close the following camera is, how snappy it is (low =
+  lazy and cinematic), looking ahead of fast movers, test buttons for slow motion,
+  zoom and shake, and **Show trigger boxes** (outlines each trigger with what it does).
+- **Camera effects from triggers**, no code needed. Each lasts S seconds as the
+  player feels them (leave S out to keep it until changed):
+
+  ```text
+  trigger 1480 0 30 260 by frame : slowmo 0.4 1 ; zoom 1.3 1.2     # big jump in slow motion
+  trigger 900 0 20 260 by frame : focus it 2                        # look at whatever set it off
+  trigger 2000 0 20 260 : focus 2100 150 3 ; shake 4                # look over there; jolt
+  trigger 2200 0 20 260 : camera reset                              # back to normal
+  ```
+
+  `slowmo F [S]` (time at F, 0.3 = 30 %), `zoom Z [S]` (Z times closer),
+  `focus [S]` (the box), `focus X Y [S]`, `focus it [S]`, `shake N` (cells),
+  `camera reset`. Games call the same things: `sim.camera.slow_motion(0.3, 1.5)`.
+  Stunt Yard uses them: big jumps go slow-mo and closer, crashes play out in slow
+  motion with a jolt.
+
 ## Joints, motors and driving
 
 Try `scenes/racer.txt`: press Play and drive with **→ / D** (ahead) and **← / A**

@@ -110,6 +110,11 @@ struct Sandbox {
     /// letting go mid-swing throws them.
     fling: Vec<(f64, (f32, f32))>,
     speed: f32,
+    /// Camera settings: how quickly it catches up (per second), whether it
+    /// looks ahead of moving things, and whether trigger boxes are drawn.
+    cam_smooth: f32,
+    cam_lead: bool,
+    show_triggers: bool,
     view: View,
     renderer: Renderer,
     texture: Option<TextureHandle>,
@@ -244,6 +249,9 @@ impl Sandbox {
             playing: false,
             fling: Vec::new(),
             speed: 1.0,
+            cam_smooth: 7.0,
+            cam_lead: true,
+            show_triggers: true,
             view: View::default(),
             renderer: Renderer::default(),
             texture: None,
@@ -536,6 +544,56 @@ impl Sandbox {
 
     /// A material's settings, as sliders. Your changes go in
     /// materials/my_settings/NAME.txt over the defaults (materials/NAME.txt).
+    /// The 🎬 Camera menu: how close, how smooth, looking ahead, effects.
+    fn camera_menu(&mut self, ui: &mut egui::Ui) {
+        ui.set_min_width(260.0);
+        ui.label(RichText::new("Following").strong());
+        let mut close = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
+        if ui.add(egui::Slider::new(&mut close, 1.0..=20.0).logarithmic(true).text("how close")).on_hover_text("How much closer than the whole world the following camera is").changed() {
+            self.sim.zoom = close;
+        }
+        ui.add(egui::Slider::new(&mut self.cam_smooth, 1.0..=20.0).logarithmic(true).text("snappiness"))
+            .on_hover_text("How quickly the camera catches up: low is lazy and cinematic, high is tight");
+        ui.checkbox(&mut self.cam_lead, "Look ahead").on_hover_text("Look a little ahead of fast-moving things");
+        if ui.button("📷 Follow the selected object").clicked() {
+            self.start_following();
+            ui.close();
+        }
+        ui.separator();
+        ui.label(RichText::new("Effects (during Play)").strong());
+        ui.label(RichText::new("Triggers can do these too: slowmo, zoom, focus, shake (see the trigger lines in a scene)").size(12.0).weak());
+        if ui.button("🐢 Slow motion for 2 seconds").clicked() {
+            self.sim.camera.slow_motion(0.25, 2.0);
+            self.playing = true;
+        }
+        if ui.button("🔍 Zoom in for 2 seconds").clicked() {
+            self.sim.camera.zoom_in(2.0, 2.0);
+            self.playing = true;
+        }
+        if ui.button("💥 Shake").clicked() {
+            self.sim.camera.shake(4.0);
+            self.playing = true;
+        }
+        if ui.button("↺ Camera back to normal").clicked() {
+            self.sim.camera.reset();
+        }
+        ui.separator();
+        ui.checkbox(&mut self.show_triggers, "Show trigger boxes").on_hover_text("Draw where the scene's triggers are and what they do");
+    }
+
+    /// Outline each trigger box, with what it does.
+    fn draw_triggers(&self, painter: &egui::Painter, origin: Pos2, scale: f32) {
+        for t in &self.sim.triggers {
+            let r = Rect::from_min_size(origin + Vec2::new(t.x * scale, t.y * scale), Vec2::new(t.w * scale, t.h * scale));
+            let colour = if t.fired && !t.repeat { Color32::from_rgba_unmultiplied(150, 150, 150, 120) } else { Color32::from_rgba_unmultiplied(255, 210, 60, 200) };
+            painter.rect_stroke(r, 0.0, egui::Stroke::new(1.5, colour), egui::StrokeKind::Inside);
+            let line = t.to_line("");
+            let what = line.split_once(" : ").map_or("", |p| p.1);
+            let what: String = what.chars().take(48).collect();
+            painter.text(r.left_top() + Vec2::new(3.0, 2.0), egui::Align2::LEFT_TOP, format!("⚡ {what}"), egui::FontId::proportional(11.0), colour);
+        }
+    }
+
     fn material_settings_window(&mut self, ctx: &egui::Context) {
         let Some(id) = self.mat_settings else { return };
         if id as usize >= self.mats.list.len() {
@@ -1294,7 +1352,13 @@ impl Sandbox {
                 .on_hover_text("Show temperature: blue is cold, red/yellow/white is hot (H)");
             ui.separator();
             ui.label("Speed");
-            ui.add(egui::Slider::new(&mut self.speed, 0.25..=4.0).step_by(0.25).suffix("x"));
+            ui.add(egui::Slider::new(&mut self.speed, 0.05..=4.0).logarithmic(true).suffix("x"))
+                .on_hover_text("How fast time runs. Below 1 is slow motion");
+            let mut slow = self.speed < 0.99;
+            if ui.toggle_value(&mut slow, big("🐢")).on_hover_text("Slow motion: a quarter speed (click again for normal)").changed() {
+                self.speed = if slow { 0.25 } else { 1.0 };
+            }
+            ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
             ui.separator();
             ui.label("Scene");
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
@@ -1868,27 +1932,29 @@ impl Sandbox {
         let avail = ui.available_size();
         let fit = (avail.x / w as f32).min(avail.y / h as f32).max(0.05);
         let (outer, _) = ui.allocate_exact_size(avail, Sense::hover());
-        let player = if self.sim.follow.is_none() && self.playing {
-            self.sim.physics.actor_status().first().map(|p| (p.x, p.y))
+        // What to look at: a camera effect's focus (from a trigger), the
+        // followed object, or the player; looking ahead of where it's going.
+        let fx = &self.sim.camera;
+        let target: Option<((f32, f32), (f32, f32))> = if let Some(p) = fx.focus_point(&self.sim).filter(|_| self.playing) {
+            Some((p, (0.0, 0.0)))
+        } else if let Some(b) = self.sim.follow.and_then(|id| self.sim.physics.spec_of(&self.sim.world, id)) {
+            Some(((b.x, b.y), (b.vx, b.vy)))
+        } else if self.playing {
+            self.sim.physics.actor_status().first().map(|p| ((p.x, p.y), (0.0, 0.0)))
         } else {
             None
         };
-        if let Some((px, py)) = player {
-            let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
-            let cam = self.cam.get_or_insert((px, py, fit * zoom));
-            cam.0 += (px - cam.0) * 0.12;
-            cam.1 += (py - cam.1) * 0.12;
-            cam.2 += (fit * zoom - cam.2) * 0.2;
-        }
-        if let Some(id) = self.sim.follow {
-            if let Some(b) = self.sim.physics.spec_of(&self.sim.world, id) {
-                let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 };
-                let cam = self.cam.get_or_insert((b.x, b.y, fit * zoom));
-                let k = if self.playing { 0.12 } else { 0.35 };
-                cam.0 += (b.x - cam.0) * k;
-                cam.1 += (b.y - cam.1) * k;
-                cam.2 += (fit * zoom - cam.2) * 0.2;
-            }
+        let fx_zoom = if self.playing { fx.zoom.map_or(1.0, |z| z.value) } else { 1.0 };
+        if let Some(((x, y), (vx, vy))) = target {
+            let zoom = if self.sim.zoom > 0.0 { self.sim.zoom } else { 3.0 } * fx_zoom;
+            let lead = if self.cam_lead && self.playing { 0.3 } else { 0.0 };
+            let (tx, ty) = (x + vx * lead, y + vy * lead * 0.5);
+            let cam = self.cam.get_or_insert((tx, ty, fit * zoom));
+            let dt = ui.input(|i| i.stable_dt).clamp(0.0, 0.1);
+            let k = 1.0 - (-dt * if self.playing { self.cam_smooth } else { 25.0 }).exp();
+            cam.0 += (tx - cam.0) * k;
+            cam.1 += (ty - cam.1) * k;
+            cam.2 += (fit * zoom - cam.2) * (1.0 - (-dt * 4.0).exp());
         }
         let (mut cx, mut cy, scale) = match self.cam {
             Some((x, y, s)) => (x, y, s.clamp(fit, fit * 40.0)),
@@ -1901,12 +1967,17 @@ impl Sandbox {
         if self.cam.is_some() {
             self.cam = Some((cx, cy, scale));
         }
-        let rect = Rect::from_min_size(outer.center() - Vec2::new(cx * scale, cy * scale), Vec2::new(w as f32 * scale, h as f32 * scale));
+        // Shaking (a camera effect) nudges the picture, not the camera.
+        let shake = if self.playing { self.sim.camera.shake_offset() } else { (0.0, 0.0) };
+        let rect = Rect::from_min_size(outer.center() - Vec2::new((cx + shake.0) * scale, (cy + shake.1) * scale), Vec2::new(w as f32 * scale, h as f32 * scale));
         self.canvas_at = (rect.min, scale);
         let resp = ui.interact(outer, ui.scope_id().with("canvas"), Sense::click_and_drag());
         let painter = ui.painter_at(outer);
         painter.image(tex.id(), rect, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
         self.draw_characters(ui, &painter, rect.min, scale);
+        if self.show_triggers && !self.sim.triggers.is_empty() {
+            self.draw_triggers(&painter, rect.min, scale);
+        }
 
         // Mouse wheel zooms around the pointer (Shift + wheel: brush size).
         // Middle mouse drag pans.
@@ -2622,7 +2693,8 @@ impl eframe::App for Sandbox {
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
-            self.sim_clock += dt * SIM_HZ * self.speed as f64;
+            // Slow motion from a trigger (or the game) slows time on top.
+            self.sim_clock += dt * SIM_HZ * self.speed as f64 * self.sim.camera.time_scale() as f64;
             let mut steps = 0;
             while self.sim_clock >= 1.0 && steps < 8 {
                 self.step_once();

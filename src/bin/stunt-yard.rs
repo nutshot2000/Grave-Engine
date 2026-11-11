@@ -30,15 +30,18 @@ impl Game {
  fn update_zoom(&mut self,dt:f32)->f32 {
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs());
   let t=((speed-20.)/120.).clamp(0.,1.);
-  let target=220.+120.*t*t*(3.-2.*t);
+  // Zoom effects (from triggers: `zoom 1.3 1`) bring the camera closer.
+  let target=(220.+120.*t*t*(3.-2.*t))/self.sim.camera.zoom.map_or(1.,|z|z.value);
   let rate=if target>self.cam_width {2.5}else{1.5};
   self.cam_width+=(target-self.cam_width)*(1.-(-dt.max(0.)*rate).exp());
   self.cam_width
  }
  fn update_camera(&mut self,vw:f32,vh:f32,dt:f32) {
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1));
-  let target_x=b.as_ref().map_or(self.cam_x,|b|b.x+45.+b.vx.clamp(-100.,150.)*0.15).clamp(vw/2.,self.sim.world.w as f32-vw/2.);
-  let target_y=b.as_ref().map_or(self.cam_y,|b|b.y-vh*0.67).clamp(0.,self.sim.world.h as f32-vh);
+  // A focus effect (`focus it`, `focus X Y`) looks there instead.
+  let focus=self.sim.camera.focus_point(&self.sim);
+  let target_x=match focus {Some((x,_))=>x,None=>b.as_ref().map_or(self.cam_x,|b|b.x+45.+b.vx.clamp(-100.,150.)*0.15)}.clamp(vw/2.,self.sim.world.w as f32-vw/2.);
+  let target_y=match focus {Some((_,y))=>y-vh*0.5,None=>b.as_ref().map_or(self.cam_y,|b|b.y-vh*0.67)}.clamp(0.,self.sim.world.h as f32-vh);
   let blend=1.-(-dt*8.).exp();self.cam_x+=(target_x-self.cam_x)*blend;self.cam_y+=(target_y-self.cam_y)*blend;
   self.cam_x=self.cam_x.clamp(vw/2.,self.sim.world.w as f32-vw/2.);
   self.cam_y=self.cam_y.clamp(0.,self.sim.world.h as f32-vh);
@@ -76,7 +79,10 @@ impl Game {
   let contact=self.sim.physics.wheel_contact(&self.sim.world,&self.mats,id);
   self.surface=match contact.surface {Some(m) if contact.resistance>0. || self.mats.get(m).name=="ice" => self.mats.get(m).name.replace('_'," ").to_uppercase(),_=>String::new()};
   self.sim.physics.set_brake(if brake && !self.crashed {1.}else{0.});
+  let was=self.crashed;
   self.tick(if brake {0.}else{throttle},lean);
+  // The crash plays out in slow motion, with a jolt.
+  if self.crashed && !was {self.sim.camera.slow_motion(0.3,1.5);self.sim.camera.shake(3.);}
  }
  // The helmet follows the same transform as the rider artwork. Contact with
  // solid scenery counts as a crash, even when the motorcycle fits underneath.
@@ -127,7 +133,7 @@ impl eframe::App for Game {
   if ctx.input(|i|i.key_pressed(egui::Key::Space)) && self.frame==0 {self.started=true;self.state="ACTION!".into();}
   if ctx.input(|i|i.key_pressed(egui::Key::C)){self.crash_test();}
   let throttle=ctx.input(|i| if i.key_down(egui::Key::D)||i.key_down(egui::Key::ArrowRight){1.}else if i.key_down(egui::Key::A)||i.key_down(egui::Key::ArrowLeft){-1.}else{0.});
-  if self.started && ctx.input(|i|i.focused){self.clock+=dt;let mut n=0;while self.clock>=1./60. && n<6 && self.started {self.drive(throttle,ctx.input(|i|if i.key_down(egui::Key::E){1.}else if i.key_down(egui::Key::Q){-1.}else{0.}),ctx.input(|i|i.key_down(egui::Key::S)||i.key_down(egui::Key::ArrowDown)));self.clock-=1./60.;n+=1;}}else{self.clock=0.;}
+  if self.started && ctx.input(|i|i.focused){self.clock+=dt*self.sim.camera.time_scale() as f64;let mut n=0;while self.clock>=1./60. && n<6 && self.started {self.drive(throttle,ctx.input(|i|if i.key_down(egui::Key::E){1.}else if i.key_down(egui::Key::Q){-1.}else{0.}),ctx.input(|i|i.key_down(egui::Key::S)||i.key_down(egui::Key::ArrowDown)));self.clock-=1./60.;n+=1;}}else{self.clock=0.;}
   ui.heading("STUNT YARD  /  WRECK RUN");
   ui.label("360m MATERIAL PLAYGROUND  •  DUNES / MUD / DEMOLITION / ICE / LAVA");
   ui.horizontal(|ui|{ui.label(format!("SCORE {:04}     BEST {:04}     TAKE {:.1}s",self.score,self.best,self.frame as f32/60.));if ui.button("Checkpoint [R]").clicked(){self.retry_checkpoint();}if ui.button("Crash test [C]").clicked(){self.crash_test();}});
@@ -149,7 +155,8 @@ impl eframe::App for Game {
   let vw=self.update_zoom(dt as f32);let vh=(vw*rect.height()/rect.width()).min(240.);
   let world_w=self.sim.world.w as f32;let world_h=self.sim.world.h as f32;
   self.update_camera(vw,vh,dt as f32);
-  let cx=self.cam_x;let y0=self.cam_y;
+  let shake=self.sim.camera.shake_offset();
+  let cx=self.cam_x+shake.0;let y0=self.cam_y+shake.1;
 
   let view=Rect::from_min_max(Pos2::new((cx-vw/2.)/world_w,y0/world_h),Pos2::new((cx+vw/2.)/world_w,(y0+vh)/world_h));
   let desert=(430.0..1130.0).contains(&cx)||(2890.0..3200.0).contains(&cx);

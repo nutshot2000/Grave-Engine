@@ -17,6 +17,11 @@
 //!   `message TEXT`, `checkpoint [X Y]` (the place to come back to: X Y,
 //!   or the middle of the box),
 //!   `score N`.
+//! - Camera actions (see camera.rs), each for S seconds (left out or 0 =
+//!   until something changes it): `slowmo F [S]` (time at F: 0.3 = 30 %),
+//!   `zoom Z [S]` (Z times closer), `focus [S]` (look at the box),
+//!   `focus X Y [S]`, `focus it [S]` (look at whatever set it off),
+//!   `shake N` (N cells), `camera reset` (back to normal).
 //!
 //! Games read what happened from `Sim::events` (and `Sim::checkpoint`).
 
@@ -43,6 +48,23 @@ pub enum Action {
     /// Come back here (or at the trigger's centre).
     Checkpoint(Option<(f32, f32)>),
     Score(i64),
+    /// Camera: time scale for seconds; zoom for seconds; look at something
+    /// for seconds; shake; back to normal.
+    SlowMo(f32, f32),
+    Zoom(f32, f32),
+    Focus(FocusAt, f32),
+    Shake(f32),
+    CameraReset,
+}
+
+/// What a `focus` action looks at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FocusAt {
+    /// The middle of the trigger's box.
+    Box,
+    Point(f32, f32),
+    /// Whatever set the trigger off.
+    It,
 }
 
 /// Something a trigger did, for the game to show or count.
@@ -75,7 +97,9 @@ impl Trigger {
     }
 
     /// Do its actions: changes to the world now, events for the game.
-    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>) {
+    /// `who` = what set it off (for `focus it`).
+    pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, who: Option<crate::camera::Focus>) {
+        use crate::camera::Focus;
         for a in &self.actions {
             match a {
                 Action::HeatCircle(cx, cy, r, t) => {
@@ -104,6 +128,19 @@ impl Trigger {
                     events.push(Event::Checkpoint(x, y))
                 }
                 Action::Score(n) => events.push(Event::Score(*n)),
+                Action::SlowMo(f, s) => camera.slow_motion(*f, *s),
+                Action::Zoom(z, s) => camera.zoom_in(*z, *s),
+                Action::Focus(at, s) => {
+                    let centre = Focus::Point(self.x + self.w / 2.0, self.y + self.h / 2.0);
+                    let f = match at {
+                        FocusAt::Box => centre,
+                        FocusAt::Point(x, y) => Focus::Point(*x, *y),
+                        FocusAt::It => who.unwrap_or(centre),
+                    };
+                    camera.look_at(f, *s);
+                }
+                Action::Shake(n) => camera.shake(*n),
+                Action::CameraReset => camera.reset(),
             }
         }
     }
@@ -130,6 +167,13 @@ impl Trigger {
                 Action::Checkpoint(None) => "checkpoint".into(),
                 Action::Checkpoint(Some((x, y))) => format!("checkpoint {x} {y}"),
                 Action::Score(n) => format!("score {n}"),
+                Action::SlowMo(f, s) => format!("slowmo {f} {s}"),
+                Action::Zoom(z, s) => format!("zoom {z} {s}"),
+                Action::Focus(FocusAt::Box, s) => format!("focus {s}"),
+                Action::Focus(FocusAt::Point(x, y), s) => format!("focus {x} {y} {s}"),
+                Action::Focus(FocusAt::It, s) => format!("focus it {s}"),
+                Action::Shake(n) => format!("shake {n}"),
+                Action::CameraReset => "camera reset".into(),
             })
             .collect();
         s + " : " + &actions.join(" ; ")
@@ -173,7 +217,20 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
             "message" | "say" => Action::Message(part.split_once(char::is_whitespace).map(|p| p.1.trim().to_string()).unwrap_or_default()),
             "checkpoint" => Action::Checkpoint(if w.len() >= 3 { Some((n(1)?, n(2)?)) } else { None }),
             "score" | "points" => Action::Score(n(1)? as i64),
-            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score)")),
+            "slowmo" | "slow" => Action::SlowMo(n(1)?.clamp(0.05, 1.0), n(2).unwrap_or(0.0).max(0.0)),
+            "zoom" => Action::Zoom(n(1)?.clamp(0.1, 20.0), n(2).unwrap_or(0.0).max(0.0)),
+            "focus" | "look" => {
+                if w.get(1).is_some_and(|v| v.eq_ignore_ascii_case("it")) {
+                    Action::Focus(FocusAt::It, n(2).unwrap_or(0.0).max(0.0))
+                } else if w.len() >= 3 {
+                    Action::Focus(FocusAt::Point(n(1)?, n(2)?), n(3).unwrap_or(0.0).max(0.0))
+                } else {
+                    Action::Focus(FocusAt::Box, n(1).unwrap_or(0.0).max(0.0))
+                }
+            }
+            "shake" => Action::Shake(n(1)?.clamp(0.0, 20.0)),
+            "camera" if w.get(1).is_some_and(|v| v.eq_ignore_ascii_case("reset")) => Action::CameraReset,
+            other => return Err(format!("trigger: unknown action `{other}` (heat, message, checkpoint, score, slowmo, zoom, focus, shake, camera reset)")),
         });
     }
     if list.is_empty() {

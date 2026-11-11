@@ -329,6 +329,11 @@ trigger 190 0 60 260 by frame : heat circle 280 196 20 820 ; message TYRE FIRE â
 trigger 1535 0 60 260 by frame : heat circle 1508 205 8 1220 ; message DEMOLITION CHARGE!
 trigger 2530 0 60 260 by frame : heat circle 2676 192 24 920 ; message BURNING BRIDGE â€” KEEP YOUR SPEED
 trigger 3340 0 60 260 by frame : heat circle 3312 207 10 1220 ; message FINAL CHARGE!
+# Big jumps play out in slow motion, a little closer (camera effects)
+trigger 245 0 30 260 by frame : slowmo 0.4 1 ; zoom 1.3 1.2
+trigger 1480 0 30 260 by frame : slowmo 0.4 1 ; zoom 1.3 1.2
+trigger 2640 0 30 260 by frame : slowmo 0.4 1 ; zoom 1.3 1.2
+trigger 3280 0 30 260 by frame : slowmo 0.4 1 ; zoom 1.3 1.2
 # Checkpoints: crash after one and you come back to it
 trigger 435 0 60 260 by frame : checkpoint 410 200 ; message CHECKPOINT 41m
 trigger 1365 0 60 260 by frame : checkpoint 1340 200 ; message CHECKPOINT 134m
