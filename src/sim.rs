@@ -31,6 +31,8 @@ pub struct Snapshot {
     /// The object the camera follows (number N+1 in `bodies`), and how close.
     pub follow: Option<u64>,
     pub zoom: f32,
+    /// Objects with a balance assist: (number N+1 in `bodies`, strength).
+    pub upright: Vec<(u64, f32)>,
     /// Characters (the player).
     pub actors: Vec<crate::physics::ActorSpec>,
 }
@@ -38,7 +40,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, actors: Vec::new() }
+        Snapshot { world, bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), actors: Vec::new() }
     }
 }
 
@@ -124,6 +126,7 @@ impl Sim {
             })
             .collect();
         let follow = self.follow.and_then(index);
+        let upright = self.physics.upright().into_iter().filter_map(|(id, s)| Some((index(id)?, s))).collect();
         let actors = self.physics.export_actors();
         let mut world = self.world.clone();
         for i in 0..world.mat.len() {
@@ -131,7 +134,7 @@ impl Sim {
                 world.make_air(i);
             }
         }
-        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, actors }
+        Snapshot { world, bodies, instances, joints, follow, zoom: self.zoom, upright, actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
@@ -153,6 +156,11 @@ impl Sim {
             sim.physics.add_actor(&mut sim.world, mats, a.clone());
         }
         sim.follow = snap.follow.filter(|&n| n > 0).and_then(|n| new_ids.get(n as usize - 1).copied().flatten());
+        for &(n, strength) in &snap.upright {
+            if let Some(id) = (n > 0).then(|| new_ids.get(n as usize - 1).copied().flatten()).flatten() {
+                sim.physics.set_upright(id, strength);
+            }
+        }
         sim
     }
 }

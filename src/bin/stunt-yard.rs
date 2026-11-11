@@ -69,30 +69,14 @@ impl Game {
   for part in &self.parts {self.sim.physics.edit(&mut self.sim.world,&self.mats,part.id,|b|b.vx=700.);}
   self.crashed=true;self.state="CRASH TEST — high-speed impact / R to reset".into();
  }
- // Resistance is sampled from actual unowned terrain around the tyres, not course zones.
- fn surface_drag(&self)->(f32,String,bool) {
-  let mut best=(0.0,String::new(),false);
-  for p in self.parts.iter().filter(|p|p.name.ends_with("wheel")) {
-   if let Some(b)=self.sim.physics.spec_of(&self.sim.world,p.id) {
-    for dy in 4..12 {for dx in -5..=5 {
-     let (x,y)=((b.x as i32+dx),(b.y as i32+dy));
-     if x<0||y<0||x>=self.sim.world.w as i32||y>=self.sim.world.h as i32 {continue;}
-     let i=self.sim.world.idx(x as usize,y as usize);
-     if self.sim.world.flags[i]&grave_engine::world::OWNED!=0 {continue;}
-     let mat=self.mats.get(self.sim.world.mat[i]);
-     if mat.state!=grave_engine::material::State::Gas {best.2=true;}
-     let drag=match mat.name.as_str(){"sand"=>0.6,"wet_sand"=>1.4,"water"=>0.3,"gravel"=>0.3,"ice"=>0.001,_=>0.};
-     if drag>best.0 {best=(drag,mat.name.replace('_'," ").to_uppercase(),best.2);}
-    }}
-   }
-  }
-  best
- }
+ // Surfaces, brakes, rolling resistance and balance are engine vehicle
+ // controls (physics/vehicle.rs + material `rolling_resistance` + the
+ // scene's `upright frame`): the game only passes on the keys.
  fn drive(&mut self,throttle:f32,lean:f32,brake:bool) {
-  let (drag,surface,grounded)=self.surface_drag(); self.surface=surface;
-  let ids:Vec<_>=self.parts.iter().map(|p|p.id).collect();
-  let braking=if brake && grounded {if self.surface=="ICE"{0.4}else if self.surface.is_empty(){8.0}else{5.0}}else{0.0};
-  if !self.crashed {self.sim.physics.damp_horizontal(&ids, (-(drag+braking)/60.0_f32).exp());}
+  let id=self.sim.follow.unwrap_or(1);
+  let contact=self.sim.physics.wheel_contact(&self.sim.world,&self.mats,id);
+  self.surface=match contact.surface {Some(m) if contact.resistance>0. || self.mats.get(m).name=="ice" => self.mats.get(m).name.replace('_'," ").to_uppercase(),_=>String::new()};
+  self.sim.physics.set_brake(if brake && !self.crashed {1.}else{0.});
   self.tick(if brake {0.}else{throttle},lean);
  }
  // The helmet follows the same transform as the rider artwork. Contact with
@@ -118,11 +102,8 @@ impl Game {
  fn tick(&mut self, throttle:f32, lean:f32) {
   if self.crashed {self.sim.physics.set_throttle(0.);self.sim.step(&self.mats);self.frame+=1;return;}
 
-  if let Some(b)=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)) {
-   // Assisted rider balance; manual lean shifts the target angle.
-   let angle=b.angle.sin().atan2(b.angle.cos());
-   { self.sim.physics.steer_rotation(self.sim.follow.unwrap_or(1), (-angle*60. - b.spin*15. + lean*28.).clamp(-100.,100.), 3.); }
-  }
+  // Rider balance is the engine's `upright` assist; lean tips it.
+  self.sim.physics.set_lean(lean);
   self.sim.physics.set_throttle(throttle); self.sim.step(&self.mats); self.frame+=1;
   let wheels_attached=self.sim.physics.joints().iter().filter(|j|matches!(j.kind,grave_engine::physics::JointKind::Wheel{..})).count();
   if wheels_attached<2 {self.crashed=true;self.state="CUT! Wheel attachment failed — R for a new take".into();return;}

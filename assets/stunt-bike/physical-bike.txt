@@ -152,3 +152,4 @@ weld frame seat break 500
 wheel frame rear-wheel spring 4 damping 1 travel 2 motor 10 strength 3 drive break 2000
 wheel frame front-wheel spring 4 damping 1 travel 2 motor 10 strength 3 drive break 2000
 follow frame zoom 3
+upright frame strength 60

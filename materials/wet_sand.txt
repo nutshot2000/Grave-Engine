@@ -17,3 +17,4 @@ puts_out_fire = yes
 texture = textures/wet_sand.png  # the sand tile, darkened (tile by piiixl)
 reaction = sand -> sand + wet_sand, chance 0.05     # the damp creeps into dry sand
 reaction = air -> sand + air, chance 0.0004          # the surface slowly dries out
+rolling_resistance = 1.4           # slows rolling wheels (per second)

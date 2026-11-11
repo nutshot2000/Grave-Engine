@@ -74,7 +74,9 @@ impl PhysicsHooks for OneWayPowder {
 }
 
 mod actor;
+mod vehicle;
 pub use actor::{ActorSpec, ActorStatus, Controls};
+pub use vehicle::WheelContact;
 
 /// How tall a character's body is, in cells.
 pub fn actor_height() -> usize {
@@ -259,6 +261,11 @@ pub struct Physics {
     throttle: f32,
     /// Characters (the player).
     actors: Vec<actor::Actor>,
+    /// Vehicle controls: brakes (0..1), lean (-1..1), and objects kept
+    /// upright by a balance assist (id -> strength). See vehicle.rs.
+    brake: f32,
+    lean: f32,
+    upright: std::collections::BTreeMap<u64, f32>,
     /// A number unique to this physics world (object ids restart in each).
     run_id: u64,
     /// What the player is pressing.
@@ -360,6 +367,9 @@ impl Physics {
             joints: Vec::new(),
             throttle: 0.0,
             actors: Vec::new(),
+            brake: 0.0,
+            lean: 0.0,
+            upright: Default::default(),
             run_id: NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             controls: Controls::default(),
             set,
@@ -670,6 +680,8 @@ impl Physics {
                 }
             }
         }
+        // Vehicles: motors and brakes, rolling resistance, balance.
+        self.vehicles(world, mats);
         // Bounce pads fling objects resting or landing on them.
         for b in &self.bodies {
             let mut pad = 0.0f32;

@@ -102,6 +102,9 @@ pub struct Material {
     /// Bounce pad: anything that lands on top is flung upwards at this speed
     /// (m/s). 0 = an ordinary surface.
     pub launch: f32,
+    /// How much it slows rolling wheels down (per second): loose sand 0.6,
+    /// mud 1.4, water 0.3, hard ground 0.
+    pub rolling_resistance: f32,
     pub melts: Option<Change>,
     pub boils: Option<Change>,
     pub freezes: Option<Change>,
@@ -172,6 +175,7 @@ impl Material {
             crushable: false,
             metal: false,
             launch: 0.0,
+            rolling_resistance: 0.0,
             melts: None,
             boils: None,
             freezes: None,
@@ -642,6 +646,7 @@ fn apply(
         "crushable" => m.crushable = yes_no(v)?,
         "metal" => m.metal = yes_no(v)?,
         "launch" => m.launch = num(v)?.clamp(0.0, 60.0),
+        "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "melts_at" => set_at(&mut m.melts, v)?,
         "melts_into" => set_into(&mut m.melts, v, by_name)?,
         "boils_at" => set_at(&mut m.boils, v)?,

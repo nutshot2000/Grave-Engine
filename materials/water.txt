@@ -13,3 +13,4 @@ boils_into = steam
 puts_out_fire = yes
 flows = 8
 strength = 0
+rolling_resistance = 0.3           # slows rolling wheels (per second)

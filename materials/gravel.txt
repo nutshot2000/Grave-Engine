@@ -11,3 +11,4 @@ melts_into = lava
 strength = 3
 friction = 0.9
 texture = textures/gravel.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+rolling_resistance = 0.3           # slows rolling wheels (per second)

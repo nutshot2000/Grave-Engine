@@ -36,6 +36,7 @@
 //! rope lamp ground at 50 40 to 50 10 length 30
 //! weld car cargo break 25           # optional attachment failure load in kN
 //! follow car zoom 3                  # the camera follows `car`, 3 times closer than the whole world
+//! upright bike strength 60           # a balance assist keeps `bike` (and what's welded/wheeled to it) upright
 //! player 40 260 look hero zoom 3     # the player, feet at x y; `look` = assets/characters/hero
 //! body 120.5 40.0 15                 # a saved object: centre x y, angle in degrees,
 //! WWWW                               # then its cells using the legend
@@ -66,6 +67,8 @@ pub struct Loaded {
     pub joints: Vec<PendingJoint>,
     /// The object the camera follows, and how close (0 = editor decides).
     pub follow: Option<(usize, f32)>,
+    /// Objects kept upright by a balance assist: (object number, strength).
+    pub upright: Vec<(usize, f32)>,
     /// Characters (the player), and how close the camera follows them.
     pub actors: Vec<crate::physics::ActorSpec>,
     pub player_zoom: f32,
@@ -146,6 +149,11 @@ impl Loaded {
         if self.player_zoom > 0.0 {
             sim.zoom = self.player_zoom;
         }
+        for (n, strength) in self.upright {
+            if let Some(id) = ids.get(n).copied().flatten() {
+                sim.physics.set_upright(id, strength);
+            }
+        }
         if let Some((n, zoom)) = self.follow {
             sim.follow = ids.get(n).copied().flatten();
             sim.zoom = zoom;
@@ -221,6 +229,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     let mut names: HashMap<String, usize> = HashMap::new();
     let mut joints: Vec<PendingJoint> = Vec::new();
     let mut follow: Option<(usize, f32)> = None;
+    let mut upright: Vec<(usize, f32)> = Vec::new();
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -491,6 +500,18 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
                 }
                 _ => err("`name` goes right after an object: `name crate1`".into()),
             },
+            "upright" => match words.get(1).map(|w| w.to_lowercase()).and_then(|w| names.get(&w).copied()) {
+                Some(n) => {
+                    let strength = words
+                        .iter()
+                        .position(|w| w.eq_ignore_ascii_case("strength"))
+                        .and_then(|i| words.get(i + 1))
+                        .and_then(|z| z.parse::<f32>().ok())
+                        .unwrap_or(60.0);
+                    upright.push((n, strength.clamp(0.0, 1000.0)));
+                }
+                None => err("use `upright NAME [strength 60]` with a named object".into()),
+            },
             "follow" => match words.get(1).map(|w| w.to_lowercase()).and_then(|w| names.get(&w).copied()) {
                 Some(n) => {
                     let zoom = words
@@ -662,7 +683,7 @@ pub fn load_part(text: &str, mats: &Materials, base: Option<&Path>, allow_place:
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { world, bodies, problems, heated, instances, joints, follow, actors, player_zoom }
+    Loaded { world, bodies, problems, heated, instances, joints, follow, upright, actors, player_zoom }
 }
 
 fn rect(w: &mut World, mats: &Materials, x: i32, y: i32, rw: i32, rh: i32, id: MatId) {
@@ -761,6 +782,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if let Some(f) = snap.follow {
         named.insert(f);
     }
+    named.extend(snap.upright.iter().map(|&(n, _)| n));
     let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
@@ -833,6 +855,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     if let Some(f) = snap.follow {
         out.push_str(&format!("\nfollow obj{f} zoom {}\n", snap.zoom));
+    }
+    for &(n, strength) in &snap.upright {
+        out.push_str(&format!("upright obj{n} strength {strength}\n"));
     }
     for a in &snap.actors {
         let (x, y) = a.feet();
