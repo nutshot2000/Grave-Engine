@@ -591,3 +591,7 @@ line up your landings. It has a headlight and a tail light at night.
 `stunt-yard --verify-ai --level=1` lets an automatic rider ride a course (it prints
 progress, says where it got stuck, and saves pictures to `shots/ride-*.png`): use it
 to check a new level can be finished. `--from=X` starts at the checkpoint at X.
+
+## Voidrunner — space shooter
+
+Open `Play-Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with material-cell ships, explosive fuel, enemy formations, weapon/shield pickups, limited lives, pulse bombs and a reactor carrier. WASD/arrows move, Space/Z fires, X bombs, Enter starts. See `docs/VOIDRUNNER.md` and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md`.

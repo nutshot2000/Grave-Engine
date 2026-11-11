@@ -1981,6 +1981,29 @@ impl Physics {
         }
     }
 
+    /// Runtime arcade control: commanded velocity is not deflected by contacts.
+    /// Useful for a player ship; damage and material cells still simulate.
+    pub fn set_kinematic(&mut self, id: u64, enabled: bool, lock_rotation: bool) -> bool {
+        let Some(n) = self.find(id) else { return false; };
+        let rb = &mut self.set[self.bodies[n].handle];
+        let kind = if enabled { RigidBodyType::KinematicVelocityBased } else { RigidBodyType::Dynamic };
+        if rb.body_type() != kind { rb.set_body_type(kind, true); }
+        rb.lock_rotations(lock_rotation, true);
+        if lock_rotation { rb.set_rotation(Rotation::new(0.0), true);rb.set_angvel(0.0,true); }
+        true
+    }
+
+    /// Set an object's velocity without rebuilding its cells or attachments.
+    /// Speeds are cells per second; spin is radians per second.
+    pub fn set_velocity(&mut self, id: u64, vx: f32, vy: f32, spin: f32) -> bool {
+        if !vx.is_finite() || !vy.is_finite() || !spin.is_finite() { return false; }
+        let Some(n) = self.find(id) else { return false; };
+        let rb = &mut self.set[self.bodies[n].handle];
+        rb.set_linvel(Vector::new(vx * CELL, vy * CELL), true);
+        rb.set_angvel(spin, true);
+        true
+    }
+
     /// Apply horizontal drag to a group without rebuilding its bodies or joints.
     /// A factor of one preserves speed; zero stops horizontal movement.
     pub fn damp_horizontal(&mut self, ids: &[u64], factor: f32) {
