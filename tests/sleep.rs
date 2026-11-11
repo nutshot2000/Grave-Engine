@@ -191,3 +191,21 @@ fn a_floating_island_isnt_judged_by_the_edge_of_a_rechecked_area() {
     }
     assert_eq!(slab(&s), 700 * 6, "the floating slab stays where it was painted");
 }
+
+#[test]
+fn slow_drying_lets_an_area_sleep_but_dries_at_the_same_pace() {
+    let m = mats();
+    let scene_text = "size 1000 120\nfill air\nrect stone 0 110 1000 10\nrect mud 100 90 800 20\n";
+    // Wet things drying out no longer keep the world awake...
+    let mut s = sim(&m, scene_text);
+    for _ in 0..300 {
+        s.step(&m);
+    }
+    assert!(s.world.awake_fraction() < 0.2, "a pile of drying mud sleeps: {}", s.world.awake_fraction());
+    // ...and mud still dries into dirt about as fast as with everything awake.
+    let dirt = |s: &Sim| s.world.mat.iter().filter(|&&c| c == m.id("dirt").unwrap()).count() as f32;
+    let (asleep, awake) = both(&m, scene_text, |_| {}, 3000, dirt);
+    println!("dirt after 50 seconds: {asleep} sleeping, {awake} awake");
+    assert!(asleep > 40.0 && awake > 40.0, "mud dries");
+    assert!((asleep - awake).abs() < 0.35 * awake.max(asleep), "sleeping {asleep} vs awake {awake}");
+}

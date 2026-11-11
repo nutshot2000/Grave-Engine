@@ -146,6 +146,9 @@ pub struct World {
     /// changes a cell wakes its block (`wake_at`).
     awake: Vec<u8>,
     active: Vec<bool>,
+    /// Blocks holding something with a slow reaction waiting to happen: they
+    /// get a short visit now and then even when asleep.
+    slow: Vec<bool>,
     /// Let quiet areas sleep (on by default; off works on everything every
     /// frame, for comparing).
     pub sleeping: bool,
@@ -162,6 +165,11 @@ static NEXT_WORLD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::
 const BLOCK: usize = 32;
 /// How long a block stays awake after something happens in it (frames).
 const AWAKE_FRAMES: u8 = 60;
+/// Reactions with a chance below this per frame are "slow" (mud drying, wet
+/// sand drying): they don't keep an area awake. Instead its block is visited
+/// every `SLOW_EVERY` frames and the chance scaled up to match.
+const SLOW_CHANCE: f32 = 0.02;
+const SLOW_EVERY: u32 = 16;
 
 /// Per-material numbers the hot loops need, gathered once per frame.
 struct Fast {
@@ -199,6 +207,7 @@ impl World {
             inv_cap: vec![0.0; n],
             awake: vec![AWAKE_FRAMES; w.div_ceil(BLOCK) * h.div_ceil(BLOCK)],
             active: vec![true; w.div_ceil(BLOCK) * h.div_ceil(BLOCK)],
+            slow: vec![false; w.div_ceil(BLOCK) * h.div_ceil(BLOCK)],
             bw: w.div_ceil(BLOCK),
             bh: h.div_ceil(BLOCK),
             sleeping: true,
@@ -255,6 +264,12 @@ impl World {
                     }
                 }
                 self.active[by * bw + bx] = on;
+            }
+        }
+        // A sleeping block with a slow reaction waiting gets its turn.
+        for b in 0..bw * bh {
+            if self.slow[b] && !self.active[b] && self.frame % SLOW_EVERY == b as u32 % SLOW_EVERY {
+                self.active[b] = true;
             }
         }
     }
@@ -794,6 +809,7 @@ impl World {
                 continue;
             }
             let (x0, x1, y0, y1) = self.block_cells(b);
+            self.slow[b] = false; // (cells set it again if something is still waiting)
             for y in y0..y1 {
                 for x in x0..x1 {
                     self.change(mats, ml, y * w + x);
@@ -922,8 +938,8 @@ impl World {
                 let dir = self.rand() as usize % 4;
                 if let Some(j) = self.neighbours(i)[dir] {
                     let other = self.mat[j];
-                    if let Some(r) = m.reactions.iter().find(|r| r.with == other) {
-                        // Something that could react stays awake (wet sand drying).
+                    if let Some(r) = m.reactions.iter().find(|r| r.with == other && r.chance >= SLOW_CHANCE) {
+                        // Something that could react soon stays awake.
                         self.wake_at(i);
                         let (me, it, p) = (r.me_into, r.other_into, r.chance);
                         if self.chance(p) {
@@ -933,6 +949,26 @@ impl World {
                             self.become_(mats, j, it);
                             self.temp[j] = ml[it as usize].temperature;
                         }
+                    }
+                }
+            }
+            // Slow reactions (drying mud...): the block is visited every
+            // SLOW_EVERY frames; each neighbour is tried with the chance
+            // scaled up to match what every-frame trying would give.
+            if m.reactions.iter().any(|r| r.chance < SLOW_CHANCE) {
+                let block = (i / self.w / BLOCK) * self.bw + (i % self.w) / BLOCK;
+                let turn = self.frame % SLOW_EVERY == block as u32 % SLOW_EVERY;
+                for j in self.neighbours(i).into_iter().flatten() {
+                    let other = self.mat[j];
+                    let Some(r) = m.reactions.iter().find(|r| r.with == other && r.chance < SLOW_CHANCE) else { continue };
+                    self.slow[block] = true;
+                    let (me, it, p) = (r.me_into, r.other_into, r.chance);
+                    if turn && self.chance((p * SLOW_EVERY as f32 / 4.0).min(1.0)) {
+                        self.become_(mats, i, me);
+                        self.temp[i] = ml[me as usize].temperature;
+                        self.become_(mats, j, it);
+                        self.temp[j] = ml[it as usize].temperature;
+                        break;
                     }
                 }
             }
