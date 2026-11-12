@@ -1,0 +1,7 @@
+test 1
+asset explosive_barrel
+name barrel_impact
+kind Impact
+speed 40
+heat 900
+frames 600

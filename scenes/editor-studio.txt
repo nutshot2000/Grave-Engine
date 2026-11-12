@@ -1,0 +1,20 @@
+# Construction kit playground: source assets stay reusable.
+size 560 220
+seed 7
+fill air
+rect stone 0 190 560 30
+rect sandstone 0 190 560 3
+lighting 0.55 #b8c9e5
+sun 25 0.65 #ffe2bc
+sky #182d47 #a66d6b stars
+layer city #283a50 depth 0.25 y 191 height 55 windows
+asset ../assets/workshop/studio_timber_house.asset 100 190 as house
+asset ../assets/workshop/studio_layered_house.asset 230 190 as layered_house
+asset ../assets/workshop/tnt_box.asset 330 190 as tnt
+asset ../assets/workshop/explosive_barrel.asset 375 190 as barrel
+asset ../assets/workshop/breakable_window.asset 440 190 as window
+asset ../assets/workshop/timber_beam.asset 500 190 as beam
+light 100 140 65 color #ffbf80 strength 1.1 unshadowed
+light 230 140 65 color #80cfff strength 1.1 unshadowed
+light 370 155 60 color #ffbd82 strength 1.2
+trigger 320 145 15 45 : message Charge zone reached!

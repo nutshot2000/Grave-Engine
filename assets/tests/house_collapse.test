@@ -1,0 +1,7 @@
+test 1
+asset studio_layered_house
+name house_collapse
+kind Burn
+speed 40
+heat 900
+frames 600
