@@ -33,6 +33,20 @@ fn mats() -> Materials {
 }
 
 #[test]
+fn depth_faces_supply_air_but_sealed_interiors_still_need_an_opening() {
+    let m=mats();let iron=m.id("iron").unwrap();let wood=m.id("wood").unwrap();
+    let mut s=Sim::empty(9,9,&m);s.world.fill(&m,iron);
+    s.ensure_layer(1,"inside",&m);s.ensure_layer(2,"rear",&m);
+    let i=s.world.idx(4,4);
+    s.layers[0].world.set(&m,4,4,wood);s.layers[0].world.temp[i]=900.;s.step(&m);
+    assert_eq!(s.layers[0].world.flags[i]&grave_engine::world::BURNING,0,"solid neighbouring planes must still smother enclosed wood");
+    s.world.make_air(i);s.layers[0].world.temp[i]=900.;s.step(&m);
+    assert_ne!(s.layers[0].world.flags[i]&grave_engine::world::BURNING,0,"an opening in the front must admit air to hot interior wood");
+    s.world.set(&m,4,4,wood);s.world.temp[i]=900.;s.step(&m);
+    assert_ne!(s.world.flags[i]&grave_engine::world::BURNING,0,"the exterior face touches outside air even when its flat neighbours are solid");
+}
+
+#[test]
 fn overlapping_parts_are_independent_and_legacy_assets_still_work() {
     let m = mats();
     let mut a = Asset::blank("layers", 16, 16).unwrap();

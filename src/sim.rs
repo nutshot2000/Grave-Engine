@@ -109,12 +109,23 @@ impl Sim {
         &mut self.layers[index-1]
     }
     fn step_layers(&mut self, mats: &Materials) {
+        if !self.layers.is_empty() {
+            if self.world.depth_air.iter().any(|v|!*v) {self.world.depth_air.fill(true);self.world.wake_all();}
+            let feeding: Vec<Vec<bool>>=std::iter::once(&self.world).chain(self.layers.iter().map(|l|&l.world)).map(|w|w.mat.iter().map(|id|mats.get(*id).feeds_fire).collect()).collect();
+            let total=self.layers.len();
+            for (z,layer) in self.layers.iter_mut().enumerate() {
+                for i in 0..layer.world.mat.len() {
+                    let exposed=feeding[z].get(i).copied().unwrap_or(false) || if z+1==total {true} else {feeding[z+2].get(i).copied().unwrap_or(false)};
+                    if layer.world.depth_air[i]!=exposed {layer.world.depth_air[i]=exposed;layer.world.wake_at(i);}
+                }
+            }
+        }
         let mut previous=&mut self.world;
         for layer in &mut self.layers {
             crate::layers::exchange_heat(previous,&mut layer.world,mats);
             previous=&mut layer.world;
         }
-        for layer in &mut self.layers { layer.step(mats); }
+        for layer in &mut self.layers { layer.step_depth(mats,true); }
     }
     /// Reconnect joints numbered by position (1 = first object, 0 = ground).
     pub fn add_joints(&mut self, joints: &[JointSpec], ids: &[Option<u64>], mats: &Materials) {
@@ -139,6 +150,10 @@ impl Sim {
 
     /// One frame: cells first (heat, fire, flowing), then objects.
     pub fn step(&mut self, mats: &Materials) {
+        self.step_depth(mats,false);
+    }
+    fn step_depth(&mut self, mats: &Materials, inherited_air: bool) {
+        if !inherited_air && self.layers.is_empty() {self.world.depth_air.fill(false);}
         self.step_layers(mats);
         self.world.step(mats);
         // Weather falls (and lightning strikes, adding blasts) before the

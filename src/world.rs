@@ -115,6 +115,8 @@ pub struct World {
     /// Frames left of burning.
     pub burn: Vec<u16>,
     pub flags: Vec<u8>,
+    /// Air touching the face from a neighbouring depth plane; refreshed by Sim.
+    pub depth_air: Vec<bool>,
     /// Per-cell random number for colour speckle.
     pub shade: Vec<u8>,
     /// Opaque 0xffRRGGBB surface paint; zero means the native material appearance.
@@ -193,6 +195,7 @@ impl World {
             life: vec![0; n],
             burn: vec![0; n],
             flags: vec![0; n],
+            depth_air: vec![false; n],
             shade: vec![0; n],
             paint: vec![0; n],
             tex: (0..n).map(|i| pack_tex(i % w, i / w)).collect(),
@@ -912,7 +915,7 @@ impl World {
                         }
                         doused |= nm.puts_out_fire;
                     }
-                    if n_air == 0 || doused {
+                    if (n_air == 0 && !self.depth_air[i]) || doused {
                         self.flags[i] &= !BURNING; // smothered or doused
                     } else if !burning {
                         self.flags[i] |= BURNING;

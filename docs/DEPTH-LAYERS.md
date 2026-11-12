@@ -29,3 +29,11 @@ Point lights support RGB colours, range, strength, flicker and attachment to a n
 ## Verification
 
 The complete release suite passed after the depth-system changes. Further focused checks passed after night lighting was added: editor controls, material occlusion and crop equivalence, independent overlapping parts, old assets, bidirectional energy-conserving heat, insulating material, cross-plane ignition, asset/scene roundtrips, reset/history/rewind, complete shop fire, per-plane lighting and sign-lamp persistence. The night frontage was also run for 360 frames: all 16 exterior bodies remained intact and stationary before ignition. Its masonry feet are secured to the pavement with breakable scene welds; timber and fabric can still burn away independently.
+
+## Timber facade and exposed air
+
+For the burn-through demonstration, open `scenes/timber-shop-night.txt` and the reusable `timber_shop` asset. This version has cream timber weatherboards instead of brick on the outside; the rear masonry plane remains nonflammable. The original brick shop is still available.
+
+Layered simulations account for air touching the outer faces. The front and rear outside faces receive air, while enclosed middle-plane cells get depth air only from a neighbouring material that feeds fire. Opening a hole can therefore supply air to hot wood behind it. Temperature and material ignition thresholds still govern burning; brick is never made flammable. Standalone single-plane simulations retain their existing air requirement. Tested intact standing, substantial timber loss, interior ignition, exposed faces and sealed middle-plane wood.
+
+Green weld/hinge/axle guides are shown only with the Join tool. Rope lines remain visible as the physical representation of ropes. Normal painting, heating and play no longer draw green squares over buildings.

@@ -2688,6 +2688,7 @@ impl Sandbox {
     fn draw_joints(&self, painter: &egui::Painter, to_screen: &impl Fn((f32, f32)) -> Pos2) {
         let col = Color32::from_rgb(120, 230, 160);
         for j in self.sim.physics.joints() {
+            if self.tool != Tool::Join && !matches!(j.kind,JointKind::Rope {..}) {continue;}
             let Some((ea, eb)) = self.sim.physics.joint_ends(&j) else { continue };
             let (pa, pb) = (to_screen(ea), to_screen(eb));
             match j.kind {
