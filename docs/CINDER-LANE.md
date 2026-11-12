@@ -10,7 +10,7 @@ A fresh night-time street for destructive play. Open **Scenes... > cinder-lane**
 
 ## Burn it
 
-Press **Play**, choose **Heat** on the left, and hold the brush over a red TNT crate or the oil beside it. The first stack between the rose house and Night Owl is a good starting point. Use the mouse wheel to enlarge the brush if needed. Escape cancels any asset-placement preview first.
+Press **Play**, choose **Heat** on the left, and hold the brush over a red TNT crate or the oil beside it. The first stack between the rose house and Night Owl is a good starting point. Hold Shift and use the mouse wheel to enlarge the brush if needed. Escape cancels any asset-placement preview first.
 
 Press **Pause** to inspect damage. **Reset** (R) restores the street to the state before Play. Mouse wheel zooms the view in Select mode; middle-drag pans. Fit restores the full-street view.
 
