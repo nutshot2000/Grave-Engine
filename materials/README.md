@@ -60,6 +60,10 @@ Lots of explosive going off together makes one bigger blast.
 Heat flows between neighbours as fast as the *worse* conductor of the two allows,
 so wood and air insulate and iron spreads heat quickly.
 
+Heat exchange conserves the sum of temperature times relative heat capacity between ordinary cells. Low capacities are handled with stable smaller time steps. The capacity values are relative per-cell simulation units; density is used for weight and movement, not multiplied into this thermal budget. Fires, fixed-temperature sources and cooling to the outside temperature deliberately add or remove heat.
+
+The snow preset uses density 120 with `melt_yield = 0.12`: its deliberately small meltwater volume is preserved. Concrete starts weakening at 300°C. Silica sand melts at 1700°C into molten glass and cools into glass.
+
 ## Fire
 
 | Key | What it means | Default |

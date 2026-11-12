@@ -1,7 +1,7 @@
 # Snow: light powder that holds steep slopes, slows wheels and melts.
 about = Cold and light. Piles up steep, slows wheels, melts into water.
 state = powder
-density = 300
+density = 120                   # fresh light snow; matches 12% meltwater yield
 color = #eef3f8
 color_variation = 0.04
 temperature = -5
@@ -12,7 +12,7 @@ melts_into = water
 melt_yield = 0.12                # a drift melts to a puddle, not a flood
 puts_out_fire = yes
 slides = 0.08                    # sticks where it lands: holds steep piles and roofs
-friction = 0.35                  # packed snow: some grip
+friction = 0.35                  # snow surface: some grip
 rolling_resistance = 0.5
 clump = 2
 texture = textures/snow.png

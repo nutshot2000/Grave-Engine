@@ -1,5 +1,5 @@
-# Sand: falls and piles up.
-about = Falls and piles up.
+# Silica sand: falls, piles up, and becomes glass when melted.
+about = Falls and piles up. Extreme heat melts it into glass.
 state = powder
 density = 1600
 color = #d8c07a
@@ -7,7 +7,7 @@ color_variation = 0.1
 conducts_heat = 0.15
 heat_capacity = 1
 melts_at = 1700
-melts_into = lava
+melts_into = molten_glass
 strength = 1
 friction = 0.7
 texture = textures/sand.png          # pixel-art tile by piiixl (see textures/CREDITS.md)

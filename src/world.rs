@@ -711,65 +711,75 @@ impl World {
         let (w, h) = (self.w, self.h);
         let ml = &mats.list;
         let blocks = self.bw * self.bh;
-        // Heat flows across each edge between two cells. The edge conducts as
-        // well as the worse of the two (like insulation), and each side's
-        // temperature moves by flow / heat_capacity. Sleeping blocks keep
-        // their temperatures as they are.
+        // Use the same heat flux on both sides of every active edge. Limiting
+        // each receiver independently creates/destroys heat when capacities
+        // differ. Substeps instead keep the explicit four-neighbour update
+        // stable while retaining the material's actual relative heat capacity.
         const RATE: f32 = 0.24;
+        let mut max_ratio = 1.0f32;
         for b in 0..blocks {
-            let (x0, x1, y0, y1) = self.block_cells(b);
             if !self.active[b] {
                 continue;
             }
-            // (Block edges read their neighbours' conductivity: work it out
-            // one cell further out.)
-            let (ex0, ex1, ey0, ey1) = (x0.saturating_sub(1), (x1 + 1).min(w), y0.saturating_sub(1), (y1 + 1).min(h));
-            for y in ey0..ey1 {
-                for x in ex0..ex1 {
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            for y in y0..y1 {
+                for x in x0..x1 {
                     let i = y * w + x;
                     let m = &ml[self.mat[i] as usize];
                     self.k[i] = m.conducts_heat;
                     self.inv_cap[i] = 1.0 / m.heat_capacity;
-                }
-            }
-            for y in y0..y1 {
-                for x in x0..x1 {
-                    let i = y * w + x;
-                    let t = self.temp[i];
-                    let ki = self.k[i];
-                    let mut flow = 0.0;
-                    let mut edge = |j: usize| {
-                        let kj = self.k[j];
-                        let k = if ki < kj { ki } else { kj };
-                        flow += k * (self.temp[j] - t);
-                    };
-                    if x > 0 {
-                        edge(i - 1);
-                    }
-                    if x + 1 < w {
-                        edge(i + 1);
-                    }
-                    if y > 0 {
-                        edge(i - w);
-                    }
-                    if y + 1 < h {
-                        edge(i + w);
-                    }
-                    let coef = (RATE * self.inv_cap[i]).min(0.24);
-                    self.new_temp[i] = t + coef * flow;
+                    max_ratio = max_ratio.max(self.k[i] * self.inv_cap[i]);
                 }
             }
         }
-        // New temperatures in, for awake blocks only (`new_temp` keeps the old
-        // ones, to see what changed).
-        for b in 0..blocks {
-            if !self.active[b] {
-                continue;
+        let substeps = max_ratio.ceil() as usize;
+        let rate = RATE / substeps as f32;
+        for _ in 0..substeps {
+            for b in 0..blocks {
+                if !self.active[b] {
+                    continue;
+                }
+                let (x0, x1, y0, y1) = self.block_cells(b);
+                let left = x0 > 0 && self.active[b - 1];
+                let right = x1 < w && self.active[b + 1];
+                let up = y0 > 0 && self.active[b - self.bw];
+                let down = y1 < h && self.active[b + self.bw];
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let i = y * w + x;
+                        let t = self.temp[i];
+                        let ki = self.k[i];
+                        let mut flow = 0.;
+                        let mut edge = |j: usize| {
+                            flow += ki.min(self.k[j]) * (self.temp[j] - t);
+                        };
+                        // Sleeping blocks are insulating for this frame: an edge
+                        // must update both endpoints, or neither, to conserve heat.
+                        if x > x0 || left {
+                            edge(i - 1);
+                        }
+                        if x + 1 < x1 || right {
+                            edge(i + 1);
+                        }
+                        if y > y0 || up {
+                            edge(i - w);
+                        }
+                        if y + 1 < y1 || down {
+                            edge(i + w);
+                        }
+                        self.new_temp[i] = t + rate * self.inv_cap[i] * flow;
+                    }
+                }
             }
-            let (x0, x1, y0, y1) = self.block_cells(b);
-            for y in y0..y1 {
-                let r = y * w;
-                self.temp[r + x0..r + x1].swap_with_slice(&mut self.new_temp[r + x0..r + x1]);
+            for b in 0..blocks {
+                if !self.active[b] {
+                    continue;
+                }
+                let (x0, x1, y0, y1) = self.block_cells(b);
+                for y in y0..y1 {
+                    let r = y * w;
+                    self.temp[r + x0..r + x1].swap_with_slice(&mut self.new_temp[r + x0..r + x1]);
+                }
             }
         }
 
@@ -798,7 +808,7 @@ impl World {
                         *t += (ambient - *t) * m.cools_off;
                     }
                     // (`new_temp` now holds last frame's temperatures.)
-                    busy |= (*t - self.new_temp[i]).abs() > 0.02;
+                    busy |= (*t - self.new_temp[i]).abs() * substeps as f32 > 0.02;
                 }
             }
             if busy {

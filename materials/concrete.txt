@@ -1,5 +1,5 @@
 # Concrete: poured stone. Heavy and strong; cracks into gravel.
-about = Poured stone. Strong; hard hits crack it to gravel.
+about = Poured stone. Strong; heat weakens it and hard hits crack it to gravel.
 state = solid
 density = 2400
 color = #9a9a96
@@ -8,6 +8,7 @@ conducts_heat = 0.3
 heat_capacity = 1
 melts_at = 1500
 melts_into = lava
+softens_at = 300                 # loses strength in a fire before melting
 strength = 40                    # stronger than stone
 toughness = 7000
 breaks_into = gravel
