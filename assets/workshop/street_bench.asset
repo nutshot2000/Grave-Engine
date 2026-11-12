@@ -1,0 +1,336 @@
+# Grave material asset. One cell = 10 cm. Named parts share a local grid.
+format 1
+asset street_bench 30 19
+depth 0.08
+pivot 15 19
+legend A iron
+legend B wood
+
+part timber_seat
+grid
+..............................
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+..BB......................BB..
+..BB......................BB..
+..BB......................BB..
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+end
+paint 0 1 #855c36
+paint 1 1 #855c36
+paint 2 1 #855c36
+paint 3 1 #855c36
+paint 4 1 #855c36
+paint 5 1 #855c36
+paint 6 1 #855c36
+paint 7 1 #855c36
+paint 8 1 #855c36
+paint 9 1 #855c36
+paint 10 1 #855c36
+paint 11 1 #855c36
+paint 12 1 #855c36
+paint 13 1 #855c36
+paint 14 1 #855c36
+paint 15 1 #855c36
+paint 16 1 #855c36
+paint 17 1 #855c36
+paint 18 1 #855c36
+paint 19 1 #855c36
+paint 20 1 #855c36
+paint 21 1 #855c36
+paint 22 1 #855c36
+paint 23 1 #855c36
+paint 24 1 #855c36
+paint 25 1 #855c36
+paint 26 1 #855c36
+paint 27 1 #855c36
+paint 28 1 #855c36
+paint 29 1 #855c36
+paint 0 2 #855c36
+paint 1 2 #855c36
+paint 2 2 #855c36
+paint 3 2 #855c36
+paint 4 2 #855c36
+paint 5 2 #855c36
+paint 6 2 #855c36
+paint 7 2 #855c36
+paint 8 2 #855c36
+paint 9 2 #855c36
+paint 10 2 #855c36
+paint 11 2 #855c36
+paint 12 2 #855c36
+paint 13 2 #855c36
+paint 14 2 #855c36
+paint 15 2 #855c36
+paint 16 2 #855c36
+paint 17 2 #855c36
+paint 18 2 #855c36
+paint 19 2 #855c36
+paint 20 2 #855c36
+paint 21 2 #855c36
+paint 22 2 #855c36
+paint 23 2 #855c36
+paint 24 2 #855c36
+paint 25 2 #855c36
+paint 26 2 #855c36
+paint 27 2 #855c36
+paint 28 2 #855c36
+paint 29 2 #855c36
+paint 0 3 #855c36
+paint 1 3 #855c36
+paint 2 3 #855c36
+paint 3 3 #855c36
+paint 4 3 #855c36
+paint 5 3 #855c36
+paint 6 3 #855c36
+paint 7 3 #855c36
+paint 8 3 #855c36
+paint 9 3 #855c36
+paint 10 3 #855c36
+paint 11 3 #855c36
+paint 12 3 #855c36
+paint 13 3 #855c36
+paint 14 3 #855c36
+paint 15 3 #855c36
+paint 16 3 #855c36
+paint 17 3 #855c36
+paint 18 3 #855c36
+paint 19 3 #855c36
+paint 20 3 #855c36
+paint 21 3 #855c36
+paint 22 3 #855c36
+paint 23 3 #855c36
+paint 24 3 #855c36
+paint 25 3 #855c36
+paint 26 3 #855c36
+paint 27 3 #855c36
+paint 28 3 #855c36
+paint 29 3 #855c36
+paint 2 4 #855c36
+paint 3 4 #855c36
+paint 26 4 #855c36
+paint 27 4 #855c36
+paint 2 5 #855c36
+paint 3 5 #855c36
+paint 26 5 #855c36
+paint 27 5 #855c36
+paint 2 6 #855c36
+paint 3 6 #855c36
+paint 26 6 #855c36
+paint 27 6 #855c36
+paint 0 7 #855c36
+paint 1 7 #855c36
+paint 2 7 #855c36
+paint 3 7 #855c36
+paint 4 7 #855c36
+paint 5 7 #855c36
+paint 6 7 #855c36
+paint 7 7 #855c36
+paint 8 7 #855c36
+paint 9 7 #855c36
+paint 10 7 #855c36
+paint 11 7 #855c36
+paint 12 7 #855c36
+paint 13 7 #855c36
+paint 14 7 #855c36
+paint 15 7 #855c36
+paint 16 7 #855c36
+paint 17 7 #855c36
+paint 18 7 #855c36
+paint 19 7 #855c36
+paint 20 7 #855c36
+paint 21 7 #855c36
+paint 22 7 #855c36
+paint 23 7 #855c36
+paint 24 7 #855c36
+paint 25 7 #855c36
+paint 26 7 #855c36
+paint 27 7 #855c36
+paint 28 7 #855c36
+paint 29 7 #855c36
+paint 0 8 #855c36
+paint 1 8 #855c36
+paint 2 8 #855c36
+paint 3 8 #855c36
+paint 4 8 #855c36
+paint 5 8 #855c36
+paint 6 8 #855c36
+paint 7 8 #855c36
+paint 8 8 #855c36
+paint 9 8 #855c36
+paint 10 8 #855c36
+paint 11 8 #855c36
+paint 12 8 #855c36
+paint 13 8 #855c36
+paint 14 8 #855c36
+paint 15 8 #855c36
+paint 16 8 #855c36
+paint 17 8 #855c36
+paint 18 8 #855c36
+paint 19 8 #855c36
+paint 20 8 #855c36
+paint 21 8 #855c36
+paint 22 8 #855c36
+paint 23 8 #855c36
+paint 24 8 #855c36
+paint 25 8 #855c36
+paint 26 8 #855c36
+paint 27 8 #855c36
+paint 28 8 #855c36
+paint 29 8 #855c36
+paint 0 9 #855c36
+paint 1 9 #855c36
+paint 2 9 #855c36
+paint 3 9 #855c36
+paint 4 9 #855c36
+paint 5 9 #855c36
+paint 6 9 #855c36
+paint 7 9 #855c36
+paint 8 9 #855c36
+paint 9 9 #855c36
+paint 10 9 #855c36
+paint 11 9 #855c36
+paint 12 9 #855c36
+paint 13 9 #855c36
+paint 14 9 #855c36
+paint 15 9 #855c36
+paint 16 9 #855c36
+paint 17 9 #855c36
+paint 18 9 #855c36
+paint 19 9 #855c36
+paint 20 9 #855c36
+paint 21 9 #855c36
+paint 22 9 #855c36
+paint 23 9 #855c36
+paint 24 9 #855c36
+paint 25 9 #855c36
+paint 26 9 #855c36
+paint 27 9 #855c36
+paint 28 9 #855c36
+paint 29 9 #855c36
+
+part metal_legs
+grid
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+..............................
+...AAAAAAAAAAAAAAAAAAAAAAAA...
+...AAAAAAAAAAAAAAAAAAAAAAAA...
+...AAA..................AAA...
+...AAA..................AAA...
+...AAA..................AAA...
+...AAA..................AAA...
+...AAA..................AAA...
+...AAA..................AAA...
+...AAA..................AAA...
+end
+paint 3 10 #414e54
+paint 4 10 #414e54
+paint 5 10 #414e54
+paint 6 10 #414e54
+paint 7 10 #414e54
+paint 8 10 #414e54
+paint 9 10 #414e54
+paint 10 10 #414e54
+paint 11 10 #414e54
+paint 12 10 #414e54
+paint 13 10 #414e54
+paint 14 10 #414e54
+paint 15 10 #414e54
+paint 16 10 #414e54
+paint 17 10 #414e54
+paint 18 10 #414e54
+paint 19 10 #414e54
+paint 20 10 #414e54
+paint 21 10 #414e54
+paint 22 10 #414e54
+paint 23 10 #414e54
+paint 24 10 #414e54
+paint 25 10 #414e54
+paint 26 10 #414e54
+paint 3 11 #414e54
+paint 4 11 #414e54
+paint 5 11 #414e54
+paint 6 11 #414e54
+paint 7 11 #414e54
+paint 8 11 #414e54
+paint 9 11 #414e54
+paint 10 11 #414e54
+paint 11 11 #414e54
+paint 12 11 #414e54
+paint 13 11 #414e54
+paint 14 11 #414e54
+paint 15 11 #414e54
+paint 16 11 #414e54
+paint 17 11 #414e54
+paint 18 11 #414e54
+paint 19 11 #414e54
+paint 20 11 #414e54
+paint 21 11 #414e54
+paint 22 11 #414e54
+paint 23 11 #414e54
+paint 24 11 #414e54
+paint 25 11 #414e54
+paint 26 11 #414e54
+paint 3 12 #414e54
+paint 4 12 #414e54
+paint 5 12 #414e54
+paint 24 12 #414e54
+paint 25 12 #414e54
+paint 26 12 #414e54
+paint 3 13 #414e54
+paint 4 13 #414e54
+paint 5 13 #414e54
+paint 24 13 #414e54
+paint 25 13 #414e54
+paint 26 13 #414e54
+paint 3 14 #414e54
+paint 4 14 #414e54
+paint 5 14 #414e54
+paint 24 14 #414e54
+paint 25 14 #414e54
+paint 26 14 #414e54
+paint 3 15 #414e54
+paint 4 15 #414e54
+paint 5 15 #414e54
+paint 24 15 #414e54
+paint 25 15 #414e54
+paint 26 15 #414e54
+paint 3 16 #414e54
+paint 4 16 #414e54
+paint 5 16 #414e54
+paint 24 16 #414e54
+paint 25 16 #414e54
+paint 26 16 #414e54
+paint 3 17 #414e54
+paint 4 17 #414e54
+paint 5 17 #414e54
+paint 24 17 #414e54
+paint 25 17 #414e54
+paint 26 17 #414e54
+paint 3 18 #414e54
+paint 4 18 #414e54
+paint 5 18 #414e54
+paint 24 18 #414e54
+paint 25 18 #414e54
+paint 26 18 #414e54
+weld timber_seat metal_legs 15 10 120

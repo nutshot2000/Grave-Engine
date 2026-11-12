@@ -1,0 +1,300 @@
+# Grave material asset. One cell = 10 cm. Named parts share a local grid.
+format 1
+asset street_powder_barrel 18 26
+depth 0.1
+pivot 9 26
+legend A gunpowder
+legend B iron
+
+part steel_shell
+grid
+..................
+.BBBBBBBBBBBBBBBB.
+.BBBBBBBBBBBBBBBB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB.BBBBBBBBBBBBB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BB............BB.
+.BBBBBBBBBBBBBBBB.
+.BBBBBBBBBBBBBBBB.
+..................
+end
+paint 1 1 #ab3525
+paint 2 1 #ab3525
+paint 3 1 #ab3525
+paint 4 1 #ab3525
+paint 5 1 #ab3525
+paint 6 1 #ab3525
+paint 7 1 #ab3525
+paint 8 1 #ab3525
+paint 9 1 #ab3525
+paint 10 1 #ab3525
+paint 11 1 #ab3525
+paint 12 1 #ab3525
+paint 13 1 #ab3525
+paint 14 1 #ab3525
+paint 15 1 #ab3525
+paint 16 1 #ab3525
+paint 1 2 #ab3525
+paint 2 2 #ab3525
+paint 3 2 #ab3525
+paint 4 2 #ab3525
+paint 5 2 #ab3525
+paint 6 2 #ab3525
+paint 7 2 #ab3525
+paint 8 2 #ab3525
+paint 9 2 #ab3525
+paint 10 2 #ab3525
+paint 11 2 #ab3525
+paint 12 2 #ab3525
+paint 13 2 #ab3525
+paint 14 2 #ab3525
+paint 15 2 #ab3525
+paint 16 2 #ab3525
+paint 1 3 #ab3525
+paint 2 3 #ab3525
+paint 15 3 #ab3525
+paint 16 3 #ab3525
+paint 1 4 #4f5e64
+paint 2 4 #4f5e64
+paint 15 4 #4f5e64
+paint 16 4 #4f5e64
+paint 1 5 #4f5e64
+paint 2 5 #4f5e64
+paint 15 5 #4f5e64
+paint 16 5 #4f5e64
+paint 1 6 #ab3525
+paint 2 6 #ab3525
+paint 15 6 #ab3525
+paint 16 6 #ab3525
+paint 1 7 #ab3525
+paint 2 7 #ab3525
+paint 15 7 #ab3525
+paint 16 7 #ab3525
+paint 1 8 #ab3525
+paint 2 8 #ab3525
+paint 15 8 #ab3525
+paint 16 8 #ab3525
+paint 1 9 #cc9237
+paint 2 9 #cc9237
+paint 4 9 #cc9237
+paint 5 9 #cc9237
+paint 6 9 #cc9237
+paint 7 9 #cc9237
+paint 8 9 #cc9237
+paint 9 9 #cc9237
+paint 10 9 #cc9237
+paint 11 9 #cc9237
+paint 12 9 #cc9237
+paint 13 9 #cc9237
+paint 14 9 #cc9237
+paint 15 9 #cc9237
+paint 16 9 #cc9237
+paint 1 10 #191613
+paint 2 10 #191613
+paint 4 10 #191613
+paint 5 10 #191613
+paint 6 10 #cc9237
+paint 7 10 #191613
+paint 8 10 #cc9237
+paint 9 10 #cc9237
+paint 10 10 #cc9237
+paint 11 10 #191613
+paint 12 10 #cc9237
+paint 13 10 #191613
+paint 14 10 #191613
+paint 15 10 #191613
+paint 16 10 #191613
+paint 1 11 #cc9237
+paint 2 11 #cc9237
+paint 4 11 #cc9237
+paint 5 11 #cc9237
+paint 6 11 #cc9237
+paint 7 11 #191613
+paint 8 11 #191613
+paint 9 11 #cc9237
+paint 10 11 #cc9237
+paint 11 11 #191613
+paint 12 11 #cc9237
+paint 13 11 #cc9237
+paint 14 11 #cc9237
+paint 15 11 #191613
+paint 16 11 #cc9237
+paint 1 12 #cc9237
+paint 2 12 #cc9237
+paint 4 12 #cc9237
+paint 5 12 #cc9237
+paint 6 12 #cc9237
+paint 7 12 #191613
+paint 8 12 #191613
+paint 9 12 #cc9237
+paint 10 12 #cc9237
+paint 11 12 #191613
+paint 12 12 #cc9237
+paint 13 12 #cc9237
+paint 14 12 #cc9237
+paint 15 12 #191613
+paint 16 12 #cc9237
+paint 1 13 #cc9237
+paint 2 13 #cc9237
+paint 4 13 #cc9237
+paint 5 13 #cc9237
+paint 6 13 #cc9237
+paint 7 13 #191613
+paint 8 13 #cc9237
+paint 9 13 #191613
+paint 10 13 #cc9237
+paint 11 13 #191613
+paint 12 13 #cc9237
+paint 13 13 #cc9237
+paint 14 13 #cc9237
+paint 15 13 #191613
+paint 16 13 #cc9237
+paint 1 14 #cc9237
+paint 2 14 #cc9237
+paint 4 14 #cc9237
+paint 5 14 #cc9237
+paint 6 14 #cc9237
+paint 7 14 #191613
+paint 8 14 #cc9237
+paint 9 14 #cc9237
+paint 10 14 #191613
+paint 11 14 #191613
+paint 12 14 #cc9237
+paint 13 14 #cc9237
+paint 14 14 #cc9237
+paint 15 14 #191613
+paint 16 14 #cc9237
+paint 1 15 #cc9237
+paint 2 15 #cc9237
+paint 4 15 #cc9237
+paint 5 15 #cc9237
+paint 6 15 #cc9237
+paint 7 15 #191613
+paint 8 15 #cc9237
+paint 9 15 #cc9237
+paint 10 15 #191613
+paint 11 15 #191613
+paint 12 15 #cc9237
+paint 13 15 #cc9237
+paint 14 15 #cc9237
+paint 15 15 #191613
+paint 16 15 #cc9237
+paint 1 16 #cc9237
+paint 2 16 #cc9237
+paint 4 16 #cc9237
+paint 5 16 #cc9237
+paint 6 16 #cc9237
+paint 7 16 #191613
+paint 8 16 #cc9237
+paint 9 16 #cc9237
+paint 10 16 #cc9237
+paint 11 16 #191613
+paint 12 16 #cc9237
+paint 13 16 #cc9237
+paint 14 16 #cc9237
+paint 15 16 #191613
+paint 16 16 #cc9237
+paint 1 17 #ab3525
+paint 2 17 #ab3525
+paint 15 17 #ab3525
+paint 16 17 #ab3525
+paint 1 18 #ab3525
+paint 2 18 #ab3525
+paint 15 18 #ab3525
+paint 16 18 #ab3525
+paint 1 19 #ab3525
+paint 2 19 #ab3525
+paint 15 19 #ab3525
+paint 16 19 #ab3525
+paint 1 20 #4f5e64
+paint 2 20 #4f5e64
+paint 15 20 #4f5e64
+paint 16 20 #4f5e64
+paint 1 21 #4f5e64
+paint 2 21 #4f5e64
+paint 15 21 #4f5e64
+paint 16 21 #4f5e64
+paint 1 22 #ab3525
+paint 2 22 #ab3525
+paint 15 22 #ab3525
+paint 16 22 #ab3525
+paint 1 23 #ab3525
+paint 2 23 #ab3525
+paint 3 23 #ab3525
+paint 4 23 #ab3525
+paint 5 23 #ab3525
+paint 6 23 #ab3525
+paint 7 23 #ab3525
+paint 8 23 #ab3525
+paint 9 23 #ab3525
+paint 10 23 #ab3525
+paint 11 23 #ab3525
+paint 12 23 #ab3525
+paint 13 23 #ab3525
+paint 14 23 #ab3525
+paint 15 23 #ab3525
+paint 16 23 #ab3525
+paint 1 24 #ab3525
+paint 2 24 #ab3525
+paint 3 24 #ab3525
+paint 4 24 #ab3525
+paint 5 24 #ab3525
+paint 6 24 #ab3525
+paint 7 24 #ab3525
+paint 8 24 #ab3525
+paint 9 24 #ab3525
+paint 10 24 #ab3525
+paint 11 24 #ab3525
+paint 12 24 #ab3525
+paint 13 24 #ab3525
+paint 14 24 #ab3525
+paint 15 24 #ab3525
+paint 16 24 #ab3525
+
+part powder_core
+grid
+..................
+..................
+..................
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...A..............
+...A..............
+...A..............
+...A..............
+...A..............
+...A..............
+...A..............
+...A..............
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+...AAAAAAAAAAAA...
+..................
+..................
+..................
+end
+weld steel_shell powder_core 3 13 30
