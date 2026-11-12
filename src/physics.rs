@@ -175,6 +175,8 @@ pub struct BodyCell {
 /// restore them (for Reset).
 #[derive(Clone, Debug)]
 pub struct BodySpec {
+    /// Persistent editable asset instance, shared across depth planes.
+    pub assembly: Option<String>,
     /// Physical depth in metres, perpendicular to the 2D world.
     pub depth: f32,
     pub w: usize,
@@ -210,7 +212,7 @@ impl BodySpec {
                 })
             })
             .collect();
-        BodySpec { depth: 1.0, w, h, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 }
+        BodySpec { assembly: None, depth: 1.0, w, h, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 }
     }
 
     pub fn cell_count(&self) -> usize {
@@ -227,6 +229,7 @@ fn hash(a: u32) -> u32 {
 }
 
 struct Body {
+    assembly: Option<String>,
     depth: f32,
     w: usize,
     h: usize,
@@ -427,6 +430,8 @@ impl Physics {
         Some(self.pose(&self.bodies[n]))
     }
 
+    pub fn assembly(&self,id:u64)->Option<&str> {self.find(id).and_then(|n|self.bodies[n].assembly.as_deref())}
+    pub fn set_assembly(&mut self,id:u64,name:Option<String>) {if let Some(n)=self.find(id) {self.bodies[n].assembly=name;}}
     pub fn body_count(&self) -> usize {
         self.bodies.len()
     }
@@ -480,7 +485,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { depth: spec.depth, w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
+        let mut body = Body { assembly: spec.assembly, depth: spec.depth, w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
         self.next_id += 1;
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
@@ -1273,6 +1278,7 @@ impl Physics {
             let (px, py) = (cx + dx, cy + dy);
             let v = rb.velocity_at_point(Vector::new(px * CELL, py * CELL));
             out.push(BodySpec {
+                assembly: b.assembly.clone(),
                 depth: b.depth,
                 w,
                 h,
@@ -1648,6 +1654,7 @@ impl Physics {
             }
         }
         BodySpec {
+            assembly: None,
             depth: 1.0,
             w: pw,
             h: ph,
@@ -1970,7 +1977,7 @@ impl Physics {
             }
             let cx = (x0 + px0) as f32 + pw as f32 / 2.0;
             let cy = (y0 + py0) as f32 + ph as f32 / 2.0;
-            self.add(world, mats, BodySpec { depth: 1.0, w: pw, h: ph, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 });
+            self.add(world, mats, BodySpec { assembly: None, depth: 1.0, w: pw, h: ph, cells, x: cx, y: cy, angle: 0.0, vx: 0.0, vy: 0.0, spin: 0.0 });
         }
         n
     }
@@ -2001,7 +2008,7 @@ impl Physics {
                 && !self.bodies[n].round {
                     let mut b = std::mem::replace(
                         &mut self.bodies[n],
-                        Body { depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                        Body { assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                     );
                     b.round = true;
                     self.build_colliders(&mut b, mats);
@@ -2263,6 +2270,7 @@ impl Physics {
         let (x, y, angle) = self.pose(b);
         let rb = &self.set[b.handle];
         Some(BodySpec {
+            assembly: b.assembly.clone(),
             depth: b.depth,
             w: b.w,
             h: b.h,
@@ -2321,7 +2329,7 @@ impl Physics {
                 let n = self.bodies.len() - 1;
                 let mut b = std::mem::replace(
                     &mut self.bodies[n],
-                    Body { depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                    Body { assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                 );
                 b.round = true;
                 self.build_colliders(&mut b, mats);
@@ -2353,6 +2361,7 @@ impl Physics {
         let mut out = Vec::new();
         for b in &self.bodies {
             let mut copy = Body {
+                assembly: b.assembly.clone(),
                 depth: b.depth,
                 w: b.w,
                 h: b.h,
@@ -2369,6 +2378,7 @@ impl Physics {
             let (x, y, angle) = self.pose(b);
             let rb = &self.set[b.handle];
             out.push(BodySpec {
+                assembly: b.assembly.clone(),
                 depth: b.depth,
                 w: b.w,
                 h: b.h,

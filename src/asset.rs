@@ -544,6 +544,8 @@ impl Asset {
         x: f32,
         y: f32,
     ) -> Result<Vec<(String, u64)>, String> {
+        let before=crate::assemblies::all_ids(sim);
+        let group=crate::assemblies::unique_name(sim,&self.name);
         for z in 1..self.layers.len() {
             let a = self.for_layer(z);
             let layer = sim.ensure_layer(z, &self.layers[z], mats);
@@ -554,6 +556,7 @@ impl Asset {
         let specs = self.bodies(mats, x, y);
         if specs.is_empty() {
             if self.layers.len() > 1 {
+                crate::assemblies::tag_new(sim,&before,&group);
                 return Ok(Vec::new());
             }
             return Err("Draw some material before placing this asset.".into());
@@ -584,6 +587,7 @@ impl Asset {
                 }
             }
         }
+        crate::assemblies::tag_new(sim,&before,&group);
         Ok(ids)
     }
     pub fn to_text(&self, mats: &Materials) -> String {

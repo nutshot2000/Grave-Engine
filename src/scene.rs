@@ -795,6 +795,9 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     }
                 }
             }
+            "assembly" => {
+                if let (Some(b),Some(name))=(bodies.last_mut(),words.get(1)) {if name.len()<=96 {b.assembly=Some(name.to_string());} else {err("Assembly name too long".into());}} else {err("assembly needs a preceding body and name".into());}
+            }
             "paint" | "bodypaint" => {
                 let parsed = words.get(1).and_then(|x| x.parse::<usize>().ok()).zip(words.get(2).and_then(|x| x.parse::<usize>().ok())).zip(words.get(3).and_then(|s| crate::asset::parse_paint(s)));
                 if let Some(((x,y),color)) = parsed {
@@ -967,12 +970,15 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 match crate::asset::Asset::load_file(&path,mats){
                     Err(e)=>err(format!("asset {file}: {e}")),
                     Ok(asset)=>{
+                        let group=words.iter().position(|w|*w=="as").and_then(|i|words.get(i+1)).map(|s|s.to_string()).unwrap_or_else(||format!("{}_{}",asset.name,bodies.len()));
                         for z in 1..asset.layers.len() {
                             let plane=asset.for_layer(z);
-                            let child=load_depth(&plane.scene_text(mats,pos[0],pos[1]),mats,None,false,1);
+                            let mut child=load_depth(&plane.scene_text(mats,pos[0],pos[1]),mats,None,false,1);
+                            for b in &mut child.bodies {b.assembly=Some(group.clone());}
                             merge_plane(&mut layers,z,asset.layers[z].clone(),child,true);
                         }
-                        let loaded=load_part(&asset.for_layer(0).scene_text(mats,pos[0],pos[1]),mats,None,false);
+                        let mut loaded=load_part(&asset.for_layer(0).scene_text(mats,pos[0],pos[1]),mats,None,false);
+                        for b in &mut loaded.bodies {b.assembly=Some(group.clone());}
                         if !loaded.problems.is_empty(){for p in loaded.problems{err(p);}continue;}
                         let offset=bodies.len();
                         let prefix=words.iter().position(|w|*w=="as").and_then(|i|words.get(i+1)).map(|s|s.to_string()).unwrap_or_else(||format!("{}_{}",asset.name,offset));
@@ -1246,6 +1252,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
                     changes.join(" ")
                 ));
                 for (i,c) in b.cells.iter().enumerate() { if let Some(c)=c { if c.paint!=0 { out.push_str(&format!("bodypaint {} {} #{:06x}\n",i%b.w,i/b.w,c.paint & 0xffffff)); } } }
+        if let Some(group)=&b.assembly {out.push_str(&format!("assembly {group}\n"));}
         if b.depth != 1.0 {out.push_str(&format!("depth {}\n",b.depth));}
                 out.push_str(&name_line(n));
                 continue;
@@ -1260,6 +1267,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         }
         out.push_str("end\n");
         for (i,c) in b.cells.iter().enumerate() { if let Some(c)=c { if c.paint!=0 { out.push_str(&format!("bodypaint {} {} #{:06x}\n",i%b.w,i/b.w,c.paint & 0xffffff)); } } }
+        if let Some(group)=&b.assembly {out.push_str(&format!("assembly {group}\n"));}
         if b.depth != 1.0 { out.push_str(&format!("depth {}\n", b.depth)); }
         out.push_str(&name_line(n));
     }

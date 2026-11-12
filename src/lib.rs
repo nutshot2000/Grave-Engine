@@ -26,4 +26,7 @@ pub use sim::Sim;
 pub use world::World;
 
 pub mod asset;
+pub mod assemblies;
+pub mod building;
+pub mod test_bay;
 pub mod layers;

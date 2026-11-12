@@ -346,7 +346,7 @@ impl History {
         let Some((before, label)) = self.pending.take() else { return };
         self.last_touch = None;
         let after = sim.snapshot();
-        let step = if before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
+        let step = if before.triggers != after.triggers || before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
             Step {
                 label,
                 cells: Vec::new(),
@@ -461,6 +461,7 @@ fn same_bodies(a: &[BodySpec], b: &[BodySpec]) -> bool {
             && (a.x - b.x).abs() < 0.01
             && (a.y - b.y).abs() < 0.01
             && (a.angle - b.angle).abs() < 0.001
+            && a.assembly == b.assembly
             && a.cells.iter().zip(&b.cells).all(|(p, q)| p.map(|c| c.mat) == q.map(|c| c.mat))
     })
 }
