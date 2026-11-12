@@ -1374,6 +1374,16 @@ impl Sandbox {
         }
     }
 
+    /// Overhead scenes use their own altitude-aware viewport, without replacing
+    /// the current side-view scene or any unsaved workshop draft.
+    fn open_flight_lab(&mut self) {
+        let name = if cfg!(windows) { "flight-test.exe" } else { "flight-test" };
+        let sibling = std::env::current_exe().ok().and_then(|p| p.parent().map(|p|p.join(name))).filter(|p|p.exists());
+        let mut command = match sibling {Some(p)=>std::process::Command::new(p),None=>{let mut c=std::process::Command::new("cargo");c.args(["run","--release","--bin","flight-test"]);c}};
+        #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
+        match command.spawn(){Ok(_)=>self.say("Opening the flight and destruction lab"),Err(e)=>self.say(format!("Couldn't open flight lab: {e}"))}
+    }
+
     fn load_scene_inner(&mut self) {
         let path = PathBuf::from(&self.scene_path);
         match std::fs::read_to_string(&path) {
@@ -1596,6 +1606,8 @@ impl Sandbox {
             if ui.button("💾 Save").clicked(){self.save_scene();}
             if ui.button("📂 Load").clicked(){self.load_scene();}
             ui.menu_button("Scenes...",|ui|{
+                if ui.button("Flight & destruction lab (2.5D)").clicked(){self.open_flight_lab();ui.close();}
+                ui.separator();
                 let mut files:Vec<_>=std::fs::read_dir("scenes").into_iter().flatten().filter_map(Result::ok).map(|e|e.path()).filter(|p|p.extension().is_some_and(|s|s=="txt")).collect();files.sort();
                 egui::ScrollArea::vertical().max_height(400.).show(ui,|ui|{for f in files {if ui.button(f.file_stem().unwrap().to_string_lossy()).clicked(){self.scene_path=f.display().to_string();self.load_scene();ui.close();}}});
             });

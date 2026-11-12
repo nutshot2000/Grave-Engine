@@ -1,0 +1,15 @@
+# Flight and destruction test. Existing cells stay 10 cm; Z is altitude.
+size 144 104 56
+spawn 34 68 35
+box ground stone 0 0 0 144 104 2 #b59a67
+box apron concrete 34 22 2 92 64 1 #7e8075
+box landing_pad concrete 12 62 2 28 28 1 #666f65
+box pad_H iron 19 69 3 2 14 1 #d2c99a
+box pad_H iron 30 69 3 2 14 1 #d2c99a
+box pad_H iron 21 75 3 9 2 1 #d2c99a
+prop ../assets/overhead/test-hangar.volume 64 30 0
+prop ../assets/overhead/fuel-tank.volume 38 27 0
+box perimeter brick 16 8 2 112 2 7 #ae9670
+box perimeter brick 126 8 2 2 82 7 #ae9670
+box crate wood 116 70 3 6 6 6 #ab814d
+box crate wood 116 78 3 6 6 4 #98753f

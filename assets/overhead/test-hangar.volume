@@ -1,0 +1,41 @@
+# Named boxes form a reusable workshop hangar, in ground X/Y and altitude Z.
+box slab concrete 0 0 0 48 36 3 #9c9c89
+box west_wall weathered_wood 0 0 3 2 36 23 #9a805b
+box east_wall weathered_wood 46 0 3 2 36 23 #9a805b
+box rear_wall weathered_wood 2 0 3 44 2 23 #9a805b
+box front_left weathered_wood 2 34 3 9 2 23 #9a805b
+box front_right weathered_wood 37 34 3 9 2 23 #9a805b
+box door_header weathered_wood 11 34 19 26 2 7 #98754e
+box rear_windows glass 6 0 12 12 2 8 #608985
+box rear_windows glass 28 0 12 12 2 8 #608985
+box office_window glass 0 22 11 2 9 9 #608985
+box rear_roof_tie iron 0 0 25 48 2 1 #716c5d
+box roof_truss iron 0 16 25 48 1 1 #716c5d
+box front_roof_tie iron 0 34 25 48 2 1 #716c5d
+box roof weathered_wood 0 0 26 48 36 2 #8b5940
+box workbench wood 6 6 3 10 4 6 #b28b50
+box workbench_top iron 5 5 9 12 6 1 #879594
+box supplies wood 28 7 3 8 8 7 #9b7741
+box oil_tank iron 34 23 3 9 8 10 #66733f
+box oil_inside oil 36 25 4 5 4 7 #463d26
+box exposed_fuel oil 36 24 13 4 4 1 #755331
+box powder_box wood 7 23 3 7 7 6 #a17b49
+box powder_band iron 7 23 6 7 7 1 #444b48
+box explosive_core gunpowder 9 25 4 2 2 1 #373439
+
+box roof_seam weathered_wood 0 0 27 1 36 1 #674632
+box roof_seam weathered_wood 4 0 27 1 36 1 #674632
+box roof_seam weathered_wood 8 0 27 1 36 1 #674632
+box roof_seam weathered_wood 12 0 27 1 36 1 #674632
+box roof_seam weathered_wood 16 0 27 1 36 1 #674632
+box roof_seam weathered_wood 20 0 27 1 36 1 #674632
+box roof_seam weathered_wood 24 0 27 1 36 1 #674632
+box roof_seam weathered_wood 28 0 27 1 36 1 #674632
+box roof_seam weathered_wood 32 0 27 1 36 1 #674632
+box roof_seam weathered_wood 36 0 27 1 36 1 #674632
+box roof_seam weathered_wood 40 0 27 1 36 1 #674632
+box roof_seam weathered_wood 44 0 27 1 36 1 #674632
+
+box front_window glass 3 34 11 7 2 8 #608985
+box front_window glass 39 34 11 7 2 8 #608985
+box east_window glass 46 9 11 2 12 8 #608985
