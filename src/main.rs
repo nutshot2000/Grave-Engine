@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 mod app;
 mod workshop;
+mod studio;
 
 const HELP: &str = "\
 Grave Engine - a 2D material sandbox
@@ -33,6 +34,14 @@ Characters:
 ";
 
 fn main() {
+    // Opening the executable from a desktop launcher must find its content too.
+    if !std::path::Path::new("materials").is_dir() {
+        if let Ok(exe)=std::env::current_exe() {
+            if let Some(root)=exe.ancestors().skip(1).find(|p|p.join("materials").is_dir()&&p.join("scenes").is_dir()) {
+                let _=std::env::set_current_dir(root);
+            }
+        }
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut run = None;
     let mut scene = None;

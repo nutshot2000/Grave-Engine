@@ -12,6 +12,9 @@ use grave_engine::notes::{self, Note};
 use grave_engine::template::{self, Change, Templates};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
+mod studio_ui;
+use crate::studio::{Studio,Tab};
+use grave_engine::assemblies;
 
 const SIM_HZ: f64 = 60.0;
 const SELECT_COLOR: Color32 = Color32::from_rgb(255, 214, 90);
@@ -77,12 +80,14 @@ enum Drag {
 
 /// What Copy put away.
 enum Clipboard {
+    Assembly(assemblies::Clip),
     Empty,
     Objects(Vec<BodySpec>),
     Area(Clip),
 }
 
 struct Sandbox {
+    studio: Studio,
     workshop:crate::workshop::Workshop,
     mats: Materials,
     sim: Sim,
@@ -196,12 +201,13 @@ pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String
         "Grave Engine",
         options,
         Box::new(move |cc| {
+            crate::studio::theme(&cc.egui_ctx);
             cc.egui_ctx.global_style_mut(|s| {
                 s.spacing.button_padding = Vec2::new(10.0, 6.0);
                 s.spacing.item_spacing = Vec2::new(8.0, 6.0);
                 for (style, font) in s.text_styles.iter_mut() {
                     if matches!(style, egui::TextStyle::Body | egui::TextStyle::Button) {
-                        font.size = 16.0;
+                        font.size = 14.0;
                     }
                 }
             });
@@ -242,6 +248,7 @@ impl Sandbox {
         let brush_mat = mats.id("sand").unwrap_or(AIR);
         let mut workshop=crate::workshop::Workshop::new(&mats);workshop.open=std::env::args().any(|a|a=="--workshop");
         let mut app = Sandbox {
+            studio: Studio::default(),
             workshop,
             snapshot: sim.snapshot(),
             sim,
@@ -264,12 +271,12 @@ impl Sandbox {
             speed: 1.0,
             cam_smooth: 7.0,
             cam_lead: true,
-            show_triggers: true,
+            show_triggers: false,
             view: View::default(),
             renderer: Renderer::default(),
             texture: None,
             look_textures: Default::default(),
-            tool: Tool::Paint,
+            tool: Tool::Select,
             brush_mat,
             brush_size: 6,
             last_paint: None,
@@ -1158,7 +1165,7 @@ impl Sandbox {
 
     fn selected_ids(&self) -> Vec<u64> {
         match &self.selection {
-            Selection::Objects(ids) => ids.clone(),
+            Selection::Objects(ids) => if self.studio.whole_assets {assemblies::expand_front(&self.sim,ids)} else {ids.clone()},
             _ => Vec::new(),
         }
     }
@@ -1177,20 +1184,23 @@ impl Sandbox {
         if ids.is_empty() {
             return;
         }
-        self.change(label, |app| {
-            for id in ids {
-                app.sim.physics.edit(&mut app.sim.world, &app.mats, id, &f);
+        if self.studio.whole_assets && !assemblies::selected_names(&self.sim,&ids).is_empty() {
+            if let Some(first)=self.sim.physics.spec_of(&self.sim.world,ids[0]) {
+                let mut next=first.clone();f(&mut next);let d=(next.x-first.x,next.y-first.y);let angle=next.angle-first.angle;
+                if d.0!=0. || d.1!=0. || angle!=0. {
+                    self.change(label,|app|assemblies::transform(&mut app.sim,&app.mats,&ids,true,d,angle,(first.x,first.y)));return;
+                }
             }
+        }
+        self.change(label, |app| {
+            let members=assemblies::members(&app.sim,&ids,app.studio.whole_assets);
+            for (z,ids) in members.into_iter().enumerate() {let p=assemblies::plane_mut(&mut app.sim,z);for id in ids {p.physics.edit(&mut p.world,&app.mats,id,&f);}}
         });
     }
 
     fn delete_selection(&mut self) {
         match self.selection.clone() {
-            Selection::Objects(ids) => self.change("delete", |app| {
-                for id in ids {
-                    app.sim.physics.remove(&mut app.sim.world, id);
-                }
-            }),
+            Selection::Objects(ids) => self.change("delete", |app| {assemblies::remove(&mut app.sim,&ids,app.studio.whole_assets);}),
             Selection::Area(r) => self.change("delete", |app| {
                 edit::cut_region(&mut app.sim.world, r);
             }),
@@ -1200,6 +1210,8 @@ impl Sandbox {
     }
 
     fn copy_selection(&mut self) -> bool {
+        let ids=self.selected_ids();
+        if self.studio.whole_assets && !assemblies::selected_names(&self.sim,&ids).is_empty() {self.clipboard=Clipboard::Assembly(assemblies::Clip::capture(&self.sim,&ids,true));self.say("Copied the complete layered asset");return true;}
         match &self.selection {
             Selection::Objects(ids) => {
                 let specs: Vec<BodySpec> = ids.iter().filter_map(|&id| self.sim.physics.spec_of(&self.sim.world, id)).collect();
@@ -1220,6 +1232,7 @@ impl Sandbox {
     fn paste_at(&mut self, x: f32, y: f32) {
         match &self.clipboard {
             Clipboard::Empty => self.say("Nothing copied yet"),
+            Clipboard::Assembly(clip)=>{let clip=clip.clone();let mut ids=Vec::new();self.change("paste layered asset",|app|{ids=clip.paste(&mut app.sim,&app.mats,x,y);});self.selection=Selection::Objects(ids);},
             Clipboard::Objects(specs) => {
                 let specs = specs.clone();
                 let (cx, cy) = (
@@ -1311,6 +1324,12 @@ impl Sandbox {
     }
 
     fn transform_selection(&mut self, t: Transform, label: &str) {
+        let ids=self.selected_ids();
+        if self.studio.whole_assets&&!assemblies::selected_names(&self.sim,&ids).is_empty() {
+            if matches!(t,Transform::Turn) {self.edit_objects(label,|b|b.angle+=std::f32::consts::FRAC_PI_2);}
+            else {self.say("Turn off whole-asset selection to reshape an individual part.");}
+            return;
+        }
         match self.selection.clone() {
             Selection::Objects(ids) => {
                 let mats = Materials::clone(&self.mats);
@@ -1571,118 +1590,45 @@ impl Sandbox {
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
-            let big = |t: &str| RichText::new(t).size(18.0).strong();
-            if self.playing {
-                if ui.add(egui::Button::new(big("⏸ Pause")).min_size(Vec2::new(110.0, 34.0))).clicked() {
-                    self.playing = false;
-                }
-            } else if ui
-                .add(egui::Button::new(big("▶ Play")).min_size(Vec2::new(110.0, 34.0)).fill(Color32::from_rgb(40, 110, 60)))
-                .on_hover_text("Run the simulation (Space)")
-                .clicked()
-            {
-                self.play();
-            }
-            if ui.add(egui::Button::new(big("Step")).min_size(Vec2::new(70.0, 34.0))).on_hover_text("Advance one frame").clicked() {
-                self.playing = false;
-                self.step_once();
-            }
-            if ui
-                .add(egui::Button::new(big("↺ Reset")).min_size(Vec2::new(90.0, 34.0)))
-                .on_hover_text("Go back to how it was when you pressed Play (R)")
-                .clicked()
-            {
-                self.reset();
-            }
-            ui.separator();
-            let undo_tip = match self.history.undo_label() {
-                Some(l) => format!("Undo {l} (Ctrl+Z)"),
-                None => "Nothing to undo".into(),
-            };
-            if ui.add_enabled(self.history.can_undo(), egui::Button::new(big("↶ Undo"))).on_hover_text(undo_tip).clicked() {
-                self.undo();
-            }
-            let redo_tip = match self.history.redo_label() {
-                Some(l) => format!("Redo {l} (Ctrl+Y)"),
-                None => "Nothing to redo".into(),
-            };
-            if ui.add_enabled(self.history.can_redo(), egui::Button::new(big("↷ Redo"))).on_hover_text(redo_tip).clicked() {
-                self.redo();
-            }
-            if ui.add(egui::Button::new(big("Clear"))).on_hover_text("Empty everything (you can undo this)").clicked() {
-                let (w, h) = (self.sim.world.w, self.sim.world.h);
-                self.change("clear", |app| app.sim = Sim::empty(w, h, &app.mats));
-                self.timeline.clear();
-                self.rewind_pos = None;
-                self.snapshot = self.sim.snapshot();
-                self.ran_since_snapshot = false;
-                self.playing = false;
-                self.selection = Selection::None;
-            }
-            ui.separator();
-            if ui.button(big("⤢ Fit")).on_hover_text("Show the whole world (Home). Mouse wheel zooms, middle-drag pans.").clicked() {
-                self.fit_view();
-            }
-            let following = self.sim.follow.is_some();
-            let mut on = following;
-            if ui.toggle_value(&mut on, big("📷 Follow")).on_hover_text("Keep the camera on the selected object (or the car)").changed() {
-                if on {
-                    self.start_following();
-                } else {
-                    self.sim.follow = None;
-                }
-            }
-            ui.separator();
-            ui.toggle_value(&mut self.view.heat, big("🌡 Heat view"))
-                .on_hover_text("Show temperature: blue is cold, red/yellow/white is hot (H)");
-            ui.separator();
-            ui.label("Speed");
-            ui.add(egui::Slider::new(&mut self.speed, 0.05..=4.0).logarithmic(true).suffix("x"))
-                .on_hover_text("How fast time runs. Below 1 is slow motion");
-            let mut slow = self.speed < 0.99;
-            if ui.toggle_value(&mut slow, big("🐢")).on_hover_text("Slow motion: a quarter speed (click again for normal)").changed() {
-                self.speed = if slow { 0.25 } else { 1.0 };
-            }
-            if ui.button(big("Asset workshop")).clicked(){self.playing=false;self.workshop.open=true;}
-            ui.menu_button(big("🎬 Camera"), |ui| self.camera_menu(ui));
-            ui.menu_button(big("💡 Lighting"), |ui| self.look_menu(ui, "lighting", Self::lighting_menu));
-            ui.menu_button(big("🏞 Background"), |ui| self.look_menu(ui, "background", Self::background_menu));
-            ui.menu_button(big("☁ Weather"), |ui| self.look_menu(ui, "weather", Self::weather_menu));
-            ui.separator();
-            ui.label("Scene");
-            ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(180.0));
-            if ui.button("💾 Save").clicked() {
-                self.save_scene();
-            }
-            if ui.button("📂 Load").clicked() {
-                self.load_scene();
-            }
-            // Scenes that are courses in a game can be played as that game.
-            if let Some(level) = game_level(&self.scene_path)
-                && ui.button("🎮 Play as game").on_hover_text("Open this course in Stunt Yard, with the bike controls, score and riding camera (it plays the saved file: save first to include your changes)").clicked()
-            {
-                self.play_as_game(level);
-            }
-            ui.menu_button("Scenes...", |ui| {
-                let mut files: Vec<PathBuf> = std::fs::read_dir("scenes")
-                    .map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|x| x == "txt")).collect())
-                    .unwrap_or_default();
-                files.sort();
-                if files.is_empty() {
-                    ui.label("No scenes in the scenes folder yet");
-                }
-                for f in files {
-                    if ui.button(f.file_stem().unwrap_or_default().to_string_lossy()).clicked() {
-                        self.scene_path = f.display().to_string();
-                        self.load_scene();
-                        ui.close();
-                    }
-                }
+            ui.label(RichText::new("GRAVE").size(22.).strong().color(Color32::from_rgb(105,221,204)));
+            ui.label(RichText::new("LEVEL EDITOR").size(11.).weak());ui.separator();
+            ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(240.));
+            if ui.button("💾 Save").clicked(){self.save_scene();}
+            if ui.button("📂 Load").clicked(){self.load_scene();}
+            ui.menu_button("Scenes...",|ui|{
+                let mut files:Vec<_>=std::fs::read_dir("scenes").into_iter().flatten().filter_map(Result::ok).map(|e|e.path()).filter(|p|p.extension().is_some_and(|s|s=="txt")).collect();files.sort();
+                egui::ScrollArea::vertical().max_height(400.).show(ui,|ui|{for f in files {if ui.button(f.file_stem().unwrap().to_string_lossy()).clicked(){self.scene_path=f.display().to_string();self.load_scene();ui.close();}}});
             });
+            ui.menu_button("Scene",|ui|{if ui.button("Clear").clicked(){let(w,h)=(self.sim.world.w,self.sim.world.h);self.change("clear",|app|app.sim=Sim::empty(w,h,&app.mats));self.playing=false;self.selection=Selection::None;self.timeline.clear();ui.close();}});
+            if ui.button("Asset workshop").clicked(){self.playing=false;self.workshop.open=true;}
+            ui.checkbox(&mut self.studio.inspector_open,"Inspector");
+        });
+        ui.separator();
+        ui.horizontal_wrapped(|ui| {
+            let testing=self.studio.tab==Tab::Tests;
+            let running=if testing {self.studio.test_running} else {self.playing};
+            if ui.add(egui::Button::new(if running {"⏸ Pause"} else {"▶ Play"}).fill(Color32::from_rgb(35,105,94)).min_size(Vec2::new(100.,28.))).clicked(){if testing {self.studio.test_running=!running;} else if running {self.playing=false;} else {self.play();}}
+            if ui.button("Step").clicked(){if testing {if let Some(s)=&mut self.studio.test {s.step(&self.mats);self.studio.test_frame+=1;self.studio.test_running=false;}} else {self.playing=false;self.step_once();}}
+            if ui.button("↺ Reset").clicked(){if testing {self.start_studio_test();self.studio.test_running=false;} else {self.reset();}}
+            if ui.add_enabled(self.history.can_undo(),egui::Button::new("↶ Undo")).clicked(){self.undo();}
+            if ui.add_enabled(self.history.can_redo(),egui::Button::new("↷ Redo")).clicked(){self.redo();}
+            ui.separator();
+            if ui.button("⤢ Fit").clicked(){self.fit_view();}
+            let mut follow=self.sim.follow.is_some();if ui.toggle_value(&mut follow,"📷 Follow").changed(){if follow {self.start_following();} else {self.sim.follow=None;}}
+            ui.toggle_value(&mut self.view.heat,"🌡 Heat view");
+            ui.add_sized([110.,24.],egui::Slider::new(&mut self.speed,0.05..=4.).logarithmic(true).suffix("x").text("Speed"));
+            ui.checkbox(&mut self.studio.snap,"Snap");ui.add(egui::DragValue::new(&mut self.studio.grid).range(1.0..=20.).suffix(" cells"));
+            ui.separator();
+            ui.menu_button("🎬 Camera",|ui|self.camera_menu(ui));
+            ui.menu_button("💡 Lighting",|ui|self.look_menu(ui,"lighting",Self::lighting_menu));
+            ui.menu_button("🏞 Background",|ui|self.look_menu(ui,"background",Self::background_menu));
+            ui.menu_button("☁ Weather",|ui|self.look_menu(ui,"weather",Self::weather_menu));
+            if let Some(level)=game_level(&self.scene_path) {if ui.button("🎮 Play as game").clicked(){self.play_as_game(level);}}
         });
     }
 
     fn palette(&mut self, ui: &mut egui::Ui) {
+        self.workspace(ui);
         ui.add_space(4.0);
         ui.heading("Tool");
         ui.horizontal_wrapped(|ui| {
@@ -1696,9 +1642,12 @@ impl Sandbox {
                 (Tool::Place, "🧩 Place", "Click to place copies of the chosen template"),
                 (Tool::Join, "🔗 Join", "Click two things to join them (empty space = the ground)"),
             ] {
-                ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(16.0)).on_hover_text(tip);
+                if ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(14.0)).on_hover_text(tip).clicked() {self.studio.placement=None;if tool!=Tool::Select {self.studio.tab=Tab::Materials;}}
             }
         });
+        match self.studio.tab {
+            Tab::Assets=>{self.asset_browser(ui);return;},Tab::Build=>{egui::ScrollArea::vertical().id_salt("build_controls").show(ui,|ui|self.builder_panel(ui));return;},Tab::Events=>{egui::ScrollArea::vertical().id_salt("event_controls").show(ui,|ui|self.event_panel(ui));return;},Tab::Lights=>{egui::ScrollArea::vertical().id_salt("light_controls").show(ui,|ui|self.lights_panel(ui));return;},Tab::Tests=>{egui::ScrollArea::vertical().id_salt("test_controls").show(ui,|ui|self.tests_panel(ui));return;},Tab::Materials=>{}
+        }
         if self.tool == Tool::Join {
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
@@ -1729,17 +1678,18 @@ impl Sandbox {
         ui.add(egui::Slider::new(&mut self.brush_size, 1..=40));
         ui.separator();
         ui.heading("Materials");
+        ui.add(egui::TextEdit::singleline(&mut self.studio.material_filter).hint_text("Find a material"));
         egui::ScrollArea::vertical().max_height(ui.available_height() - 170.0).show(ui, |ui| {
             let mut order: Vec<MatId> = (0..self.mats.list.len() as MatId).filter(|&i| i != AIR).collect();
             order.sort_by(|a, b| self.mats.get(*a).name.cmp(&self.mats.get(*b).name));
             for id in order {
                 let m = self.mats.get(id);
+                if !m.name.contains(&self.studio.material_filter.to_lowercase()) {continue;}
                 let selected = self.brush_mat == id && self.tool == Tool::Paint;
                 let c = color32(m.color);
-                let lum = 0.3 * m.color[0] as f32 + 0.59 * m.color[1] as f32 + 0.11 * m.color[2] as f32;
-                let text_col = if lum > 140.0 { Color32::BLACK } else { Color32::WHITE };
-                let label = RichText::new(m.name.replace('_', " ")).size(16.0).color(text_col);
-                let mut b = egui::Button::new(label).fill(c).min_size(Vec2::new(ui.available_width(), 30.0));
+                let text_col = ui.visuals().text_color();
+                let label = RichText::new(m.name.replace('_', " ")).size(14.0).color(text_col);
+                let mut b = egui::Button::new(label).min_size(Vec2::new(ui.available_width(), 25.0));
                 if selected {
                     b = b.stroke(Stroke::new(3.0, Color32::WHITE));
                 }
@@ -1758,6 +1708,7 @@ impl Sandbox {
                 }
                 tip += "\n\nRight-click: its settings (sliders)";
                 let r = ui.add(b).on_hover_text(tip);
+                ui.painter().rect_filled(Rect::from_min_size(r.rect.min+Vec2::new(8.,7.),Vec2::splat(11.)),2.,c);
                 if r.clicked() {
                     self.brush_mat = id;
                     self.tool = Tool::Paint;
@@ -1981,6 +1932,8 @@ impl Sandbox {
             // Gathered into one undo step until the mouse is let go.
             self.history.touch(&mut self.sim, "change object");
             let dt = t - avg_t;
+            let moved=x!=b.x || y!=b.y || (deg.to_radians()-b.angle).abs()>0.0001;
+            if moved {assemblies::transform(&mut self.sim,&self.mats,&[id],self.studio.whole_assets,(x-b.x,y-b.y),deg.to_radians()-b.angle,(b.x,b.y));}
             self.sim.physics.edit(&mut self.sim.world, &self.mats, id, |s| {
                 s.x = x;
                 s.y = y;
@@ -2131,11 +2084,10 @@ impl Sandbox {
     fn freeze_selection(&mut self) {
         let ids = self.selected_ids();
         self.change("freeze", |app| {
-            for id in ids {
-                if let Some(spec) = app.sim.physics.remove(&mut app.sim.world, id) {
-                    edit::freeze(&mut app.sim.world, &spec);
-                }
-            }
+            let groups=assemblies::members(&app.sim,&ids,app.studio.whole_assets);
+            for (z,ids) in groups.into_iter().enumerate() {let p=assemblies::plane_mut(&mut app.sim,z);for id in ids {
+                if let Some(spec)=p.physics.remove(&mut p.world,id) {edit::freeze(&mut p.world,&spec);}
+            }}
         });
         self.selection = Selection::None;
     }
@@ -2260,6 +2212,7 @@ impl Sandbox {
         let rect = Rect::from_min_size(outer.center() - Vec2::new((cx + shake.0) * scale, (cy + shake.1) * scale), Vec2::new(w as f32 * scale, h as f32 * scale));
         self.canvas_at = (rect.min, scale);
         let resp = ui.interact(outer, ui.scope_id().with("canvas"), Sense::click_and_drag());
+        resp.widget_info(||egui::WidgetInfo::labeled(egui::Role::Image,true,"Level canvas"));
         let painter = ui.painter_at(outer);
         // Draw only the part of the world on screen now (this frame's camera
         // and shake, plus a margin): big worlds stay fast.
@@ -2328,7 +2281,7 @@ impl Sandbox {
 
         self.hover = None;
         self.hover_f = None;
-        let pointer = resp.hover_pos().or(resp.interact_pointer_pos());
+        let pointer = if self.studio.placement.is_some() {ui.input(|i|i.pointer.latest_pos()).filter(|p|outer.contains(*p))} else {resp.hover_pos().or(resp.interact_pointer_pos())};
         if let Some(p) = resp.hover_pos() {
             let (cx, cy) = to_cell(p);
             if self.sim.world.in_bounds(cx, cy) {
@@ -2378,6 +2331,8 @@ impl Sandbox {
         let pressed = pin_hover.is_none()
             && (resp.drag_started() || (resp.is_pointer_button_down_on() && matches!(self.drag, Drag::None) && (primary || secondary)));
         let released = !primary && !secondary;
+
+        if self.studio_canvas_input(ui,&resp,pointer,&to_cells,&to_screen) {return;}
 
         // ---- start a drag
         if pressed && matches!(self.drag, Drag::None)
@@ -2504,7 +2459,7 @@ impl Sandbox {
                 // Time from summed frame lengths (steady even if the clock isn't).
                 let time = self.fling.last().map_or(0.0, |f| f.0) + ui.input(|i| i.stable_dt.clamp(0.001, 0.1)) as f64;
                 if let Some(p) = pointer {
-                    let now = to_cells(p);
+                    let now = if self.playing {to_cells(p)} else {self.studio.snapped(to_cells(p))};
                     self.fling.push((time, now));
                     if self.fling.len() > 6 {
                         self.fling.remove(0); // the last few frames (~0.1 s)
@@ -2512,15 +2467,8 @@ impl Sandbox {
                     let (dx, dy) = (now.0 - last.0, now.1 - last.1);
                     if dx != 0.0 || dy != 0.0 {
                         self.history.touch(&mut self.sim, "move");
-                        for id in self.selected_ids() {
-                            self.sim.physics.edit(&mut self.sim.world, &self.mats, id, |b| {
-                                b.x += dx;
-                                b.y += dy;
-                                b.vx = 0.0;
-                                b.vy = 0.0;
-                                b.spin = 0.0;
-                            });
-                        }
+                        let ids=self.selected_ids();
+                        assemblies::transform(&mut self.sim,&self.mats,&ids,self.studio.whole_assets,(dx,dy),0.,(0.,0.));
                         self.drag = Drag::Objects(now);
                     } else {
                         // Hold it still while dragging, even during Play.
@@ -2589,12 +2537,7 @@ impl Sandbox {
                         angle = (angle / step).round() * step;
                     }
                     self.history.touch(&mut self.sim, "turn");
-                    self.sim.physics.edit(&mut self.sim.world, &self.mats, id, |s| {
-                        s.angle = angle;
-                        s.vx = 0.0;
-                        s.vy = 0.0;
-                        s.spin = 0.0;
-                    });
+                    assemblies::transform(&mut self.sim,&self.mats,&[id],self.studio.whole_assets,(0.,0.),angle-b.angle,(b.x,b.y));
                 }
                 if released {
                     self.drag = Drag::None;
@@ -2752,7 +2695,7 @@ impl Sandbox {
                     if to_screen(rot).distance(p) < 12.0 {
                         return Drag::Rotate(id);
                     }
-                    if to_screen(corner).distance(p) < 12.0 {
+                    if !(self.studio.whole_assets && self.sim.physics.assembly(id).is_some()) && to_screen(corner).distance(p) < 12.0 {
                         let d = ((cf.0 - b.x).powi(2) + (cf.1 - b.y).powi(2)).sqrt();
                         return Drag::Scale(id, d);
                     }
@@ -2823,12 +2766,13 @@ impl Sandbox {
                     painter.rect_stroke(Rect::from_two_pos(a, b), 0.0, Stroke::new(2.0, AREA_COLOR), egui::StrokeKind::Middle);
                 }
             }
-            Selection::Objects(ids) => {
-                for &id in ids {
+            Selection::Objects(raw_ids) => {
+                let ids=self.selected_ids();
+                for &id in &ids {
                     let Some(b) = self.sim.physics.spec_of(&self.sim.world, id) else { continue };
                     let pts: Vec<Pos2> = corners(&b, 1.0).iter().map(|&c| to_screen(c)).collect();
                     painter.add(egui::Shape::closed_line(pts, Stroke::new(2.0, SELECT_COLOR)));
-                    if ids.len() == 1 {
+                    if raw_ids.len() == 1 && id==raw_ids[0] {
                         let (rot, corner) = handles(&b);
                         let top = {
                             let c = corners(&b, 1.0);
@@ -2836,8 +2780,10 @@ impl Sandbox {
                         };
                         painter.line_segment([to_screen(top), to_screen(rot)], Stroke::new(1.5, SELECT_COLOR));
                         painter.circle(to_screen(rot), 7.0, Color32::from_rgb(40, 40, 50), Stroke::new(2.0, SELECT_COLOR));
-                        let k = to_screen(corner);
-                        painter.rect(Rect::from_center_size(k, Vec2::splat(12.0)), 2.0, Color32::from_rgb(40, 40, 50), Stroke::new(2.0, SELECT_COLOR), egui::StrokeKind::Middle);
+                        if !(self.studio.whole_assets && self.sim.physics.assembly(id).is_some()) {
+                            let k = to_screen(corner);
+                            painter.rect(Rect::from_center_size(k, Vec2::splat(12.0)), 2.0, Color32::from_rgb(40, 40, 50), Stroke::new(2.0, SELECT_COLOR), egui::StrokeKind::Middle);
+                        }
                     }
                 }
             }
@@ -2887,6 +2833,7 @@ impl Sandbox {
             self.delete_selection();
         }
         if esc {
+            self.studio.placement=None;
             self.selection = Selection::None;
             self.join_first = None;
         }
@@ -2920,13 +2867,15 @@ impl Sandbox {
                 i.key_pressed(Key::B),
             )
         });
-        if space {
+        if space && self.studio.tab==Tab::Tests {self.studio.test_running=!self.studio.test_running;}
+        else if space {
             if self.playing { self.playing = false } else { self.play() }
         }
         if h {
             self.view.heat = !self.view.heat;
         }
-        if r {
+        if r && self.studio.tab==Tab::Tests {self.start_studio_test();}
+        else if r {
             self.reset();
         }
         if q || e {
@@ -2975,6 +2924,7 @@ impl eframe::App for Sandbox {
                     }
                 });
             }
+            self.studio.needs_refresh=true;
             return;
         }
 
@@ -3028,19 +2978,19 @@ impl eframe::App for Sandbox {
             self.top_bar(ui);
             ui.add_space(2.0);
         });
-        egui::Panel::left("palette").resizable(false).exact_size(200.0).show(ui, |ui| self.palette(ui));
+        egui::Panel::left("palette").resizable(true).default_size(280.0).min_size(230.0).max_size(420.0).show(ui, |ui| self.palette(ui));
         notes::follow(&self.sim, &mut self.notes);
-        egui::Panel::right("inspector").resizable(false).exact_size(270.0).show(ui, |ui| {
+        if self.studio.inspector_open {egui::Panel::right("inspector").resizable(true).default_size(270.0).min_size(230.0).max_size(440.0).show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                self.inspector(ui);
-                self.notes_panel(ui);
+                self.studio_inspector(ui);
             });
         });
+        }
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         egui::Panel::bottom("timeline").show(ui, |ui| self.timeline_bar(ui));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::from_rgb(10, 10, 14)))
-            .show(ui, |ui| self.canvas(ui));
+            .show(ui, |ui| {if self.studio.tab==Tab::Tests {self.studio_test_canvas(ui,dt);} else {self.canvas(ui);}});
         self.note_window(&ctx);
         self.material_settings_window(&ctx);
 
@@ -3086,6 +3036,7 @@ body rect wood 40 60 20 10
         assert!(problems.is_empty(), "{problems:?}");
         app.sim = sim;
         app.selection = Selection::None;
+        app.studio.tab=Tab::Materials;app.studio.snap=false;app.tool=Tool::Paint;
         h.run_steps(3);
         h
     }
@@ -3659,6 +3610,54 @@ player 50 100
         h.key_press(Key::Escape);h.run_steps(2);
         h.key_press_modifiers(Modifiers::COMMAND,Key::Z);h.run_steps(3);
         assert_eq!(h.state().sim.world.ambient,20.);
+    }
+
+    #[test]
+    fn studio_asset_card_drag_places_one_group_and_undo_removes_it() {
+        let mut h=editor();h.get_by_label("Assets").click();h.run_steps(3);
+        let card=h.get_by_label("Place fuel_crate").rect().center();let dest=at(&h,90.,95.);
+        let before=h.state().sim.physics.body_count();drag(&mut h,card,dest);
+        assert!(h.state().sim.physics.body_count()>before);
+        assert!(h.state().studio.placement.is_none());
+        assert_eq!(assemblies::names(&h.state().sim).len(),1);
+        h.key_press_modifiers(Modifiers::COMMAND,Key::Z);h.run_steps(3);
+        assert_eq!(h.state().sim.physics.body_count(),before);
+    }
+    #[test]
+    fn studio_builder_generates_preview_and_layered_placement() {
+        let mut h=editor();h.get_by_label("Build").click();h.run_steps(3);
+        h.get_by_label("Exterior front + interior behind").click();h.run_steps(2);
+        h.get_by_label("Generate preview").click();h.run_steps(3);
+        assert_eq!(h.state().studio.generated.as_ref().unwrap().layers.len(),2);
+        h.get_by_label("Place generated building").click();h.run_steps(2);
+        let dest=at(&h,100.,100.);press(&mut h,dest,true);press(&mut h,dest,false);
+        assert_eq!(h.state().sim.layers.len(),1);
+        assert_eq!(assemblies::names(&h.state().sim).len(),1);
+    }
+    #[test]
+    fn studio_event_zone_and_neon_placement_are_saved_and_undoable() {
+        let mut h=editor();h.get_by_label("Events").click();h.run_steps(3);
+        h.state_mut().studio.event_text="Hello; snow 1".into();
+        h.get_by_label("Place event zone").click();h.run_steps(2);
+        let dest=at(&h,90.,80.);press(&mut h,dest,true);press(&mut h,dest,false);
+        assert_eq!(h.state().sim.triggers.len(),1);
+        let snapshot=h.state_mut().sim.snapshot();let text=scene::save(&snapshot,&h.state().mats);
+        let (_,problems)=scene::load(&text,&h.state().mats,None).into_sim(&h.state().mats);assert!(problems.is_empty(),"{problems:?}");
+        h.key_press_modifiers(Modifiers::COMMAND,Key::Z);h.run_steps(3);assert!(h.state().sim.triggers.is_empty());
+        h.state_mut().studio.lights.kind=2;h.get_by_label("Lights").click();h.run_steps(3);
+        h.get_by_label("Place light in scene").click();h.run_steps(2);
+        let dest=at(&h,100.,50.);press(&mut h,dest,true);press(&mut h,dest,false);
+        assert_eq!(h.state().sim.lighting.lights.len(),1);let lamp=&h.state().sim.lighting.lights[0];assert!(lamp.on.is_some());
+        assert!(h.state().sim.physics.joints().iter().any(|j|j.a==GROUND||j.b==GROUND));
+        h.key_press_modifiers(Modifiers::COMMAND,Key::Z);h.run_steps(3);assert!(h.state().sim.lighting.lights.is_empty());
+    }
+    #[test]
+    fn studio_test_workspace_runs_a_copy_and_space_controls_only_the_test() {
+        let mut h=editor();let before=h.state().sim.world.mat.clone();
+        h.get_by_label("Tests").click();h.run_steps(3);h.get_by_label("Run test from fresh copy").click();h.run_steps(4);
+        assert!(h.state().studio.test.is_some());assert!(!h.state().playing);
+        h.key_press(Key::Space);h.run_steps(2);assert!(!h.state().studio.test_running);assert!(!h.state().playing);
+        assert_eq!(h.state().sim.world.mat,before);
     }
 
 }

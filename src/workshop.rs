@@ -148,7 +148,7 @@ impl Workshop {
             self.sync();
         }
     }
-    fn load(&mut self, path: &Path, mats: &Materials) {
+    pub fn load(&mut self, path: &Path, mats: &Materials) {
         match Asset::load_file(path, mats) {
             Ok(a) => {
                 self.remember();
