@@ -2373,6 +2373,17 @@ impl Physics {
         self.strength_dirty = true;
     }
 
+    /// Whether two bodies have a live physical contact (for game diagnostics).
+    pub fn bodies_touch(&self,a:u64,b:u64)->bool {
+        let (Some(ai),Some(bi))=(self.find(a),self.find(b)) else {return false;};
+        let (a,b)=(self.bodies[ai].handle,self.bodies[bi].handle);
+        self.narrow.contact_pairs().any(|p| {
+            if !p.has_any_active_contact() {return false;}
+            let (Some(ca),Some(cb))=(self.colliders.get(p.collider1),self.colliders.get(p.collider2)) else {return false;};
+            (ca.parent()==Some(a)&&cb.parent()==Some(b))||(ca.parent()==Some(b)&&cb.parent()==Some(a))
+        })
+    }
+
     /// Current state of every object (for saving and Reset).
     pub fn export(&self, world: &mut World) -> Vec<BodySpec> {
         let mut out = Vec::new();
