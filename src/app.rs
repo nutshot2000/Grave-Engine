@@ -594,6 +594,25 @@ impl Sandbox {
     fn weather_menu(&mut self, ui: &mut egui::Ui) {
         use grave_engine::weather::{Kind, Weather};
         ui.set_min_width(300.0);
+        ui.label(RichText::new("Outside temperature").strong());
+        let mut degrees=self.sim.world.ambient;
+        if ui.add(egui::DragValue::new(&mut degrees).range(-100.0..=100.0).speed(0.5).suffix(" °C")).on_hover_text("Outdoor air temperature. Above freezing, falling snow and settled drifts can melt.").changed() {
+            self.change("outside temperature",|app|{let _=app.sim.set_outside_temperature(degrees,&app.mats,false);});
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Cold start (-8°C)").on_hover_text("Chill ordinary air, ground and props for a snow test. Fires, heaters and deliberately hot/cold materials keep their temperatures.").clicked() {
+                self.change("cold start",|app|{let _=app.sim.set_outside_temperature(-8.,&app.mats,true);});
+                self.playing=false;self.ran_since_snapshot=false;self.timeline.clear();
+            }
+            if ui.button("Match scene temperature").on_hover_text("Apply the chosen outside temperature to ordinary air, ground and props now; otherwise warm surfaces cool gradually.").clicked() {
+                let degrees=self.sim.world.ambient;
+                self.change("match scene temperature",|app|{let _=app.sim.set_outside_temperature(degrees,&app.mats,true);});
+                self.playing=false;self.ran_since_snapshot=false;self.timeline.clear();
+            }
+        });
+        ui.label(RichText::new("Warm ground takes time to cool. Use Cold start to test snow building up immediately.").small());
+        if self.sim.weather.snow>0. && self.sim.world.ambient>0. {ui.colored_label(Color32::from_rgb(210,140,45),"Above freezing: snow can melt into water.");}
+        ui.separator();
         let w = &mut self.sim.weather;
         ui.checkbox(&mut w.on, RichText::new("Weather on").strong()).on_hover_text("Switch it all off without losing the settings");
         ui.horizontal_wrapped(|ui| {
@@ -3629,6 +3648,17 @@ player 50 100
         assert_eq!(a.parts.last().unwrap().layer,1);
         h.get_by_label("Reset preview").click();h.run_steps(3);
         assert_eq!(h.state().workshop.asset.layers.len(),2);
+    }
+
+    #[test]
+    fn weather_cold_start_is_visible_and_undoable() {
+        let mut h=editor();h.get_by_label("☁ Weather").click();h.run_steps(3);
+        h.get_by_label("Cold start (-8°C)").click();h.run_steps(3);
+        assert_eq!(h.state().sim.world.ambient,-8.);
+        assert!(h.state().sim.world.temp.iter().any(|t|*t<0.));
+        h.key_press(Key::Escape);h.run_steps(2);
+        h.key_press_modifiers(Modifiers::COMMAND,Key::Z);h.run_steps(3);
+        assert_eq!(h.state().sim.world.ambient,20.);
     }
 
 }

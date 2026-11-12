@@ -88,6 +88,7 @@ pub struct Loaded {
     /// Index, name, complete plane and whether it inherits fixed front terrain.
     pub layers: Vec<(usize,String,Loaded,bool)>,
     pub world: World,
+    pub outside_temperature: Option<f32>,
     /// Objects (rigid bodies) to add.
     pub bodies: Vec<BodySpec>,
     /// Problems found, with line numbers. The rest of the scene still loads.
@@ -232,9 +233,10 @@ impl Loaded {
             sim.ensure_layer(index,&name,mats);
             sim.layers[index-1]=child;
         }
+        if let Some(degrees)=self.outside_temperature {if let Err(e)=sim.set_outside_temperature(degrees,mats,true) {problems.push(e);}}
         let problems_out = problems;
         for (i, t) in self.heated {
-            if sim.world.is_owned(i) {
+            if i<sim.world.temp.len() {
                 sim.world.temp[i] = t;
             }
         }
@@ -335,6 +337,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     let mut lighting = crate::light::Lighting::default();
     let mut backdrop = crate::backdrop::Backdrop::default();
     let mut weather = crate::weather::Weather::default();
+    let mut outside_temperature=None;
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
@@ -506,6 +509,10 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     }
                 }
                 Err(_) => err("use `light X Y RADIUS [strength S] [color #c] [cone DIR WIDTH] [flicker F] [on NAME]`".into()),
+            },
+            "outside_temperature" => match nums(1,1) {
+                Ok(v) if v[0].is_finite() && (-100.0..=100.0).contains(&v[0]) => {outside_temperature=Some(v[0]);},
+                _ => err("outside_temperature needs a finite Celsius value from -100 to 100".into()),
             },
             "ambient" => match nums(1, 1) {
                 Ok(v) => ensure(&mut world, mats).ambient = v[0],
@@ -1045,7 +1052,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
+    Loaded { outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1146,7 +1153,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     out.push_str("# Grave Engine scene. Plain text: edit freely.\n");
     out.push_str(&format!("size {} {}\n", world.w, world.h));
     if world.ambient != crate::world::ROOM_TEMP {
-        out.push_str(&format!("ambient {}\n", world.ambient));
+        out.push_str(&format!("outside_temperature {}\n", world.ambient));
     }
     // (Gusts blow on top of the scene's wind: save the wind itself.)
     let wind = snap.weather.gust_base.unwrap_or(world.wind);

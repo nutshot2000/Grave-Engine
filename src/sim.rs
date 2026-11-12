@@ -127,6 +127,29 @@ impl Sim {
         }
         for layer in &mut self.layers { layer.step_depth(mats,true); }
     }
+    /// Set the outdoor thermal baseline on every depth plane. A cold start
+    /// equilibrates ordinary scene material but preserves fires, heaters,
+    /// actors and materials with deliberately hot/cold initial temperatures.
+    pub fn set_outside_temperature(&mut self, degrees: f32, mats: &Materials, cold_start: bool) -> Result<(),String> {
+        if !degrees.is_finite() || !(-100.0..=100.0).contains(&degrees) {return Err("Outside temperature must be between -100 and 100 degrees C".into());}
+        let previous=self.world.ambient;
+        self.world.ambient=degrees;
+        if cold_start {
+            for i in 0..self.world.mat.len() {
+                let m=mats.get(self.world.mat[i]);
+                if m.stays_at.is_none() && (m.temperature-crate::world::ROOM_TEMP).abs()<0.01 && self.world.flags[i]&crate::world::BURNING==0 && (self.world.temp[i]-previous).abs()<100. {
+                    self.world.temp[i]=degrees;
+                }
+            }
+            for f in &mut self.world.flying {
+                let m=mats.get(f.mat);
+                if m.stays_at.is_none() && (m.temperature-crate::world::ROOM_TEMP).abs()<0.01 && f.flags&crate::world::BURNING==0 && (f.temp-previous).abs()<100. {f.temp=degrees;}
+            }
+        }
+        self.world.wake_all();
+        for layer in &mut self.layers {layer.set_outside_temperature(degrees,mats,cold_start)?;}
+        Ok(())
+    }
     /// Reconnect joints numbered by position (1 = first object, 0 = ground).
     pub fn add_joints(&mut self, joints: &[JointSpec], ids: &[Option<u64>], mats: &Materials) {
         let id_of = |n: u64| -> Option<u64> {

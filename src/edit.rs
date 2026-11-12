@@ -346,7 +346,7 @@ impl History {
         let Some((before, label)) = self.pending.take() else { return };
         self.last_touch = None;
         let after = sim.snapshot();
-        let step = if before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
+        let step = if before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
             Step {
                 label,
                 cells: Vec::new(),
@@ -527,6 +527,7 @@ pub fn freeze(world: &mut World, spec: &BodySpec) {
 /// One recorded moment: the cells that changed since the moment before
 /// (or every cell, for a keyframe), plus all the objects.
 struct Moment {
+    ambient: f32,
     layers: Vec<Snapshot>,
     layer_names: Vec<String>,
     frame: u32,
@@ -625,7 +626,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { ambient: w.ambient, layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -643,7 +644,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { ambient: w.ambient, layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -688,6 +689,7 @@ impl Timeline {
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();
         snap.follow = m.follow;
+        snap.world.ambient = m.ambient;
         snap.layers = m.layers.clone();
         snap.layer_names = m.layer_names.clone();
         *sim = Sim::restore(&snap, mats);
