@@ -30,3 +30,5 @@ pub mod assemblies;
 pub mod building;
 pub mod test_bay;
 pub mod layers;
+
+pub mod profile;

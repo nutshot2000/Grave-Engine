@@ -229,6 +229,8 @@ fn hash(a: u32) -> u32 {
 }
 
 struct Body {
+    /// Occupied local rectangle, refreshed whenever the shape changes.
+    bounds: (usize,usize,usize,usize),
     assembly: Option<String>,
     depth: f32,
     w: usize,
@@ -485,7 +487,7 @@ impl Physics {
             .angvel(spec.spin)
             .ccd_enabled(true);
         let handle = self.set.insert(rb);
-        let mut body = Body { assembly: spec.assembly, depth: spec.depth, w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
+        let mut body = Body { bounds:(0,0,0,0), assembly: spec.assembly, depth: spec.depth, w: spec.w, h: spec.h, cells: spec.cells, handle, stamped: Vec::new(), born: self.tick, dirty: false, shard: false, round: false, id: self.next_id };
         self.next_id += 1;
         self.build_colliders(&mut body, mats);
         self.stamp(&mut body, world, mats);
@@ -495,6 +497,9 @@ impl Physics {
     }
 
     fn build_colliders(&mut self, body: &mut Body, mats: &Materials) {
+        let mut bounds=(body.w,body.h,0,0);
+        for (i,cell) in body.cells.iter().enumerate() {if cell.is_some() {let (x,y)=(i%body.w,i/body.w);bounds.0=bounds.0.min(x);bounds.1=bounds.1.min(y);bounds.2=bounds.2.max(x+1);bounds.3=bounds.3.max(y+1);}}
+        body.bounds=bounds;
         let old: Vec<ColliderHandle> = self.set[body.handle].colliders().to_vec();
         for c in old {
             self.colliders.remove(c, &mut self.islands, &mut self.set, &mut self.soft, true);
@@ -553,14 +558,17 @@ impl Physics {
         let (cx, cy, angle) = self.pose(body);
         let (c, s) = (angle.cos(), angle.sin());
         let (hw, hh) = (body.w as f32 / 2.0, body.h as f32 / 2.0);
-        let r = (hw * hw + hh * hh).sqrt() + 1.0;
+        let (bx0,by0,bx1,by1)=body.bounds;
+        if bx0>=bx1 || by0>=by1 {return;}
+        let mut limits=(f32::INFINITY,f32::INFINITY,f32::NEG_INFINITY,f32::NEG_INFINITY);
+        for (x,y) in [(bx0,by0),(bx1,by0),(bx1,by1),(bx0,by1)] {let(dx,dy)=(x as f32-hw,y as f32-hh);let(wx,wy)=(cx+c*dx-s*dy,cy+s*dx+c*dy);limits.0=limits.0.min(wx);limits.1=limits.1.min(wy);limits.2=limits.2.max(wx);limits.3=limits.3.max(wy);}
         // Fast objects splash the liquid they hit (speeds in cells per frame).
         let v = self.set[body.handle].linvel();
         let (bvx, bvy) = (v.x / CELL / 60.0, v.y / CELL / 60.0);
         let speed = (bvx * bvx + bvy * bvy).sqrt();
         let splash = speed > SPLASH_SPEED;
-        let (x0, x1) = ((cx - r).floor() as i32, (cx + r).ceil() as i32);
-        let (y0, y1) = ((cy - r).floor() as i32, (cy + r).ceil() as i32);
+        let (x0,x1)=((limits.0.floor() as i32-1).max(0),(limits.2.ceil() as i32+1).min(world.w as i32-1));
+        let (y0,y1)=((limits.1.floor() as i32-1).max(0),(limits.3.ceil() as i32+1).min(world.h as i32-1));
         for wy in y0..=y1 {
             for wx in x0..=x1 {
                 if !world.in_bounds(wx, wy) {
@@ -648,15 +656,17 @@ impl Physics {
 
     /// Advance all objects by one frame. Call right after `World::step`.
     pub fn update(&mut self, world: &mut World, mats: &Materials) {
+        let _all=crate::profile::scope("physics.total");
+        let phase=crate::profile::scope("physics.read_split");
         // 1. Read back and lift every object out of the grid.
         self.actors_read_back(world, mats);
         let mut bodies = std::mem::take(&mut self.bodies);
-        let mut changed = Vec::new();
+        let mut changed = vec![false;bodies.len()];
         self.damaged.clear();
         for (n, b) in bodies.iter_mut().enumerate() {
             if Self::read_back(b, world, true) || b.dirty {
                 b.dirty = false;
-                changed.push(n);
+                changed[n]=true;
                 self.damaged.push(b.id);
             }
         }
@@ -664,7 +674,7 @@ impl Physics {
         let mut keep = Vec::with_capacity(bodies.len());
         let mut new_specs = Vec::new();
         for (n, mut b) in bodies.into_iter().enumerate() {
-            if !changed.contains(&n) {
+            if !changed[n] {
                 keep.push(b);
                 continue;
             }
@@ -688,12 +698,14 @@ impl Physics {
         self.bodies = keep;
         self.tidy_joints();
 
+        drop(phase);let phase=crate::profile::scope("physics.terrain");
         // 2. Scenery that lost its support breaks loose.
         new_specs.extend(self.collapse(world, mats));
 
         // 3. Terrain colliders for whatever changed.
         self.update_terrain(world, mats);
 
+        drop(phase);let phase=crate::profile::scope("physics.forces_groups");
         // 3. Floating and drag in liquids, then step the physics.
         let floats: Vec<(RigidBodyHandle, Option<(f32, Vector)>)> =
             self.bodies.iter().map(|b| (b.handle, Self::buoyancy(b, world, mats))).collect();
@@ -746,15 +758,17 @@ impl Physics {
             if !changed {break;}
         }
         let hooks=OneWayPowder {assemblies:self.bodies.iter().map(|b|(b.handle,roots[&b.id])).collect()};
-        for b in &self.bodies {for h in self.set[b.handle].colliders() {
+        let mut group_sizes=HashMap::<u64,usize>::new();
+        for root in roots.values() {*group_sizes.entry(*root).or_default()+=1;}
+        for b in &self.bodies {let grouped=group_sizes[&roots[&b.id]]>1;for h in self.set[b.handle].colliders() {
             let Some(c)=self.colliders.get(*h) else {continue};
             let old=c.active_hooks();
-            let root=roots[&b.id];
-            let grouped=roots.values().filter(|v|**v==root).count()>1;
+
             let new=if grouped {old | ActiveHooks::FILTER_CONTACT_PAIRS} else {old & !ActiveHooks::FILTER_CONTACT_PAIRS};
             // Mutating unchanged colliders invalidates cached contacts and friction.
             if new!=old&& let Some(c)=self.colliders.get_mut(*h) {c.set_active_hooks(new);}
         }}
+        drop(phase);let phase=crate::profile::scope("physics.solver");
         self.pipeline.step(
             Vector::new(0.0, GRAVITY),
             &self.params,
@@ -771,6 +785,7 @@ impl Physics {
             &(),
         );
 
+        drop(phase);let phase=crate::profile::scope("physics.stamp");
         self.break_overloaded_joints();
 
         // 4. Put everything back into the grid (new pieces too).
@@ -787,6 +802,7 @@ impl Physics {
             self.add_raw(world, mats, spec);
         }
 
+        drop(phase);let _phase=crate::profile::scope("physics.damage");
         // 6. Damage: hard hits, heavy loads and explosions.
         let mut pieces = self.impacts(world, mats);
         pieces.extend(self.explosions(world, mats));
@@ -878,6 +894,7 @@ impl Physics {
         hits.sort_by(|a, b| b.0.total_cmp(&a.0));
         hits.truncate(MAX_HITS_PER_TICK);
 
+        if hits.first().is_none_or(|h|h.0<MIN_DAMAGE_KN) {return Vec::new();}
         let owners = self.owners();
         let mut out = Vec::new();
         for (force, patch, b1, b2, push) in hits {
@@ -2008,7 +2025,7 @@ impl Physics {
                 && !self.bodies[n].round {
                     let mut b = std::mem::replace(
                         &mut self.bodies[n],
-                        Body { assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                        Body { bounds:(0,0,0,0), assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: h2, stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                     );
                     b.round = true;
                     self.build_colliders(&mut b, mats);
@@ -2329,7 +2346,7 @@ impl Physics {
                 let n = self.bodies.len() - 1;
                 let mut b = std::mem::replace(
                     &mut self.bodies[n],
-                    Body { assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
+                    Body { bounds:(0,0,0,0), assembly: None, depth: 1.0, w: 0, h: 0, cells: Vec::new(), handle: RigidBodyHandle::invalid(), stamped: Vec::new(), born: 0, dirty: false, shard: false, round: false, id: 0 },
                 );
                 b.round = true;
                 self.build_colliders(&mut b, mats);
@@ -2361,6 +2378,7 @@ impl Physics {
         let mut out = Vec::new();
         for b in &self.bodies {
             let mut copy = Body {
+                bounds: b.bounds,
                 assembly: b.assembly.clone(),
                 depth: b.depth,
                 w: b.w,

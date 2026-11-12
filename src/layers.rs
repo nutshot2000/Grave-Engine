@@ -38,3 +38,9 @@ pub fn snapshot_bytes(s: &Snapshot) -> usize {
             .sum::<usize>()
         + s.layers.iter().map(snapshot_bytes).sum::<usize>()
 }
+
+/// Independent planes can share CPU cores after their boundary exchange.
+pub(crate) fn parallel_planes()->bool {
+    static AVAILABLE:std::sync::OnceLock<bool>=std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(||std::thread::available_parallelism().is_ok_and(|n|n.get()>1))
+}

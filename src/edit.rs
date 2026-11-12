@@ -627,7 +627,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { ambient: w.ambient, layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -645,17 +645,23 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { ambient: w.ambient, layers: snap.layers.clone(), layer_names: snap.layer_names.clone(), frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
-        // Too big? Drop the oldest stretch up to the next keyframe.
-        while self.bytes > TIMELINE_BYTES && self.moments.len() > KEYFRAME_EVERY {
-            let next_key = self.moments.iter().skip(1).position(|m| m.keyframe.is_some()).map(|p| p + 1);
-            let Some(k) = next_key else { break };
-            for m in self.moments.drain(..k) {
-                self.bytes -= moment_bytes(&m);
+        self.trim_to_bytes(TIMELINE_BYTES);
+    }
+    /// Evict a moment at a time, promoting the next one to a keyframe. Releasing
+    /// forty layered snapshots together used to cause visible periodic stalls.
+    fn trim_to_bytes(&mut self,limit:usize) {
+        while self.bytes>limit && self.moments.len()>2 {
+            if self.moments[1].keyframe.is_none() {
+                let Some(cells)=self.cells_at(1) else {break;};
+                self.bytes-=moment_bytes(&self.moments[1]);
+                self.moments[1].keyframe=Some(cells);self.moments[1].cells.clear();
+                self.bytes+=moment_bytes(&self.moments[1]);
             }
+            let old=self.moments.remove(0);self.bytes-=moment_bytes(&old);
         }
     }
 
@@ -704,4 +710,17 @@ fn moment_bytes(m: &Moment) -> usize {
         + m.cells.len() * (cell + 4)
         + m.flying.len() * std::mem::size_of::<crate::world::Flyer>()
         + m.bodies.iter().map(|b| b.cells.len() * std::mem::size_of::<Option<BodyCell>>() + 64).sum::<usize>()
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    #[test]
+    fn evicting_layered_history_preserves_each_retained_moment() {
+        let mats=Materials::load_dir("materials");let mut sim=Sim::empty(24,16,&mats);sim.ensure_layer(1,"inside",&mats);
+        let mut timeline=Timeline::new();timeline.every=1;
+        for frame in 1..=12 {sim.world.frame=frame;sim.world.temp[3]=frame as f32*100.;sim.layers[0].world.temp[9]=frame as f32*90.;timeline.record(&mut sim);timeline.trim_to_bytes(1);}
+        assert_eq!(timeline.len(),2);assert!(timeline.moments[0].keyframe.is_some());
+        for (i,frame) in [(0,11),(1,12)] {assert!(timeline.restore(i,&mut sim,&mats));assert_eq!(sim.world.frame,frame);assert_eq!(sim.world.temp[3],frame as f32*100.);assert_eq!(sim.layers[0].world.temp[9],frame as f32*90.);}
+    }
 }

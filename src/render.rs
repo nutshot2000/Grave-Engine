@@ -127,6 +127,7 @@ impl Renderer {
     /// Draw with a simulation's lighting (its sun, lamps and overall light)
     /// from now on.
     pub fn light(&mut self, sim: &crate::sim::Sim) {
+        let _p=crate::profile::scope("render.capture");
         self.layer_worlds=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|l.world.clone()).collect();
         self.layer_lighting=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|if l.lighting.is_plain() {None} else {Some((l.lighting.clone(),l.lamps()))}).collect();
         self.layer_renderers.resize_with(self.layer_worlds.len(),Renderer::default);
@@ -180,17 +181,30 @@ impl Renderer {
     /// faster than drawing everything when the world is big. Glow and light
     /// from just outside it still spill in.
     pub fn draw_window(&mut self, world: &World, mats: &Materials, view: View, win: (usize, usize, usize, usize)) -> &[u8] {
-        self.draw_single_window(world,mats,view,win);
-        if self.layer_worlds.is_empty() {return &self.rgba;}
-        let win=self.window;
-        let mut images=Vec::new();
-        for (z,(layer,r)) in self.layer_worlds.iter().zip(&mut self.layer_renderers).enumerate() {
+        self.draw_planes(world,mats,view,win,crate::layers::parallel_planes())
+    }
+    fn draw_planes(&mut self,world:&World,mats:&Materials,view:View,win:(usize,usize,usize,usize),parallel:bool)->&[u8] {
+        let _p=crate::profile::scope("render.frame");
+        if self.layer_worlds.is_empty() {return self.draw_single_window(world,mats,view,win);}
+        let win=clip(world,win);
+        let worlds=std::mem::take(&mut self.layer_worlds);
+        let mut renderers=std::mem::take(&mut self.layer_renderers);
+        for (z,r) in renderers.iter_mut().enumerate() {
             let (lighting,lamps)=self.layer_lighting[z].as_ref().cloned().unwrap_or_else(||(self.lighting.clone(),self.lamps.clone()));
             r.lighting=lighting;r.lamps=lamps;r.backdrop=self.backdrop.clone();r.camera=self.camera;
-            images.push(r.draw_single_window(layer,mats,view,win).to_vec());
         }
+        if parallel {
+            std::thread::scope(|scope| {
+                for (layer,r) in worlds.iter().zip(&mut renderers) {scope.spawn(move||{r.draw_single_window(layer,mats,view,win);});}
+                self.draw_single_window(world,mats,view,win);
+            });
+        }else {
+            self.draw_single_window(world,mats,view,win);
+            for (layer,r) in worlds.iter().zip(&mut renderers) {r.draw_single_window(layer,mats,view,win);}
+        }
+        let images:Vec<&[u8]>=renderers.iter().map(|r|r.rgba.as_slice()).collect();
         let grown=grow(world,win,40);
-        let masks: Vec<_>=std::iter::once(world).chain(self.layer_worlds.iter()).map(|w| {
+        let masks: Vec<_>=std::iter::once(world).chain(worlds.iter()).map(|w| {
             let mut mask=w.mat.clone();
             for f in &w.flying {if f.x>=0. && f.y>=0. && f.x<w.w as f32 && f.y<w.h as f32 {mask[w.idx(f.x as usize,f.y as usize)]=f.mat;}}
             mask
@@ -199,11 +213,11 @@ impl Renderer {
             let wi=(win.1+y)*world.w+win.0+x;let o=(y*win.2+x)*4;
             let mut result=[images.last().unwrap()[o] as f32,images.last().unwrap()[o+1] as f32,images.last().unwrap()[o+2] as f32];
             for z in (0..images.len()).rev() {
-                let (w,rgba)=if z==0 {(world,&self.rgba)} else {(&self.layer_worlds[z-1],&images[z-1])};
+                let (w,rgba)=if z==0 {(world,self.rgba.as_slice())} else {(&worlds[z-1],images[z-1])};
                 let id=masks[z][wi];let m=mats.get(id);
                 let alpha=if m.glow>0. && id!=crate::material::AIR {1.} else if id==crate::material::AIR || w.flags[wi]&crate::world::HIDDEN!=0 {0.} else if m.state==State::Gas {if m.glow>0. {0.85} else {0.45}} else if m.state==State::Liquid {0.85} else {1.-m.light_through()*0.65};
                 let gi=(win.1+y-grown.1)*grown.2+win.0+x-grown.0;
-                let (emission,haze)=if z==0 {(self.light.get(gi).copied().unwrap_or([0.;3]),self.lamp_only.get(gi).copied().unwrap_or([0.;3]))} else {(self.layer_renderers[z-1].light.get(gi).copied().unwrap_or([0.;3]),self.layer_renderers[z-1].lamp_only.get(gi).copied().unwrap_or([0.;3]))};
+                let (emission,haze)=if z==0 {(self.light.get(gi).copied().unwrap_or([0.;3]),self.lamp_only.get(gi).copied().unwrap_or([0.;3]))} else {(renderers[z-1].light.get(gi).copied().unwrap_or([0.;3]),renderers[z-1].lamp_only.get(gi).copied().unwrap_or([0.;3]))};
                 for c in 0..3 {
                     let halo=if view.heat {0.} else {(emission[c]*0.8+(if m.state==State::Gas {haze[c]*14.} else {0.})).min(100.)};
                     result[c]=result[c]*(1.-alpha)+rgba[o+c] as f32*alpha+halo*(1.-alpha);
@@ -211,9 +225,11 @@ impl Renderer {
             }
             for c in 0..3 {self.rgba[o+c]=result[c].clamp(0.,255.) as u8;}
         }}
+        self.layer_worlds=worlds;self.layer_renderers=renderers;
         &self.rgba
     }
     fn draw_single_window(&mut self, world: &World, mats: &Materials, view: View, win: (usize,usize,usize,usize)) -> &[u8] {
+        let phase=crate::profile::scope("render.pixels");
         let win = clip(world, win);
         self.window = win;
         // Work on the window plus a margin (glow spreads ~40 cells).
@@ -385,6 +401,7 @@ impl Renderer {
             self.tmp[i] = col;
         }
 
+        drop(phase);let phase=crate::profile::scope("render.glow");
         if !view.heat {
             blur(&mut self.light, &mut self.scratch, ew, eh, 5);
             blur(&mut self.light, &mut self.scratch, ew, eh, 5);
@@ -399,15 +416,18 @@ impl Renderer {
             blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
             blur(&mut self.wide, &mut self.scratch, ew, eh, 16);
         }
+        drop(phase);let phase=crate::profile::scope("render.lamps");
         if lit {
             crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
         }
         let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
+        drop(phase);let phase=crate::profile::scope("render.backdrop");
         let backdrop = !view.heat && !self.backdrop.is_empty();
         if backdrop {
             let (cx, cy) = self.camera.unwrap_or((world.w as f32 / 2.0, world.h as f32 / 2.0));
             self.backdrop.draw(world.w, world.h, e, cx, cy, world.frame, &mut self.pictures, &mut self.bg, &mut self.bg_glow);
         }
+        drop(phase);let _phase=crate::profile::scope("render.combine");
         let amb = {
             let (a, c) = (self.lighting.ambient.max(0.0), self.lighting.ambient_color);
             [a * c[0] as f32 / 255.0, a * c[1] as f32 / 255.0, a * c[2] as f32 / 255.0]
@@ -539,6 +559,7 @@ pub fn grow(world: &World, (x, y, w, h): (usize, usize, usize, usize), m: usize)
 
 /// Box blur, horizontal then vertical, radius `r`.
 pub(crate) fn blur(buf: &mut [[f32; 3]], tmp: &mut [[f32; 3]], w: usize, h: usize, r: usize) {
+    if w==0||h==0 {return;}
     let norm = 1.0 / (2 * r + 1) as f32;
     for y in 0..h {
         let row = &buf[y * w..(y + 1) * w];
@@ -564,27 +585,36 @@ pub(crate) fn blur(buf: &mut [[f32; 3]], tmp: &mut [[f32; 3]], w: usize, h: usiz
             }
         }
     }
-    for x in 0..w {
-        let mut acc = [0.0f32; 3];
-        for y in 0..=r.min(h - 1) {
-            for c in 0..3 {
-                acc[c] += tmp[y * w + x][c];
-            }
-        }
-        for y in 0..h {
-            for c in 0..3 {
-                buf[y * w + x][c] = acc[c] * norm;
-            }
-            if y + r + 1 < h {
-                for c in 0..3 {
-                    acc[c] += tmp[(y + r + 1) * w + x][c];
-                }
-            }
-            if y >= r {
-                for c in 0..3 {
-                    acc[c] -= tmp[(y - r) * w + x][c];
-                }
-            }
+    // Sweep whole rows to keep each read/write contiguous. Every column retains
+    // exactly the same addition/subtraction order as the old strided sweep.
+    let mut sums=vec![[0.0f32;3];w];
+    for y in 0..=r.min(h-1) {for x in 0..w {for c in 0..3 {sums[x][c]+=tmp[y*w+x][c];}}}
+    for y in 0..h {
+        for x in 0..w {for c in 0..3 {buf[y*w+x][c]=sums[x][c]*norm;}}
+        if y+r+1<h {for x in 0..w {for c in 0..3 {sums[x][c]+=tmp[(y+r+1)*w+x][c];}}}
+        if y>=r {for x in 0..w {for c in 0..3 {sums[x][c]-=tmp[(y-r)*w+x][c];}}}
+    }
+}
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+    #[test]
+    fn parallel_depth_rendering_is_pixel_identical() {
+        let mats=Materials::load_dir("materials");let text=std::fs::read_to_string("scenes/cinder-lane.txt").unwrap();
+        let(mut sim,p)=crate::scene::load(&text,&mats,Some(std::path::Path::new("scenes"))).into_sim(&mats);assert!(p.is_empty());
+        sim.world.heat_circle(164,185,20,950.);for _ in 0..15 {sim.step(&mats);}
+        let(mut serial,mut parallel)=(Renderer::default(),Renderer::default());serial.light(&sim);parallel.light(&sim);
+        for view in [View::default(),View{heat:true,..View::default()}] {let win=(75,40,330,175);assert_eq!(serial.draw_planes(&sim.world,&mats,view,win,false),parallel.draw_planes(&sim.world,&mats,view,win,true));}
+    }
+    #[test]
+    fn row_sweep_blur_matches_the_strided_reference_exactly() {
+        for (w,h,r) in [(1,1,16),(7,11,5),(83,29,16),(770,250,5)] {
+            let original:Vec<[f32;3]>=(0..w*h).map(|i|[(i%193) as f32*0.7,(i%71) as f32*2.3,(i%313) as f32*0.3]).collect();
+            let mut horizontal=vec![[0.;3];w*h];let norm=1./(2*r+1) as f32;
+            for y in 0..h {let mut acc=[0.;3];for x in 0..=r.min(w-1){for c in 0..3{acc[c]+=original[y*w+x][c];}}for x in 0..w{for c in 0..3{horizontal[y*w+x][c]=acc[c]*norm;}if x+r+1<w{for c in 0..3{acc[c]+=original[y*w+x+r+1][c];}}if x>=r{for c in 0..3{acc[c]-=original[y*w+x-r][c];}}}}
+            let mut expected=original.clone();for x in 0..w {let mut acc=[0.;3];for y in 0..=r.min(h-1){for c in 0..3{acc[c]+=horizontal[y*w+x][c];}}for y in 0..h{for c in 0..3{expected[y*w+x][c]=acc[c]*norm;}if y+r+1<h{for c in 0..3{acc[c]+=horizontal[(y+r+1)*w+x][c];}}if y>=r{for c in 0..3{acc[c]-=horizontal[(y-r)*w+x][c];}}}}
+            let mut actual=original;blur(&mut actual,&mut horizontal,w,h,r);assert_eq!(actual,expected);
         }
     }
 }

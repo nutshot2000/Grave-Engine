@@ -2963,14 +2963,15 @@ impl eframe::App for Sandbox {
             // Slow motion from a trigger (or the game) slows time on top.
             self.sim_clock += dt * SIM_HZ * self.speed as f64 * self.sim.camera.time_scale() as f64;
             let mut steps = 0;
-            while self.sim_clock >= 1.0 && steps < 8 {
+            let step_started=Instant::now();
+            while self.sim_clock >= 1.0 && steps < 4 && (steps==0 || step_started.elapsed().as_secs_f64()<0.012) {
                 self.step_once();
                 self.sim_clock -= 1.0;
                 steps += 1;
             }
-            if steps == 8 {
-                self.sim_clock = 0.0;
-            }
+            // Heavy destruction must not turn a delayed UI frame into six or
+            // eight further physics steps before accepting mouse input again.
+            if self.sim_clock>=1.0 {self.sim_clock=self.sim_clock.min(1.0);}
         }
 
         egui::Panel::top("top").show(ui, |ui| {
@@ -3658,6 +3659,14 @@ player 50 100
         assert!(h.state().studio.test.is_some());assert!(!h.state().playing);
         h.key_press(Key::Space);h.run_steps(2);assert!(!h.state().studio.test_running);assert!(!h.state().playing);
         assert_eq!(h.state().sim.world.mat,before);
+    }
+
+    #[test]
+    fn delayed_editor_frame_does_not_replay_an_unbounded_physics_backlog() {
+        let mut h=editor();let frame=h.state().sim.world.frame;
+        h.state_mut().playing=true;h.state_mut().sim_clock=100.;h.run_steps(1);
+        let advanced=h.state().sim.world.frame-frame;
+        assert!((1..=4).contains(&advanced),"advanced {advanced}");assert!(h.state().sim_clock<=1.);
     }
 
 }

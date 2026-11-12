@@ -347,6 +347,8 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
         tint.clear();
         tint.resize(side * side, [1.0; 3]);
         let rays = ((std::f32::consts::TAU * r * 1.6).ceil() as usize).max(16);
+        let steps=(r*2.0) as usize;
+        let falls:Vec<f32>=(0..steps).map(|s|(1.0-(s+1) as f32*0.5/r).max(0.0).powf(1.4)).collect();
         for ray in 0..rays {
             let ang = ray as f32 / rays as f32 * std::f32::consts::TAU;
             let mut cone_k = 1.0;
@@ -377,8 +379,7 @@ pub fn illuminate(world: &World, mats: &Materials, lighting: &Lighting, lamps: &
                     continue;
                 }
                 last = i;
-                let d = (s + 1) as f32 * 0.5 / r;
-                let fall = (1.0 - d).max(0.0).powf(1.4) * cone_k;
+                let fall = falls[s] * cone_k;
                 let (lx, ly) = ((cx - lamp.x.floor() as i32 + ri) as usize, (cy - lamp.y.floor() as i32 + ri) as usize);
                 if lx < side && ly < side {
                     let li = ly * side + lx;
