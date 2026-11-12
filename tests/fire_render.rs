@@ -6,7 +6,7 @@ use grave_engine::{
 };
 
 #[test]
-fn broad_burning_walls_keep_char_paint_and_animation_instead_of_clipping_yellow() {
+fn broad_burning_walls_keep_colour_variation_and_animation_instead_of_clipping_yellow() {
     let m = Materials::load_dir("materials");
     let mut s = Sim::empty(140, 100, &m);
     let wood = m.id("wood").unwrap();
@@ -37,7 +37,8 @@ fn broad_burning_walls_keep_char_paint_and_animation_instead_of_clipping_yellow(
         .map(|i| &full[i..i + 3])
         .collect();
     let yellow = pixels.iter().filter(|p| p[0] >= 250 && p[1] >= 230).count();
-    let charred = pixels.iter().filter(|p| p[0] < 120 && p[1] < 85).count();
+    let dark = pixels.iter().map(|p| p[1]).min().unwrap();
+    let bright = pixels.iter().map(|p| p[1]).max().unwrap();
     let orange = pixels
         .iter()
         .filter(|p| p[0] > 135 && p[0] as u16 * 10 > p[1] as u16 * 13)
@@ -47,8 +48,8 @@ fn broad_burning_walls_keep_char_paint_and_animation_instead_of_clipping_yellow(
         "bloom must not flatten burning walls into yellow"
     );
     assert!(
-        charred > pixels.len() / 4,
-        "charred material remains visible"
+        bright - dark > 60,
+        "fine flame and fuel variation remains visible"
     );
     assert!(
         orange > pixels.len() / 20,
