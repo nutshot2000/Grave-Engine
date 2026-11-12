@@ -1,0 +1,184 @@
+# Grave material asset. One cell = 10 cm. Named parts share a local grid.
+format 1
+asset west_water_trough 24 18
+depth 0.05
+pivot 12 17
+legend A weathered_wood
+
+part wooden_trough
+grid
+........................
+........................
+........................
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAA..................AAA
+AAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAA
+..AAA..............AAA..
+..AAA..............AAA..
+........................
+end
+paint 0 3 #5d503a
+paint 1 3 #5d503a
+paint 2 3 #5d503a
+paint 21 3 #5d503a
+paint 22 3 #5d503a
+paint 23 3 #5d503a
+paint 0 4 #5d503a
+paint 1 4 #5d503a
+paint 2 4 #5d503a
+paint 21 4 #5d503a
+paint 22 4 #5d503a
+paint 23 4 #5d503a
+paint 0 5 #453c2b
+paint 1 5 #453c2b
+paint 2 5 #453c2b
+paint 21 5 #453c2b
+paint 22 5 #453c2b
+paint 23 5 #453c2b
+paint 0 6 #685b41
+paint 1 6 #685b41
+paint 2 6 #685b41
+paint 21 6 #685b41
+paint 22 6 #685b41
+paint 23 6 #685b41
+paint 0 7 #685b41
+paint 1 7 #685b41
+paint 2 7 #685b41
+paint 21 7 #685b41
+paint 22 7 #685b41
+paint 23 7 #685b41
+paint 0 8 #685b41
+paint 1 8 #685b41
+paint 2 8 #685b41
+paint 21 8 #685b41
+paint 22 8 #685b41
+paint 23 8 #685b41
+paint 0 9 #685b41
+paint 1 9 #685b41
+paint 2 9 #685b41
+paint 21 9 #685b41
+paint 22 9 #685b41
+paint 23 9 #685b41
+paint 0 10 #453c2b
+paint 1 10 #453c2b
+paint 2 10 #453c2b
+paint 21 10 #453c2b
+paint 22 10 #453c2b
+paint 23 10 #453c2b
+paint 0 11 #665940
+paint 1 11 #665940
+paint 2 11 #665940
+paint 3 11 #665940
+paint 4 11 #665940
+paint 5 11 #665940
+paint 6 11 #665940
+paint 7 11 #665940
+paint 8 11 #665940
+paint 9 11 #665940
+paint 10 11 #665940
+paint 11 11 #221e15
+paint 12 11 #665940
+paint 13 11 #665940
+paint 14 11 #665940
+paint 15 11 #665940
+paint 16 11 #665940
+paint 17 11 #665940
+paint 18 11 #665940
+paint 19 11 #665940
+paint 20 11 #665940
+paint 21 11 #665940
+paint 22 11 #665940
+paint 23 11 #665940
+paint 0 12 #665940
+paint 1 12 #665940
+paint 2 12 #665940
+paint 3 12 #665940
+paint 4 12 #665940
+paint 5 12 #665940
+paint 6 12 #665940
+paint 7 12 #665940
+paint 8 12 #665940
+paint 9 12 #665940
+paint 10 12 #665940
+paint 11 12 #665940
+paint 12 12 #665940
+paint 13 12 #665940
+paint 14 12 #665940
+paint 15 12 #665940
+paint 16 12 #665940
+paint 17 12 #665940
+paint 18 12 #665940
+paint 19 12 #665940
+paint 20 12 #665940
+paint 21 12 #665940
+paint 22 12 #665940
+paint 23 12 #665940
+paint 0 13 #665940
+paint 1 13 #665940
+paint 2 13 #665940
+paint 3 13 #665940
+paint 4 13 #665940
+paint 5 13 #665940
+paint 6 13 #665940
+paint 7 13 #665940
+paint 8 13 #665940
+paint 9 13 #665940
+paint 10 13 #665940
+paint 11 13 #665940
+paint 12 13 #665940
+paint 13 13 #665940
+paint 14 13 #665940
+paint 15 13 #665940
+paint 16 13 #665940
+paint 17 13 #665940
+paint 18 13 #665940
+paint 19 13 #665940
+paint 20 13 #665940
+paint 21 13 #665940
+paint 22 13 #665940
+paint 23 13 #665940
+paint 0 14 #665940
+paint 1 14 #665940
+paint 2 14 #665940
+paint 3 14 #665940
+paint 4 14 #665940
+paint 5 14 #665940
+paint 6 14 #665940
+paint 7 14 #665940
+paint 8 14 #665940
+paint 9 14 #665940
+paint 10 14 #665940
+paint 11 14 #665940
+paint 12 14 #665940
+paint 13 14 #665940
+paint 14 14 #665940
+paint 15 14 #665940
+paint 16 14 #665940
+paint 17 14 #665940
+paint 18 14 #665940
+paint 19 14 #665940
+paint 20 14 #665940
+paint 21 14 #665940
+paint 22 14 #665940
+paint 23 14 #665940
+paint 2 15 #453c2b
+paint 3 15 #453c2b
+paint 4 15 #453c2b
+paint 19 15 #453c2b
+paint 20 15 #453c2b
+paint 21 15 #453c2b
+paint 2 16 #64573f
+paint 3 16 #64573f
+paint 4 16 #221e15
+paint 19 16 #64573f
+paint 20 16 #64573f
+paint 21 16 #64573f

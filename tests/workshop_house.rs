@@ -55,7 +55,8 @@ fn reusable_house_stands_then_burns_and_collapses() {
     let wood = m.id("wood").unwrap();
     let before = s.world.mat.iter().filter(|v| **v == wood).count();
     let mut ignition = false;
-    for frame in 0..720 {
+    // Allow the burn to complete after compact body origins alter settling/heat contacts.
+    for frame in 0..900 {
         if frame < 180 && frame % 15 == 0 {
             for x in [68, 120, 172] {
                 s.world.heat_circle(x, 141, 15, 950.);

@@ -11,7 +11,7 @@ Open Grave Engine and click **Asset workshop**, or launch `grave-engine --worksh
 5. Use **Drop**, **Impact wall**, **Burn**, **Step**, **Run / pause** and **Heat view**. Adjust impact speed as needed. Clicking the preview applies a small heat torch. Tests always use a copy; **Reset preview** rebuilds it from the draft.
 6. Click **Save asset**, then **Place at scene centre** to add all parts and welds to the scene. They arrive selected, so drag the assembly into position. One scene Undo removes the whole placement.
 
-Each cell is 10 cm. Grid dimensions can be 1–128 cells each, with up to 24 named parts. Thickness affects physical mass. Resize crops material outside the new grid; Undo restores it. Draft Undo/Redo is separate from scene history. Leaving the workshop retains its in-memory draft, but save before closing the application.
+Each cell is 10 cm. Grid dimensions can be 1–128 cells each, with up to 256 named parts. Thickness affects physical mass. Resize crops material outside the new grid; Undo restores it. Draft Undo/Redo is separate from scene history. Leaving the workshop retains its in-memory draft, but save before closing the application.
 
 The preview uses actual engine cells, gravity, material heat/burning, contact damage and breakable joints. Wood may survive an impact that shatters glass: survival is a valid test result, not a canned break animation. Gunpowder in the sample really detonates. The impact test advances a few settling frames before launch so a newly spawned body's impact-grace period does not hide the result.
 

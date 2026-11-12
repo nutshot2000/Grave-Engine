@@ -10,7 +10,7 @@ use std::{
     path::Path,
 };
 pub const MAX_SIZE: usize = 128;
-pub const MAX_PARTS: usize = 24;
+pub const MAX_PARTS: usize = 256;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Part {
     pub name: String,
@@ -93,7 +93,7 @@ impl Asset {
             || self.parts.iter().any(|p| p.name == name)
             || self.parts.len() >= MAX_PARTS
         {
-            return Err("Part names must be unique, use letters/numbers/-/_, and there can be at most 24 parts.".into());
+            return Err("Part names must be unique, use letters/numbers/-/_, and there can be at most 256 parts.".into());
         }
         self.parts.push(Part {
             name: name.into(),
@@ -502,7 +502,7 @@ impl Asset {
                 ));
             }
         }
-        if self.parts.len() > 1 && self.welds.is_empty() {
+        if self.welds.is_empty() && (0..self.layers.len()).any(|z| self.parts.iter().filter(|p|p.layer==z).count()>1) {
             out.push(
                 "Parts are unjoined and will fall separately. Add welds to assemble them.".into(),
             );
@@ -514,23 +514,37 @@ impl Asset {
             .iter()
             .filter(|p| p.layer == 0 && p.cells.iter().any(|m| *m != AIR))
             .map(|p| {
-                let cells: Vec<_> = p
+                // Parts share an authoring grid, but physics stores only the
+                // occupied rectangle. Hundreds of individual boards must not
+                // each carry a mostly empty 128-by-128 body and rewind copy.
+                let occupied: Vec<_> = p
                     .cells
                     .iter()
-                    .map(|m| if *m == AIR { None } else { Some(*m) })
+                    .enumerate()
+                    .filter(|(_, m)| **m != AIR)
+                    .map(|(i, _)| i)
+                    .collect();
+                let x0 = occupied.iter().map(|i| i % self.w).min().unwrap();
+                let y0 = occupied.iter().map(|i| i / self.w).min().unwrap();
+                let x1 = occupied.iter().map(|i| i % self.w).max().unwrap() + 1;
+                let y1 = occupied.iter().map(|i| i / self.w).max().unwrap() + 1;
+                let (w, h) = (x1 - x0, y1 - y0);
+                let cells: Vec<_> = (y0..y1)
+                    .flat_map(|y| (x0..x1).map(move |x| p.cells[y * self.w + x]))
+                    .map(|m| if m == AIR { None } else { Some(m) })
                     .collect();
                 let mut b = BodySpec::from_mats(
-                    self.w,
-                    self.h,
+                    w,
+                    h,
                     &cells,
                     mats,
-                    x + self.w as f32 / 2. - self.pivot.0,
-                    y + self.h as f32 / 2. - self.pivot.1,
+                    x + x0 as f32 + w as f32 / 2. - self.pivot.0,
+                    y + y0 as f32 + h as f32 / 2. - self.pivot.1,
                 );
                 b.depth = self.depth;
                 for (i, c) in b.cells.iter_mut().enumerate() {
                     if let Some(c) = c {
-                        c.paint = p.paint[i];
+                        c.paint = p.paint[(y0 + i / w) * self.w + x0 + i % w];
                     }
                 }
                 (p.name.clone(), b)

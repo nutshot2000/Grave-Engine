@@ -747,15 +747,38 @@ impl Physics {
         self.actors_think(world, mats, &blasts);
         // Welded vehicle parts must not fight each other through internal collisions.
         // Recompute each frame so released parts collide normally on the next step.
-        let mut roots: HashMap<u64,u64> = self.bodies.iter().map(|b|(b.id,b.id)).collect();
-        for _ in 0..self.joints.len() {
-            let mut changed=false;
-            for j in &self.joints {
-                if j.spec.a==GROUND || j.spec.b==GROUND || !matches!(j.spec.kind,JointKind::Weld|JointKind::Wheel{..}) {continue;}
-                if let (Some(&a),Some(&b))=(roots.get(&j.spec.a),roots.get(&j.spec.b))
-                    && a!=b {let root=a.min(b);for value in roots.values_mut(){if *value==a || *value==b {*value=root;}}changed=true;}
+        let mut roots: HashMap<u64, u64> = self.bodies.iter().map(|b| (b.id, b.id)).collect();
+        fn root(roots: &mut HashMap<u64, u64>, id: u64) -> u64 {
+            let mut r = id;
+            while roots[&r] != r {
+                r = roots[&r];
             }
-            if !changed {break;}
+            let mut node = id;
+            while roots[&node] != node {
+                let next = roots[&node];
+                roots.insert(node, r);
+                node = next;
+            }
+            r
+        }
+        for j in &self.joints {
+            if j.spec.a == GROUND
+                || j.spec.b == GROUND
+                || !matches!(j.spec.kind, JointKind::Weld | JointKind::Wheel { .. })
+            {
+                continue;
+            }
+            if roots.contains_key(&j.spec.a) && roots.contains_key(&j.spec.b) {
+                let a = root(&mut roots, j.spec.a);
+                let b = root(&mut roots, j.spec.b);
+                if a != b {
+                    roots.insert(a.max(b), a.min(b));
+                }
+            }
+        }
+        for b in &self.bodies {
+            let r = root(&mut roots, b.id);
+            roots.insert(b.id, r);
         }
         let hooks=OneWayPowder {assemblies:self.bodies.iter().map(|b|(b.handle,roots[&b.id])).collect()};
         let mut group_sizes=HashMap::<u64,usize>::new();

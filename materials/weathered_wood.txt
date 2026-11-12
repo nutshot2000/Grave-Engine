@@ -1,0 +1,23 @@
+# Weathered timber: slow-burning construction timber with readable painted planks.
+about = Heavy construction timber. Chars gradually; painted boards keep their detail.
+state = solid
+density = 700
+color = #7b4b27
+color_variation = 0.025
+conducts_heat = 0.15
+heat_capacity = 1
+catches_fire_at = 360
+burns_for = 1200
+burn_temperature = 750
+burns_into = ash
+burns_into_chance = 0.1         # only 1 in 10 burned cells leaves ash; the rest burns away
+gives_off = fire
+gives_off_chance = 0.012
+strength = 50                    # can stick out 50 cells (5 m) from a support before it snaps
+toughness = 1500                 # how hard a hit it takes to crack (kN); it splinters
+friction = 0.6
+bounciness = 0.1
+sparks = ember                   # throws glowing embers while it burns
+sparks_chance = 0.0001
+texture = textures/weathered_wood.png
+softens_at = 500                # heated construction timber loses strength gradually

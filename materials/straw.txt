@@ -1,0 +1,23 @@
+# Dry straw: light, weak fibres for hay bales and frontier-town props.
+about = Dry straw. Very light, catches fire readily and leaves a little ash.
+state = powder
+density = 100
+color = #bba057
+color_variation = 0.12
+conducts_heat = 0.06
+heat_capacity = 1.5
+catches_fire_at = 220
+burns_for = 150
+burn_temperature = 850
+burns_into = ash
+burns_into_chance = 0.08
+gives_off = fire
+gives_off_chance = 0.2
+sparks = ember
+sparks_chance = 0.002
+slides = 0.08
+strength = 3
+toughness = 100
+friction = 0.8
+rolling_resistance = 0.4
+clump = 3

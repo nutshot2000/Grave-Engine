@@ -409,7 +409,7 @@ impl Workshop {
             {
                 self.selected = i;
                 self.part_name = self.asset.parts[i].name.clone();
-            } else if self.asset.parts.len() < 24 {
+            } else if self.asset.parts.len() < grave_engine::asset::MAX_PARTS {
                 self.remember();
                 let name = format!(
                     "layer_{}_part_{}",
@@ -428,7 +428,7 @@ impl Workshop {
         }
         if ui
             .add_enabled(
-                self.asset.layers.len() < 4 && self.asset.parts.len() < 24,
+                self.asset.layers.len() < 4 && self.asset.parts.len() < grave_engine::asset::MAX_PARTS,
                 egui::Button::new("Add depth layer"),
             )
             .clicked()
@@ -494,7 +494,7 @@ impl Workshop {
         );
         ui.horizontal(|ui| {
             if ui
-                .add_enabled(self.asset.parts.len() < 24, egui::Button::new("Add part"))
+                .add_enabled(self.asset.parts.len() < grave_engine::asset::MAX_PARTS, egui::Button::new("Add part"))
                 .clicked()
             {
                 self.remember();

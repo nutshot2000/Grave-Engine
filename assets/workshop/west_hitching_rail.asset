@@ -1,0 +1,227 @@
+# Grave material asset. One cell = 10 cm. Named parts share a local grid.
+format 1
+asset west_hitching_rail 32 25
+depth 0.05
+pivot 16 24
+legend A weathered_wood
+
+part timber_rail
+grid
+................................
+................................
+................................
+................................
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.
+.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.
+.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+..AAA......................AAA..
+................................
+end
+paint 2 4 #674f32
+paint 3 4 #674f32
+paint 4 4 #674f32
+paint 27 4 #6b5334
+paint 28 4 #6b5334
+paint 29 4 #6b5334
+paint 2 5 #674f32
+paint 3 5 #674f32
+paint 4 5 #674f32
+paint 27 5 #6b5334
+paint 28 5 #6b5334
+paint 29 5 #6b5334
+paint 2 6 #674f32
+paint 3 6 #674f32
+paint 4 6 #674f32
+paint 27 6 #6b5334
+paint 28 6 #6b5334
+paint 29 6 #6b5334
+paint 1 7 #674f32
+paint 2 7 #674f32
+paint 3 7 #674f32
+paint 4 7 #674f32
+paint 5 7 #4d3b25
+paint 6 7 #745a39
+paint 7 7 #745a39
+paint 8 7 #745a39
+paint 9 7 #745a39
+paint 10 7 #4d3b25
+paint 11 7 #725838
+paint 12 7 #725838
+paint 13 7 #725838
+paint 14 7 #725838
+paint 15 7 #4d3b25
+paint 16 7 #705637
+paint 17 7 #705637
+paint 18 7 #705637
+paint 19 7 #705637
+paint 20 7 #4d3b25
+paint 21 7 #6e5536
+paint 22 7 #6e5536
+paint 23 7 #6e5536
+paint 24 7 #6e5536
+paint 25 7 #4d3b25
+paint 26 7 #6b5334
+paint 27 7 #6b5334
+paint 28 7 #6b5334
+paint 29 7 #6b5334
+paint 30 7 #4d3b25
+paint 1 8 #674f32
+paint 2 8 #674f32
+paint 3 8 #674f32
+paint 4 8 #674f32
+paint 5 8 #4d3b25
+paint 6 8 #745a39
+paint 7 8 #745a39
+paint 8 8 #745a39
+paint 9 8 #745a39
+paint 10 8 #4d3b25
+paint 11 8 #725838
+paint 12 8 #725838
+paint 13 8 #725838
+paint 14 8 #725838
+paint 15 8 #4d3b25
+paint 16 8 #705637
+paint 17 8 #705637
+paint 18 8 #705637
+paint 19 8 #705637
+paint 20 8 #4d3b25
+paint 21 8 #6e5536
+paint 22 8 #6e5536
+paint 23 8 #6e5536
+paint 24 8 #6e5536
+paint 25 8 #4d3b25
+paint 26 8 #6b5334
+paint 27 8 #6b5334
+paint 28 8 #6b5334
+paint 29 8 #6b5334
+paint 30 8 #4d3b25
+paint 1 9 #674f32
+paint 2 9 #674f32
+paint 3 9 #674f32
+paint 4 9 #674f32
+paint 5 9 #4d3b25
+paint 6 9 #745a39
+paint 7 9 #745a39
+paint 8 9 #745a39
+paint 9 9 #745a39
+paint 10 9 #4d3b25
+paint 11 9 #725838
+paint 12 9 #725838
+paint 13 9 #725838
+paint 14 9 #725838
+paint 15 9 #4d3b25
+paint 16 9 #705637
+paint 17 9 #705637
+paint 18 9 #705637
+paint 19 9 #705637
+paint 20 9 #4d3b25
+paint 21 9 #6e5536
+paint 22 9 #6e5536
+paint 23 9 #6e5536
+paint 24 9 #6e5536
+paint 25 9 #4d3b25
+paint 26 9 #6b5334
+paint 27 9 #6b5334
+paint 28 9 #6b5334
+paint 29 9 #6b5334
+paint 30 9 #4d3b25
+paint 2 10 #674f32
+paint 3 10 #674f32
+paint 4 10 #674f32
+paint 27 10 #6b5334
+paint 28 10 #6b5334
+paint 29 10 #6b5334
+paint 2 11 #674f32
+paint 3 11 #674f32
+paint 4 11 #674f32
+paint 27 11 #6b5334
+paint 28 11 #6b5334
+paint 29 11 #6b5334
+paint 2 12 #674f32
+paint 3 12 #674f32
+paint 4 12 #674f32
+paint 27 12 #6b5334
+paint 28 12 #6b5334
+paint 29 12 #6b5334
+paint 2 13 #674f32
+paint 3 13 #674f32
+paint 4 13 #674f32
+paint 27 13 #6b5334
+paint 28 13 #6b5334
+paint 29 13 #6b5334
+paint 2 14 #674f32
+paint 3 14 #674f32
+paint 4 14 #674f32
+paint 27 14 #6b5334
+paint 28 14 #6b5334
+paint 29 14 #6b5334
+paint 2 15 #674f32
+paint 3 15 #674f32
+paint 4 15 #674f32
+paint 27 15 #6b5334
+paint 28 15 #6b5334
+paint 29 15 #6b5334
+paint 2 16 #674f32
+paint 3 16 #674f32
+paint 4 16 #674f32
+paint 27 16 #6b5334
+paint 28 16 #6b5334
+paint 29 16 #6b5334
+paint 2 17 #674f32
+paint 3 17 #674f32
+paint 4 17 #674f32
+paint 27 17 #6b5334
+paint 28 17 #6b5334
+paint 29 17 #6b5334
+paint 2 18 #674f32
+paint 3 18 #674f32
+paint 4 18 #674f32
+paint 27 18 #6b5334
+paint 28 18 #6b5334
+paint 29 18 #6b5334
+paint 2 19 #674f32
+paint 3 19 #674f32
+paint 4 19 #674f32
+paint 27 19 #6b5334
+paint 28 19 #6b5334
+paint 29 19 #6b5334
+paint 2 20 #674f32
+paint 3 20 #674f32
+paint 4 20 #674f32
+paint 27 20 #6b5334
+paint 28 20 #6b5334
+paint 29 20 #6b5334
+paint 2 21 #674f32
+paint 3 21 #674f32
+paint 4 21 #674f32
+paint 27 21 #6b5334
+paint 28 21 #6b5334
+paint 29 21 #6b5334
+paint 2 22 #674f32
+paint 3 22 #674f32
+paint 4 22 #674f32
+paint 27 22 #6b5334
+paint 28 22 #6b5334
+paint 29 22 #6b5334
+paint 2 23 #674f32
+paint 3 23 #674f32
+paint 4 23 #674f32
+paint 27 23 #6b5334
+paint 28 23 #6b5334
+paint 29 23 #6b5334
