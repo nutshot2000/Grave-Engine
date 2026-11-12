@@ -65,6 +65,18 @@ fn c3(c: [u8; 3]) -> [f32; 3] {
     [c[0] as f32, c[1] as f32, c[2] as f32]
 }
 
+// Smooth, rising patches instead of unrelated per-pixel flashes. World
+// coordinates keep the pattern stable when the camera pans or crops the view.
+fn flame_noise(x: f32, y: f32) -> f32 {
+    let (ix, iy) = (x.floor() as i32, y.floor() as i32);
+    let (fx, fy) = (x - x.floor(), y - y.floor());
+    let (sx, sy) = (fx * fx * (3. - 2. * fx), fy * fy * (3. - 2. * fy));
+    let n = |x: i32, y: i32| hash((x as u32).wrapping_mul(374761393) ^ (y as u32).wrapping_mul(668265263)) as f32 / u32::MAX as f32;
+    let a = n(ix, iy) * (1. - sx) + n(ix + 1, iy) * sx;
+    let b = n(ix, iy + 1) * (1. - sx) + n(ix + 1, iy + 1) * sx;
+    a * (1. - sy) + b * sy
+}
+
 /// The colour of something glowing hot (dull red -> orange -> yellow-white).
 pub fn hot_color(t: f32) -> [f32; 3] {
     let stops: [(f32, [f32; 3]); 4] = [
@@ -327,12 +339,31 @@ impl Renderer {
                     emit = [col[0] * m.glow, col[1] * m.glow, col[2] * m.glow];
                 }
 
-                // Burning: flickering flames on the surface.
+                // Glowing combustion gas retains orange/red tongues and dark
+                // gaps. Its own light must not overexpose that colour below.
+                let x = (i % world.w) as f32;
+                let y = (i / world.w) as f32;
+                if m.state == State::Gas && m.glow > 0. && m.feeds_fire {
+                    let flow = flame_noise(x / 3.5, y / 8. + world.frame as f32 * 0.075);
+                    let age = m.lifetime.map_or(1., |l| (world.life[i] as f32 / l.max(1) as f32).clamp(0., 1.));
+                    let core = ((flow - 0.2) * 1.5).clamp(0., 1.) * (0.35 + age * 0.65);
+                    col = lerp3([m.color[0] as f32 * 0.55, m.color[1] as f32 * 0.12, m.color[2] as f32 * 0.1], [m.color[0] as f32, (m.color[1] as f32 * 1.4).min(220.), (m.color[2] as f32 * 1.8).min(180.)], core);
+                    emit = col.map(|v| v * m.glow);
+                    self.gas_col[j] = col;
+                    self.gas_alpha[j] = (0.35 + core * 0.5) * (age * 3.).min(1.);
+                }
+                // Keep grain, painted board seams and char visible beneath
+                // intermittent surface flames, rather than filling the wall.
                 if world.is_burning(i) {
-                    let f = hash(i as u32 ^ flicker_frame.wrapping_mul(31337)) as f32 / u32::MAX as f32;
-                    let flame = [255.0, 90.0 + 120.0 * f, 20.0 + 30.0 * f];
-                    col = lerp3(col, flame, 0.55 + 0.35 * f);
-                    emit = [emit[0] + flame[0] * 0.6, emit[1] + flame[1] * 0.6, emit[2] + flame[2] * 0.6];
+                    let flow = flame_noise(x / 3., y / 7. + world.frame as f32 * 0.06);
+                    let remaining = world.burn[i] as f32 / m.burns_for.max(1) as f32;
+                    let char = (1. - remaining).clamp(0., 1.);
+                    col = col.map(|v| v * (0.48 - char * 0.25));
+                    let tongue = ((flow - 0.46) * 2.6).clamp(0., 1.);
+                    let flame = lerp3([145., 24., 3.], [255., 175., 36.], tongue);
+                    let mix = 0.10 + tongue * 0.75;
+                    col = lerp3(col, flame, mix);
+                    emit = flame.map(|v| v * (0.16 + tongue * 0.36));
                 } else if t > 450.0 && m.state != State::Gas && m.glow == 0.0 {
                     // Anything hot enough glows (red hot iron, embers...).
                     let k = ((t - 450.0) / 700.0).clamp(0.0, 1.0);
@@ -461,6 +492,11 @@ impl Renderer {
             let own = if open { self.bg_glow[i] } else { [0.0; 3] };
             let (r, g, b) = if view.heat {
                 (c[0], c[1], c[2])
+            } else if self.self_lit[i] {
+                // Emissive pixels already contain their flame/glow colour.
+                // Bloom lights their surroundings; adding it again here clips
+                // broad fires to a featureless yellow/white rectangle.
+                (c[0] + (l[0] * 0.08).min(10.), c[1] + (l[1] * 0.08).min(10.), c[2] + (l[2] * 0.08).min(10.))
             } else if lit {
                 // Sky, sun and lamps light what they fall on; glow adds its
                 // own light and halo; in the air, beams show as a soft haze.
