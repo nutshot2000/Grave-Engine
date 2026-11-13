@@ -57,8 +57,8 @@ trigger ual_walk_formal_loop
 state idle clip idle loop speed 1
 state walk clip walk loop speed 1 rate speed 0.25 0.3 1.5
 state jump clip jump once speed 1
-state fall clip fall once speed 1
-state landing clip landing once speed 1
+state fall clip ual_jump_loop loop speed 1
+state landing clip ual_jump_land once speed 2.2
 state swim clip swim loop speed 1
 state tread clip tread loop speed 1
 state hang clip hang loop speed 1
@@ -117,9 +117,7 @@ transition idle climb priority 90 after 0 when climb > 0 & dead == 0
 transition hang idle priority 95 after 0 when release > 0 & dead == 0
 transition climb idle priority 95 after 0 when release > 0 & dead == 0
 transition climb climb_finish priority 99 after 0 when climb_done > 0 & dead == 0
-transition climb_finish idle priority 0 after 0 when finished > 0 & speed <= 0.4
-transition climb_finish walk priority 0 after 0 when finished > 0 & speed > 0.4 & speed < 2.5
-transition climb_finish run priority 0 after 0 when finished > 0 & speed >= 2.5
+transition climb_finish idle priority 0 after 0 when finished > 0
 transition climb_finish jump priority 60 after 0 when airborne > 0 & vy < -0.1 & dead == 0
 transition climb_finish fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & dead == 0
 transition climb_finish swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
@@ -269,3 +267,23 @@ transition * hang priority 98 after 0 when hanging > 0 & dead == 0
 transition * climb priority 98 after 0 when climbing > 0 & dead == 0
 transition hang idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0
 transition climb idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0
+
+# Pose blends sampled at the current source stride.
+blend idle walk 0.14
+blend idle run 0.14
+blend idle jump 0.14
+blend idle fall 0.14
+blend walk idle 0.14
+blend walk run 0.14
+blend walk jump 0.14
+blend walk fall 0.14
+blend run idle 0.14
+blend run walk 0.14
+blend run jump 0.14
+blend run fall 0.14
+blend jump fall 0.14
+blend fall landing 0.14
+blend landing idle 0.14
+blend landing walk 0.14
+blend landing run 0.14
+blend landing jump 0.14

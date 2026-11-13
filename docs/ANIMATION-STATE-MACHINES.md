@@ -119,6 +119,35 @@ The built-in actor adapter exposes `Physics::set_actor_graph`,
 regularly when using markers for gameplay. Each actor has independent
 parameters, triggers and clocks, even when several share the same graph.
 
-This update controls selection, timing and interruption of clips. The
-current 2D character renderer still uses rendered frames and switches
-between clips; it does not blend skeletal poses or improve source motion.
+## Smooth pose blends
+
+```text
+blend idle walk 0.14
+blend walk run 0.14
+blend run jump 0.14
+```
+
+The graph records the outgoing clip and its exact phase. The imported
+character's sprite renderer selects a corresponding bank of skeletal
+interpolations, instead of dissolving two silhouettes or restarting at a
+fixed pose. The same blended silhouette is used for the actor's body cells.
+Banks store half-resolution frames at the original logical size to keep
+their memory cost down.
+
+The editor has **Pose blends** controls and shows preview blend progress.
+Blend time and destination speed must match the baked bank; validation
+reports missing or incompatible banks before applying an edit. Ground gait
+changes with priority below 50 wait for the short current blend to finish.
+Jump, death, swimming and other higher-priority transitions can interrupt.
+Snapshots and rewind preserve blend phase and progress.
+
+`tools/bake_movement_blends.py --look LOOK --graph GRAPH` runs in Blender
+and derives its clip pairs and times from the graph. It uses the imported
+rig's `Imported_CLIP` actions and the look's clip timing. The full imported
+character builder runs it automatically. Other renderers can read
+`Animator::blend` to perform their own pose interpolation.
+
+The supplied movement graph keeps a looping airborne pose until actual
+ground contact, then plays a separate landing/recovery clip. Holding jump
+does not automatically restart a jump on landing; release and press again.
+Holding swim-up or clawing out of sand continues to work.

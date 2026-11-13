@@ -32,4 +32,5 @@ subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',s
 if (a.animations/'ual-local/UAL1_Standard.glb').is_file():
     out=ROOT/'assets/characters/mixamo-fbx-local'
     subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',str(ROOT/'tools/blend_character_transition.py'),'--','--blend',str(out/'mixamo-fbx-animations.blend'),'--out',str(out),'--from-action','Imported_climb','--to-action','Imported_idle','--name','climb_finish','--seconds','0.4','--graph',str(ROOT/'assets/animations/mixamo-pack.graph')],check=True,cwd=ROOT)
+    subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',str(ROOT/'tools/bake_movement_blends.py'),'--','--look',str(out),'--graph',str(ROOT/'assets/animations/mixamo-pack.graph')],check=True,cwd=ROOT)
 print('Ready. Open Play-Animation-Lab.cmd and use Animations to inspect all clips.')

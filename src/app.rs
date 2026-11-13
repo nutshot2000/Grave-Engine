@@ -2603,16 +2603,17 @@ impl Sandbox {
         let body_h = grave_engine::physics::actor_height();
         for a in self.sim.physics.actor_status() {
             let Some(look) = &a.look else { continue };
-            let (frame, index) = look.frame(&a.anim, a.anim_time);
-            let key = (look.dir.clone(), a.anim.clone(), index);
+            let (frame, label, index) = look.sample(&a.anim, a.anim_time, a.blend.as_ref());
+            let key = (look.dir.clone(), label.to_string(), index);
             let tex = self.look_textures.entry(key).or_insert_with(|| {
                 let img = egui::ColorImage::from_rgba_unmultiplied([frame.w, frame.h], &frame.rgba);
                 ui.ctx().load_texture(format!("{}/{}/{index}", look.name, a.anim), img, TextureOptions::LINEAR)
             });
-            let cpp = look.cells_per_px(body_h);
+            let base_cpp = look.cells_per_px(body_h);
+            let cpp = base_cpp * frame.scale;
             let feet = a.y + body_h as f32 / 2.0 + a.visual_offset.1;
             let left = a.x + a.visual_offset.0 - frame.w as f32 * cpp / 2.0;
-            let top = feet - look.feet * cpp;
+            let top = feet - look.feet * base_cpp;
             let r = Rect::from_min_size(
                 origin + Vec2::new(left * scale, top * scale),
                 Vec2::new(frame.w as f32 * cpp * scale, frame.h as f32 * cpp * scale),

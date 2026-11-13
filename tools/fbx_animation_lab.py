@@ -262,10 +262,13 @@ if not args.preview:
             shutil.copy2(f,out/f.name)
     graph = (ROOT/'assets/animations/mixamo-pack.graph').read_text()
     available = {line.split(' =')[0] for line in manifest}
+    if 'ual_jump_loop' not in available:graph=graph.replace('state fall clip ual_jump_loop loop speed 1','state fall clip fall loop speed 1')
+    if 'ual_jump_land' not in available:graph=graph.replace('state landing clip ual_jump_land once speed 2.2','state landing clip landing once speed 1')
     state_names = {line.split()[1] for line in graph.splitlines() if line.startswith('state ') and line.split()[3] in available}
     kept = []
     for line in graph.splitlines():
         words = line.split()
+        if words and words[0] == 'blend':continue # Installed when bank baking completes.
         if words and words[0] in {'state','event'} and words[1] not in state_names:
             continue
         if words and words[0] == 'transition' and (words[2] not in state_names or (words[1] != '*' and words[1] not in state_names)):

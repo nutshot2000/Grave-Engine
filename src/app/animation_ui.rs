@@ -60,6 +60,7 @@ impl AnimationEditor {
     fn validated(&self, look: Option<&grave_engine::look::Look>) -> Result<Arc<Graph>, String> {
         self.graph.validate()?;
         if let Some(l) = look {
+            l.validate_blends(&self.graph)?;
             for s in &self.graph.states {
                 if !l.anims.contains_key(&s.clip) {
                     return Err(format!("State {} needs missing clip {}", s.name, s.clip));
@@ -148,9 +149,10 @@ impl AnimationEditor {
                         if !e.is_empty() { self.events = e.iter().map(|e| format!("{}: {}", e.state, e.name)).collect::<Vec<_>>().join(", "); }
                     }
                     cols[1].heading(format!("{} → {}", self.preview.state().name, self.preview.state().clip));
+                    if let Some(b)=&self.preview.blend { cols[1].label(format!("Blending from {} · {:.0}%",b.from_clip,(b.elapsed/b.seconds*100.0).clamp(0.0,100.0))); }
                     cols[1].label(format!("State time {:.2}s · clip time {:.2}s", self.preview.elapsed, self.preview.time));
                     if let Some(l) = look {
-                        let (f, _) = l.frame(&self.preview.state().clip, self.preview.sample_time(|c| l.duration(c)));
+                        let (f, _, _) = l.sample(&self.preview.state().clip, self.preview.sample_time(|c| l.duration(c)), self.preview.blend.as_ref());
                         let img = egui::ColorImage::from_rgba_unmultiplied([f.w, f.h], &f.rgba);
                         if let Some(t) = &mut self.texture { t.set(img, TextureOptions::LINEAR); } else { self.texture = Some(ctx.load_texture("animation-preview", img, TextureOptions::LINEAR)); }
                         cols[1].image((self.texture.as_ref().unwrap().id(), Vec2::splat(180.0)));
@@ -182,6 +184,19 @@ impl AnimationEditor {
                 }
                 if let Some(i) = remove { self.graph.states.remove(i); }
 
+                ui.collapsing("Pose blends", |ui| {
+                    ui.label("Blend time must match a baked bank for this character. Critical actions can interrupt a blend.");
+                    let mut remove=None;
+                    for (i,b) in self.graph.blends.iter_mut().enumerate() {
+                        ui.push_id(("blend",i),|ui|{ui.horizontal(|ui|{
+                            ui.text_edit_singleline(&mut b.from);ui.label("→");ui.text_edit_singleline(&mut b.to);
+                            ui.add(egui::DragValue::new(&mut b.seconds).speed(0.01).suffix(" s"));
+                            if ui.button("Remove").clicked(){remove=Some(i);}
+                        });});
+                    }
+                    if let Some(i)=remove{self.graph.blends.remove(i);}
+                    if ui.button("Add pose blend").clicked(){self.graph.blends.push(grave_engine::animation::BlendRule{from:self.graph.initial.clone(),to:"walk".into(),seconds:0.14});}
+                });
                 ui.heading("Transitions");
                 ui.label("Higher priority wins. Equal priorities use list order. * means any state. Conditions use & for AND.");
                 let mut remove = None;

@@ -34,11 +34,25 @@ pub struct Transition {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
+    /// Optional phase-aware blends between named states.
+    pub blends: Vec<BlendRule>,
     pub initial: String,
     pub parameters: BTreeMap<String, f32>,
     pub triggers: BTreeSet<String>,
     pub states: Vec<State>,
     pub transitions: Vec<Transition>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlendRule { pub from: String, pub to: String, pub seconds: f32 }
+
+/// Renderer-independent description of an in-progress pose blend.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActiveBlend {
+    pub from_clip: String,
+    pub source_time: f32,
+    pub elapsed: f32,
+    pub seconds: f32,
 }
 
 fn number(s: &str) -> Result<f32, String> {
@@ -67,6 +81,7 @@ impl Graph {
     /// Parse and validate a graph with useful line errors; no partial graph escapes.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut g = Self {
+            blends: vec![],
             initial: String::new(),
             parameters: BTreeMap::new(),
             triggers: BTreeSet::new(),
@@ -81,6 +96,7 @@ impl Graph {
             let w: Vec<_> = line.split_whitespace().collect();
             let result = (|| -> Result<(), String> {
                 match w.as_slice() {
+                    ["blend", from, to, seconds] => g.blends.push(BlendRule { from: from.to_string(), to: to.to_string(), seconds: number(seconds)? }),
                     ["initial", name] => g.initial = name.to_string(),
                     ["param", name, value] => {
                         if g.parameters
@@ -227,6 +243,12 @@ impl Graph {
         if !names.contains(self.initial.as_str()) {
             return Err("initial must name an existing state".into());
         }
+        let mut pairs = BTreeSet::new();
+        for b in &self.blends {
+            if !names.contains(b.from.as_str()) || !names.contains(b.to.as_str()) || b.from == b.to || !b.seconds.is_finite() || b.seconds <= 0.0 || b.seconds > 1.5 || !pairs.insert((&b.from,&b.to)) {
+                return Err(format!("invalid or duplicate blend {} -> {}", b.from, b.to));
+            }
+        }
         for t in &self.transitions {
             if (t.from != "*" && !names.contains(t.from.as_str())) || !names.contains(t.to.as_str())
             {
@@ -278,6 +300,7 @@ impl Graph {
                 t.from, t.to, t.priority, t.after, t.conditions
             );
         }
+        for b in &self.blends { out += &format!("blend {} {} {}\n", b.from, b.to, b.seconds); }
         out
     }
 }
@@ -292,6 +315,7 @@ pub struct Event {
 /// Per-entity state. Clone it in game snapshots to preserve animation phase.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Animator {
+    pub blend: Option<ActiveBlend>,
     pub graph: Arc<Graph>,
     state: usize,
     pub elapsed: f32,
@@ -324,6 +348,7 @@ impl Animator {
             })
             .collect();
         Ok(Self {
+            blend: None,
             parameters: graph.parameters.clone(),
             graph,
             state,
@@ -381,9 +406,13 @@ impl Animator {
         }
         let mut events = vec![];
         let old = self.time;
-        let rate = self.state().rate.as_ref().map_or(1.0, |(p, k, min, max)| {
+        let was_blending = self.blend.is_some();
+        if let Some(b) = &mut self.blend { b.elapsed += dt; if b.elapsed >= b.seconds { self.blend = None; } }
+        // Baked destination poses advance at the authored speed during a blend;
+        // parameter-driven gait rate resumes afterwards, preserving phase.
+        let rate = if was_blending { 1.0 } else { self.state().rate.as_ref().map_or(1.0, |(p, k, min, max)| {
             (self.parameters[p] * k).clamp(*min, *max)
-        });
+        }) };
         self.elapsed += dt;
         self.time += dt * self.state().speed * rate;
         let duration = self.duration(&clip_duration);
@@ -411,6 +440,7 @@ impl Animator {
             .enumerate()
             .filter(|(i, t)| {
                 (t.from == "*" || t.from == self.state().name)
+                    && (self.blend.is_none() || t.priority >= 50)
                     && t.to != self.state().name
                     && self.elapsed >= t.after
                     && self.conditions[*i].iter().all(|(p, op, rhs)| {
@@ -436,6 +466,11 @@ impl Animator {
             .map(|(_, t)| t.to.clone());
         self.fired.clear();
         if let Some(to) = selected {
+            let rule = self.graph.blends.iter().find(|b| b.from == self.state().name && b.to == to);
+            let mut from_clip = self.state().clip.clone();
+            let mut source_time = if self.state().looping { old } else { old.min((duration - 0.00001).max(0.0)) };
+            if let Some(b) = &self.blend { if b.elapsed < b.seconds * 0.5 { from_clip = b.from_clip.clone(); source_time = b.source_time + b.elapsed; } }
+            self.blend = rule.map(|b| ActiveBlend { from_clip, source_time, elapsed: 0.0, seconds: b.seconds });
             self.state = self.graph.states.iter().position(|s| s.name == to).unwrap();
             self.elapsed = 0.0;
             self.time = 0.0;

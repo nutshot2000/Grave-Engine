@@ -61,6 +61,8 @@ pub struct ActorSpec {
     pub ledge: Option<LedgeHold>,
     pub up_held: bool,
     pub grab_cooldown: u32,
+    /// Short input buffer: a held jump never automatically repeats on landing.
+    pub jump_buffer: u32,
     /// Runtime graph state is included in snapshots and rewind.
     pub animation: Option<crate::animation::Animator>,
     /// Centre of the figure (cells) and velocity (cells per second).
@@ -91,7 +93,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
-            climb: None, ledge: None, up_held: false, grab_cooldown: 0,
+            climb: None, ledge: None, up_held: false, grab_cooldown: 0, jump_buffer: 0,
             animation: None,
             x,
             y,
@@ -155,6 +157,7 @@ impl ActorSpec {
 /// What the HUD needs to show.
 #[derive(Clone, Debug)]
 pub struct ActorStatus {
+    pub blend: Option<crate::animation::ActiveBlend>,
     pub visual_offset: (f32, f32),
     pub hanging: bool,
     pub climbing: bool,
@@ -302,6 +305,7 @@ impl Physics {
     pub fn set_actor_graph(&mut self, index: usize, graph: Arc<crate::animation::Graph>) -> Result<(), String> {
         let a = self.actors.get_mut(index).ok_or("no such actor")?;
         if let Some(look) = &a.spec.look {
+            look.validate_blends(&graph)?;
             for s in &graph.states { if !look.anims.contains_key(&s.clip) { return Err(format!("missing clip `{}`", s.clip)); } }
         }
         a.spec.animation = Some(crate::animation::Animator::new(graph)?);
@@ -369,6 +373,7 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
+                    blend: a.spec.animation.as_ref().unwrap().blend.clone(),
                     visual_offset: a.spec.visual_offset(),
                     hanging: a.spec.ledge.is_some_and(|h| !h.climbing),
                     climbing: a.spec.ledge.is_some_and(|h| h.climbing),
@@ -461,6 +466,7 @@ impl Physics {
 
             // Standing on something? (A contact pushing up from below.)
             let mut grounded = false;
+            let mut powder_ground = false;
             let mut wall = false;
             for pair in self.narrow.contact_pairs_with(a.collider) {
                 for m in pair.manifolds() {
@@ -470,8 +476,29 @@ impl Physics {
                     let n = if pair.collider1 == a.collider { m.data.normal } else { -m.data.normal };
                     if n.y > 0.6 {
                         grounded = true;
+                        let other = if pair.collider1 == a.collider { pair.collider2 } else { pair.collider1 };
+                        // Terrain may have been rebuilt since these contacts
+                        // were produced (burning, falling sand or a blast).
+                        powder_ground |= self.colliders.get(other).is_some_and(|c| c.user_data == POWDER_TAG);
                     }
                     wall |= n.x.abs() > 0.6;
+                }
+            }
+            let contact_grounded = grounded;
+            // Contact manifolds can flicker while the capsule settles within
+            // its small collision margin. A close floor under the feet still
+            // supports the actor; never apply this while genuinely rising.
+            if rb.linvel().y >= -0.2 {
+                let y=(cy+H as f32/2.0+0.75).floor() as i32;
+                for dx in [-1,0,1] {
+                    let x=cx.round() as i32+dx;
+                    if world.in_bounds(x,y) {
+                        let i=world.idx(x as usize,y as usize);
+                        let material=mats.get(world.mat[i]);
+                        if !world.is_owned(i) && !material.crushable && matches!(material.state,State::Solid|State::Powder) {
+                            grounded=true;powder_ground|=material.state==State::Powder;
+                        }
+                    }
                 }
             }
             a.since_ground = if grounded { 0 } else { a.since_ground.saturating_add(1) };
@@ -522,6 +549,8 @@ impl Physics {
                     a.spec.temp = BODY_TEMP;
                     a.temps.fill(BODY_TEMP);
                     a.spec.animation.as_mut().unwrap().reset();
+                    a.spec.jump_buffer = 0;
+                    a.spec.up_held = controls.jump;
                     a.spec.dead_for = 0;
                     a.hurt = None;
                 } else {
@@ -571,6 +600,8 @@ impl Physics {
             }
 
             // Moving.
+            let pressed = controls.jump && !a.spec.up_held;
+            a.spec.jump_buffer = if pressed { 6 } else { a.spec.jump_buffer.saturating_sub(1) };
             if ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
             let rb = &mut self.set[a.handle];
             let v = rb.linvel();
@@ -600,7 +631,8 @@ impl Physics {
             if controls.jump && buried {
                 vy += (-CLAW_UP - vy).clamp(-15.0 * DT, 15.0 * DT);
             } else if controls.jump {
-                if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming {
+                if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming && (a.spec.jump_buffer > 0 || powder_ground) {
+                    a.spec.jump_buffer = 0;
                     vy = -JUMP;
                     a.jump_wait = 15;
                     a.since_ground = COYOTE;
@@ -630,7 +662,7 @@ impl Physics {
                 a.since_ground = COYOTE;
                 a.jump_wait = 15;
                 a.launched = true;
-            } else if (a.since_ground == 0 || swimming) && pad == 0.0 && a.jump_wait == 0 {
+            } else if (contact_grounded || swimming) && pad == 0.0 && a.jump_wait == 0 {
                 // (jump_wait: not in the first moments, while still leaving the pad)
                 a.launched = false; // landed (or splashed down) after the flight
             }
@@ -695,7 +727,7 @@ impl Physics {
         let (mask, mirror, hidden) = match &a.spec.look {
             Some(look) => {
                 let animator = a.spec.animation.as_ref().unwrap();
-                let (frame, _) = look.frame(&animator.state().clip, animator.sample_time(|c| look.duration(c)));
+                let (frame, _, _) = look.sample(&animator.state().clip, animator.sample_time(|c| look.duration(c)), animator.blend.as_ref());
                 (frame.mask.clone(), (a.spec.facing < 0.0) == look.faces_right, crate::world::HIDDEN)
             }
             None => {

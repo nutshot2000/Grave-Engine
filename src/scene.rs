@@ -863,6 +863,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     (Some(a), Ok(graph)) => {
                         let missing = a.look.as_ref().and_then(|l| graph.states.iter().find(|s| !l.anims.contains_key(&s.clip)));
                         if let Some(s) = missing { err(format!("animation needs missing clip `{}`", s.clip)); }
+                        else if let Some(e) = a.look.as_ref().and_then(|l| l.validate_blends(&graph).err()) { err(e); }
                         else { a.animation = Some(crate::animation::Animator::new(std::sync::Arc::new(graph)).unwrap()); }
                     }
                     (_, Err(e)) => err(format!("animation: {e}")),

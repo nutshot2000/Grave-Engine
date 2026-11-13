@@ -168,12 +168,64 @@ fn imported_pack_switches_water_states_and_keeps_traversal_actions_stable() {
     a.advance(0.01, |_| 1.0);
     assert_eq!(a.state().name, "run", "gaits must not oscillate");
     a.set("speed", 1.0); a.advance(0.01, |_| 1.0);
+    a.advance(0.2, |_| 1.0);
     assert_eq!(a.state().name, "walk");
     a.trigger("ual_sitting_enter"); a.advance(0.01, |_| 1.0);
     a.advance(1.1, |_| 1.0);
     assert_eq!(a.state().name, "ual_sitting_idle_loop");
     a.trigger("release"); a.advance(0.01, |_| 1.0);
     assert_eq!(a.state().name, "idle");
+}
+
+#[test]
+fn pose_blends_preserve_source_phase_and_allow_urgent_interruptions() {
+    let text="initial idle
+param speed 0
+param jump 0
+param dead 0
+state idle clip idle loop speed 1
+state walk clip walk loop speed 1 rate speed 0.25 0.3 1.5
+state run clip run loop speed 1
+state jump clip jump once speed 1
+state die clip die once speed 1
+transition idle walk priority 0 after 0 when speed > 0
+transition walk run priority 0 after 0 when speed > 3
+transition * jump priority 60 after 0 when jump > 0
+transition * die priority 100 after 0 when dead > 0
+blend idle walk 0.14
+blend walk run 0.14
+blend run jump 0.14
+";
+    let graph=Graph::parse(text).unwrap();
+    assert_eq!(Graph::parse(&graph.to_text()).unwrap(),graph);
+    let mut a=player(text);
+    a.advance(0.37, |_|1.0);a.set("speed",1.0);a.advance(0.01, |_|1.0);
+    assert!((a.blend.as_ref().unwrap().source_time-0.37).abs()<0.0001);
+    let copy=a.clone();assert_eq!(copy.blend,a.blend);
+    a.set("speed",4.0);a.advance(0.05, |_|1.0);
+    assert_eq!(a.state().name,"walk","finish the gait blend before changing gait again");
+    a.advance(0.1, |_|1.0);assert_eq!(a.state().name,"run");
+    a.set("jump",1.0);a.advance(0.01, |_|1.0);
+    assert_eq!(a.state().name,"jump","jump must not wait for a gait blend");
+    a.set("dead",1.0);a.advance(0.01, |_|1.0);
+    assert_eq!(a.state().name,"die");assert!(a.blend.is_none());
+    for suffix in ["blend missing walk 0.1","blend idle walk -1","blend idle walk 0.2"] {
+        assert!(Graph::parse(&format!("{text}\n{suffix}\n")).is_err());
+    }
+}
+
+#[test]
+fn imported_fall_loops_until_ground_contact_and_then_recovers() {
+    let mut a=player(include_str!("../assets/animations/mixamo-pack.graph"));
+    a.set("airborne",1.0);a.set("grounded",0.0);a.set("vy",5.0);
+    for _ in 0..180 { a.advance(1.0/60.0, |_|0.1); assert_eq!(a.state().name,"fall"); }
+    assert!(a.state().looping);assert_eq!(a.state().clip,"ual_jump_loop");
+    a.set("airborne",0.0);a.set("grounded",1.0);a.set("vy",0.0);
+    a.advance(1.0/60.0, |_|0.6);
+    assert_eq!(a.state().name,"landing");assert_eq!(a.state().clip,"ual_jump_land");
+    a.advance(0.05, |_|0.6);assert_eq!(a.state().name,"landing");
+    for _ in 0..60 {a.advance(1.0/60.0, |_|0.6);}
+    assert_eq!(a.state().name,"idle");
 }
 
 fn setup() -> (Materials, Sim) {

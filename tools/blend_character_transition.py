@@ -101,6 +101,7 @@ if a.graph:
     kept=[]
     for line in graph:
         w=line.split()
+        if w and w[0]=='blend':continue # Bank baking installs these after all poses exist.
         if w and w[0]in{'state','event'} and w[1]not in states:continue
         if w and w[0]=='transition' and (w[2]not in states or(w[1]!='*'and w[1]not in states)):continue
         if 'run'not in available:line=line.replace(' & speed < 2.5','')

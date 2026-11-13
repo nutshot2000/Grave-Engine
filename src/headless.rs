@@ -84,11 +84,12 @@ pub fn shot_with_actors(
     let body_h = crate::physics::actor_height();
     for a in actors {
         let Some(look) = &a.look else { continue };
-        let (frame, _) = look.frame(&a.anim, a.anim_time);
-        let cpp = look.cells_per_px(body_h);
+        let (frame, _, _) = look.sample(&a.anim, a.anim_time, a.blend.as_ref());
+        let base_cpp = look.cells_per_px(body_h);
+        let cpp = base_cpp * frame.scale;
         let feet = a.y + body_h as f32 / 2.0 + a.visual_offset.1;
         let left = a.x + a.visual_offset.0 - frame.w as f32 * cpp / 2.0;
-        let top = feet - look.feet * cpp;
+        let top = feet - look.feet * base_cpp;
         let mirror = (a.facing < 0.0) == look.faces_right;
         // Output pixels the picture covers.
         let to_out = |c: f32, o: usize| (c - o as f32) * s as f32;

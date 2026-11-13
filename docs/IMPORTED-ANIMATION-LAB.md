@@ -12,7 +12,10 @@ No generated Kimodo motion is needed when the full library is installed.
 
 - Idle, walk, jog and death come from the Universal Animation Library.
   Movement speed chooses walk or jog; playback follows movement speed.
-- Jump, fall and landing are separate portions of the supplied Jump FBX.
+- Takeoff uses the supplied Jump FBX. Falling uses a looping airborne pose
+  from the library until ground contact; landing uses its landing/recovery
+  clip. Ground movement, takeoff, falling and landing have phase-matched
+  pose blends. Release and press W again for another jump after landing.
 - Swimming and treading water come from the two supplied water FBXs.
   Swimming input selects the forward stroke; releasing it selects treading.
 - Hanging and climbing come from the supplied FBXs. **Play-Climbing-Lab.cmd**

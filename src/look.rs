@@ -24,12 +24,16 @@ use crate::import::Picture;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+mod blends;
+pub use blends::BlendBank;
 
 /// The character's body is worked out on this many cells across (2 m), and
 /// `physics::actor::H` cells high.
 pub const MASK_W: usize = 20;
 
 pub struct Frame {
+    /// Logical sprite pixels per stored pixel (blend banks may be half size).
+    pub scale: f32,
     pub w: usize,
     pub h: usize,
     /// RGBA pixels, row by row.
@@ -46,6 +50,7 @@ pub struct Anim {
 }
 
 pub struct Look {
+    pub blends: BTreeMap<(String,String),BlendBank>,
     /// Editable animation graph loaded alongside the rendered clips.
     pub graph: Arc<crate::animation::Graph>,
     /// Folder name (what scenes call it).
@@ -125,7 +130,7 @@ impl Look {
                 let path = dir.join(format!("{name}_{i:02}.png"));
                 let pic = Picture::open(&path)?;
                 let mask = outline(&pic, figure, feet, body_h);
-                frames.push(Frame { w: pic.w, h: pic.h, rgba: pic.rgba, mask });
+                frames.push(Frame { w: pic.w, h: pic.h, rgba: pic.rgba, mask, scale: 1.0 });
             }
             anims.insert(name, Anim { frames, fps, looping });
         }
@@ -141,7 +146,10 @@ impl Look {
                 if !anims.contains_key(&state.clip) { return Err(format!("{}: missing clip `{}`", graph_path.display(), state.clip)); }
             }
         }
-        Ok(Look { graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims })
+        let blends=blends::load(dir,figure,feet,body_h,&anims)?;
+        let look=Look { blends, graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims };
+        look.validate_blends(&look.graph)?;
+        Ok(look)
     }
 
     /// The frame of `anim` (or idle, if it hasn't got one) `t` seconds in,
@@ -157,6 +165,35 @@ impl Look {
     /// Clip length in seconds; defaults can still use the idle fallback.
     pub fn duration(&self, clip: &str) -> f32 {
         self.anims.get(clip).or_else(|| self.anims.get("idle")).map_or(1.0, |a| a.frames.len() as f32 / a.fps.max(0.001))
+    }
+
+    /// Choose an authored pose blend or an ordinary frame, with a stable cache key.
+    pub fn sample<'a>(&'a self, clip: &'a str, t: f32, blend: Option<&crate::animation::ActiveBlend>) -> (&'a Frame,&'a str,usize) {
+        if let Some(b)=blend {
+            if let Some(bank)=self.blends.get(&(b.from_clip.clone(),clip.to_string())) {
+                let count=bank.frames.len();
+                let looping=self.anims.get(&b.from_clip).is_some_and(|a|a.looping);
+                let index=(b.source_time.max(0.0)*bank.source_fps) as usize;
+                let index=if looping {index%count}else{index.min(count-1)};
+                let steps=bank.frames[index].len();
+                let step=((b.elapsed/b.seconds*(steps-1)as f32).floor()as usize).min(steps-1);
+                return (&bank.frames[index][step],&bank.key,index*steps+step);
+            }
+        }
+        let (frame,index)=self.frame(clip,t);(frame,clip,index)
+    }
+
+    /// A sprite graph must have matching baked poses for every requested blend.
+    pub fn validate_blends(&self, graph: &crate::animation::Graph) -> Result<(),String> {
+        for b in &graph.blends {
+            let from=&graph.states.iter().find(|s|s.name==b.from).ok_or("unknown blend source")?.clip;
+            let target=graph.states.iter().find(|s|s.name==b.to).ok_or("unknown blend target")?;
+            let to=&target.clip;
+            let bank=self.blends.get(&(from.clone(),to.clone())).ok_or_else(||format!("No pose blend bank for {from} → {to}; bake it before applying this blend."))?;
+            if (bank.seconds-b.seconds).abs()>0.001 {return Err(format!("{from} → {to}: blend time must match the baked {:.2}s",bank.seconds));}
+            if (bank.target_speed-target.speed).abs()>0.001 {return Err(format!("{from} → {to}: bake again after changing the destination's playback speed"));}
+        }
+        Ok(())
     }
 
     /// How many world cells one picture pixel is, for a body `body_h` cells tall.

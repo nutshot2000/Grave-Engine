@@ -25,6 +25,42 @@ fn run(s: &mut Sim, m: &Materials, frames: usize, walk: f32, jump: bool) {
 const FLAT: &str = "size 300 120\nfill air\nrect stone 0 110 300 10\n";
 
 #[test]
+fn holding_jump_does_not_skip_landing_with_an_automatic_second_jump() {
+    let m=mats();let mut s=sim(&m,&format!("{FLAT}player 50 110 look hero\n"));
+    run(&mut s,&m,20,0.0,false);
+    run(&mut s,&m,150,0.0,true);
+    assert!(s.physics.actor_status()[0].grounded);
+    assert_eq!(s.physics.actor_status()[0].animation_state,"idle");
+    run(&mut s,&m,1,0.0,false);run(&mut s,&m,1,0.0,true);
+    assert!(!s.physics.actor_status()[0].grounded);
+}
+
+#[test]
+fn a_long_drop_stays_in_fall_until_the_floor_is_reached() {
+    let m=mats();let mut s=sim(&m,"size 160 240\nfill air\nrect stone 0 220 160 20\nplayer 70 140 look hero\n");
+    run(&mut s,&m,65,0.0,false);
+    assert_eq!(s.physics.actor_status()[0].animation_state,"fall");
+    assert!(!s.physics.actor_status()[0].grounded);
+    let mut landed=false;
+    for _ in 0..50 {
+        run(&mut s,&m,1,0.0,false);
+        let a=&s.physics.actor_status()[0];
+        if a.animation_state=="landing" {assert!(a.grounded&&a.health>0.0);landed=true;break;}
+    }
+    assert!(landed,"a survivable long fall should play its landing");
+}
+
+#[test]
+fn floor_contact_margin_does_not_select_falling_during_a_flat_run() {
+    let m=mats();let mut s=sim(&m,&format!("{FLAT}player 50 110 look hero\n"));
+    run(&mut s,&m,20,0.0,false);
+    for _ in 0..150 {
+        run(&mut s,&m,1,1.0,false);
+        assert_eq!(s.physics.actor_status()[0].animation_state,"walk");
+    }
+}
+
+#[test]
 fn the_player_stands_walks_and_jumps() {
     let m = mats();
     let mut s = sim(&m, &format!("{FLAT}player 50 110\n"));
