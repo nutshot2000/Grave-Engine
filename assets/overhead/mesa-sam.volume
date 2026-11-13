@@ -1,0 +1,7 @@
+box gun_base concrete 0 0 0 10 10 3 #868976
+box turret aluminium 2 2 3 6 6 5 #667d54
+box gun_core copper 4 4 6 2 2 3 #8d7450
+box missile_rail iron 1 2 8 11 1 2 #a5ab91
+box missile aluminium 1 2 10 9 1 1 #c4bc92
+box missile_rail iron 1 6 8 11 1 2 #a5ab91
+box missile aluminium 1 6 10 9 1 1 #c4bc92

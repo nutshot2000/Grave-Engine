@@ -1,0 +1,94 @@
+# Red Mesa: complete overhead mission. Original material assets.
+size 240 144 88
+spawn 29 119 32
+box desert stone 0 0 0 240 144 2 #bea476
+box mesa_strata sandstone 8 8 2 74 40 6 #a2815c
+box mesa_strata sandstone 14 12 2 62 32 9 #b49365
+box mesa_strata sandstone 176 4 2 60 43 10 #a2815c
+box mesa_strata sandstone 183 8 2 50 34 16 #a2815c
+box mesa_strata sandstone 108 4 2 42 44 12 #a2815c
+box mesa_strata sandstone 114 8 2 30 35 22 #a2815c
+box mesa_strata sandstone 124 13 2 13 24 29 #b49365
+box concrete_yard concrete 15 101 2 45 37 1 #898b78
+box concrete_yard concrete 47 47 2 34 32 1 #898b78
+box concrete_yard concrete 82 87 2 64 27 1 #898b78
+box concrete_yard concrete 168 62 2 60 40 1 #898b78
+box concrete_yard concrete 171 105 2 58 32 1 #898b78
+box dirt_road stone 37 114 2 160 6 1 #ad9367
+box dirt_road stone 53 47 2 6 68 1 #ad9367
+box dirt_road stone 139 52 2 6 66 1 #ad9367
+box dirt_road stone 168 43 2 6 74 1 #ad9367
+box dirt_road stone 69 66 2 115 5 1 #ad9367
+box landing_pad concrete 16 108 2 27 25 1 #606f65
+box H_mark iron 23 114 3 2 13 1 #e0d5a5
+box H_mark iron 34 114 3 2 13 1 #e0d5a5
+box H_mark iron 25 119 3 9 2 1 #e0d5a5
+box pad_edge iron 16 108 3 2 1 1 #ccb75c
+box pad_edge iron 20 108 3 2 1 1 #ccb75c
+box pad_edge iron 24 108 3 2 1 1 #ccb75c
+box pad_edge iron 28 108 3 2 1 1 #ccb75c
+box pad_edge iron 32 108 3 2 1 1 #ccb75c
+box pad_edge iron 36 108 3 2 1 1 #ccb75c
+box pad_edge iron 40 108 3 2 1 1 #ccb75c
+prop ../assets/overhead/mesa-radar.volume 43 19 11
+prop ../assets/overhead/mesa-radar.volume 194 15 18
+prop ../assets/overhead/mesa-power.volume 106 84 3
+prop ../assets/overhead/mesa-command.volume 178 65 3
+prop ../assets/overhead/mesa-prison.volume 192 112 3
+prop ../assets/overhead/mesa-armoury.volume 59 49 3
+prop ../assets/overhead/mesa-workshop.volume 85 114 3
+prop ../assets/overhead/mesa-aa.volume 37 53 3
+prop ../assets/overhead/mesa-aa.volume 78 71 3
+prop ../assets/overhead/mesa-sam.volume 103 49 3
+prop ../assets/overhead/mesa-aa.volume 160 97 3
+prop ../assets/overhead/mesa-sam.volume 166 43 3
+prop ../assets/overhead/mesa-aa.volume 218 98 3
+prop ../assets/overhead/mesa-sam.volume 213 54 3
+prop ../assets/overhead/mesa-aa.volume 151 115 3
+prop ../assets/overhead/oil-barrel.volume 47 110 3
+prop ../assets/overhead/oil-barrel.volume 92 92 3
+prop ../assets/overhead/oil-barrel.volume 174 120 3
+prop ../assets/overhead/oil-barrel.volume 65 79 3
+box cactus wood 16 72 2 2 2 13 #687f4a
+box cactus_arm wood 13 72 8 3 2 2 #758952
+box cactus_arm wood 13 72 9 1 2 4 #758952
+box cactus wood 96 34 2 2 2 13 #687f4a
+box cactus_arm wood 93 34 8 3 2 2 #758952
+box cactus_arm wood 93 34 9 1 2 4 #758952
+box cactus wood 155 23 2 2 2 13 #687f4a
+box cactus_arm wood 152 23 8 3 2 2 #758952
+box cactus_arm wood 152 23 9 1 2 4 #758952
+box cactus wood 222 120 2 2 2 13 #687f4a
+box cactus_arm wood 219 120 8 3 2 2 #758952
+box cactus_arm wood 219 120 9 1 2 4 #758952
+box cactus wood 174 132 2 2 2 13 #687f4a
+box cactus_arm wood 171 132 8 3 2 2 #758952
+box cactus_arm wood 171 132 9 1 2 4 #758952
+box cactus wood 82 92 2 2 2 13 #687f4a
+box cactus_arm wood 79 92 8 3 2 2 #758952
+box cactus_arm wood 79 92 9 1 2 4 #758952
+box cactus wood 69 116 2 2 2 13 #687f4a
+box cactus_arm wood 66 116 8 3 2 2 #758952
+box cactus_arm wood 66 116 9 1 2 4 #758952
+box cactus wood 164 73 2 2 2 13 #687f4a
+box cactus_arm wood 161 73 8 3 2 2 #758952
+box cactus_arm wood 161 73 9 1 2 4 #758952
+box supply_crate wood 51 127 3 5 5 5 #a88b50
+box supply_crate wood 119 118 3 5 5 5 #a88b50
+box supply_crate wood 185 105 3 5 5 5 #a88b50
+box supply_crate wood 76 39 11 5 5 5 #a88b50
+box supply_crate wood 226 74 3 5 5 5 #a88b50
+box compound_wall brick 170 105 3 60 1 6 #a99370
+box compound_wall brick 229 105 3 1 32 6 #a99370
+box compound_wall brick 169 110 3 1 15 6 #a99370
+box compound_wall brick 40 48 3 1 32 6 #a99370
+box compound_wall brick 40 48 3 36 1 6 #a99370
+box shelter_posts wood 181 124 3 1 8 10 #877650
+box shelter_posts wood 189 124 3 1 8 10 #877650
+box awning cloth 181 124 13 9 8 1 #a28b5d
+box shelter_posts wood 127 55 3 1 8 10 #877650
+box shelter_posts wood 135 55 3 1 8 10 #877650
+box awning cloth 127 55 13 9 8 1 #a28b5d
+box shelter_posts wood 65 33 11 1 8 10 #877650
+box shelter_posts wood 73 33 11 1 8 10 #877650
+box awning cloth 65 33 21 9 8 1 #a28b5d

@@ -7,6 +7,9 @@ use crate::{
     world::{ANCHORED, Blast},
 };
 use std::{collections::HashSet, path::Path};
+pub mod atmosphere;
+pub mod cargo;
+pub mod combat;
 pub mod debris;
 pub mod view;
 
@@ -62,6 +65,7 @@ pub struct Volume {
     pending: Vec<Explosion>,
     pub explosions: Vec<Explosion>,
     pub debris: debris::Debris,
+    pub plumes: Vec<atmosphere::Plume>,
 }
 impl Volume {
     pub fn new(width: usize, depth: usize, height: usize, m: &Materials) -> Result<Self, String> {
@@ -88,6 +92,7 @@ impl Volume {
             pending: vec![],
             explosions: vec![],
             debris: debris::Debris::new(width, depth, height),
+            plumes: vec![],
         })
     }
     pub fn index(&self, p: Point) -> Option<(usize, usize)> {
@@ -169,6 +174,32 @@ impl Volume {
             );
         }
     }
+    /// Local mechanical damage without the heat/ignition of an explosion.
+    pub fn impact(&mut self, at: Point, radius: f32, power: f32, m: &Materials) {
+        if ![at.x, at.y, at.z, radius, power]
+            .iter()
+            .all(|v| v.is_finite())
+            || radius <= 0.
+            || power <= 0.
+        {
+            return;
+        }
+        for (y, s) in self.sections.iter_mut().enumerate() {
+            let dy = (y as f32 + 0.5 - at.y).abs();
+            if dy >= radius {
+                continue;
+            }
+            let r = (radius * radius - dy * dy).sqrt();
+            s.physics.impact_circle(
+                &mut s.world,
+                m,
+                at.x,
+                self.height as f32 - at.z,
+                r,
+                power * (1. - dy / radius),
+            );
+        }
+    }
     pub fn explode(&mut self, e: Explosion) {
         if self.index(e.at).is_some()
             && e.radius.is_finite()
@@ -204,6 +235,8 @@ impl Volume {
     /// Adjacent section faces exchange heat and oxygen. Gravity remains along
     /// height, not screen Y. Detached material becomes shared 3D rigid rubble.
     pub fn step(&mut self, m: &Materials) {
+        let _total = crate::profile::scope("volume.total");
+        let phase = crate::profile::scope("volume.air");
         self.frame = self.frame.wrapping_add(1);
         let feeding: Vec<Vec<bool>> = self
             .sections
@@ -221,10 +254,14 @@ impl Volume {
                 }
             }
         }
+        drop(phase);
+        let phase = crate::profile::scope("volume.depth_heat");
         for y in 1..self.depth {
             let (a, b) = self.sections.split_at_mut(y);
             crate::layers::exchange_heat(&mut a[y - 1].world, &mut b[0].world, m);
         }
+        drop(phase);
+        let phase = crate::profile::scope("volume.materials");
         let threads = std::thread::available_parallelism()
             .map_or(1, |n| n.get())
             .min(4);
@@ -238,6 +275,8 @@ impl Volume {
                 });
             }
         });
+        drop(phase);
+        let phase = crate::profile::scope("volume.events");
         self.pending
             .extend(self.debris.read_back(&mut self.sections, m));
         // Nearby explosive cells form one volume blast rather than launching
@@ -267,8 +306,7 @@ impl Volume {
                 }
                 let r = (e.radius * e.radius - dy * dy).sqrt();
                 let wy = self.height as f32 - 1. - e.at.z;
-                s.world
-                    .heat_circle(e.at.x as i32, wy as i32, r.ceil() as i32, 1050.);
+
                 s.world.blasts.push(Blast {
                     x: e.at.x,
                     y: wy,
@@ -278,6 +316,8 @@ impl Volume {
                 });
             }
         }
+        drop(phase);
+        let phase = crate::profile::scope("volume.physics2d");
         std::thread::scope(|scope| {
             for rows in self.sections.chunks_mut(chunk) {
                 scope.spawn(move || {
@@ -287,7 +327,12 @@ impl Volume {
                 });
             }
         });
+        drop(phase);
+        let phase = crate::profile::scope("volume.promote");
+        self.vent_sky(m);
         self.debris.promote(&mut self.sections, m, &self.explosions);
+        drop(phase);
+        let _phase = crate::profile::scope("volume.physics3d");
         self.debris.step(&mut self.sections, m);
     }
     /// Simple authored boxes and reusable prefab files. Unknown commands and
@@ -526,7 +571,9 @@ impl Projectile {
                     fire: self.fire,
                 });
             }
-            v.heat(hit.at, self.blast_radius.max(2.), self.heat);
+            if self.heat > 0. {
+                v.heat(hit.at, 2., self.heat);
+            }
             self.at = hit.at;
             return true;
         }

@@ -1,0 +1,4 @@
+box gun_base concrete 0 0 0 10 10 3 #868976
+box turret aluminium 2 2 3 6 6 5 #667d54
+box gun_core copper 4 4 6 2 2 3 #8d7450
+box cannon steel 4 4 8 10 2 1 #535e53

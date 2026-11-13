@@ -626,6 +626,10 @@ line up your landings. It has a headlight and a tail light at night.
 progress, says where it got stuck, and saves pictures to `shots/ride-*.png`): use it
 to check a new level can be finished. `--from=X` starts at the checkpoint at X.
 
+## Dust Hawk — overhead helicopter mission
+
+Open `Play-Dust-Hawk.cmd` or choose **Scenes… → Dust Hawk — Operation Red Mesa** in the editor. Destroy a radar network, cut power, fight AA/SAM defences, rescue six survivors, manage ammunition/supplies and return to base. Winch oil barrels, drop them and ignite real material spills. The mission uses shared altitude-aware combat, cargo, open-sky fire and 3D rubble. Controls, verification and limits: [Dust Hawk](docs/DUST-HAWK.md). Engine priorities: [overhead feedback](docs/OVERHEAD-FEEDBACK.md).
+
 ## Voidrunner — space shooter
 
 Open `Play-Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with material-cell ships, explosive fuel, enemy formations, weapon/shield pickups, limited lives, pulse bombs and a reactor carrier. WASD/arrows move, Space/Z fires, X bombs, Enter starts. See `docs/VOIDRUNNER.md` and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md`.

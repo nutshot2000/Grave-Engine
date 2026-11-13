@@ -637,6 +637,23 @@ impl Debris {
         for cz in 0..nz {
             for cy in 0..ny {
                 for cx in 0..nx {
+                    let idx = (cz * ny + cy) * nx + cx;
+                    // Sleeping material blocks have not changed. Their cached
+                    // terrain shape remains valid until a nearby edit wakes them.
+                    if self.terrain[idx].hash != 0
+                        && (cy * TILE..((cy + 1) * TILE).min(self.depth)).all(|y| {
+                            let w = &sections[y].world;
+                            let row = self.height.saturating_sub(1 + cz * TILE);
+                            let (bw, _) = w.block_dims();
+                            let row2 = self
+                                .height
+                                .saturating_sub(((cz + 1) * TILE).min(self.height));
+                            w.block_still((row / 32) * bw + (cx * TILE) / 32)
+                                && w.block_still((row2 / 32) * bw + (cx * TILE) / 32)
+                        })
+                    {
+                        continue;
+                    }
                     let mut grid = [AIR; TILE * TILE * TILE];
                     let mut hash = 14695981039346656037u64;
                     for z in 0..TILE {
@@ -735,6 +752,10 @@ impl Debris {
         }
     }
     pub(crate) fn step(&mut self, sections: &mut [Sim], m: &Materials) {
+        if self.fragments.is_empty() {
+            self.tick = self.tick.wrapping_add(1);
+            return;
+        }
         self.sync_terrain(sections, m);
         let hooks = ReleaseContacts {
             born: self.fragments.iter().map(|f| (f.body, f.born)).collect(),

@@ -1164,6 +1164,21 @@ impl Physics {
         out
     }
 
+    /// A purely mechanical hit, shared by bullets and tools. It fractures
+    /// material by toughness without an explosion's thermal flash or fire.
+    pub fn impact_circle(&mut self, world: &mut World, mats: &Materials,
+                         x: f32, y: f32, radius: f32, power: f32) {
+        if ![x, y, radius, power].iter().all(|v| v.is_finite()) || radius <= 0. || power <= 0. {
+            return;
+        }
+        let owners = self.owners();
+        let pieces = self.fracture(world, mats, &owners, Which::Any, x, y, radius,
+            |d| power * (1. - d / radius).max(0.).powi(2), (0., 0.), 10., 1.);
+        for b in pieces {
+            self.add_raw(world, mats, b);
+        }
+    }
+
     /// Explosions from this frame: nearby ones merge into one bigger blast.
     /// Each blast cracks things by toughness, throws objects, and heats and
     /// lights everything around it.

@@ -56,6 +56,8 @@ pub struct Viewport {
     pub height: usize,
     pub pixels: Vec<u8>,
     pub projection: Projection,
+    /// Optional continuous scenery under a finite simulation volume.
+    pub ground_color: Option<[u8; 3]>,
     glow: Vec<[f32; 3]>,
     glow_scratch: Vec<[f32; 3]>,
     frame: u32,
@@ -69,6 +71,7 @@ impl Viewport {
             glow: vec![[0.; 3]; width * height],
             glow_scratch: vec![[0.; 3]; width * height],
             frame: 0,
+            ground_color: None,
             projection: Projection {
                 origin: [width as f32 * 0.5, height as f32 * 0.5],
                 scale: 2.5,
@@ -249,11 +252,22 @@ impl Viewport {
         self.glow.fill([0.; 3]);
         self.projection.origin = [
             self.width as f32 * 0.5 - (camera.x - camera.y) * self.projection.scale,
-            self.height as f32 * 0.56 - (camera.x + camera.y) * 0.5 * self.projection.scale,
+            self.height as f32 * 0.56
+                - ((camera.x + camera.y) * 0.5 - camera.z) * self.projection.scale,
         ];
         for (i, p) in self.pixels.chunks_exact_mut(4).enumerate() {
             let n = noise(i as u32) % 7;
-            p.copy_from_slice(&[35 + n as u8, 32 + n as u8, 29 + n as u8, 255]);
+            if let Some(c) = self.ground_color {
+                let factor = 0.81 + n as f32 * 0.012;
+                p.copy_from_slice(&[
+                    (c[0] as f32 * factor) as u8,
+                    (c[1] as f32 * factor) as u8,
+                    (c[2] as f32 * factor) as u8,
+                    255,
+                ]);
+            } else {
+                p.copy_from_slice(&[35 + n as u8, 32 + n as u8, 29 + n as u8, 255]);
+            }
         }
         let mut draw = Vec::new();
         let mut effects = BTreeMap::<(u8, i32, i32, i32), Emitter>::new();
@@ -351,6 +365,19 @@ impl Viewport {
                     });
                 }
             }
+        }
+        for plume in &v.plumes {
+            let mat = m.get(plume.material);
+            let age = mat
+                .lifetime
+                .map_or(1., |l| (plume.life as f32 / l.max(1) as f32).clamp(0., 1.));
+            add_emitter(
+                &mut effects,
+                plume.at,
+                mat.color,
+                if mat.glow > 0. { 1 } else { 2 },
+                age,
+            );
         }
         for (centre, cell) in v.debris.voxels() {
             let mat = m.get(cell.mat);

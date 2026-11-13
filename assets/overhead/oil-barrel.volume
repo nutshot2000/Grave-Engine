@@ -1,0 +1,4 @@
+box barrel_case iron 0 0 0 6 6 9 #847849
+box oil oil 1 1 1 4 4 7 #4a3a1c
+box barrel_band iron 0 0 3 6 6 1 #464c44
+box barrel_band iron 0 0 7 6 6 1 #464c44

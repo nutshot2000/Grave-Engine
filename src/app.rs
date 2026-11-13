@@ -1376,12 +1376,13 @@ impl Sandbox {
 
     /// Overhead scenes use their own altitude-aware viewport, without replacing
     /// the current side-view scene or any unsaved workshop draft.
-    fn open_flight_lab(&mut self) {
-        let name = if cfg!(windows) { "flight-test.exe" } else { "flight-test" };
+    fn open_flight_lab(&mut self) { self.open_overhead_game("flight-test"); }
+    fn open_overhead_game(&mut self, binary: &str) {
+        let name = if cfg!(windows) { format!("{binary}.exe") } else { binary.to_string() };
         let sibling = std::env::current_exe().ok().and_then(|p| p.parent().map(|p|p.join(name))).filter(|p|p.exists());
-        let mut command = match sibling {Some(p)=>std::process::Command::new(p),None=>{let mut c=std::process::Command::new("cargo");c.args(["run","--release","--bin","flight-test"]);c}};
+        let mut command = match sibling {Some(p)=>std::process::Command::new(p),None=>{let mut c=std::process::Command::new("cargo");c.args(["run","--release","--bin",binary]);c}};
         #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
-        match command.spawn(){Ok(_)=>self.say("Opening the flight and destruction lab"),Err(e)=>self.say(format!("Couldn't open flight lab: {e}"))}
+        match command.spawn(){Ok(_)=>self.say(format!("Opening {binary}")),Err(e)=>self.say(format!("Couldn't open flight lab: {e}"))}
     }
 
     fn load_scene_inner(&mut self) {
@@ -1606,6 +1607,7 @@ impl Sandbox {
             if ui.button("💾 Save").clicked(){self.save_scene();}
             if ui.button("📂 Load").clicked(){self.load_scene();}
             ui.menu_button("Scenes...",|ui|{
+                if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked(){self.open_overhead_game("dust-hawk");ui.close();}
                 if ui.button("Flight & destruction lab (2.5D)").clicked(){self.open_flight_lab();ui.close();}
                 ui.separator();
                 let mut files:Vec<_>=std::fs::read_dir("scenes").into_iter().flatten().filter_map(Result::ok).map(|e|e.path()).filter(|p|p.extension().is_some_and(|s|s=="txt")).collect();files.sort();

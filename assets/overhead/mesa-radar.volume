@@ -1,0 +1,17 @@
+box base concrete 0 0 0 14 12 3 #a3a18b
+box mast_support iron 3 0 3 1 12 32 #7e8c85
+box mast_support iron 10 0 3 1 12 32 #7e8c85
+box brace iron 3 0 10 8 12 1 #8f9484
+box brace iron 3 0 19 8 12 1 #8f9484
+box brace iron 3 0 28 8 12 1 #8f9484
+box service_platform wood 0 0 34 14 12 2 #8e8056
+box radar_dish aluminium 1 4 37 1 4 8 #a0afa9
+box radar_dish aluminium 4 4 37 1 4 8 #a0afa9
+box radar_dish aluminium 7 4 37 1 4 8 #a0afa9
+box radar_dish aluminium 10 4 37 1 4 8 #a0afa9
+box radar_dish aluminium 13 4 37 1 4 8 #a0afa9
+box radar_dish aluminium 0 4 37 14 4 1 #b8c0ad
+box radar_dish aluminium 0 4 41 14 4 1 #b8c0ad
+box radar_dish aluminium 0 4 44 14 4 1 #b8c0ad
+box radar_core copper 5 4 39 4 4 4 #dd9561
+box antenna iron 7 5 45 1 1 5 #c0c5b2
