@@ -2,6 +2,7 @@
 //! picking and arbitrary visual instances are shared by all overhead games.
 use super::{Point, Volume};
 use crate::{Materials, State, material::AIR, world::BURNING};
+use std::collections::BTreeMap;
 #[derive(Clone, Copy)]
 pub struct Projection {
     pub origin: [f32; 2],
@@ -46,7 +47,7 @@ struct Draw {
     p: Point,
     color: [u8; 3],
     faces: [bool; 3],
-    gas: bool,
+    gas: u8,
     alpha: f32,
 }
 /// Reused buffers; a game only supplies camera, instances and projectile points.
@@ -55,6 +56,9 @@ pub struct Viewport {
     pub height: usize,
     pub pixels: Vec<u8>,
     pub projection: Projection,
+    glow: Vec<[f32; 3]>,
+    glow_scratch: Vec<[f32; 3]>,
+    frame: u32,
 }
 impl Viewport {
     pub fn new(width: usize, height: usize) -> Self {
@@ -62,6 +66,9 @@ impl Viewport {
             width,
             height,
             pixels: vec![0; width * height * 4],
+            glow: vec![[0.; 3]; width * height],
+            glow_scratch: vec![[0.; 3]; width * height],
+            frame: 0,
             projection: Projection {
                 origin: [width as f32 * 0.5, height as f32 * 0.5],
                 scale: 2.5,
@@ -134,8 +141,12 @@ impl Viewport {
         let f = project(1., 0., 0.);
         let g = project(1., 1., 0.);
         let h = project(0., 1., 0.);
-        if d.gas {
-            self.polygon(&[o, a, b, c], d.color, d.alpha);
+        if d.gas == 1 {
+            self.flame(d);
+            return;
+        }
+        if d.gas == 2 {
+            self.smoke(d);
             return;
         }
         let shade = |v: f32| d.color.map(|c| (c as f32 * v).min(255.) as u8);
@@ -149,6 +160,83 @@ impl Viewport {
             self.polygon(&[o, a, b, c], d.color, 1.);
         }
     }
+    // Gas is upright and camera-facing. Flattening it onto the ground-plane
+    // diamond is what made overhead fire look like scattered orange dashes.
+    fn flame(&mut self, d: &Draw) {
+        let base = self
+            .projection
+            .project(Point::new(d.p.x + 0.5, d.p.y + 0.5, d.p.z + 0.2));
+        let seed = noise(
+            d.p.x.to_bits() ^ d.p.y.to_bits().rotate_left(11) ^ d.p.z.to_bits().rotate_left(21),
+        );
+        let f = noise(seed ^ (self.frame / 3).wrapping_mul(7919)) as f32 / u32::MAX as f32;
+        let scale = self.projection.scale;
+        let h = scale * (2.4 + f * 2.2);
+        let width = scale * (0.62 + f * 0.3);
+        let sway = ((self.frame as f32 * 0.18 + seed as f32 * 0.00001).sin()) * scale * 0.65;
+        for dy in 0..h.ceil() as i32 {
+            let t = dy as f32 / h;
+            let wave = noise(seed ^ (dy as u32).wrapping_mul(31337) ^ self.frame / 3) as f32
+                / u32::MAX as f32;
+            let radius = (width * (1. - t).powf(0.7) * (0.7 + 0.35 * (t * 3.14).sin())
+                + wave * 0.3)
+                .max(0.3);
+            let cx = base[0] + sway * t * t + (wave - 0.5) * 0.7;
+            for x in (cx - radius).floor() as i32..=(cx + radius).ceil() as i32 {
+                let q = ((x as f32 + 0.5 - cx) / radius).abs();
+                if q > 1. {
+                    continue;
+                }
+                let core = (1. - q) * (1. - t);
+                let color = if core > 0.72 {
+                    [d.color[0], (d.color[1] as f32 * 1.32).min(205.) as u8, 58]
+                } else if core > 0.28 {
+                    d.color
+                } else {
+                    [
+                        d.color[0].saturating_sub(40),
+                        (d.color[1] as f32 * 0.46) as u8,
+                        (d.color[2] as f32 * 0.5) as u8,
+                    ]
+                };
+                self.pixel(
+                    x,
+                    (base[1] - dy as f32) as i32,
+                    color,
+                    d.alpha * (0.55 + core * 0.4),
+                );
+            }
+        }
+        let x = base[0] as i32;
+        let y = (base[1] - h * 0.3) as i32;
+        if x >= 0 && y >= 0 && x < self.width as i32 && y < self.height as i32 {
+            let i = y as usize * self.width + x as usize;
+            for k in 0..3 {
+                self.glow[i][k] = self.glow[i][k].max(d.color[k] as f32 * d.alpha * 1.3);
+            }
+        }
+    }
+    fn smoke(&mut self, d: &Draw) {
+        let centre = self
+            .projection
+            .project(Point::new(d.p.x + 0.5, d.p.y + 0.5, d.p.z + 1.));
+        let seed = noise(d.p.x.to_bits() ^ d.p.y.to_bits() ^ d.p.z.to_bits());
+        let radius = self.projection.scale * (1.6 + (seed % 100) as f32 * 0.009);
+        for dy in -radius.ceil() as i32..=radius.ceil() as i32 {
+            for dx in -radius.ceil() as i32..=radius.ceil() as i32 {
+                let r = (dx * dx + dy * dy) as f32 / (radius * radius);
+                if r >= 1. {
+                    continue;
+                }
+                self.pixel(
+                    centre[0] as i32 + dx,
+                    centre[1] as i32 + dy,
+                    d.color,
+                    d.alpha * (1. - r).powi(2),
+                );
+            }
+        }
+    }
     pub fn draw(
         &mut self,
         v: &Volume,
@@ -157,6 +245,8 @@ impl Viewport {
         instances: &[Instance<'_>],
         tracers: &[Point],
     ) -> &[u8] {
+        self.frame = v.frame;
+        self.glow.fill([0.; 3]);
         self.projection.origin = [
             self.width as f32 * 0.5 - (camera.x - camera.y) * self.projection.scale,
             self.height as f32 * 0.56 - (camera.x + camera.y) * 0.5 * self.projection.scale,
@@ -166,6 +256,7 @@ impl Viewport {
             p.copy_from_slice(&[35 + n as u8, 32 + n as u8, 29 + n as u8, 255]);
         }
         let mut draw = Vec::new();
+        let mut effects = BTreeMap::<(u8, i32, i32, i32), Emitter>::new();
         for (y, s) in v.sections.iter().enumerate() {
             let w = &s.world;
             for row in 0..v.height {
@@ -199,6 +290,19 @@ impl Viewport {
                     if !gas && !faces.iter().any(|v| *v) {
                         continue;
                     }
+                    if gas {
+                        let age = mat
+                            .lifetime
+                            .map_or(1., |l| (w.life[i] as f32 / l.max(1) as f32).clamp(0., 1.));
+                        add_emitter(
+                            &mut effects,
+                            p,
+                            mat.color,
+                            if mat.glow > 0. { 1 } else { 2 },
+                            age,
+                        );
+                        continue;
+                    }
                     let base = crate::asset::paint_rgb(w.paint[i]).unwrap_or(mat.color);
                     let f = noise(
                         (i + y * w.mat.len()) as u32
@@ -211,9 +315,15 @@ impl Viewport {
                         / u32::MAX as f32;
                     let mut color = base.map(|c| (c as f32 * (0.93 + f * 0.14)).min(255.) as u8);
                     if w.flags[i] & BURNING != 0 {
-                        let flame = [255., 90. + 120. * f, 20. + 30. * f];
-                        for k in 0..3 {
-                            color[k] = (color[k] as f32 * 0.3 + flame[k] * 0.7).min(255.) as u8;
+                        color = burning_color(color, f);
+                        if faces.iter().any(|v| *v) {
+                            add_emitter(
+                                &mut effects,
+                                Point::new(p.x, p.y, p.z + 1.),
+                                [255, 132, 25],
+                                1,
+                                0.85,
+                            );
                         }
                     }
                     if !gas {
@@ -232,7 +342,7 @@ impl Viewport {
                         p,
                         color,
                         faces,
-                        gas,
+                        gas: 0,
                         alpha: if gas {
                             if mat.glow > 0. { 0.7 } else { 0.25 }
                         } else {
@@ -257,16 +367,20 @@ impl Viewport {
                 / u32::MAX as f32;
             let mut color = base.map(|c| (c as f32 * (0.93 + 0.14 * f)).min(255.) as u8);
             if cell.flags & BURNING != 0 {
-                let flame = [255., 90. + 120. * f, 20. + 30. * f];
-                for k in 0..3 {
-                    color[k] = (color[k] as f32 * 0.3 + flame[k] * 0.7) as u8;
-                }
+                color = burning_color(color, f);
+                add_emitter(
+                    &mut effects,
+                    Point::new(p.x, p.y, p.z + 1.),
+                    [255, 132, 25],
+                    1,
+                    0.85,
+                );
             }
             draw.push(Draw {
                 p,
                 color,
                 faces: [true; 3],
-                gas: false,
+                gas: 0,
                 alpha: 1.,
             });
         }
@@ -283,7 +397,7 @@ impl Viewport {
                     p,
                     color: cell.color,
                     faces: [true; 3],
-                    gas: false,
+                    gas: 0,
                     alpha: 1.,
                 });
             }
@@ -293,13 +407,51 @@ impl Viewport {
                 p: *p,
                 color: [255, 224, 110],
                 faces: [true; 3],
-                gas: false,
+                gas: 0,
                 alpha: 1.,
+            });
+        }
+        for ((kind, _, _, _), e) in effects {
+            let n = e.count as f32;
+            let p = Point::new(e.p.x / n, e.p.y / n, e.p.z / n);
+            let color = e.color.map(|v| (v / n).clamp(0., 255.) as u8);
+            draw.push(Draw {
+                p,
+                color,
+                faces: [false; 3],
+                gas: kind,
+                alpha: if kind == 1 {
+                    (0.4 + (n / 12.).min(0.3)) * e.age.max(0.25)
+                } else {
+                    (0.16 + (n / 25.).min(0.18)) * e.age
+                },
             });
         }
         draw.sort_by(|a, b| (a.p.x + a.p.y + a.p.z).total_cmp(&(b.p.x + b.p.y + b.p.z)));
         for d in draw {
             self.cube(&d);
+        }
+        // The same box-blur used by the 2D renderer, with a small capped halo
+        // so a large fire lights its surroundings without bleaching the fuel.
+        crate::render::blur(
+            &mut self.glow,
+            &mut self.glow_scratch,
+            self.width,
+            self.height,
+            4,
+        );
+        crate::render::blur(
+            &mut self.glow,
+            &mut self.glow_scratch,
+            self.width,
+            self.height,
+            4,
+        );
+        for (i, p) in self.pixels.chunks_exact_mut(4).enumerate() {
+            for k in 0..3 {
+                let halo = (self.glow[i][k] * 0.8).min([24., 13., 4.][k]);
+                p[k] = (p[k] as f32 + halo).min(255.) as u8;
+            }
         }
         &self.pixels
     }
@@ -310,4 +462,51 @@ fn noise(mut n: u32) -> u32 {
     n ^= n >> 15;
     n = n.wrapping_mul(0x846ca68b);
     n ^ (n >> 16)
+}
+
+struct Emitter {
+    p: Point,
+    color: [f32; 3],
+    count: u32,
+    age: f32,
+}
+fn add_emitter(
+    out: &mut BTreeMap<(u8, i32, i32, i32), Emitter>,
+    p: Point,
+    color: [u8; 3],
+    kind: u8,
+    age: f32,
+) {
+    let size = if kind == 1 {
+        [2., 2., 3.]
+    } else {
+        [3., 3., 4.]
+    };
+    let key = (
+        kind,
+        (p.x / size[0]).floor() as i32,
+        (p.y / size[1]).floor() as i32,
+        (p.z / size[2]).floor() as i32,
+    );
+    let e = out.entry(key).or_insert(Emitter {
+        p: Point::default(),
+        color: [0.; 3],
+        count: 0,
+        age: 0.,
+    });
+    e.p.x += p.x;
+    e.p.y += p.y;
+    e.p.z += p.z;
+    e.count += 1;
+    e.age = e.age.max(age);
+    for k in 0..3 {
+        e.color[k] += color[k] as f32;
+    }
+}
+fn burning_color(base: [u8; 3], f: f32) -> [u8; 3] {
+    let amount = if f > 0.8 { 0.5 } else { 0.12 + f * 0.12 };
+    let flame = [255., 85. + 85. * f, 15. + 20. * f];
+    std::array::from_fn(|k| {
+        (base[k] as f32 * 0.62 * (1. - amount) + flame[k] * amount).min(255.) as u8
+    })
 }

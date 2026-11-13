@@ -70,3 +70,10 @@ The shared solver uses [Rapier 3D](https://rapier.rs/docs/user_guides/rust/getti
 Fracture regions now use weighted, jittered 3D crack centres rather than fixed 4 × 4 × 6 cuts. This produces unequal silhouettes and volumes, including long narrow pieces and smaller irregular fragments. Connected pieces remain separate, and material boundaries separate wood from metal. Existing paint and thermal state stay on each cell.
 
 Other games can configure `volume.debris.fracture` (`FractureSettings`) with XYZ crack spacing, jitter and a deterministic seed. Defaults favor longer pieces along X, with substantial size variation. `FragmentState::extent` reports each piece's local dimensions. The geometry-distribution test checks varied profiles, a large size range, elongated pieces and non-cuboid silhouettes, alongside all existing collision/material tests.
+
+
+### Overhead fire rendering
+
+Gas cells are grouped into nearby visual emitters rather than drawn as flat ground-plane diamonds. Fire uses upright, flickering, camera-facing flame shapes; smoke uses soft translucent puffs. Both remain depth-sorted with the building and aircraft. Burning surfaces keep char and paint detail instead of receiving a uniform yellow tint. Burning 3D rubble carries the same flame presentation as it moves.
+
+A bounded warm halo reuses the 2D renderer's blur. Dense fires cannot continually add bloom until the whole building clips yellow. These changes only draw existing gas/burning cells: material temperatures, fuel consumption, blast results and fire spread are unchanged. The overhead rendering tests cover upright animation, retained material detail, yellow clipping and roof occlusion.
