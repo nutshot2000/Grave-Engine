@@ -15,9 +15,10 @@ No generated Kimodo motion is needed when the full library is installed.
 - Jump, fall and landing are separate portions of the supplied Jump FBX.
 - Swimming and treading water come from the two supplied water FBXs.
   Swimming input selects the forward stroke; releasing it selects treading.
-- Hanging and climbing come from the supplied FBXs. The graph has grab,
-  climb and release triggers. These are animation actions ready for a game
-  controller; this lab does not yet implement physical ledge grabbing.
+- Hanging and climbing come from the supplied FBXs. **Play-Climbing-Lab.cmd**
+  opens a course with physical ledge grabbing: hold W/Up while jumping
+  towards a ledge, release and press it again to climb, or S/Down to drop.
+  See [Ledge climbing](LEDGE-CLIMBING.md) for reusable scene settings.
 - The other library actions have named states and triggers: crouching,
   rolling, driving, talking, interaction, pistol, sword, punches, spells,
   sitting and more. Once actions return when finished; looped actions hold

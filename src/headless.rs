@@ -86,8 +86,8 @@ pub fn shot_with_actors(
         let Some(look) = &a.look else { continue };
         let (frame, _) = look.frame(&a.anim, a.anim_time);
         let cpp = look.cells_per_px(body_h);
-        let feet = a.y + body_h as f32 / 2.0;
-        let left = a.x - frame.w as f32 * cpp / 2.0;
+        let feet = a.y + body_h as f32 / 2.0 + a.visual_offset.1;
+        let left = a.x + a.visual_offset.0 - frame.w as f32 * cpp / 2.0;
         let top = feet - look.feet * cpp;
         let mirror = (a.facing < 0.0) == look.faces_right;
         // Output pixels the picture covers.
@@ -220,6 +220,10 @@ pub fn run(o: &Options) -> i32 {
     for (n, a) in sim.physics.actor_status().iter().enumerate() {
         let state = if a.dead {
             "dead".to_string()
+        } else if a.hanging {
+            "hanging from a ledge".into()
+        } else if a.climbing {
+            "climbing onto a ledge".into()
         } else if a.swimming {
             "swimming".into()
         } else if a.grounded {
@@ -276,7 +280,7 @@ pub fn run(o: &Options) -> i32 {
 }
 
 fn grave_engine_controls(walk: f32, jump: bool) -> crate::physics::Controls {
-    crate::physics::Controls { walk, jump }
+    crate::physics::Controls { walk, jump, drop: false }
 }
 
 /// A window `cells` wide (16:9) around the first player, inside the world.

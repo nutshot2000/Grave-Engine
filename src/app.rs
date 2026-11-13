@@ -2610,8 +2610,8 @@ impl Sandbox {
                 ui.ctx().load_texture(format!("{}/{}/{index}", look.name, a.anim), img, TextureOptions::LINEAR)
             });
             let cpp = look.cells_per_px(body_h);
-            let feet = a.y + body_h as f32 / 2.0;
-            let left = a.x - frame.w as f32 * cpp / 2.0;
+            let feet = a.y + body_h as f32 / 2.0 + a.visual_offset.1;
+            let left = a.x + a.visual_offset.0 - frame.w as f32 * cpp / 2.0;
             let top = feet - look.feet * cpp;
             let r = Rect::from_min_size(
                 origin + Vec2::new(left * scale, top * scale),
@@ -2655,6 +2655,10 @@ impl Sandbox {
         }
         let text = if p.dead {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
+        } else if p.hanging {
+            Some("Hanging: release W/Up, then press again to climb. S/Down drops.".to_string())
+        } else if p.climbing {
+            Some("Climbing onto the ledge. S/Down lets go.".to_string())
         } else if let Some(h) = p.hurt_by {
             Some(format!("Ouch! ({h}, body {:.0}°C)", p.temp))
         } else if !self.playing {
@@ -2977,7 +2981,8 @@ impl eframe::App for Sandbox {
         let jump = !typing
             && self.playing
             && ctx.input(|i| i.key_down(Key::ArrowUp) || (i.key_down(Key::W) && i.modifiers.is_none()));
-        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump });
+        let drop = !typing && self.playing && ctx.input(|i| i.key_down(Key::ArrowDown) || (i.key_down(Key::S) && i.modifiers.is_none()));
+        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
@@ -3052,13 +3057,13 @@ mod tests {
         h.get_by_label("Animations").click(); h.run_steps(2);
         h.get_by_label("Add state").click(); h.run_steps(2);
         h.get_by_label("Apply to character").click(); h.run_steps(2);
-        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 8);
-        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 8);
+        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 10);
+        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 10);
         h.state_mut().undo();
-        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 7);
+        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 9);
         h.state_mut().redo();
         h.state_mut().reset();
-        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 8);
+        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 10);
     }
 
     const SCENE: &str = "size 200 120

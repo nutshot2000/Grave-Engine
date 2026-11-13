@@ -16,7 +16,7 @@ fn sim(m: &Materials, text: &str) -> Sim {
 }
 
 fn run(s: &mut Sim, m: &Materials, frames: usize, walk: f32, jump: bool) {
-    s.physics.set_controls(Controls { walk, jump });
+    s.physics.set_controls(Controls { walk, jump, drop: false });
     for _ in 0..frames {
         s.step(m);
     }
@@ -39,7 +39,7 @@ fn the_player_stands_walks_and_jumps() {
     assert!(x > 80.0, "walked right about 4 m/s: x {x}");
 
     let y0 = s.physics.actor_status()[0].y;
-    s.physics.set_controls(Controls { walk: 0.0, jump: true });
+    s.physics.set_controls(Controls { walk: 0.0, jump: true, drop: false });
     let mut top = y0;
     for _ in 0..50 {
         s.step(&m);
@@ -104,7 +104,7 @@ fn lava_kills_and_the_player_comes_back_at_the_start() {
     let m = mats();
     let mut s = sim(&m, "size 200 120\nfill air\nrect stone 0 110 200 10\nrect lava 120 100 80 10\nheat rect 120 100 80 10 1100\nplayer 40 110\n");
     // Walk into the lava.
-    s.physics.set_controls(Controls { walk: 1.0, jump: false });
+    s.physics.set_controls(Controls { walk: 1.0, jump: false, drop: false });
     let mut died = false;
     for _ in 0..600 {
         s.step(&m);
@@ -230,7 +230,7 @@ fn bounce_pads_fling_the_player_and_objects_and_the_landing_is_safe() {
     let text = "size 300 200\nfill air\nrect stone 0 190 300 10\nrect stone 0 150 100 40\nrect water 100 160 90 30\n\
                 rect stone 190 150 110 40\nrect bounce_pad 82 150 18 3\nplayer 70 150\n";
     let mut s = sim(&m, text);
-    s.physics.set_controls(Controls { walk: 1.0, jump: false });
+    s.physics.set_controls(Controls { walk: 1.0, jump: false, drop: false });
     let mut top = 200.0f32;
     for _ in 0..300 {
         s.step(&m);

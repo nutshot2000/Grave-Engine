@@ -283,6 +283,10 @@ in Blender by `tools/make_hero_in_blender.py` and rendered to
   priorities, action triggers and timed events, with an isolated character
   preview. Graphs can be shared between games or saved with a scene. See
   [Animation state machines](docs/ANIMATION-STATE-MACHINES.md).
+- **Ledge climbing:** `Play-Climbing-Lab.cmd` opens a four-roof course. Hold
+  W/Up towards a ledge to catch it, release and press again to climb, or
+  S/Down to drop. Enable it per actor in any scene; see
+  [Ledge climbing](docs/LEDGE-CLIMBING.md).
 - **The body matches the picture.** Each frame's outline becomes the cells the
   character fills in the world. A swimmer lies flat in the water, a fallen
   character is long and low, and sand and heat react to that shape. Those

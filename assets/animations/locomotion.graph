@@ -1,6 +1,10 @@
 # Shared default. Copy to a character folder as animation.graph to customize.
 initial idle
 param dead 0
+param hanging 0
+param climbing 0
+param climb_rate 1
+param traversal_enabled 0
 param swimming 0
 param airborne 0
 param grounded 1
@@ -26,3 +30,11 @@ transition idle walk priority 0 after 0 when speed > 0.4
 transition walk idle priority 0 after 0 when speed <= 0.4
 transition swim walk priority 0 after 0 when swimming == 0 & airborne == 0 & speed > 0.4
 transition swim idle priority 0 after 0 when swimming == 0 & airborne == 0 & speed <= 0.4
+
+state hang clip fall loop speed 1
+state climb clip jump once speed 1 rate climb_rate 1 0.01 20
+
+transition * hang priority 98 after 0 when hanging > 0 & dead == 0
+transition * climb priority 98 after 0 when climbing > 0 & dead == 0
+transition hang idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0
+transition climb idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0

@@ -75,7 +75,7 @@ impl PhysicsHooks for OneWayPowder {
 mod actor;
 mod bend;
 mod vehicle;
-pub use actor::{ActorSpec, ActorStatus, Controls};
+pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold};
 pub use vehicle::{Balance, WheelContact};
 
 /// How tall a character's body is, in cells.

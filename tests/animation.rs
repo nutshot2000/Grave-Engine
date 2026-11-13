@@ -225,6 +225,7 @@ fn default_actor_runs_takeoff_fall_landing_and_walk() {
     s.physics.set_controls(grave_engine::physics::Controls {
         walk: 1.0,
         jump: true,
+        drop: false,
     });
     let mut states = std::collections::BTreeSet::new();
     for i in 0..120 {
@@ -232,6 +233,7 @@ fn default_actor_runs_takeoff_fall_landing_and_walk() {
             s.physics.set_controls(grave_engine::physics::Controls {
                 walk: 1.0,
                 jump: false,
+                drop: false,
             });
         }
         s.step(&m);

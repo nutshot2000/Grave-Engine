@@ -1,0 +1,33 @@
+# Reusable ledge course. Hold W/up towards a wall to grab its lip.
+# Release W, then press again to climb. S/down drops from a ledge.
+size 520 260
+seed 118
+fill air
+sky #324c67 #c6d7d7
+layer mountains #778c9a depth 0.15 y 236 height 80 seed 4
+layer hills #708f86 depth 0.35 y 243 height 36 seed 7
+layer clouds #dbe5e5 depth 0.1 y 40 height 15
+rect stone 0 236 520 24
+player 50 236 look hero zoom 4 climb 2 reach 6
+
+# Each next roof needs another jump and grab from the previous platform.
+rect concrete 92 212 70 24
+rect wood 92 212 70 2
+rect concrete 182 188 78 48
+rect wood 182 188 78 2
+rect concrete 280 162 70 74
+rect wood 280 162 70 2
+rect concrete 370 138 70 98
+rect wood 370 138 70 2
+
+# A short staircase at the far end is an alternative way back down.
+rect wood 452 180 10 56
+rect wood 462 194 10 42
+rect wood 472 208 10 28
+rect wood 482 222 10 14
+
+trigger 0 0 86 260 by player : message CLIMBING LAB: D + W jumps towards the first ledge. Keep W held to grab it.
+trigger 86 212 15 24 by player : message HANGING: release W, then press W again to pull up. S or Down lets go.
+trigger 96 190 65 22 by player : message FIRST ROOF: the next ledge is to your right. Jump towards it and grab again.
+trigger 186 166 73 22 by player : message KEEP CLIMBING: W to grab. Release and press W again to pull up. A/D moves on the roof.
+trigger 375 114 65 24 by player : message TOP ROOF REACHED! Try climbing from the other side, or use Reset to start again.

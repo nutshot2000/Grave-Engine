@@ -19,6 +19,7 @@ noita_gdc_talk_clean_transcript.md
 # Local rig-derived animation previews and the scene referring to them.
 /assets/characters/mixamo-lab-local/
 /scenes/animation-lab.local.txt
+/scenes/climbing-lab.local.txt
 /assets/characters/mixamo-fbx-local/
 /assets/animations/*.fbx
 /assets/animations/*.zip

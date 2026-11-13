@@ -158,7 +158,7 @@ impl AnimationEditor {
                     cols[1].label(format!("Events: {}", self.events));
                 });
                 ui.separator();
-                ui.heading("States");
+                ui.horizontal(|ui| { ui.heading("States"); if ui.button("Add state").clicked() { self.graph.states.push(State { name: format!("state_{}", self.graph.states.len()), clip: "idle".into(), speed: 1.0, looping: false, duration: None, rate: None, events: vec![] }); } });
                 ui.horizontal_wrapped(|ui| {
                     for s in &self.graph.states { ui.selectable_label(self.preview.state().name == s.name, &s.name).on_hover_text(format!("clip: {}", s.clip)); }
                 });
@@ -181,7 +181,7 @@ impl AnimationEditor {
                     }); });
                 }
                 if let Some(i) = remove { self.graph.states.remove(i); }
-                if ui.button("Add state").clicked() { self.graph.states.push(State { name: format!("state_{}", self.graph.states.len()), clip: "idle".into(), speed: 1.0, looping: false, duration: None, rate: None, events: vec![] }); }
+
                 ui.heading("Transitions");
                 ui.label("Higher priority wins. Equal priorities use list order. * means any state. Conditions use & for AND.");
                 let mut remove = None;

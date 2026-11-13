@@ -823,6 +823,13 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 match (nums(1, 2), mat(&material)) {
                     (Ok(v), Ok(id)) => {
                         let mut a = crate::physics::ActorSpec::standing_at(id, v[0], v[1]);
+                        if words.iter().any(|w| *w == "climb") {
+                            let seconds = opt("climb").and_then(|v| v.parse::<f32>().ok()).unwrap_or(2.0);
+                            let reach = opt("reach").and_then(|v| v.parse::<f32>().ok()).unwrap_or(6.0);
+                            if seconds.is_finite() && (0.25..=8.0).contains(&seconds) && reach.is_finite() && (1.0..=10.0).contains(&reach) {
+                                a.climb = Some(crate::physics::ClimbSettings { seconds, reach });
+                            } else { err("climb needs 0.25..8 seconds and reach 1..10 cells".into()); }
+                        }
                         if let Some(name) = opt("look") {
                             match crate::look::find(name, base, crate::physics::actor_height()) {
                                 Ok(l) => a.look = Some(l),
@@ -1373,6 +1380,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         if mats.get(a.mat).name != "flesh" {
             line += &format!(" material {}", mats.get(a.mat).name);
         }
+        if let Some(c) = a.climb { line += &format!(" climb {} reach {}", c.seconds, c.reach); }
         if snap.follow.is_none() && snap.zoom > 0.0 {
             line += &format!(" zoom {}", snap.zoom);
         }

@@ -12,6 +12,8 @@ use super::*;
 use crate::look::{Look, MASK_W};
 use crate::world::Blast;
 use std::sync::Arc;
+mod ledge;
+pub use ledge::{ClimbSettings, LedgeHold};
 
 /// The figure's size in cells (0.6 m wide, 1.6 m tall).
 pub const W: usize = 6;
@@ -43,6 +45,8 @@ const RESPAWN_FRAMES: u32 = 120;
 /// What the player is pressing.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Controls {
+    /// Release a ledge (S/down in the editor).
+    pub drop: bool,
     /// -1 = left, 1 = right.
     pub walk: f32,
     /// Jump (or swim up) held.
@@ -52,6 +56,11 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    /// Optional reusable ledge traversal and its rewindable runtime state.
+    pub climb: Option<ClimbSettings>,
+    pub ledge: Option<LedgeHold>,
+    pub up_held: bool,
+    pub grab_cooldown: u32,
     /// Runtime graph state is included in snapshots and rewind.
     pub animation: Option<crate::animation::Animator>,
     /// Centre of the figure (cells) and velocity (cells per second).
@@ -82,6 +91,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            climb: None, ledge: None, up_held: false, grab_cooldown: 0,
             animation: None,
             x,
             y,
@@ -102,11 +112,31 @@ impl ActorSpec {
     pub fn feet(&self) -> (f32, f32) {
         (self.x, self.y + H as f32 / 2.0)
     }
+
+    /// Align a hanging look's raised fingertips with the physical ledge.
+    /// The collision capsule stays outside the wall; the picture can lean in.
+    pub fn visual_offset(&self) -> (f32, f32) {
+        let (Some(h), Some(look)) = (self.ledge, &self.look) else { return (0.0, 0.0); };
+        if !look.anims.contains_key("hang") { return (0.0, 0.0); }
+        let (frame, _) = look.frame("hang", 0.0);
+        let row = (0..frame.h).find(|&y| (0..frame.w).any(|x| frame.rgba[(y * frame.w + x) * 4 + 3] > 128));
+        let Some(row) = row else { return (0.0, 0.0); };
+        let xs: Vec<_> = (0..frame.w).filter(|&x| frame.rgba[(row * frame.w + x) * 4 + 3] > 128).collect();
+        let x = xs.iter().sum::<usize>() as f32 / xs.len() as f32 + 0.5;
+        let cpp = look.cells_per_px(H);
+        let hand_x = (x - frame.w as f32 / 2.0) * cpp * self.facing;
+        let hand_y = (row as f32 + 0.5 - look.feet) * cpp;
+        let fade = if h.climbing { (1.0 - h.elapsed / self.climb.unwrap_or_default().seconds / 0.65).clamp(0.0, 1.0) } else { 1.0 };
+        ((h.side * 3.7 - hand_x) * fade, (-21.0 - hand_y) * fade)
+    }
 }
 
 /// What the HUD needs to show.
 #[derive(Clone, Debug)]
 pub struct ActorStatus {
+    pub visual_offset: (f32, f32),
+    pub hanging: bool,
+    pub climbing: bool,
     pub x: f32,
     pub y: f32,
     pub health: f32,
@@ -183,13 +213,17 @@ fn figure(stride: u32) -> [[bool; W]; H] {
 impl Physics {
     /// Add a character. Returns its number.
     pub fn add_actor(&mut self, world: &mut World, mats: &Materials, mut spec: ActorSpec) -> usize {
+        if let Some(c) = &mut spec.climb {
+            c.reach = if c.reach.is_finite() { c.reach.clamp(1.0, 10.0) } else { 6.0 };
+            c.seconds = if c.seconds.is_finite() { c.seconds.clamp(0.25, 8.0) } else { 2.0 };
+        }
         if spec.animation.is_none() {
             let graph = spec.look.as_ref().map_or_else(|| Arc::new(crate::animation::Graph::parse(crate::animation::DEFAULT).expect("default graph")), |l| l.graph.clone());
             spec.animation = Some(crate::animation::Animator::new(graph).expect("validated look graph"));
         }
         let radius = W as f32 / 2.0 * CELL;
         let half = H as f32 / 2.0 * CELL - radius;
-        let rb = RigidBodyBuilder::dynamic()
+        let rb = (if spec.ledge.is_some() { RigidBodyBuilder::kinematic_position_based() } else { RigidBodyBuilder::dynamic() })
             .translation(Vector::new(spec.x * CELL, spec.y * CELL))
             .linvel(Vector::new(spec.vx * CELL, spec.vy * CELL))
             .lock_rotations()
@@ -276,6 +310,14 @@ impl Physics {
             ("dead", (a.spec.dead_for > 0) as u8 as f32),
             ("swimming", (a.wet > 0.4) as u8 as f32),
             ("swim_moving", (controls.walk.abs() > 0.1 || controls.jump) as u8 as f32),
+            ("hanging", a.spec.ledge.is_some_and(|h| !h.climbing) as u8 as f32),
+            ("traversal_enabled", a.spec.climb.is_some() as u8 as f32),
+            ("climbing", a.spec.ledge.is_some_and(|h| h.climbing) as u8 as f32),
+            ("climb_rate", a.spec.climb.map_or(1.0, |c| {
+                let state = anim.graph.states.iter().find(|s| s.name == "climb");
+                let duration = a.spec.look.as_ref().map_or(1.0, |l| l.duration(state.map_or("climb", |s| s.clip.as_str())));
+                duration / (c.seconds * state.map_or(1.0, |s| s.speed))
+            })),
             // Immediate takeoff for real jumps; ignore tiny contact corrections
             // from the animated collision outline while walking on a floor.
             ("airborne", (a.since_ground > 8 || (a.jump_wait > 0 && v.y < -0.2)) as u8 as f32),
@@ -306,6 +348,9 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
+                    visual_offset: a.spec.visual_offset(),
+                    hanging: a.spec.ledge.is_some_and(|h| !h.climbing),
+                    climbing: a.spec.ledge.is_some_and(|h| h.climbing),
                     x: t.x / CELL,
                     y: t.y / CELL,
                     health: a.spec.health,
@@ -447,6 +492,7 @@ impl Physics {
             if a.spec.dead_for > 0 {
                 a.spec.dead_for += 1;
                 if a.spec.dead_for >= RESPAWN_FRAMES {
+                    if a.spec.ledge.is_some() { ledge::release(a, rb); }
                     let (sx, sy) = a.spec.spawn;
                     rb.set_translation(Vector::new(sx * CELL, sy * CELL), true);
                     rb.set_linvel(Vector::new(0.0, 0.0), true);
@@ -504,6 +550,8 @@ impl Physics {
             }
 
             // Moving.
+            if ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
+            let rb = &mut self.set[a.handle];
             let v = rb.linvel();
             let swimming = a.wet > 0.4;
             let walk = controls.walk.clamp(-1.0, 1.0);
@@ -588,7 +636,9 @@ impl Physics {
                 // landing or getting hit by something heavy. Gravity alone
                 // only changes speed by 0.16 m/s a frame.
                 let dv = (v - a.v_before).length();
-                if a.launched && dv > SAFE_LANDING {
+                if a.spec.ledge.is_some() {
+                    // Traversal velocity is controlled, not an impact.
+                } else if a.launched && dv > SAFE_LANDING {
                     // The landing after a bounce pad: games don't punish that.
                     a.launched = false;
                 } else if dv > SAFE_LANDING {
@@ -601,6 +651,7 @@ impl Physics {
                     if a.spec.health <= 0.0 {
                         a.spec.health = 0.0;
                         a.spec.dead_for = 1;
+                        if a.spec.ledge.is_some() { ledge::release(a, &mut self.set[a.handle]); }
                     }
                 }
             }
@@ -616,7 +667,8 @@ impl Physics {
     fn stamp_actor(a: &mut Actor, set: &RigidBodySet, world: &mut World, mats: &Materials) {
         a.stamped.clear();
         let t = set[a.handle].translation();
-        let (cx, cy) = (t.x / CELL, t.y / CELL);
+        let offset = a.spec.visual_offset();
+        let (cx, cy) = (t.x / CELL + offset.0, t.y / CELL + offset.1);
         let left = (cx - MASK_W as f32 / 2.0).round() as i32;
         let top = (cy - H as f32 / 2.0).round() as i32;
         let (mask, mirror, hidden) = match &a.spec.look {

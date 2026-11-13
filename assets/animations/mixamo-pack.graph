@@ -1,6 +1,10 @@
 # Mixamo FBX and Universal Animation Library states on the local rider.
 initial idle
 param dead 0
+param hanging 0
+param climbing 0
+param climb_rate 1
+param traversal_enabled 0
 param swimming 0
 param swim_moving 0
 param airborne 0
@@ -57,7 +61,7 @@ state landing clip landing once speed 1
 state swim clip swim loop speed 1
 state tread clip tread loop speed 1
 state hang clip hang loop speed 1
-state climb clip climb once speed 1
+state climb clip climb once speed 1 rate climb_rate 1 0.01 20
 state die clip die once speed 1
 event landing 0 landed
 event climb 0.1 climbing
@@ -250,3 +254,8 @@ transition walk run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airbo
 transition landing run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0 & finished > 0
 transition swim run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0
 transition tread run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0
+
+transition * hang priority 98 after 0 when hanging > 0 & dead == 0
+transition * climb priority 98 after 0 when climbing > 0 & dead == 0
+transition hang idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0
+transition climb idle priority 97 after 0 when traversal_enabled > 0 & hanging == 0 & climbing == 0 & dead == 0
