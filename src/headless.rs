@@ -84,7 +84,7 @@ pub fn shot_with_actors(
     let body_h = crate::physics::actor_height();
     for a in actors {
         let Some(look) = &a.look else { continue };
-        let (frame, _) = look.frame(a.anim, a.anim_time);
+        let (frame, _) = look.frame(&a.anim, a.anim_time);
         let cpp = look.cells_per_px(body_h);
         let feet = a.y + body_h as f32 / 2.0;
         let left = a.x - frame.w as f32 * cpp / 2.0;

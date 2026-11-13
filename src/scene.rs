@@ -838,6 +838,30 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     (_, Err(e)) => err(e),
                 }
             }
+            "animation" => {
+                let graph_text = if let Some(file) = words.get(1) {
+                    let path = base.map(|b| b.join(file)).filter(|p| p.is_file()).unwrap_or_else(|| std::path::PathBuf::from(file));
+                    std::fs::read_to_string(path).map_err(|e| e.to_string())
+                } else {
+                    let mut block = String::new();
+                    let mut ended = false;
+                    for (_, row) in lines.by_ref() {
+                        if row.trim() == "endanimation" { ended = true; break; }
+                        block.push_str(row); block.push('\n');
+                    }
+                    if ended { Ok(block) } else { Err("animation block needs endanimation".into()) }
+                };
+                let parsed = graph_text.and_then(|t| crate::animation::Graph::parse(&t));
+                match (actors.last_mut(), parsed) {
+                    (Some(a), Ok(graph)) => {
+                        let missing = a.look.as_ref().and_then(|l| graph.states.iter().find(|s| !l.anims.contains_key(&s.clip)));
+                        if let Some(s) = missing { err(format!("animation needs missing clip `{}`", s.clip)); }
+                        else { a.animation = Some(crate::animation::Animator::new(std::sync::Arc::new(graph)).unwrap()); }
+                    }
+                    (_, Err(e)) => err(format!("animation: {e}")),
+                    (None, _) => err("animation needs a preceding player".into()),
+                }
+            }
             "name" => match (words.get(1), bodies.len()) {
                 (Some(n), k) if k > 0 => {
                     names.insert(n.to_lowercase(), k - 1);
@@ -1354,6 +1378,14 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         }
         out.push_str(&line);
         out.push('\n');
+        if let Some(anim) = &a.animation {
+            let default = a.look.as_ref().map_or_else(|| std::sync::Arc::new(crate::animation::Graph::parse(crate::animation::DEFAULT).unwrap()), |l| l.graph.clone());
+            if anim.graph != default {
+                out.push_str("animation\n");
+                out.push_str(&anim.graph.to_text());
+                out.push_str("endanimation\n");
+            }
+        }
     }
     for (i,layer) in snap.layers.iter().enumerate() {
         let name=snap.layer_names.get(i).map(String::as_str).unwrap_or("interior");

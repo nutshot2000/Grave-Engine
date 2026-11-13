@@ -1,0 +1,17 @@
+# Minimal game-action example. Walk stands in for a future attack clip.
+initial idle
+param speed 0
+param dead 0
+trigger attack
+state idle clip idle loop speed 1
+state walk clip walk loop speed 1 rate speed 0.25 0.3 1.5
+state action clip walk once speed 1
+event action 0.1 hit
+state die clip die once speed 1
+transition * die priority 100 after 0 when dead > 0
+transition idle action priority 50 after 0 when attack > 0
+transition walk action priority 50 after 0 when attack > 0
+transition action walk priority 0 after 0 when finished > 0 & speed > 0.4
+transition action idle priority 0 after 0 when finished > 0 & speed <= 0.4
+transition idle walk priority 0 after 0 when speed > 0.4
+transition walk idle priority 0 after 0 when speed <= 0.4

@@ -4,6 +4,7 @@
 //! both read and write it.
 
 pub mod backdrop;
+pub mod animation;
 pub mod camera;
 pub mod edit;
 pub mod headless;

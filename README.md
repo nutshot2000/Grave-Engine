@@ -279,6 +279,10 @@ in Blender by `tools/make_hero_in_blender.py` and rendered to
 - **Animations:** `idle`, `walk`, `jump`, `fall`, `swim` and `die`. The engine
   picks one from what the character is doing, keeps the walk in step with its
   speed, and mirrors the frames when it turns round.
+- **Editable state machines:** click **Animations** to add states, transitions,
+  priorities, action triggers and timed events, with an isolated character
+  preview. Graphs can be shared between games or saved with a scene. See
+  [Animation state machines](docs/ANIMATION-STATE-MACHINES.md).
 - **The body matches the picture.** Each frame's outline becomes the cells the
   character fills in the world. A swimmer lies flat in the water, a fallen
   character is long and low, and sand and heat react to that shape. Those

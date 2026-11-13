@@ -346,7 +346,7 @@ impl History {
         let Some((before, label)) = self.pending.take() else { return };
         self.last_touch = None;
         let after = sim.snapshot();
-        let step = if before.triggers != after.triggers || before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
+        let step = if before.actors != after.actors || before.triggers != after.triggers || before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
             Step {
                 label,
                 cells: Vec::new(),

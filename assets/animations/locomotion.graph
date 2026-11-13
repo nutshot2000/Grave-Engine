@@ -1,0 +1,28 @@
+# Shared default. Copy to a character folder as animation.graph to customize.
+initial idle
+param dead 0
+param swimming 0
+param airborne 0
+param grounded 1
+param speed 0
+param vy 0
+param hurt 0
+state idle clip idle loop speed 1
+state walk clip walk loop speed 1 rate speed 0.25 0.3 1.5
+state jump clip jump once speed 1
+state fall clip fall loop speed 1
+state landing clip idle once speed 1 duration 0.08
+state swim clip swim loop speed 1
+state die clip die once speed 1
+transition * die priority 100 after 0 when dead > 0
+transition * swim priority 90 after 0 when swimming > 0 & dead == 0
+transition * jump priority 80 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition * fall priority 80 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition jump landing priority 70 after 0 when grounded > 0 & airborne == 0
+transition fall landing priority 70 after 0 when grounded > 0 & airborne == 0
+transition landing walk priority 10 after 0 when finished > 0 & speed > 0.4
+transition landing idle priority 10 after 0 when finished > 0 & speed <= 0.4
+transition idle walk priority 0 after 0 when speed > 0.4
+transition walk idle priority 0 after 0 when speed <= 0.4
+transition swim walk priority 0 after 0 when swimming == 0 & airborne == 0 & speed > 0.4
+transition swim idle priority 0 after 0 when swimming == 0 & airborne == 0 & speed <= 0.4

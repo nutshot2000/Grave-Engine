@@ -46,6 +46,8 @@ pub struct Anim {
 }
 
 pub struct Look {
+    /// Editable animation graph loaded alongside the rendered clips.
+    pub graph: Arc<crate::animation::Graph>,
     /// Folder name (what scenes call it).
     pub name: String,
     pub dir: PathBuf,
@@ -131,7 +133,15 @@ impl Look {
             return Err(format!("{}: no animations listed", file.display()));
         }
         let name = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        Ok(Look { name, dir: dir.to_path_buf(), figure, feet, faces_right, anims })
+        let graph_path = dir.join("animation.graph");
+        let text = if graph_path.is_file() { std::fs::read_to_string(&graph_path).map_err(|e| e.to_string())? } else { crate::animation::DEFAULT.into() };
+        let graph = crate::animation::Graph::parse(&text).map_err(|e| format!("{}: {e}", graph_path.display()))?;
+        if graph_path.is_file() {
+            for state in &graph.states {
+                if !anims.contains_key(&state.clip) { return Err(format!("{}: missing clip `{}`", graph_path.display(), state.clip)); }
+            }
+        }
+        Ok(Look { graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims })
     }
 
     /// The frame of `anim` (or idle, if it hasn't got one) `t` seconds in,
@@ -142,6 +152,11 @@ impl Look {
         let mut i = (t.max(0.0) * a.fps) as usize;
         i = if a.looping { i % n } else { i.min(n - 1) };
         (&a.frames[i], i)
+    }
+
+    /// Clip length in seconds; defaults can still use the idle fallback.
+    pub fn duration(&self, clip: &str) -> f32 {
+        self.anims.get(clip).or_else(|| self.anims.get("idle")).map_or(1.0, |a| a.frames.len() as f32 / a.fps.max(0.001))
     }
 
     /// How many world cells one picture pixel is, for a body `body_h` cells tall.
@@ -198,7 +213,11 @@ pub fn find(name: &str, base: Option<&Path>, body_h: usize) -> Result<Arc<Look>,
         .ok_or(format!("no character called `{name}` (looked for assets/characters/{name}/character.txt)"))?;
     let key = dir.canonicalize().unwrap_or(dir.clone());
     if let Some(l) = CACHE.lock().unwrap().get(&key) {
-        return Ok(l.clone());
+        // Frames stay cached; graph edits must be visible on scene reload too.
+        let graph_file = dir.join("animation.graph");
+        let text = if graph_file.is_file() { std::fs::read_to_string(&graph_file).map_err(|e| e.to_string())? } else { crate::animation::DEFAULT.into() };
+        let graph = crate::animation::Graph::parse(&text).map_err(|e| format!("{}: {e}", graph_file.display()))?;
+        if graph == *l.graph { return Ok(l.clone()); }
     }
     let look = Arc::new(Look::load(&dir, body_h)?);
     CACHE.lock().unwrap().insert(key, look.clone());

@@ -13,6 +13,7 @@ use grave_engine::template::{self, Change, Templates};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 mod studio_ui;
+mod animation_ui;
 use crate::studio::{Studio,Tab};
 use grave_engine::assemblies;
 
@@ -87,6 +88,7 @@ enum Clipboard {
 }
 
 struct Sandbox {
+    animation_editor: animation_ui::AnimationEditor,
     studio: Studio,
     workshop:crate::workshop::Workshop,
     mats: Materials,
@@ -125,7 +127,7 @@ struct Sandbox {
     renderer: Renderer,
     texture: Option<TextureHandle>,
     /// Character animation frames uploaded to the GPU: (look folder, animation, frame).
-    look_textures: std::collections::HashMap<(PathBuf, &'static str, usize), TextureHandle>,
+    look_textures: std::collections::HashMap<(PathBuf, String, usize), TextureHandle>,
     tool: Tool,
     brush_mat: MatId,
     brush_size: i32,
@@ -305,6 +307,7 @@ impl Sandbox {
             menu_at: None,
             show_done_notes: false,
             mat_settings: None,
+            animation_editor: Default::default(),
         };
         for p in app.mats.problems.clone() {
             app.say(p);
@@ -1147,7 +1150,7 @@ impl Sandbox {
         self.playing = false;
         self.drag = Drag::None;
         match self.history.undo(&mut self.sim, &self.mats) {
-            Some(label) => self.say(format!("Undid: {label}")),
+            Some(label) => { if label == "animation graph" { self.sync_animation_reset(); } self.say(format!("Undid: {label}")); },
             None => self.say("Nothing to undo"),
         }
         self.selection = Selection::None;
@@ -1157,7 +1160,7 @@ impl Sandbox {
         self.playing = false;
         self.drag = Drag::None;
         match self.history.redo(&mut self.sim, &self.mats) {
-            Some(label) => self.say(format!("Redid: {label}")),
+            Some(label) => { if label == "animation graph" { self.sync_animation_reset(); } self.say(format!("Redid: {label}")); },
             None => self.say("Nothing to redo"),
         }
         self.selection = Selection::None;
@@ -1637,6 +1640,10 @@ impl Sandbox {
             ui.menu_button("💡 Lighting",|ui|self.look_menu(ui,"lighting",Self::lighting_menu));
             ui.menu_button("🏞 Background",|ui|self.look_menu(ui,"background",Self::background_menu));
             ui.menu_button("☁ Weather",|ui|self.look_menu(ui,"weather",Self::weather_menu));
+            if ui.button("Animations").clicked() {
+                self.animation_editor.select(&self.sim, 0);
+                self.animation_editor.open = true;
+            }
             if let Some(level)=game_level(&self.scene_path) {if ui.button("🎮 Play as game").clicked(){self.play_as_game(level);}}
         });
     }
@@ -2596,8 +2603,8 @@ impl Sandbox {
         let body_h = grave_engine::physics::actor_height();
         for a in self.sim.physics.actor_status() {
             let Some(look) = &a.look else { continue };
-            let (frame, index) = look.frame(a.anim, a.anim_time);
-            let key = (look.dir.clone(), a.anim, index);
+            let (frame, index) = look.frame(&a.anim, a.anim_time);
+            let key = (look.dir.clone(), a.anim.clone(), index);
             let tex = self.look_textures.entry(key).or_insert_with(|| {
                 let img = egui::ColorImage::from_rgba_unmultiplied([frame.w, frame.h], &frame.rgba);
                 ui.ctx().load_texture(format!("{}/{}/{index}", look.name, a.anim), img, TextureOptions::LINEAR)
@@ -3008,6 +3015,7 @@ impl eframe::App for Sandbox {
             .show(ui, |ui| {if self.studio.tab==Tab::Tests {self.studio_test_canvas(ui,dt);} else {self.canvas(ui);}});
         self.note_window(&ctx);
         self.material_settings_window(&ctx);
+        self.animation_window(&ctx, dt as f32);
 
         // Inspector number drags etc. become one undo step once the mouse is let go.
         let mouse_down = ctx.input(|i| i.pointer.any_down());
@@ -3032,6 +3040,25 @@ mod tests {
         assert_eq!(game_level("scenes/mountain-run.txt"), Some(1));
         assert_eq!(game_level("scenes/stunt-yard.txt"), Some(0));
         assert_eq!(game_level("scenes/weather-house.txt"), None);
+    }
+
+    #[test]
+    fn animation_editor_authors_and_applies_a_reusable_state() {
+        let mut h = editor();
+        let app = h.state_mut();
+        let (sim, errors) = scene::load("size 100 80\nrect stone 0 70 100 10\nplayer 20 70 look hero\n", &app.mats, None).into_sim(&app.mats);
+        assert!(errors.is_empty()); app.sim = sim; app.snapshot = app.sim.snapshot();
+        h.run_steps(2);
+        h.get_by_label("Animations").click(); h.run_steps(2);
+        h.get_by_label("Add state").click(); h.run_steps(2);
+        h.get_by_label("Apply to character").click(); h.run_steps(2);
+        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 8);
+        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 8);
+        h.state_mut().undo();
+        assert_eq!(h.state().snapshot.actors[0].animation.as_ref().unwrap().graph.states.len(), 7);
+        h.state_mut().redo();
+        h.state_mut().reset();
+        assert_eq!(h.state().sim.physics.export_actors()[0].animation.as_ref().unwrap().graph.states.len(), 8);
     }
 
     const SCENE: &str = "size 200 120

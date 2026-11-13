@@ -52,6 +52,8 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    /// Runtime graph state is included in snapshots and rewind.
+    pub animation: Option<crate::animation::Animator>,
     /// Centre of the figure (cells) and velocity (cells per second).
     pub x: f32,
     pub y: f32,
@@ -80,6 +82,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            animation: None,
             x,
             y,
             vx: 0.0,
@@ -118,7 +121,8 @@ pub struct ActorStatus {
     /// animation is playing (and for how long, in seconds).
     pub facing: f32,
     pub look: Option<Arc<Look>>,
-    pub anim: &'static str,
+    pub anim: String,
+    pub animation_state: String,
     pub anim_time: f32,
 }
 
@@ -146,9 +150,8 @@ pub(super) struct Actor {
     /// Frames spent walking (for the leg animation).
     stride: u32,
     hurt: Option<(&'static str, u32)>,
-    /// The animation playing (idle, walk, jump, fall, swim, die) and for how long.
-    anim: &'static str,
-    anim_time: f32,
+    /// Markers waiting for a game to consume them.
+    animation_events: Vec<crate::animation::Event>,
     /// Flung by a bounce pad and not landed yet (that landing doesn't hurt).
     launched: bool,
     /// Hurt this frame, and by what.
@@ -179,7 +182,11 @@ fn figure(stride: u32) -> [[bool; W]; H] {
 
 impl Physics {
     /// Add a character. Returns its number.
-    pub fn add_actor(&mut self, world: &mut World, mats: &Materials, spec: ActorSpec) -> usize {
+    pub fn add_actor(&mut self, world: &mut World, mats: &Materials, mut spec: ActorSpec) -> usize {
+        if spec.animation.is_none() {
+            let graph = spec.look.as_ref().map_or_else(|| Arc::new(crate::animation::Graph::parse(crate::animation::DEFAULT).expect("default graph")), |l| l.graph.clone());
+            spec.animation = Some(crate::animation::Animator::new(graph).expect("validated look graph"));
+        }
         let radius = W as f32 / 2.0 * CELL;
         let half = H as f32 / 2.0 * CELL - radius;
         let rb = RigidBodyBuilder::dynamic()
@@ -213,8 +220,7 @@ impl Physics {
             v_before: Vector::new(0.0, 0.0),
             stride: 0,
             hurt: None,
-            anim: "idle",
-            anim_time: 0.0,
+            animation_events: Vec::new(),
             launched: false,
             pending: 0.0,
             pending_cause: None,
@@ -235,6 +241,49 @@ impl Physics {
 
     pub fn controls(&self) -> Controls {
         self.controls
+    }
+
+    /// Install a validated graph on one actor, leaving other entities independent.
+    pub fn set_actor_graph(&mut self, index: usize, graph: Arc<crate::animation::Graph>) -> Result<(), String> {
+        let a = self.actors.get_mut(index).ok_or("no such actor")?;
+        if let Some(look) = &a.spec.look {
+            for s in &graph.states { if !look.anims.contains_key(&s.clip) { return Err(format!("missing clip `{}`", s.clip)); } }
+        }
+        a.spec.animation = Some(crate::animation::Animator::new(graph)?);
+        a.animation_events.clear();
+        Ok(())
+    }
+
+    /// Set a custom game parameter (built-in movement parameters update each tick).
+    pub fn set_actor_animation_parameter(&mut self, index: usize, name: &str, value: f32) -> bool {
+        self.actors.get_mut(index).and_then(|a| a.spec.animation.as_mut()).is_some_and(|a| a.set(name, value))
+    }
+
+    /// Request a one-tick action, such as attack or reload, on one actor.
+    pub fn trigger_actor_animation(&mut self, index: usize, name: &str) -> bool {
+        self.actors.get_mut(index).and_then(|a| a.spec.animation.as_mut()).is_some_and(|a| a.trigger(name))
+    }
+
+    /// Drain markers since the last call (for sounds or gameplay). Bounded to 256.
+    pub fn take_actor_animation_events(&mut self, index: usize) -> Vec<crate::animation::Event> {
+        self.actors.get_mut(index).map_or_else(Vec::new, |a| std::mem::take(&mut a.animation_events))
+    }
+
+    fn advance_animation(a: &mut Actor, bodies: &RigidBodySet) {
+        let v = bodies[a.handle].linvel();
+        let anim = a.spec.animation.as_mut().unwrap();
+        for (p, value) in [
+            ("dead", (a.spec.dead_for > 0) as u8 as f32),
+            ("swimming", (a.wet > 0.4) as u8 as f32),
+            // Immediate takeoff for real jumps; ignore tiny contact corrections
+            // from the animated collision outline while walking on a floor.
+            ("airborne", (a.since_ground > 8 || (a.jump_wait > 0 && v.y < -0.2)) as u8 as f32),
+            ("grounded", (a.since_ground == 0) as u8 as f32),
+            ("speed", v.x.abs()), ("vy", v.y), ("hurt", a.hurt.is_some() as u8 as f32),
+        ] { anim.set(p, value); }
+        let look = &a.spec.look;
+        let events = anim.advance(DT, |clip| look.as_ref().map_or(1.0, |l| l.duration(clip)));
+        for event in events { if a.animation_events.len() < 256 { a.animation_events.push(event); } }
     }
 
     /// Every actor's current state (for saving and rewinding).
@@ -267,8 +316,9 @@ impl Physics {
                     hurt_by: a.hurt.map(|h| h.0),
                     facing: a.spec.facing,
                     look: a.spec.look.clone(),
-                    anim: a.anim,
-                    anim_time: a.anim_time,
+                    anim: a.spec.animation.as_ref().unwrap().state().clip.clone(),
+                    animation_state: a.spec.animation.as_ref().unwrap().state().name.clone(),
+                    anim_time: a.spec.animation.as_ref().unwrap().sample_time(|clip| a.spec.look.as_ref().map_or(1.0, |l| l.duration(clip))),
                 }
             })
             .collect()
@@ -403,8 +453,7 @@ impl Physics {
                     a.spec.breath = MAX_BREATH;
                     a.spec.temp = BODY_TEMP;
                     a.temps.fill(BODY_TEMP);
-                    a.anim = "idle";
-                    a.anim_time = 0.0;
+                    a.spec.animation.as_mut().unwrap().reset();
                     a.spec.dead_for = 0;
                     a.hurt = None;
                 } else {
@@ -556,27 +605,7 @@ impl Physics {
             }
             a.pending = 0.0;
             a.pending_cause = None;
-            // Which animation fits what it's doing.
-            let anim = if a.spec.dead_for > 0 {
-                "die"
-            } else if a.wet > 0.4 {
-                "swim"
-            } else if a.since_ground > 8 {
-                if v.y < 0.0 { "jump" } else { "fall" }
-            } else if v.x.abs() > 0.4 {
-                "walk"
-            } else {
-                "idle"
-            };
-            if anim != a.anim {
-                a.anim = anim;
-                a.anim_time = 0.0;
-            } else if anim == "walk" {
-                // Legs keep pace with the ground.
-                a.anim_time += DT * (v.x.abs() / WALK).clamp(0.3, 1.5);
-            } else {
-                a.anim_time += DT;
-            }
+            Self::advance_animation(a, &self.set);
             Self::stamp_actor(a, &self.set, world, mats);
         }
     }
@@ -591,7 +620,8 @@ impl Physics {
         let top = (cy - H as f32 / 2.0).round() as i32;
         let (mask, mirror, hidden) = match &a.spec.look {
             Some(look) => {
-                let (frame, _) = look.frame(a.anim, a.anim_time);
+                let animator = a.spec.animation.as_ref().unwrap();
+                let (frame, _) = look.frame(&animator.state().clip, animator.sample_time(|c| look.duration(c)));
                 (frame.mask.clone(), (a.spec.facing < 0.0) == look.faces_right, crate::world::HIDDEN)
             }
             None => {
