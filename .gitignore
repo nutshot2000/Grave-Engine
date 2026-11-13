@@ -15,3 +15,7 @@ noita_gdc_talk_clean_transcript.md
 
 # Blender backup files
 *.blend1
+
+# Local rig-derived animation previews and the scene referring to them.
+/assets/characters/mixamo-lab-local/
+/scenes/animation-lab.local.txt

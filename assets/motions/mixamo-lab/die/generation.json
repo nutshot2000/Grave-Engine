@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 60,
+  "fps": 30,
+  "seed": 122,
+  "steps": 24,
+  "prompt": "A person loses balance, falls quickly onto their side on the ground and remains lying still."
+}

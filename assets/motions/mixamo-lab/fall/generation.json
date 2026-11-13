@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 60,
+  "fps": 30,
+  "seed": 120,
+  "steps": 24,
+  "prompt": "A person is falling through the air with knees bent and arms spread out to the sides, trying to regain balance."
+}

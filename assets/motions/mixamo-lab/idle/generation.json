@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 90,
+  "fps": 30,
+  "seed": 117,
+  "steps": 24,
+  "prompt": "A person stands upright with relaxed legs, raises their right hand and waves hello, then lowers the hand and stands relaxed."
+}

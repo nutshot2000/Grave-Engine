@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 120,
+  "fps": 30,
+  "seed": 118,
+  "steps": 24,
+  "prompt": "A person walks forward at a steady brisk pace with natural alternating arm swings and clear heel to toe foot steps."
+}

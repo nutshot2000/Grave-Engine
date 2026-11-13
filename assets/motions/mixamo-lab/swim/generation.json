@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 90,
+  "fps": 30,
+  "seed": 121,
+  "steps": 24,
+  "prompt": "A person swims horizontally face down using breaststroke, sweeping both arms forward and out and kicking both legs."
+}

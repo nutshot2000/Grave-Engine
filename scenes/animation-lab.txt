@@ -1,0 +1,40 @@
+# Small reusable character-animation course. A/D move, W/up jumps or swims.
+# The local Mixamo variant is written by tools/build_mixamo_lab.py.
+size 576 220
+seed 117
+fill air
+sky #29455f #b7c8c9
+layer mountains #778a99 depth 0.15 y 184 height 55 seed 4
+layer hills #728b83 depth 0.35 y 191 height 24 seed 7
+layer clouds #d5dfdf depth 0.1 y 35 height 12
+rect stone 0 204 576 16
+rect concrete 0 184 210 20
+rect concrete 245 184 70 20
+rect concrete 415 184 89 20
+rect concrete 546 184 30 20
+player 40 184 look hero zoom 4
+
+# Low steps and an elevated ledge for jump, landing and falling poses.
+rect wood 116 178 14 6
+rect wood 130 172 14 12
+rect wood 144 166 48 18
+# Recoverable jump gap; the bottom is safe, with a step to get back out.
+rect concrete 232 194 13 10
+
+# Contained pool. Surface is below the surrounding rim so it cannot flood.
+rect stone 315 184 10 20
+rect stone 405 184 10 20
+rect water 325 186 80 18
+
+# A small pushable prop after the pool.
+body rect wood 448 176 14 8
+
+# Optional isolated danger pit for the death and respawn animation.
+rect stone 504 184 10 20
+rect stone 536 184 10 20
+rect lava 514 186 22 18
+
+trigger 0 0 105 220 by player : message ANIMATION LAB: stand to wave. A/D walks. W or Up jumps.
+trigger 105 0 140 220 by player : message JUMP / FALL: use the steps and ledge. The gap has a safe recovery step.
+trigger 305 0 115 220 by player : message SWIM: hold W or Up to rise and climb out. Watch your breath.
+trigger 485 0 91 220 by player : message OPTIONAL DANGER: the lava tests death and automatic respawn. Reset returns to the start.

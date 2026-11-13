@@ -1,0 +1,8 @@
+{
+  "generator": "NVIDIA Kimodo SOMA RP v1.1 via kimodo.cpp",
+  "frames": 90,
+  "fps": 30,
+  "seed": 119,
+  "steps": 24,
+  "prompt": "A person bends both knees then jumps straight up with both feet, lifting both arms for balance, lands on both feet and stands."
+}
