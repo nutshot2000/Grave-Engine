@@ -4,7 +4,7 @@
 mod mission;
 use grave_engine::{
     Materials,
-    overhead::{FlightInput, Point},
+    overhead::{FlightInput, Point, space::Space},
 };
 use mission::{Mission, Phase};
 fn wait(g: &mut Mission, m: &Materials, n: usize) {
@@ -83,13 +83,19 @@ fn winch_drop_then_cannon_lights_the_native_oil_spill() {
     let m = Materials::load_dir("materials");
     let mut g = Mission::new(&m);
     g.start();
-    relocate(&mut g, Point::new(50., 113., 31.));
+    let b = g.barrels[0].at;
+    relocate(
+        &mut g,
+        Point::new(b[0] as f32 + 3., b[1] as f32 + 3., b[2] as f32 + 29.),
+    );
     g.hook(&m);
     assert_eq!(g.held, Some(80));
     assert!(g.barrels[0].taken);
     let oil = m.id("oil").unwrap();
     assert!(g.cargo[0].cells.iter().any(|(_, c)| c.mat == oil));
-    g.cargo[0].at = Point::new(115., 78., 43.);
+    let px = g.base.x + 5.;
+    let py = g.base.y + 3.;
+    g.cargo[0].at = Point::new(px, py, 43.);
     g.hook(&m);
     assert_eq!(g.held, None);
     for _ in 0..100 {
@@ -100,9 +106,9 @@ fn winch_drop_then_cannon_lights_the_native_oil_spill() {
     }
     assert_eq!(g.cargo[0].state, CargoState::Deployed);
     let mut spill = None;
-    for y in 70..90 {
+    for y in py as usize - 10..py as usize + 20 {
         for z in 2..14 {
-            for x in 105..130 {
+            for x in px as usize - 10..px as usize + 20 {
                 let p = Point::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
                 if g.world.material_at(p) == oil {
                     spill = Some(p);
@@ -120,15 +126,64 @@ fn winch_drop_then_cannon_lights_the_native_oil_spill() {
     g.world.step(&m);
     assert!(
         g.world
-            .sections
-            .iter()
-            .any(|s| s.world.flags.iter().any(|f| f & BURNING != 0)),
+            .regions
+            .values()
+            .any(|r| r.volume.sections.iter().any(|s| s
+                .world
+                .flags
+                .iter()
+                .any(|f| f & BURNING != 0))),
         "cannon failed to ignite the dropped oil"
     );
 }
 #[test]
-fn untouched_installations_stay_intact_without_player_fire(){
- let m=Materials::load_dir("materials");let mut g=Mission::new(&m);g.start();
- for _ in 0..300 {g.step(FlightInput::default(),false,false,&m);}
- for u in &g.units{let t=g.combat.target(u.id).unwrap();assert!(t.health>t.max_health*0.85,"{} fell apart before combat: {}/{}",u.name,t.health,t.max_health);}
+fn untouched_installations_stay_intact_without_player_fire() {
+    let m = Materials::load_dir("materials");
+    let mut g = Mission::new(&m);
+    g.start();
+    for _ in 0..300 {
+        g.step(FlightInput::default(), false, false, &m);
+    }
+    for u in &g.units {
+        let t = g.combat.target(u.id).unwrap();
+        assert!(
+            t.health > t.max_health * 0.85,
+            "{} fell apart before combat: {}/{}",
+            u.name,
+            t.health,
+            t.max_health
+        );
+    }
+}
+#[test]
+#[ignore = "manual sustained-combat performance benchmark"]
+fn sustained_rockets_keep_local_materials_and_rubble_running() {
+    let m = Materials::load_dir("materials");
+    let mut g = Mission::new(&m);
+    g.start();
+    let p = g.combat.target(13).unwrap().bounds.centre();
+    relocate(&mut g, Point::new(p.x - 42., p.y + 8., 65.));
+    // Benchmark protection prevents enemy health loss from prematurely stopping
+    // the workload. It does not change ammunition, impacts or material physics.
+    g.combat.target_mut(0).unwrap().health = 100000.;
+    g.selected = 1;
+    let mut times = Vec::new();
+    let mut peak = 0;
+    for frame in 0..1800 {
+        g.aim = Point::new(
+            p.x + ((frame / 47) % 5) as f32 * 4. - 8.,
+            p.y + ((frame / 83) % 3) as f32 * 5. - 5.,
+            p.z,
+        );
+        let start = std::time::Instant::now();
+        g.step(FlightInput::default(), true, false, &m);
+        times.push(start.elapsed().as_secs_f64() * 1000.);
+        peak = peak.max(g.world.fragment_count());
+    }
+    assert_eq!(g.ammo[1], 0);
+    times.sort_by(f64::total_cmp);
+    println!(
+        "36 real rockets, 1800 mission ticks: median {:.1}ms p95 {:.1}ms max {:.1}ms, peak {} fragments",
+        times[900], times[1710], times[1799], peak
+    );
 }

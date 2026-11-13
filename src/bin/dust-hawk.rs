@@ -6,6 +6,7 @@ use grave_engine::{
     overhead::{
         FlightInput, Point,
         cargo::CargoState,
+        space::Space,
         view::{Instance, Viewport, VisualCell},
     },
 };
@@ -22,6 +23,7 @@ struct App {
     game: Mission,
     view: Viewport,
     texture: Option<egui::TextureHandle>,
+    rendered_frame: Option<u32>,
     last: Instant,
     clock: f32,
     camera: Point,
@@ -39,19 +41,20 @@ impl App {
     fn new() -> Self {
         let m = Materials::load_dir("materials");
         let game = Mission::new(&m);
-        let camera = Point::new(115., 82., 12.);
+        let camera = Point::new(game.craft.at.x, game.craft.at.y, 12.);
         let mut view = Viewport::new(900, 560);
-        view.projection.scale = 1.85;
+        view.projection.scale = 2.45;
         view.ground_color = Some([190, 164, 118]);
         Self {
             m,
             game,
             view,
             texture: None,
+            rendered_frame: None,
             last: Instant::now(),
             clock: 0.,
             camera,
-            zoom: 1.85,
+            zoom: 2.45,
             paused: false,
             map: false,
             map_texture: None,
@@ -65,7 +68,8 @@ impl App {
     fn reset(&mut self) {
         self.game = Mission::new(&self.m);
         self.clock = 0.;
-        self.camera = Point::new(115., 82., 12.);
+        self.rendered_frame = None;
+        self.camera = Point::new(self.game.craft.at.x, self.game.craft.at.y, 12.);
         self.paused = false;
         self.map = false;
         self.fx.clear();
@@ -113,8 +117,8 @@ impl App {
             craft.z * 0.46,
         );
         let target = Point::new(
-            target.x.clamp(115., 145.),
-            target.y.clamp(62., 82.),
+            target.x.clamp(5., self.game.world.width as f32 - 5.),
+            target.y.clamp(5., self.game.world.depth as f32 - 5.),
             target.z,
         );
         self.camera = self.camera.lerp(target, 0.045);
@@ -200,29 +204,23 @@ impl App {
         let target = (self.zoom - speed * 0.0025).clamp(1.25, 3.3);
         self.view.projection.scale += (target - self.view.projection.scale) * 0.08;
         self.view
-            .draw(&self.game.world, &self.m, self.camera, &instances, &tracers);
+            .draw_map(&self.game.world, &self.m, self.camera, &instances, &tracers);
     }
     fn map_image(&mut self, ctx: &egui::Context) {
         let v = &self.game.world;
-        let mut pixels = vec![0u8; v.width * v.depth * 4];
-        for y in 0..v.depth {
-            for x in 0..v.width {
-                let mut color = [56, 52, 41];
-                for z in (0..v.height).rev() {
-                    let p = Point::new(x as f32, y as f32, z as f32);
-                    let id = v.material_at(p);
-                    if id != 0 && self.m.get(id).state != grave_engine::State::Gas {
-                        let (_, i) = v.index(p).unwrap();
-                        color = grave_engine::asset::paint_rgb(v.sections[y].world.paint[i])
-                            .unwrap_or(self.m.get(id).color);
-                        break;
-                    }
-                }
-                let i = (y * v.width + x) * 4;
+        let (w, h) = (384, 288);
+        let mut pixels = vec![0u8; w * h * 4];
+        for y in 0..h {
+            for x in 0..w {
+                let (_, color) = v.surface(
+                    x as f32 / w as f32 * v.width as f32,
+                    y as f32 / h as f32 * v.depth as f32,
+                );
+                let i = (y * w + x) * 4;
                 pixels[i..i + 4].copy_from_slice(&[color[0], color[1], color[2], 255]);
             }
         }
-        let img = egui::ColorImage::from_rgba_unmultiplied([v.width, v.depth], &pixels);
+        let img = egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
         if let Some(t) = &mut self.map_texture {
             t.set(img, egui::TextureOptions::NEAREST);
         } else {
@@ -243,7 +241,10 @@ impl App {
         p.rect_filled(area, 8., Color32::from_rgb(24, 31, 28));
         let map = Rect::from_min_size(
             area.min + Vec2::new(20., 60.),
-            Vec2::new(area.width() * 0.69, area.width() * 0.69 * 0.6),
+            Vec2::new(
+                area.width() * 0.69,
+                area.width() * 0.69 * self.game.world.depth as f32 / self.game.world.width as f32,
+            ),
         );
         if let Some(t) = &self.map_texture {
             p.image(
@@ -262,8 +263,8 @@ impl App {
         );
         let point = |q: Point| {
             Pos2::new(
-                map.left() + q.x / 240. * map.width(),
-                map.top() + q.y / 144. * map.height(),
+                map.left() + q.x / self.game.world.width as f32 * map.width(),
+                map.top() + q.y / self.game.world.depth as f32 * map.height(),
             )
         };
         let yellow = Color32::from_rgb(245, 198, 85);
@@ -287,7 +288,7 @@ impl App {
                         };
                     p.with_clip_rect(map).circle_stroke(
                         pos,
-                        r / 240. * map.width(),
+                        r / self.game.world.width as f32 * map.width(),
                         Stroke::new(0.5, Color32::from_rgba_unmultiplied(220, 80, 55, 50)),
                     );
                 } else {
@@ -344,6 +345,16 @@ impl App {
             egui::FontId::proportional(10.),
             Color32::LIGHT_GREEN,
         );
+        for base in &self.game.service_bases {
+            p.circle_filled(point(*base), 5., Color32::LIGHT_GREEN);
+            p.text(
+                point(*base) + Vec2::new(7., 0.),
+                egui::Align2::LEFT_CENTER,
+                "SERVICE",
+                egui::FontId::proportional(10.),
+                Color32::LIGHT_GREEN,
+            );
+        }
         p.circle_filled(point(self.game.craft.at), 5., Color32::WHITE);
         let x = map.right() + 20.;
         let mut y = map.top();
@@ -409,7 +420,7 @@ impl App {
             (format!("Air defences remaining: {defences}"), defences == 0),
             (
                 format!(
-                    "Supply caches: {}/4",
+                    "Supply caches: {}",
                     self.game.supplies.iter().filter(|s| s.taken).count()
                 ),
                 false,
@@ -439,47 +450,57 @@ impl App {
         p.text(Pos2::new(map.left(),map.bottom()+24.),egui::Align2::LEFT_TOP,"Red rings: detection range. Radar reduces it. Power disables guided SAMs.\nGreen squares: supplies. Cyan: rescue. Gold rings: portable oil barrels.\nHover slowly at low altitude to collect supplies or winch people aboard.",egui::FontId::proportional(14.),Color32::from_rgb(200,203,179));
     }
     fn stress(&mut self) {
+        grave_engine::profile::enable(true);
+        grave_engine::profile::reset();
         for _ in 0..120 {
+            self.game.world.focus = self.game.craft.at;
             self.game.world.step(&self.m);
         }
-        for at in [
-            Point::new(54., 25., 49.),
-            Point::new(201., 21., 56.),
-            Point::new(120., 95., 17.),
-            Point::new(196., 78., 18.),
-            Point::new(74., 61., 14.),
-            Point::new(207., 122., 17.),
-            Point::new(102., 126., 18.),
-        ] {
+        let sites: Vec<_> = self
+            .game
+            .units
+            .iter()
+            .map(|u| self.game.combat.target(u.id).unwrap().bounds.centre())
+            .collect();
+        for at in sites {
             self.game.world.heat(at, 9., 850.);
         }
+        self.game.craft.at = self.game.combat.target(12).unwrap().bounds.centre();
+        self.game.craft.at.z = 48.;
+        self.camera = Point::new(self.game.craft.at.x, self.game.craft.at.y, 12.);
         let mut steps = Vec::new();
         let mut renders = Vec::new();
         let mut max_fragments = 0;
-        for frame in 0..600 {
+        for frame in 0..3600 {
             let started = Instant::now();
+            self.game.world.focus = self.game.craft.at;
             self.game.world.step(&self.m);
             steps.push(started.elapsed().as_secs_f64() * 1000.);
-            max_fragments = max_fragments.max(self.game.world.debris.states().len());
-            if frame % 10 == 0 {
+            max_fragments = max_fragments.max(self.game.world.fragment_count());
+            if frame % 30 == 0 {
                 let start = Instant::now();
                 self.draw_world();
                 renders.push(start.elapsed().as_secs_f64() * 1000.);
             }
-            if frame % 120 == 119 {
+            if frame % 600 == 599 {
                 println!(
                     "Stress frame {}: {} fragments, {} sky cells",
                     frame + 1,
-                    self.game.world.debris.states().len(),
-                    self.game.world.plumes.len()
+                    self.game.world.fragment_count(),
+                    self.game.world.plume_count()
                 );
             }
         }
         steps.sort_by(f64::total_cmp);
         renders.sort_by(f64::total_cmp);
         println!(
-            "All-seven-site fire stress: tick median {:.1}ms / p95 {:.1}ms / max {:.1}ms; render median {:.1}ms / p95 {:.1}ms; peak {} fragments",
-            steps[300], steps[570], steps[599], renders[30], renders[57], max_fragments
+            "Scrolling map all-sites fire stress: tick median {:.1}ms / p95 {:.1}ms / max {:.1}ms; render median {:.1}ms / p95 {:.1}ms; peak {} fragments",
+            steps[steps.len() / 2],
+            steps[steps.len() * 95 / 100],
+            steps[steps.len() - 1],
+            renders[renders.len() / 2],
+            renders[renders.len() * 95 / 100],
+            max_fragments
         );
         self.draw_world();
         grave_engine::headless::write_png(
@@ -490,10 +511,12 @@ impl App {
             2,
         )
         .unwrap();
+        println!("{}", grave_engine::profile::report());
     }
     fn showcase(&mut self) {
         self.game.start();
-        self.game.craft.at = Point::new(161., 91., 50.);
+        let c = self.game.combat.target(13).unwrap().bounds.centre();
+        self.game.craft.at = Point::new(c.x - 32., c.y + 15., 60.);
         self.game.aim = self.game.combat.target(13).unwrap().bounds.centre();
         self.game.lock_target = Some(13);
         self.game.lock = 1.;
@@ -509,7 +532,7 @@ impl App {
             !self.game.alive(13),
             "actual guided shots failed to destroy command"
         );
-        self.camera = Point::new(173., 83., 13.);
+        self.camera = Point::new(c.x, c.y, 13.);
         self.zoom = 2.2;
         self.draw_world();
         grave_engine::headless::write_png(
@@ -521,11 +544,14 @@ impl App {
         )
         .unwrap();
         // A deliberately ignited fuel test checks tall fire and open atmosphere.
-        self.game.world.heat(Point::new(119., 94., 17.), 9., 850.);
+        let p = self.game.combat.target(12).unwrap().bounds.centre();
+        self.game.craft.at = Point::new(p.x, p.y, 48.);
+        self.game.world.heat(p, 9., 850.);
         for _ in 0..180 {
+            self.game.world.focus = self.game.craft.at;
             self.game.world.step(&self.m);
         }
-        self.camera = Point::new(133., 91., 12.);
+        self.camera = Point::new(p.x, p.y, 12.);
         self.draw_world();
         grave_engine::headless::write_png(
             std::path::Path::new("shots/red-mesa-fire.png"),
@@ -537,7 +563,7 @@ impl App {
         .unwrap();
         println!(
             "Actual command destruction and fuel burn screenshots saved; {} plume cells above the grid",
-            self.game.world.plumes.len()
+            self.game.world.plume_count()
         );
     }
     fn verify(&mut self) {
@@ -553,13 +579,9 @@ impl App {
         )
         .unwrap();
         // Tour every installation at a safe altitude; exercise actual material steps.
-        for at in [
-            Point::new(50., 26., 68.),
-            Point::new(200., 22., 74.),
-            Point::new(120., 95., 45.),
-            Point::new(198., 78., 48.),
-            Point::new(195., 123., 44.),
-        ] {
+        for id in [10, 11, 12, 13] {
+            let p = self.game.combat.target(id).unwrap().bounds.centre();
+            let at = Point::new(p.x, p.y, 74.);
             self.game.craft.at = at;
             self.camera = Point::new(at.x, at.y, at.z * 0.4);
             for _ in 0..6 {
@@ -589,6 +611,49 @@ impl App {
             self.game.rescues.iter().map(|r| r.people).sum::<u32>(),
             self.game.barrels.len(),
             self.game.step_ms
+        );
+        // Real controller input crosses many original-town widths continuously.
+        self.reset();
+        self.game.craft.at.z = 74.;
+        let start = self.game.craft.at;
+        for frame in 0..1400 {
+            self.game.craft.step(
+                FlightInput {
+                    movement: [1., -0.65],
+                    ..Default::default()
+                },
+                &self.game.world,
+                &self.m,
+                1. / 60.,
+            );
+            self.game.world.focus = self.game.craft.at;
+            self.game.world.step(&self.m);
+            let at = self.game.craft.at;
+            self.camera = Point::new(at.x, at.y, at.z * 0.46);
+            if frame == 400 || frame == 900 || frame == 1399 {
+                self.draw_world();
+                grave_engine::headless::write_png(
+                    std::path::Path::new(&format!("shots/red-mesa-scroll-{frame}.png")),
+                    self.view.width,
+                    self.view.height,
+                    &self.view.pixels,
+                    2,
+                )
+                .unwrap();
+            }
+        }
+        assert!(
+            self.game.craft.at.distance(start) > 1100.,
+            "continuous traversal failed"
+        );
+        println!(
+            "Continuous flight: {:?} to {:?}; camera {:?}; map {}x{}; active patches {}",
+            start,
+            self.game.craft.at,
+            self.camera,
+            self.game.world.width,
+            self.game.world.depth,
+            self.game.world.active_regions
         );
         println!("{}", grave_engine::profile::report());
     }
@@ -786,15 +851,24 @@ impl eframe::App for App {
             self.tap_fire = false;
             self.tap_heavy = false;
         }
-        self.draw_world();
-        let image = egui::ColorImage::from_rgba_unmultiplied(
-            [self.view.width, self.view.height],
-            &self.view.pixels,
-        );
-        if let Some(t) = &mut self.texture {
-            t.set(image, egui::TextureOptions::NEAREST);
-        } else {
-            self.texture = Some(ctx.load_texture("red-mesa", image, egui::TextureOptions::NEAREST));
+        let speed = self.game.craft.velocity.x.hypot(self.game.craft.velocity.y);
+        let wanted = (self.zoom - speed * 0.0025).clamp(1.25, 3.3);
+        if self.texture.is_none()
+            || self.rendered_frame != Some(self.game.world.frame)
+            || (wanted - self.view.projection.scale).abs() > 0.001
+        {
+            self.draw_world();
+            let image = egui::ColorImage::from_rgba_unmultiplied(
+                [self.view.width, self.view.height],
+                &self.view.pixels,
+            );
+            if let Some(t) = &mut self.texture {
+                t.set(image, egui::TextureOptions::NEAREST);
+            } else {
+                self.texture =
+                    Some(ctx.load_texture("red-mesa", image, egui::TextureOptions::NEAREST));
+            }
+            self.rendered_frame = Some(self.game.world.frame);
         }
         let p = ui.painter();
         p.image(
@@ -1080,7 +1154,7 @@ impl eframe::App for App {
             };
             let text = match self.game.phase {
                 Phase::Briefing => {
-                    "An enemy radar network protects Red Mesa.\nDestroy both arrays, cut power to the SAMs,\nrescue six people and neutralise command.\nReturn to the landing zone to finish.\n\nChoose your ammunition. Use cliffs as cover.\nG can sling an oil barrel into an enemy position.\nM opens your map. E/Q changes altitude."
+                    "Explore the large scrolling Red Mesa desert.\nDestroy both arrays, cut power to the SAMs,\nrescue six people and neutralise command.\nReturn to the landing zone to finish.\n\nChoose your ammunition. Use cliffs as cover.\nG can sling an oil barrel into an enemy position.\nM opens your map. E/Q changes altitude."
                 }
                 Phase::Won => {
                     "All primary objectives complete.\nYour crew and survivors made it home.\nTry clearing every defence and the ammo depot\nfor a higher score on the next sortie."
@@ -1140,7 +1214,12 @@ impl eframe::App for App {
                 self.game.craft.velocity.x.hypot(self.game.craft.velocity.y),
             );
         }
-        ctx.request_repaint();
+        if ctx.input(|i| i.focused) && !self.paused && !self.map && self.game.phase == Phase::Flying
+        {
+            ctx.request_repaint();
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
     }
 }
 fn main() -> eframe::Result {
@@ -1174,6 +1253,28 @@ fn main() -> eframe::Result {
 mod tests {
     use super::*;
     use egui_kittest::Harness;
+    #[test]
+    fn game_camera_scrolls_far_beyond_the_old_town_bounds() {
+        let mut app = App::new();
+        app.game.start();
+        app.game.craft.at.z = 74.;
+        for _ in 0..480 {
+            app.tick(
+                FlightInput {
+                    movement: [1., 0.],
+                    ..Default::default()
+                },
+                false,
+                false,
+            );
+        }
+        assert!(
+            app.game.craft.at.x > 500.,
+            "flight stopped at a regional boundary"
+        );
+        assert!(app.camera.x > 480., "camera was clamped to the old display");
+        assert!(app.game.world.active_regions < 8);
+    }
     #[test]
     fn quick_mouse_taps_fire_once_and_pause_discards_old_input() {
         let mut h = Harness::builder()

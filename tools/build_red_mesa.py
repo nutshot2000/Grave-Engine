@@ -84,5 +84,10 @@ for id,kind,x,y,z in enemies:ops+=f'target {id} {kind} '+('SAM_BATTERY' if kind=
 for id,x,y,z in barrels:ops+=f'barrel {id} {x} {y} {z}\n'
 for id,x,y,z,n,name in [(50,185,134,4,3,'CAPTIVES'),(51,131,59,4,2,'DOWNED_CREW'),(52,69,37,12,1,'ENGINEER')]:ops+=f'rescue {id} {name} {x} {y} {z} {n}\n'
 for id,kind,x,y,z in [(60,'ammo',53,128,7),(61,'fuel',121,120,7),(62,'armour',183,107,7),(63,'ammo',229,74,7)]:ops+=f'cache {id} {kind} {x} {y} {z}\n'
-(ROOT/'assets/missions/red-mesa.ops').write_text(ops)
+(ROOT/'assets/missions/red-mesa-lab.ops').write_text(ops)
 print('Built Red Mesa:',len(props),'buildings,',len(enemies),'defences,',len(barrels),'portable barrels')
+
+# Keep the playable scrolling mission current when rebuilding the shared props.
+if __name__ == "__main__":
+ import runpy
+ runpy.run_path(str(ROOT/"tools/build_red_mesa_map.py"),run_name="__main__")

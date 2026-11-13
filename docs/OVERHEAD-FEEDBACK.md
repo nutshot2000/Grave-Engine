@@ -1,5 +1,23 @@
 # What the overhead flight test adds, and what should come next
 
+## Current correction: scrolling map and sustained performance
+
+The dense Red Mesa town was too small and slowed down as destruction accumulated. It has been replaced by a **1,536 × 1,152** scrolling operation: 16 separated regions, 19 targets/defences, branching roads and ridges, three landing/service zones, distributed rescues and supply locations. The actual follow camera is regression-tested beyond the old town bounds; a continuous flight check crosses more than 1,100 cells.
+
+New reusable engine pieces:
+
+- `Space` lets flight, picking, combat and sling cargo operate on either a bounded `Volume` or sparse `WorldMap`.
+- Native material volumes allocate for authored/damaged 64-cell patches. The large empty travel area uses a collision-backed heightfield instead of a dense air grid.
+- Full-rate nearby simulation, with persistent native material/body state and deterministic round-robin distant work. Remote changed regions advance at up to 5 Hz, capped at one remote patch per map tick. They therefore advance more slowly when many distant fires are active. Material values and local burn rules remain unchanged.
+- View-based patch/effect culling, coarse terrain presentation, bloom confined to the lit rectangle, and cached frames while paused/unfocused.
+- Global projectile/cargo coordinates work across patch boundaries. A blast crossing a boundary emits one gameplay event rather than applying duplicate damage.
+
+The historical dense-town timings below are superseded by this implementation. Larger maps are now possible, but this is sparse allocation, not disk streaming: damaged patches remain resident. The next memory improvement is compressed region snapshots with a residency limit. Cross-patch rigid contacts and continuous fluid/fire transfer also need work; rigid fragments still belong to a local patch's physical space.
+
+Validation: the full test suite passes, including the legacy bounded-volume tests. New checks cover continuous traversal, the actual game's follow camera, persistent damage, bounded/fair remote scheduling, projectile/blast boundaries, and rubble landing beyond a material patch. A manual sustained-combat benchmark fired all 36 real rockets and ran 1,800 mission ticks: simulation median **9.8 ms**, p95 **12.7 ms**, maximum **17.5 ms**, peak **527** fragments. The benchmark protects the helicopter from premature death; ammunition, impacts and material physics remain normal. Rendering/UI costs are additional. Run it with `cargo test --release --test dust_hawk sustained_rockets -- --ignored --nocapture`.
+
+Coarse terrain collision patches are supplied on demand around travelling fragments, so rubble leaving a material plot lands at the surrounding terrain's height. This does not yet merge rigid collision worlds between neighbouring plots.
+
 Implemented: shared 3D rigid rubble with XYZ blast scatter, tumbling, terrain/rubble contacts, settling, material state and continued burning; height-aware flying and swept projectiles; isometric view and surface picking; shared material fire/destruction through vertical sections; volume explosions; named reusable building/prop files; configurable aircraft controls; editor entry and standalone test.
 
 Priorities from this test:

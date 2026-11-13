@@ -1,26 +1,38 @@
-# id role name minX minY minZ width depth height health armour
-base 29 120 5
-target 10 radar WEST_RADAR 42 18 45 16 14 17 130 4
-target 11 radar EAST_RADAR 193 14 52 16 14 17 150 6
-target 12 power POWER_STATION 105 83 6 32 24 21 180 10
-target 13 command COMMAND_CENTRE 177 64 6 38 28 29 230 15
-target 14 armoury AMMUNITION_DUMP 58 48 6 32 26 24 130 5
-target 21 aa AA_CANNON 36 52 4 12 12 12 70 4
-target 22 aa AA_CANNON 77 70 4 12 12 12 70 4
-target 23 sam SAM_BATTERY 102 48 4 12 12 12 110 12
-target 24 aa AA_CANNON 159 96 4 12 12 12 70 4
-target 25 sam SAM_BATTERY 165 42 4 12 12 12 110 12
-target 26 aa AA_CANNON 217 97 4 12 12 12 70 4
-target 27 sam SAM_BATTERY 212 53 4 12 12 12 110 12
-target 28 aa AA_CANNON 150 114 4 12 12 12 70 4
-barrel 80 47 110 3
-barrel 81 92 92 3
-barrel 82 174 120 3
-barrel 83 65 79 3
-rescue 50 CAPTIVES 185 134 4 3
-rescue 51 DOWNED_CREW 131 59 4 2
-rescue 52 ENGINEER 69 37 12 1
-cache 60 ammo 53 128 7
-cache 61 fuel 121 120 7
-cache 62 armour 183 107 7
-cache 63 ammo 229 74 7
+base 160 992 5
+barrel 80 178 989 4
+cache 60 ammo 140 1007 8
+target 10 radar WEST_RADAR 277 657 46 16 14 17 130 4
+target 21 aa AA_CANNON 301 643 13 12 12 12 70 4
+rescue 52 ENGINEER 271 692 13 1
+cache 61 fuel 263 648 16
+target 11 radar EAST_RADAR 1175 211 54 16 14 17 150 6
+target 23 sam SAM_BATTERY 1155 196 21 12 12 12 110 12
+cache 62 ammo 1205 242 24
+target 12 power POWER_STATION 656 597 7 32 24 21 180 10
+target 22 aa AA_CANNON 644 579 5 12 12 12 70 4
+barrel 81 690 616 4
+cache 63 armour 649 630 8
+target 13 command COMMAND_CENTRE 1229 853 15 38 28 29 230 15
+target 24 sam SAM_BATTERY 1220 835 13 12 12 12 110 12
+target 25 aa AA_CANNON 1263 835 13 12 12 12 70 4
+target 14 armoury AMMUNITION_DUMP 464 341 7 32 26 24 130 5
+target 26 aa AA_CANNON 493 323 5 12 12 12 70 4
+cache 64 ammo 454 371 8
+target 27 sam SAM_BATTERY 1284 964 5 12 12 12 110 12
+rescue 50 CAPTIVES 1294 1013 5 3
+cache 65 fuel 1336 1009 8
+target 28 aa AA_CANNON 580 900 5 12 12 12 70 4
+barrel 82 629 944 4
+cache 66 armour 583 950 8
+rescue 51 DOWNED_CREW 798 420 5 2
+target 29 aa AA_CANNON 815 387 5 12 12 12 70 4
+barrel 83 774 430 4
+target 30 aa AA_CANNON 282 856 5 12 12 12 70 4
+target 31 sam SAM_BATTERY 538 664 5 12 12 12 110 12
+target 32 sam SAM_BATTERY 858 280 5 12 12 12 110 12
+target 33 aa AA_CANNON 1114 664 5 12 12 12 70 4
+target 34 aa AA_CANNON 1178 920 5 12 12 12 70 4
+service 736 224 5
+cache 78 fuel 713 237 8
+service 1312 608 5
+cache 87 fuel 1289 621 8

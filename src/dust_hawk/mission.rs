@@ -2,9 +2,10 @@
 use grave_engine::{
     Materials,
     overhead::{
-        Aircraft, FlightInput, Point, Volume,
+        Aircraft, FlightInput, Point,
         cargo::Cargo,
         combat::{Bounds, Combat, Target, Weapon},
+        map::WorldMap,
     },
 };
 use std::path::Path;
@@ -89,7 +90,7 @@ pub enum Phase {
     Lost,
 }
 pub struct Mission {
-    pub world: Volume,
+    pub world: WorldMap,
     pub craft: Aircraft,
     pub combat: Combat,
     pub units: Vec<Unit>,
@@ -99,6 +100,7 @@ pub struct Mission {
     pub cargo: Vec<Cargo>,
     pub held: Option<u32>,
     pub base: Point,
+    pub service_bases: Vec<Point>,
     pub fuel: f32,
     pub ammo: [u32; 3],
     pub selected: usize,
@@ -123,7 +125,7 @@ pub struct Mission {
 impl Mission {
     pub fn new(m: &Materials) -> Self {
         let (world, spawn) =
-            Volume::load(Path::new("scenes/red-mesa.flight"), m).expect("Red Mesa material level");
+            WorldMap::load(Path::new("scenes/red-mesa.map"), m).expect("Red Mesa material level");
         let mut me = Self {
             world,
             craft: Aircraft::new(spawn),
@@ -134,7 +136,8 @@ impl Mission {
             barrels: vec![],
             cargo: vec![],
             held: None,
-            base: Point::new(29., 120., 5.),
+            base: Point::new(160., 992., 5.),
+            service_bases: vec![],
             fuel: 100.,
             ammo: [700, 36, 8],
             selected: 0,
@@ -165,6 +168,7 @@ impl Mission {
             let n = |i: usize| t[i].parse::<f32>().unwrap();
             match t[0] {
                 "base" => me.base = Point::new(n(1), n(2), n(3)),
+                "service" => me.service_bases.push(Point::new(n(1), n(2), n(3))),
                 "target" => {
                     let id = t[1].parse().unwrap();
                     let role = match t[2] {
@@ -419,7 +423,9 @@ impl Mission {
         }
         let radars = self.remaining_radars();
         let power = self.alive(12);
-        let safe = (self.craft.at.x - self.base.x).hypot(self.craft.at.y - self.base.y) < 30.;
+        let safe = std::iter::once(&self.base)
+            .chain(self.service_bases.iter())
+            .any(|p| (self.craft.at.x - p.x).hypot(self.craft.at.y - p.y) < 30.);
         for u in &mut self.units {
             if !self.combat.alive(u.id) || !matches!(u.role, Role::Aa | Role::Sam) {
                 continue;
@@ -466,6 +472,7 @@ impl Mission {
         }
         let before = self.health();
         self.combat.step(&mut self.world, m, DT);
+        self.world.focus = self.craft.at;
         self.world.step(m);
         self.combat.environment(&mut self.world, m);
         if self.health() < before {
@@ -555,7 +562,10 @@ impl Mission {
         if let Some(s) = supply_msg {
             self.message(s);
         }
-        let base_distance = (self.base.x - self.craft.at.x).hypot(self.base.y - self.craft.at.y);
+        let base_distance = std::iter::once(&self.base)
+            .chain(self.service_bases.iter())
+            .map(|p| (p.x - self.craft.at.x).hypot(p.y - self.craft.at.y))
+            .fold(f32::INFINITY, f32::min);
         if base_distance < 13. && self.craft.at.z < 15. && speed < 9. {
             self.service += DT;
             if self.service > 1.5 {
