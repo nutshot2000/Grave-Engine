@@ -15,6 +15,8 @@ pub(super) struct AnimationEditor {
     texture: Option<TextureHandle>,
     source: String,
     events: String,
+    selected_action: String,
+    selected_state: String,
 }
 
 impl Default for AnimationEditor {
@@ -31,6 +33,8 @@ impl Default for AnimationEditor {
             texture: None,
             source: String::new(),
             events: String::new(),
+            selected_action: String::new(),
+            selected_state: String::new(),
         }
     }
 }
@@ -115,7 +119,30 @@ impl AnimationEditor {
                     for (p, value) in &mut self.preview.parameters {
                         cols[0].horizontal(|ui| { ui.label(p); ui.add(egui::DragValue::new(value).speed(0.1)); });
                     }
-                    for p in self.preview.graph.triggers.clone() { if cols[0].button(format!("Trigger {p}")).clicked() { self.preview.trigger(&p); } }
+                    let triggers: Vec<_> = self.preview.graph.triggers.iter().cloned().collect();
+                    if triggers.len() <= 8 {
+                        for p in triggers { if cols[0].button(format!("Trigger {p}")).clicked() { self.preview.trigger(&p); } }
+                    } else {
+                        if !triggers.contains(&self.selected_action) { self.selected_action = triggers[0].clone(); }
+                        cols[0].horizontal(|ui| {
+                            ui.label("Action");
+                            egui::ComboBox::from_id_salt("preview_action").selected_text(&self.selected_action).show_ui(ui, |ui| {
+                                for p in &triggers { ui.selectable_value(&mut self.selected_action, p.clone(), p); }
+                            });
+                            if ui.button("Trigger action").clicked() { self.preview.trigger(&self.selected_action); }
+                        });
+                    }
+                    cols[0].horizontal(|ui| {
+                        ui.label("Inspect clip");
+                        if !self.graph.states.iter().any(|s| s.name == self.selected_state) { self.selected_state = self.graph.initial.clone(); }
+                        egui::ComboBox::from_id_salt("inspect_animation_state").selected_text(&self.selected_state).show_ui(ui, |ui| {
+                            for s in &self.graph.states { ui.selectable_value(&mut self.selected_state, s.name.clone(), &s.name); }
+                        });
+                        if ui.button("Play clip only").clicked() {
+                            let mut graph = self.graph.clone(); graph.initial = self.selected_state.clone(); graph.transitions.clear();
+                            match Animator::new(Arc::new(graph)) { Ok(a) => { self.preview = a; self.message = "Inspecting one clip. Restart preview restores transitions.".into(); }, Err(e) => self.message = e }
+                        }
+                    });
                     if self.running {
                         let e = self.preview.advance(dt.min(0.1), |c| look.map_or(1.0, |l| l.duration(c)));
                         if !e.is_empty() { self.events = e.iter().map(|e| format!("{}: {}", e.state, e.name)).collect::<Vec<_>>().join(", "); }

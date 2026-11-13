@@ -1,0 +1,252 @@
+# Mixamo FBX and Universal Animation Library states on the local rider.
+initial idle
+param dead 0
+param swimming 0
+param swim_moving 0
+param airborne 0
+param grounded 1
+param speed 0
+param vy 0
+param hurt 0
+trigger grab
+trigger climb
+trigger release
+trigger ual_crouch_fwd_loop
+trigger ual_crouch_idle_loop
+trigger ual_dance_loop
+trigger ual_driving_loop
+trigger ual_fixing_kneeling
+trigger ual_hit_chest
+trigger ual_hit_head
+trigger ual_idle_talking_loop
+trigger ual_idle_torch_loop
+trigger ual_interact
+trigger ual_jump_land
+trigger ual_jump_loop
+trigger ual_jump_start
+trigger ual_pickup_table
+trigger ual_pistol_aim_down
+trigger ual_pistol_aim_neutral
+trigger ual_pistol_aim_up
+trigger ual_pistol_idle_loop
+trigger ual_pistol_reload
+trigger ual_pistol_shoot
+trigger ual_punch_cross
+trigger ual_punch_jab
+trigger ual_push_loop
+trigger ual_roll
+trigger ual_sitting_enter
+trigger ual_sitting_exit
+trigger ual_sitting_idle_loop
+trigger ual_sitting_talking_loop
+trigger ual_spell_simple_enter
+trigger ual_spell_simple_exit
+trigger ual_spell_simple_idle_loop
+trigger ual_spell_simple_shoot
+trigger sprint
+trigger ual_swim_fwd_loop
+trigger ual_swim_idle_loop
+trigger ual_sword_attack
+trigger ual_sword_idle
+trigger ual_walk_formal_loop
+state idle clip idle loop speed 1
+state walk clip walk loop speed 1 rate speed 0.25 0.3 1.5
+state jump clip jump once speed 1
+state fall clip fall once speed 1
+state landing clip landing once speed 1
+state swim clip swim loop speed 1
+state tread clip tread loop speed 1
+state hang clip hang loop speed 1
+state climb clip climb once speed 1
+state die clip die once speed 1
+event landing 0 landed
+event climb 0.1 climbing
+state ual_crouch_fwd_loop clip ual_crouch_fwd_loop loop speed 1
+state ual_crouch_idle_loop clip ual_crouch_idle_loop loop speed 1
+state ual_dance_loop clip ual_dance_loop loop speed 1
+state ual_driving_loop clip ual_driving_loop loop speed 1
+state ual_fixing_kneeling clip ual_fixing_kneeling once speed 1
+state ual_hit_chest clip ual_hit_chest once speed 1
+state ual_hit_head clip ual_hit_head once speed 1
+state ual_idle_talking_loop clip ual_idle_talking_loop loop speed 1
+state ual_idle_torch_loop clip ual_idle_torch_loop loop speed 1
+state ual_interact clip ual_interact once speed 1
+state run clip run loop speed 1 rate speed 0.25 0.6 1.3
+state ual_jump_land clip ual_jump_land once speed 1
+state ual_jump_loop clip ual_jump_loop loop speed 1
+state ual_jump_start clip ual_jump_start once speed 1
+state ual_pickup_table clip ual_pickup_table once speed 1
+state ual_pistol_aim_down clip ual_pistol_aim_down loop speed 1
+state ual_pistol_aim_neutral clip ual_pistol_aim_neutral loop speed 1
+state ual_pistol_aim_up clip ual_pistol_aim_up loop speed 1
+state ual_pistol_idle_loop clip ual_pistol_idle_loop loop speed 1
+state ual_pistol_reload clip ual_pistol_reload once speed 1
+state ual_pistol_shoot clip ual_pistol_shoot once speed 1
+state ual_punch_cross clip ual_punch_cross once speed 1
+state ual_punch_jab clip ual_punch_jab once speed 1
+state ual_push_loop clip ual_push_loop loop speed 1
+state ual_roll clip ual_roll once speed 1
+state ual_sitting_enter clip ual_sitting_enter once speed 1
+state ual_sitting_exit clip ual_sitting_exit once speed 1
+state ual_sitting_idle_loop clip ual_sitting_idle_loop loop speed 1
+state ual_sitting_talking_loop clip ual_sitting_talking_loop loop speed 1
+state ual_spell_simple_enter clip ual_spell_simple_enter once speed 1
+state ual_spell_simple_exit clip ual_spell_simple_exit once speed 1
+state ual_spell_simple_idle_loop clip ual_spell_simple_idle_loop loop speed 1
+state ual_spell_simple_shoot clip ual_spell_simple_shoot once speed 1
+state sprint clip sprint loop speed 1
+state ual_swim_fwd_loop clip ual_swim_fwd_loop loop speed 1
+state ual_swim_idle_loop clip ual_swim_idle_loop loop speed 1
+state ual_sword_attack clip ual_sword_attack once speed 1
+state ual_sword_idle clip ual_sword_idle loop speed 1
+state ual_walk_formal_loop clip ual_walk_formal_loop loop speed 1
+event ual_pistol_shoot 0.04 shot
+event ual_punch_jab 0.12 hit
+event ual_punch_cross 0.14 hit
+event ual_sword_attack 0.2 hit
+transition * die priority 100 after 0 when dead > 0
+transition * hang priority 90 after 0 when grab > 0 & dead == 0
+transition hang climb priority 90 after 0 when climb > 0 & dead == 0
+transition idle climb priority 90 after 0 when climb > 0 & dead == 0
+transition hang idle priority 95 after 0 when release > 0 & dead == 0
+transition climb idle priority 95 after 0 when release > 0 & dead == 0
+transition climb idle priority 10 after 0 when finished > 0 & dead == 0
+transition idle swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition idle tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition idle jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition idle fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition walk swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition walk tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition walk jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition walk fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition jump swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition jump tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition jump fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition fall swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition fall tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition fall jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition landing swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition landing tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition landing jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition landing fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition swim tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition swim jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition swim fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition tread swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition tread jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition tread fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition jump landing priority 50 after 0 when grounded > 0 & airborne == 0 & swimming == 0 & dead == 0
+transition fall landing priority 50 after 0 when grounded > 0 & airborne == 0 & swimming == 0 & dead == 0
+transition idle walk priority 0 after 0 when speed > 0.4 & speed < 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition walk idle priority 0 after 0 when speed <= 0.4 & swimming == 0 & airborne == 0 & dead == 0
+transition landing walk priority 0 after 0 when speed > 0.4 & speed < 2.5 & swimming == 0 & airborne == 0 & dead == 0 & finished > 0
+transition landing idle priority 0 after 0 when speed <= 0.4 & swimming == 0 & airborne == 0 & dead == 0 & finished > 0
+transition swim walk priority 0 after 0 when speed > 0.4 & speed < 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition swim idle priority 0 after 0 when speed <= 0.4 & swimming == 0 & airborne == 0 & dead == 0
+transition tread walk priority 0 after 0 when speed > 0.4 & speed < 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition tread idle priority 0 after 0 when speed <= 0.4 & swimming == 0 & airborne == 0 & dead == 0
+transition * ual_crouch_fwd_loop priority 90 after 0 when ual_crouch_fwd_loop > 0 & dead == 0
+transition ual_crouch_fwd_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_crouch_idle_loop priority 90 after 0 when ual_crouch_idle_loop > 0 & dead == 0
+transition ual_crouch_idle_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_dance_loop priority 90 after 0 when ual_dance_loop > 0 & dead == 0
+transition ual_dance_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_driving_loop priority 90 after 0 when ual_driving_loop > 0 & dead == 0
+transition ual_driving_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_fixing_kneeling priority 90 after 0 when ual_fixing_kneeling > 0 & dead == 0
+transition ual_fixing_kneeling idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_fixing_kneeling idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_hit_chest priority 90 after 0 when ual_hit_chest > 0 & dead == 0
+transition ual_hit_chest idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_hit_chest idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_hit_head priority 90 after 0 when ual_hit_head > 0 & dead == 0
+transition ual_hit_head idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_hit_head idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_idle_talking_loop priority 90 after 0 when ual_idle_talking_loop > 0 & dead == 0
+transition ual_idle_talking_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_idle_torch_loop priority 90 after 0 when ual_idle_torch_loop > 0 & dead == 0
+transition ual_idle_torch_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_interact priority 90 after 0 when ual_interact > 0 & dead == 0
+transition ual_interact idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_interact idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_jump_land priority 90 after 0 when ual_jump_land > 0 & dead == 0
+transition ual_jump_land idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_jump_land idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_jump_loop priority 90 after 0 when ual_jump_loop > 0 & dead == 0
+transition ual_jump_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_jump_start priority 90 after 0 when ual_jump_start > 0 & dead == 0
+transition ual_jump_start idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_jump_start idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_pickup_table priority 90 after 0 when ual_pickup_table > 0 & dead == 0
+transition ual_pickup_table idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_pickup_table idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_pistol_aim_down priority 90 after 0 when ual_pistol_aim_down > 0 & dead == 0
+transition ual_pistol_aim_down idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_pistol_aim_neutral priority 90 after 0 when ual_pistol_aim_neutral > 0 & dead == 0
+transition ual_pistol_aim_neutral idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_pistol_aim_up priority 90 after 0 when ual_pistol_aim_up > 0 & dead == 0
+transition ual_pistol_aim_up idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_pistol_idle_loop priority 90 after 0 when ual_pistol_idle_loop > 0 & dead == 0
+transition ual_pistol_idle_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_pistol_reload priority 90 after 0 when ual_pistol_reload > 0 & dead == 0
+transition ual_pistol_reload idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_pistol_reload idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_pistol_shoot priority 90 after 0 when ual_pistol_shoot > 0 & dead == 0
+transition ual_pistol_shoot idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_pistol_shoot idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_punch_cross priority 90 after 0 when ual_punch_cross > 0 & dead == 0
+transition ual_punch_cross idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_punch_cross idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_punch_jab priority 90 after 0 when ual_punch_jab > 0 & dead == 0
+transition ual_punch_jab idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_punch_jab idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_push_loop priority 90 after 0 when ual_push_loop > 0 & dead == 0
+transition ual_push_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_roll priority 90 after 0 when ual_roll > 0 & dead == 0
+transition ual_roll idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_roll idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_sitting_enter priority 90 after 0 when ual_sitting_enter > 0 & dead == 0
+transition ual_sitting_enter idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_sitting_enter ual_sitting_idle_loop priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_sitting_exit priority 90 after 0 when ual_sitting_exit > 0 & dead == 0
+transition ual_sitting_exit idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_sitting_exit idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_sitting_idle_loop priority 90 after 0 when ual_sitting_idle_loop > 0 & dead == 0
+transition ual_sitting_idle_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_sitting_talking_loop priority 90 after 0 when ual_sitting_talking_loop > 0 & dead == 0
+transition ual_sitting_talking_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_spell_simple_enter priority 90 after 0 when ual_spell_simple_enter > 0 & dead == 0
+transition ual_spell_simple_enter idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_spell_simple_enter ual_spell_simple_idle_loop priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_spell_simple_exit priority 90 after 0 when ual_spell_simple_exit > 0 & dead == 0
+transition ual_spell_simple_exit idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_spell_simple_exit idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_spell_simple_idle_loop priority 90 after 0 when ual_spell_simple_idle_loop > 0 & dead == 0
+transition ual_spell_simple_idle_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_spell_simple_shoot priority 90 after 0 when ual_spell_simple_shoot > 0 & dead == 0
+transition ual_spell_simple_shoot idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_spell_simple_shoot idle priority 10 after 0 when finished > 0 & dead == 0
+transition * sprint priority 90 after 0 when sprint > 0 & dead == 0
+transition sprint idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_swim_fwd_loop priority 90 after 0 when ual_swim_fwd_loop > 0 & dead == 0
+transition ual_swim_fwd_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_swim_idle_loop priority 90 after 0 when ual_swim_idle_loop > 0 & dead == 0
+transition ual_swim_idle_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_sword_attack priority 90 after 0 when ual_sword_attack > 0 & dead == 0
+transition ual_sword_attack idle priority 95 after 0 when release > 0 & dead == 0
+transition ual_sword_attack idle priority 10 after 0 when finished > 0 & dead == 0
+transition * ual_sword_idle priority 90 after 0 when ual_sword_idle > 0 & dead == 0
+transition ual_sword_idle idle priority 95 after 0 when release > 0 & dead == 0
+transition * ual_walk_formal_loop priority 90 after 0 when ual_walk_formal_loop > 0 & dead == 0
+transition ual_walk_formal_loop idle priority 95 after 0 when release > 0 & dead == 0
+transition run swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition run tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition run jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0
+transition run fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & swimming == 0 & dead == 0
+transition run idle priority 0 after 0 when speed <= 0.4 & swimming == 0 & airborne == 0 & dead == 0
+transition run walk priority 0 after 0 when speed > 0.4 & speed < 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition idle run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition walk run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition landing run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0 & finished > 0
+transition swim run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0
+transition tread run priority 1 after 0 when speed >= 2.5 & swimming == 0 & airborne == 0 & dead == 0

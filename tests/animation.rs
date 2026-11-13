@@ -130,6 +130,50 @@ fn markers_outside_a_clip_do_not_fire_after_it_finishes() {
     }
 }
 
+#[test]
+fn imported_pack_switches_water_states_and_keeps_traversal_actions_stable() {
+    let mut a = player(include_str!("../assets/animations/mixamo-pack.graph"));
+    a.set("swimming", 1.0);
+    a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "tread");
+    a.set("swim_moving", 1.0);
+    a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "swim");
+    a.set("swim_moving", 0.0);
+    a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "tread");
+    a.set("swimming", 0.0);
+    a.advance(0.01, |_| 1.0);
+    a.trigger("grab"); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "hang");
+    a.set("airborne", 1.0); a.set("vy", 2.0);
+    a.advance(2.0, |_| 1.0);
+    assert_eq!(a.state().name, "hang", "movement rules must not interrupt hanging");
+    a.trigger("climb"); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "climb");
+    a.advance(0.5, |_| 1.0);
+    assert_eq!(a.state().name, "climb");
+    a.set("dead", 1.0); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "die");
+    a.reset(); a.trigger("climb"); a.advance(0.01, |_| 1.0);
+    a.advance(1.1, |_| 1.0);
+    assert_eq!(a.state().name, "idle");
+    a.trigger("grab"); a.advance(0.01, |_| 1.0);
+    a.trigger("release"); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "idle");
+    a.set("speed", 4.0); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "run");
+    a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "run", "gaits must not oscillate");
+    a.set("speed", 1.0); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "walk");
+    a.trigger("ual_sitting_enter"); a.advance(0.01, |_| 1.0);
+    a.advance(1.1, |_| 1.0);
+    assert_eq!(a.state().name, "ual_sitting_idle_loop");
+    a.trigger("release"); a.advance(0.01, |_| 1.0);
+    assert_eq!(a.state().name, "idle");
+}
+
 fn setup() -> (Materials, Sim) {
     let m = Materials::load_dir("materials");
     let (s, errors) = scene::load(

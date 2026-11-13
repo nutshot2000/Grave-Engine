@@ -1,5 +1,9 @@
 # NVIDIA Kimodo / Mixamo animation lab
 
+For the newer supplied FBX and Universal Animation Library setup, see
+[Imported animation lab](IMPORTED-ANIMATION-LAB.md). The launcher uses that
+local scene once it has been built. The original Kimodo outputs remain intact.
+
 Open `Play-Animation-Lab.cmd`, then click **Play** in the editor.
 Move with A/D or the arrow keys; W or Up jumps and swims upward.
 Stand still to watch the greeting wave. The course has steps, a raised

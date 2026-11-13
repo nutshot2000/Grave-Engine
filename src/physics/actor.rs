@@ -269,12 +269,13 @@ impl Physics {
         self.actors.get_mut(index).map_or_else(Vec::new, |a| std::mem::take(&mut a.animation_events))
     }
 
-    fn advance_animation(a: &mut Actor, bodies: &RigidBodySet) {
+    fn advance_animation(a: &mut Actor, bodies: &RigidBodySet, controls: Controls) {
         let v = bodies[a.handle].linvel();
         let anim = a.spec.animation.as_mut().unwrap();
         for (p, value) in [
             ("dead", (a.spec.dead_for > 0) as u8 as f32),
             ("swimming", (a.wet > 0.4) as u8 as f32),
+            ("swim_moving", (controls.walk.abs() > 0.1 || controls.jump) as u8 as f32),
             // Immediate takeoff for real jumps; ignore tiny contact corrections
             // from the animated collision outline while walking on a floor.
             ("airborne", (a.since_ground > 8 || (a.jump_wait > 0 && v.y < -0.2)) as u8 as f32),
@@ -605,7 +606,7 @@ impl Physics {
             }
             a.pending = 0.0;
             a.pending_cause = None;
-            Self::advance_animation(a, &self.set);
+            Self::advance_animation(a, &self.set, self.controls);
             Self::stamp_actor(a, &self.set, world, mats);
         }
     }

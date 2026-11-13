@@ -98,7 +98,8 @@ Export the draft before editing its text, then Import to validate it.
 
 Built-in actor inputs are `speed` (horizontal m/s, absolute), `vy` (vertical
 m/s, negative upward), and 0/1 values `grounded`, `airborne`, `swimming`,
-`dead`, `hurt`. These update automatically when declared in a graph.
+`dead`, `hurt`. `swim_moving` is 1 while movement or swim-up is held, allowing
+a graph to select a separate treading-water clip. These update automatically when declared in a graph.
 Other parameters belong to the game. Airborne has a short contact grace
 period, with immediate takeoff for actual jumps and bounce pads.
 
