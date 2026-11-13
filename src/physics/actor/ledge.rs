@@ -26,7 +26,7 @@ impl LedgeHold {
     fn hanging(self) -> (f32, f32) { (self.edge.0 as f32 - self.side * 3.7, self.edge.1 as f32 + 13.0) }
     fn top(self) -> (f32, f32) { (self.hanging().0, self.edge.1 as f32 - H as f32 / 2.0 - 0.25) }
     fn landing(self) -> (f32, f32) { (self.edge.0 as f32 + self.side * 5.0, self.top().1) }
-    fn position(self, seconds: f32) -> (f32, f32) {
+    pub(super) fn position(self, seconds: f32) -> (f32, f32) {
         if !self.climbing { return self.hanging(); }
         let p = (self.elapsed / seconds).clamp(0.0, 1.0);
         let (a, b, t) = if p < 0.7 { (self.hanging(), self.top(), p / 0.7) } else { (self.top(), self.landing(), (p - 0.7) / 0.3) };

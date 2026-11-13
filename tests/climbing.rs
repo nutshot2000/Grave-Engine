@@ -135,3 +135,30 @@ fn all_four_roofs_in_the_playable_course_are_reachable() {
         assert!((p.y+8.0-[212.0,188.0,162.0,138.0][roof]).abs()<1.0);
     }
 }
+
+#[test]
+fn the_crouched_climb_picture_contacts_the_roof_at_the_end() {
+    use grave_engine::animation::{Animator,Graph};
+    use grave_engine::look::{Look,Frame,Anim};
+    use grave_engine::physics::{ActorSpec,ClimbSettings,LedgeHold};
+    use std::sync::Arc;
+    let graph=Arc::new(Graph::parse("initial climb\nstate climb clip climb once speed 1\n").unwrap());
+    let frame=|| {
+        let mut rgba=vec![0;32*32*4];
+        for y in 2..=20 { for x in 15..=17 { rgba[(y*32+x)*4+3]=255; } }
+        Frame{w:32,h:32,rgba,mask:vec![false;320]}
+    };
+    let look=Arc::new(Look{graph:graph.clone(),name:"crouched-fixture".into(),dir:Default::default(),figure:16.0,feet:30.0,faces_right:true,anims:[("hang".into(),Anim{frames:vec![frame()],fps:1.0,looping:true}),("climb".into(),Anim{frames:vec![frame()],fps:1.0,looping:false})].into()});
+    let mut a=ActorSpec::standing_at(0,0.0,0.0);
+    a.look=Some(look);a.animation=Some(Animator::new(graph).unwrap());
+    a.climb=Some(ClimbSettings{reach:6.0,seconds:2.0});
+    for side in [-1.0,1.0] {
+        a.facing=side;
+        for elapsed in [1.6,1.8,1.99] {
+            a.ledge=Some(LedgeHold{edge:(90,126),side,climbing:true,elapsed});
+            let offset=a.visual_offset();
+            let visible_bottom=125.75+(21.0-30.0)+offset.1;
+            assert!((visible_bottom-126.0).abs()<0.001,"end pose floats: {visible_bottom}");
+        }
+    }
+}

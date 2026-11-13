@@ -127,7 +127,28 @@ impl ActorSpec {
         let hand_x = (x - frame.w as f32 / 2.0) * cpp * self.facing;
         let hand_y = (row as f32 + 0.5 - look.feet) * cpp;
         let fade = if h.climbing { (1.0 - h.elapsed / self.climb.unwrap_or_default().seconds / 0.65).clamp(0.0, 1.0) } else { 1.0 };
-        ((h.side * 3.7 - hand_x) * fade, (-21.0 - hand_y) * fade)
+        let mut offset = ((h.side * 3.7 - hand_x) * fade, (-21.0 - hand_y) * fade);
+        if h.climbing {
+            let seconds = self.climb.unwrap_or_default().seconds;
+            let progress = h.elapsed / seconds;
+            // The clip ends crouched, with its hands/feet above the standing
+            // baseline. Align its visible contact point with the roof instead
+            // of raising that crouched picture to standing height.
+            let blend = ((progress - 0.55) / 0.2).clamp(0.0, 1.0);
+            let blend = blend * blend * (3.0 - 2.0 * blend);
+            if blend > 0.0 {
+                if let Some(anim) = &self.animation {
+                    let (frame, _) = look.frame(&anim.state().clip, anim.sample_time(|c| look.duration(c)));
+                    if let Some(bottom) = (0..frame.h).rev().find(|&y| (0..frame.w).any(|x| frame.rgba[(y * frame.w + x) * 4 + 3] > 128)) {
+                        let picture_bottom = (bottom as f32 + 1.0 - look.feet) * cpp;
+                        let body_feet = h.position(seconds).1 + H as f32 / 2.0;
+                        let contact_offset = h.edge.1 as f32 - body_feet - picture_bottom;
+                        offset.1 += (contact_offset - offset.1) * blend;
+                    }
+                }
+            }
+        }
+        offset
     }
 }
 
