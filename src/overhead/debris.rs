@@ -15,6 +15,74 @@ pub struct Voxel {
     pub offset: Point,
     pub cell: BodyCell,
 }
+/// Configurable physical crack spacing, not visual particle scaling. Longer X
+/// spacing yields board-like pieces; jitter mixes large fragments and splinters.
+#[derive(Clone, Copy, Debug)]
+pub struct FractureSettings {
+    pub spacing: Point,
+    pub jitter: f32,
+    pub seed: u32,
+}
+impl Default for FractureSettings {
+    fn default() -> Self {
+        Self {
+            spacing: Point::new(7., 3.5, 7.),
+            jitter: 0.85,
+            seed: 73,
+        }
+    }
+}
+impl FractureSettings {
+    fn region(&self, p: Point, material: MatId, frame: u64) -> (MatId, i32, i32, i32) {
+        let safe = |x: f32, d: f32| if x.is_finite() { x.clamp(2., 16.) } else { d };
+        let scale = [
+            safe(self.spacing.x, 7.),
+            safe(self.spacing.y, 3.5),
+            safe(self.spacing.z, 7.),
+        ];
+        let q = [p.x / scale[0], p.y / scale[1], p.z / scale[2]];
+        let g = q.map(|v| v.floor() as i32);
+        let jitter = if self.jitter.is_finite() {
+            self.jitter.clamp(0., 1.)
+        } else {
+            0.85
+        };
+        let mut best = (f32::INFINITY, g[0], g[1], g[2]);
+        for z in g[2] - 1..=g[2] + 1 {
+            for y in g[1] - 1..=g[1] + 1 {
+                for x in g[0] - 1..=g[0] + 1 {
+                    let seed = (x as u32).wrapping_mul(73856093)
+                        ^ (y as u32).wrapping_mul(19349663)
+                        ^ (z as u32).wrapping_mul(83492791)
+                        ^ self.seed
+                        ^ (frame as u32).wrapping_mul(7919)
+                        ^ (material as u32).wrapping_mul(104729);
+                    let random = |n: u32| {
+                        let mut h = seed ^ n;
+                        h ^= h >> 16;
+                        h = h.wrapping_mul(0x7feb352d);
+                        h ^= h >> 15;
+                        h = h.wrapping_mul(0x846ca68b);
+                        h ^= h >> 16;
+                        h as f32 / u32::MAX as f32
+                    };
+                    let c = [
+                        x as f32 + 0.5 + (random(11) - 0.5) * jitter,
+                        y as f32 + 0.5 + (random(37) - 0.5) * jitter,
+                        z as f32 + 0.5 + (random(83) - 0.5) * jitter,
+                    ];
+                    let weight = 1. + (random(131) - 0.5) * jitter;
+                    let d = ((q[0] - c[0]).powi(2) + (q[1] - c[1]).powi(2) + (q[2] - c[2]).powi(2))
+                        / weight;
+                    if d < best.0 {
+                        best = (d, x, y, z);
+                    }
+                }
+            }
+        }
+        (material, best.1, best.2, best.3)
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct FragmentState {
     pub id: u64,
@@ -22,6 +90,7 @@ pub struct FragmentState {
     pub velocity: Point,
     pub spin: Point,
     pub cells: usize,
+    pub extent: Point,
     pub mass: f32,
     pub sleeping: bool,
 }
@@ -47,6 +116,7 @@ struct Terrain {
 /// All games can use this solver through `Volume::debris`. Velocities are in
 /// cells/second, spin in radians/second, masses in kg; world gravity is -Z.
 pub struct Debris {
+    pub fracture: FractureSettings,
     bodies: RigidBodySet,
     colliders: ColliderSet,
     islands: IslandManager,
@@ -120,6 +190,7 @@ impl Debris {
                 .friction(0.8),
         );
         Self {
+            fracture: FractureSettings::default(),
             bodies: RigidBodySet::new(),
             colliders,
             islands: IslandManager::new(),
@@ -166,6 +237,7 @@ impl Debris {
                     velocity: point(b.linvel() / CELL),
                     spin: point(b.angvel()),
                     cells: f.cells.iter().flatten().count(),
+                    extent: fragment_extent(&f.cells),
                     mass: b.mass(),
                     sleeping: b.is_sleeping(),
                 }
@@ -402,7 +474,7 @@ impl Debris {
     /// Lift every detached native section body into shared XYZ space. New
     /// pieces are grouped in small connected 3D chunks, never a whole facade.
     pub(crate) fn promote(&mut self, sections: &mut [Sim], m: &Materials, events: &[Explosion]) {
-        let mut bins = BTreeMap::<(i32, i32, i32), Vec<(Point, BodyCell, Point)>>::new();
+        let mut bins = BTreeMap::<(MatId, i32, i32, i32), Vec<(Point, BodyCell, Point)>>::new();
 
         for (y, s) in sections.iter_mut().enumerate() {
             for id in s.physics.ids() {
@@ -422,14 +494,9 @@ impl Debris {
                         y as f32 + 0.5,
                         self.height as f32 - (b.y + sin * lx + cos * ly),
                     );
-                    let key = (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
-                    bins.entry((
-                        key.0.div_euclid(4),
-                        key.1.div_euclid(4),
-                        key.2.div_euclid(6),
-                    ))
-                    .or_default()
-                    .push((p, c, Point::new(b.vx, 0., -b.vy)));
+                    bins.entry(self.fracture.region(p, c.mat, self.tick))
+                        .or_default()
+                        .push((p, c, Point::new(b.vx, 0., -b.vy)));
                 }
             }
         }
@@ -824,4 +891,16 @@ fn shape(cells: &[Option<Voxel>], m: &Materials) -> Option<(SharedShape, f32, f3
         friction / mass,
         bounce / mass,
     ))
+}
+
+fn fragment_extent(cells: &[Option<Voxel>]) -> Point {
+    let (mut lo, mut hi) = ([f32::INFINITY; 3], [f32::NEG_INFINITY; 3]);
+    for c in cells.iter().flatten() {
+        let p = [c.offset.x, c.offset.y, c.offset.z];
+        for k in 0..3 {
+            lo[k] = lo[k].min(p[k]);
+            hi[k] = hi[k].max(p[k]);
+        }
+    }
+    Point::new(hi[0] - lo[0] + 1., hi[1] - lo[1] + 1., hi[2] - lo[2] + 1.)
 }

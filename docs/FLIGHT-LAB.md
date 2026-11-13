@@ -63,3 +63,10 @@ Collision cuboids are greedily merged, retaining material mass, friction and bou
 The shared solver uses [Rapier 3D](https://rapier.rs/docs/user_guides/rust/getting_started/) alongside the existing Rapier 2D section solver. Rigid rubble is 3D; static support detection remains section-based. Secondary impact-driven re-fracture, 3D liquids and overhead save/rewind remain future work.
 
 ![Roof pieces crossing sections](flight-test-scatter.png)
+
+
+### Fracture variety
+
+Fracture regions now use weighted, jittered 3D crack centres rather than fixed 4 × 4 × 6 cuts. This produces unequal silhouettes and volumes, including long narrow pieces and smaller irregular fragments. Connected pieces remain separate, and material boundaries separate wood from metal. Existing paint and thermal state stay on each cell.
+
+Other games can configure `volume.debris.fracture` (`FractureSettings`) with XYZ crack spacing, jitter and a deterministic seed. Defaults favor longer pieces along X, with substantial size variation. `FragmentState::extent` reports each piece's local dimensions. The geometry-distribution test checks varied profiles, a large size range, elongated pieces and non-cuboid silhouettes, alongside all existing collision/material tests.

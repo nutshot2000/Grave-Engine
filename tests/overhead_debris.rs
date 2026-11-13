@@ -284,3 +284,62 @@ fn roof_panels_lift_clear_instead_of_wedging_in_the_blast_hole() {
         "a roof blast must eject real panels: max height {peak}"
     );
 }
+
+#[test]
+fn fracture_produces_a_mix_of_shapes_sizes_and_long_pieces() {
+    use std::collections::BTreeSet;
+    let m = mats();
+    let mut v = room(&m);
+    v.box_part(
+        "timber",
+        m.id("wood").unwrap(),
+        [6, 4, 2],
+        [28, 24, 18],
+        None,
+        &m,
+    );
+    for _ in 0..5 {
+        v.step(&m);
+    }
+    v.explode(Explosion {
+        at: Point::new(20., 16., 12.),
+        radius: 15.,
+        power: 30000.,
+        fire: None,
+    });
+    v.step(&m);
+    let states = v.debris.states();
+    let profiles: BTreeSet<_> = states
+        .iter()
+        .map(|s| {
+            (
+                (s.extent.x * 10.).round() as i32,
+                (s.extent.y * 10.).round() as i32,
+                (s.extent.z * 10.).round() as i32,
+                s.cells,
+            )
+        })
+        .collect();
+    let small = states.iter().map(|s| s.cells).min().unwrap();
+    let large = states.iter().map(|s| s.cells).max().unwrap();
+    assert!(
+        profiles.len() > 8,
+        "fracture needs varied physical silhouettes: {profiles:?}"
+    );
+    assert!(
+        large > small * 4,
+        "mix small splinters with larger chunks: {small}..{large}"
+    );
+    assert!(
+        states
+            .iter()
+            .any(|s| s.extent.x > s.extent.y * 2. && s.extent.x > 4.),
+        "include longer, narrow pieces"
+    );
+    assert!(
+        states
+            .iter()
+            .any(|s| (s.cells as f32) < s.extent.x * s.extent.y * s.extent.z * 0.7),
+        "include irregular shapes, not only cuboids"
+    );
+}
