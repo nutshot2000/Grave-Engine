@@ -157,6 +157,8 @@ fn imported_pack_switches_water_states_and_keeps_traversal_actions_stable() {
     assert_eq!(a.state().name, "die");
     a.reset(); a.trigger("climb"); a.advance(0.01, |_| 1.0);
     a.advance(1.1, |_| 1.0);
+    assert_eq!(a.state().name, "climb_finish");
+    a.advance(1.1, |_| 1.0);
     assert_eq!(a.state().name, "idle");
     a.trigger("grab"); a.advance(0.01, |_| 1.0);
     a.trigger("release"); a.advance(0.01, |_| 1.0);

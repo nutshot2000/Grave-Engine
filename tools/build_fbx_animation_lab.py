@@ -29,4 +29,7 @@ if packs:
             (library/name).write_bytes(archive.read(entry))
 blender = str(a.blender or os.environ.get('GRAVE_BLENDER') or shutil.which('blender') or r'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe')
 subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',str(ROOT/'tools/fbx_animation_lab.py'),'--','--model',str(a.model.resolve()),'--animations',str(a.animations.resolve()),'--library',str((a.animations/'ual-local/UAL1_Standard.glb').resolve())],check=True,cwd=ROOT)
+if (a.animations/'ual-local/UAL1_Standard.glb').is_file():
+    out=ROOT/'assets/characters/mixamo-fbx-local'
+    subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',str(ROOT/'tools/blend_character_transition.py'),'--','--blend',str(out/'mixamo-fbx-animations.blend'),'--out',str(out),'--from-action','Imported_climb','--to-action','Imported_idle','--name','climb_finish','--seconds','0.4','--graph',str(ROOT/'assets/animations/mixamo-pack.graph')],check=True,cwd=ROOT)
 print('Ready. Open Play-Animation-Lab.cmd and use Animations to inspect all clips.')

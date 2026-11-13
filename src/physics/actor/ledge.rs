@@ -112,6 +112,9 @@ pub(super) fn update(a: &mut Actor, bodies: &mut RigidBodySet, cs: &ColliderSet,
             if h.elapsed >= settings.seconds {
                 rb.set_translation(Vector::new(next.0 * CELL, next.1 * CELL), true);
                 release(a, rb);
+                // Success can use a pose transition; dropping/cancellation must
+                // remain immediate and must not play a standing-up animation.
+                if let Some(anim) = &mut a.spec.animation { anim.trigger("climb_done"); }
                 a.jump_wait = 20;
                 a.since_ground = 0;
                 a.v_before = Vector::ZERO;

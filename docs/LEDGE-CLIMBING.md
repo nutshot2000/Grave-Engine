@@ -13,6 +13,10 @@ Holding W after the grab leaves you hanging, so you can stop and inspect
 the animation. Instructions also appear above the character. The next
 platform is reachable by jumping from the roof you just climbed onto.
 
+The imported character uses a short `climb_finish` clip to rise from the
+final crouch into idle. It blends actual bone poses with ground contact,
+so the character stands up rather than snapping to a standing picture.
+
 ## Reuse in another level
 
 Traversal is optional per character. Add `climb SECONDS reach CELLS`:
@@ -43,6 +47,13 @@ transitions into hang/climb, with death above them. `climb_rate` matches
 clip playback to the configured physical climb time. A custom graph can
 use the same inputs with its own state/clip names. The supplied graph's
 climb state uses `rate climb_rate 1 0.01 20`.
+
+Successful climbs emit the optional `climb_done` animation trigger. The
+imported graph routes it to `climb_finish`; cancellation/drop does not emit
+it. The finish clip is interruptible by death, a new jump or swimming.
+`tools/blend_character_transition.py` can bake other pose-to-pose transition
+clips from actions in a local Blender file. It is part of the imported
+character rebuild pipeline; no skeletal blending is needed at runtime.
 
 `Physics::Controls` includes `drop` alongside `walk` and `jump`.
 `ActorSpec::climb` enables `ClimbSettings`; `ActorStatus` exposes hanging

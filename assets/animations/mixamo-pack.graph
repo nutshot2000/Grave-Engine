@@ -14,6 +14,7 @@ param vy 0
 param hurt 0
 trigger grab
 trigger climb
+trigger climb_done
 trigger release
 trigger ual_crouch_fwd_loop
 trigger ual_crouch_idle_loop
@@ -62,6 +63,7 @@ state swim clip swim loop speed 1
 state tread clip tread loop speed 1
 state hang clip hang loop speed 1
 state climb clip climb once speed 1 rate climb_rate 1 0.01 20
+state climb_finish clip climb_finish once speed 1
 state die clip die once speed 1
 event landing 0 landed
 event climb 0.1 climbing
@@ -114,7 +116,15 @@ transition hang climb priority 90 after 0 when climb > 0 & dead == 0
 transition idle climb priority 90 after 0 when climb > 0 & dead == 0
 transition hang idle priority 95 after 0 when release > 0 & dead == 0
 transition climb idle priority 95 after 0 when release > 0 & dead == 0
-transition climb idle priority 10 after 0 when finished > 0 & dead == 0
+transition climb climb_finish priority 99 after 0 when climb_done > 0 & dead == 0
+transition climb_finish idle priority 0 after 0 when finished > 0 & speed <= 0.4
+transition climb_finish walk priority 0 after 0 when finished > 0 & speed > 0.4 & speed < 2.5
+transition climb_finish run priority 0 after 0 when finished > 0 & speed >= 2.5
+transition climb_finish jump priority 60 after 0 when airborne > 0 & vy < -0.1 & dead == 0
+transition climb_finish fall priority 60 after 0 when airborne > 0 & vy >= -0.1 & dead == 0
+transition climb_finish swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
+transition climb_finish tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
+transition climb climb_finish priority 10 after 0 when finished > 0 & traversal_enabled == 0 & dead == 0
 transition idle swim priority 80 after 0 when swimming > 0 & swim_moving > 0 & dead == 0
 transition idle tread priority 80 after 0 when swimming > 0 & swim_moving == 0 & dead == 0
 transition idle jump priority 60 after 0 when airborne > 0 & vy < -0.1 & swimming == 0 & dead == 0

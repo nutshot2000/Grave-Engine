@@ -162,3 +162,41 @@ fn the_crouched_climb_picture_contacts_the_roof_at_the_end() {
         }
     }
 }
+
+#[test]
+fn successful_pullup_can_play_a_finish_clip_while_dropping_skips_it() {
+    use grave_engine::animation::Graph;
+    use std::sync::Arc;
+    let graph=Arc::new(Graph::parse("initial idle
+param hanging 0
+param climbing 0
+trigger climb_done
+trigger release
+state idle clip idle loop speed 1
+state hang clip idle loop speed 1
+state climb clip jump once speed 1
+state finish clip idle once speed 1 duration 0.4
+transition * hang priority 98 after 0 when hanging > 0
+transition * climb priority 98 after 0 when climbing > 0
+transition climb finish priority 99 after 0 when climb_done > 0
+transition hang idle priority 97 after 0 when hanging == 0 & climbing == 0
+transition climb idle priority 97 after 0 when hanging == 0 & climbing == 0
+transition finish idle priority 0 after 0 when finished > 0
+").unwrap());
+    let (m,mut s)=setup(BASE);
+    s.physics.set_actor_graph(0,graph.clone()).unwrap();grab(&mut s,&m);
+    run(&mut s,&m,1,0.0,false,false);run(&mut s,&m,1,0.0,true,false);
+    for _ in 0..100 {
+        if !s.physics.actor_status()[0].climbing { break; }
+        run(&mut s,&m,1,0.0,false,false);
+    }
+    assert_eq!(s.physics.actor_status()[0].animation_state,"finish");
+    run(&mut s,&m,10,0.0,false,false);
+    assert_eq!(s.physics.actor_status()[0].animation_state,"finish");
+    run(&mut s,&m,20,0.0,false,false);
+    assert_eq!(s.physics.actor_status()[0].animation_state,"idle");
+    let (m,mut s)=setup(BASE);
+    s.physics.set_actor_graph(0,graph).unwrap();grab(&mut s,&m);
+    run(&mut s,&m,1,0.0,false,true);
+    assert_eq!(s.physics.actor_status()[0].animation_state,"idle");
+}
