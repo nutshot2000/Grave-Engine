@@ -1,6 +1,6 @@
 //! Reusable height-aware combat: data-defined ammunition, target bounds,
 //! armour, guidance and impact events. Weapon names and mission rules are games.
-use super::{Explosion, Point, Volume};
+use super::{Explosion, Point, space::Space};
 use crate::{Materials, State};
 #[derive(Clone, Copy, Debug)]
 pub struct Bounds {
@@ -141,7 +141,7 @@ impl Combat {
     pub fn alive(&self, id: u32) -> bool {
         self.target(id).is_some_and(|t| t.alive())
     }
-    pub fn step(&mut self, v: &mut Volume, m: &Materials, dt: f32) {
+    pub fn step(&mut self, v: &mut impl Space, m: &Materials, dt: f32) {
         self.impacts.clear();
         self.destroyed.clear();
         let mut kept = Vec::new();
@@ -248,7 +248,7 @@ impl Combat {
                 s.travelled += s.at.distance(end);
                 s.at = end;
                 s.life -= dt;
-                if s.life > 0. && v.index(s.at).is_some() {
+                if s.life > 0. && v.contains(s.at) {
                     kept.push(s);
                 }
             }
@@ -257,14 +257,14 @@ impl Combat {
         self.resolve_deaths(v, m);
     }
     /// Capture authored structure integrity once, before combat starts.
-    pub fn bind_materials(&mut self, v: &Volume, m: &Materials) {
+    pub fn bind_materials(&mut self, v: &impl Space, m: &Materials) {
         for t in self.targets.iter_mut().filter(|t| t.material_backed) {
             t.material_initial = Some(material_count(t.bounds, v, m));
         }
     }
-    pub fn environment(&mut self, v: &mut Volume, m: &Materials) {
+    pub fn environment(&mut self, v: &mut impl Space, m: &Materials) {
         for t in self.targets.iter_mut().filter(|t| t.alive()) {
-            if v.frame % 30 == 0 {
+            if v.frame() % 30 == 0 {
                 if let Some(initial) = t.material_initial.filter(|n| *n > 0) {
                     let ratio = material_count(t.bounds, v, m) as f32 / initial as f32;
                     t.health = t.health.min(if ratio < 0.15 {
@@ -275,21 +275,21 @@ impl Combat {
                 }
             }
             let p = t.bounds.centre();
-            for e in &v.explosions {
+            for e in v.explosions() {
                 let d = p.distance(e.at);
                 if d < e.radius {
                     t.health = (t.health - (e.power * 0.004) * (1. - d / e.radius).powi(2)).max(0.);
                 }
             }
-            if let Some((y, i)) = v.index(p) {
-                if v.sections[y].world.temp[i] > 600. {
+            if let Some(cell) = v.cell(p) {
+                if cell.temp > 600. {
                     t.health = (t.health - 0.15).max(0.);
                 }
             }
         }
         self.resolve_deaths(v, m);
     }
-    fn resolve_deaths(&mut self, v: &mut Volume, _m: &Materials) {
+    fn resolve_deaths(&mut self, v: &mut impl Space, _m: &Materials) {
         for t in &mut self.targets {
             if !t.alive() && !t.destroyed {
                 t.destroyed = true;
@@ -317,11 +317,13 @@ impl Combat {
     }
 }
 
-fn material_count(bounds: Bounds, v: &Volume, m: &Materials) -> usize {
+fn material_count(bounds: Bounds, v: &impl Space, m: &Materials) -> usize {
     let mut count = 0;
-    for y in bounds.min.y.max(0.) as usize..(bounds.max.y.ceil() as usize).min(v.depth) {
-        for z in bounds.min.z.max(0.) as usize..(bounds.max.z.ceil() as usize).min(v.height) {
-            for x in bounds.min.x.max(0.) as usize..(bounds.max.x.ceil() as usize).min(v.width) {
+    for y in bounds.min.y.max(0.) as usize..(bounds.max.y.ceil() as usize).min(v.extent()[1]) {
+        for z in bounds.min.z.max(0.) as usize..(bounds.max.z.ceil() as usize).min(v.extent()[2]) {
+            for x in
+                bounds.min.x.max(0.) as usize..(bounds.max.x.ceil() as usize).min(v.extent()[0])
+            {
                 if m.get(v.material_at(Point::new(x as f32, y as f32, z as f32)))
                     .state
                     != State::Gas

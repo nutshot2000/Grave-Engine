@@ -1,6 +1,6 @@
 //! Software isometric projection and depth-sorted material voxels. Projection,
 //! picking and arbitrary visual instances are shared by all overhead games.
-use super::{Point, Volume};
+use super::{Point, Volume, space::Space};
 use crate::{Materials, State, material::AIR, world::BURNING};
 use std::collections::BTreeMap;
 #[derive(Clone, Copy)]
@@ -22,8 +22,8 @@ impl Projection {
     }
     /// Pick the foremost solid surface along the viewing ray, not an assumed
     /// flat ground plane. Aiming at a roof therefore targets its actual height.
-    pub fn pick(&self, p: [f32; 2], v: &Volume, m: &Materials) -> Point {
-        for z in (0..v.height).rev() {
+    pub fn pick(&self, p: [f32; 2], v: &impl Space, m: &Materials) -> Point {
+        for z in (0..v.extent()[2]).rev() {
             let q = self.unproject(p, z as f32 + 0.5);
             if v.solid_at(q, m) {
                 return q;
@@ -45,6 +45,7 @@ pub struct Instance<'a> {
 }
 struct Draw {
     p: Point,
+    size: [f32; 3],
     color: [u8; 3],
     faces: [bool; 3],
     gas: u8,
@@ -59,8 +60,8 @@ pub struct Viewport {
     /// Optional continuous scenery under a finite simulation volume.
     pub ground_color: Option<[u8; 3]>,
     glow: Vec<[f32; 3]>,
-    glow_scratch: Vec<[f32; 3]>,
     frame: u32,
+    terrain_texture: bool,
 }
 impl Viewport {
     pub fn new(width: usize, height: usize) -> Self {
@@ -69,8 +70,8 @@ impl Viewport {
             height,
             pixels: vec![0; width * height * 4],
             glow: vec![[0.; 3]; width * height],
-            glow_scratch: vec![[0.; 3]; width * height],
             frame: 0,
+            terrain_texture: false,
             ground_color: None,
             projection: Projection {
                 origin: [width as f32 * 0.5, height as f32 * 0.5],
@@ -78,9 +79,17 @@ impl Viewport {
             },
         }
     }
-    fn pixel(&mut self, x: i32, y: i32, c: [u8; 3], alpha: f32) {
+    fn pixel(&mut self, x: i32, y: i32, mut c: [u8; 3], alpha: f32) {
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
             return;
+        }
+        if self.terrain_texture {
+            let wx = (x as f32 - self.projection.origin[0]) as i32;
+            let wy = (y as f32 - self.projection.origin[1]) as i32;
+            let hash =
+                noise((wx as u32).wrapping_mul(73856093) ^ (wy as u32).wrapping_mul(19349663));
+            let shade = 0.92 + (hash % 257) as f32 / 256. * 0.16;
+            c = c.map(|a| (a as f32 * shade).min(255.) as u8);
         }
         let i = (y as usize * self.width + x as usize) * 4;
         for k in 0..3 {
@@ -134,8 +143,11 @@ impl Viewport {
     fn cube(&mut self, d: &Draw) {
         let p = d.p;
         let project = |x: f32, y: f32, z: f32| {
-            self.projection
-                .project(Point::new(p.x + x, p.y + y, p.z + z))
+            self.projection.project(Point::new(
+                p.x + x * d.size[0],
+                p.y + y * d.size[1],
+                p.z + z * d.size[2],
+            ))
         };
         let o = project(0., 0., 1.);
         let a = project(1., 0., 1.);
@@ -248,7 +260,88 @@ impl Viewport {
         instances: &[Instance<'_>],
         tracers: &[Point],
     ) -> &[u8] {
-        self.frame = v.frame;
+        self.draw_many(
+            &[(v, Point::default())],
+            None,
+            m,
+            camera,
+            instances,
+            tracers,
+        )
+    }
+    pub fn draw_map(
+        &mut self,
+        map: &super::map::WorldMap,
+        m: &Materials,
+        camera: Point,
+        instances: &[Instance<'_>],
+        tracers: &[Point],
+    ) -> &[u8] {
+        let scale = self.projection.scale;
+        let project = |p: Point| {
+            [
+                self.width as f32 * 0.5 + ((p.x - p.y) - (camera.x - camera.y)) * scale,
+                self.height as f32 * 0.56
+                    + ((p.x + p.y - camera.x - camera.y) * 0.5 - p.z + camera.z) * scale,
+            ]
+        };
+        let visible = |p: [f32; 2], r: f32| {
+            p[0] >= -r
+                && p[0] < self.width as f32 + r
+                && p[1] >= -r
+                && p[1] < self.height as f32 + r
+        };
+        let regions: Vec<_> = map
+            .regions
+            .iter()
+            .filter_map(|(&key, r)| {
+                let o = super::map::WorldMap::offset(key);
+                let mut lo = [f32::INFINITY; 2];
+                let mut hi = [f32::NEG_INFINITY; 2];
+                for x in [o.x, o.x + 64.] {
+                    for y in [o.y, o.y + 64.] {
+                        for z in [0., map.height as f32] {
+                            let p = project(Point::new(x, y, z));
+                            for k in 0..2 {
+                                lo[k] = lo[k].min(p[k]);
+                                hi[k] = hi[k].max(p[k]);
+                            }
+                        }
+                    }
+                }
+                let mut show = hi[0] >= -24.
+                    && lo[0] < self.width as f32 + 24.
+                    && hi[1] >= -24.
+                    && lo[1] < self.height as f32 + 24.;
+                if !show && !r.volume.debris.is_empty() {
+                    show = r.volume.debris.states().iter().any(|f| {
+                        visible(
+                            project(Point::new(f.at.x + o.x, f.at.y + o.y, f.at.z)),
+                            f.extent.distance(Point::default()) * scale * 1.5 + 16.,
+                        )
+                    });
+                }
+                if !show {
+                    show = r.volume.plumes.iter().any(|p| {
+                        visible(project(Point::new(p.at.x + o.x, p.at.y + o.y, p.at.z)), 24.)
+                    });
+                }
+                show.then_some((&r.volume, o))
+            })
+            .collect();
+        self.draw_many(&regions, Some(map), m, camera, instances, tracers)
+    }
+    fn draw_many(
+        &mut self,
+        volumes: &[(&Volume, Point)],
+        map: Option<&super::map::WorldMap>,
+        m: &Materials,
+        camera: Point,
+        instances: &[Instance<'_>],
+        tracers: &[Point],
+    ) -> &[u8] {
+        self.frame = map.map_or_else(|| volumes.first().map_or(0, |v| v.0.frame), |v| v.frame);
+
         self.glow.fill([0.; 3]);
         self.projection.origin = [
             self.width as f32 * 0.5 - (camera.x - camera.y) * self.projection.scale,
@@ -271,147 +364,216 @@ impl Viewport {
         }
         let mut draw = Vec::new();
         let mut effects = BTreeMap::<(u8, i32, i32, i32), Emitter>::new();
-        for (y, s) in v.sections.iter().enumerate() {
-            let w = &s.world;
-            for row in 0..v.height {
-                let z = v.height - 1 - row;
-                for x in 0..v.width {
-                    let i = row * v.width + x;
-                    let id = w.mat[i];
-                    if id == AIR || v.debris.is_stamped(y, i) {
+        if let Some(map) = map {
+            let reach = (self.width as f32 * 0.25 + self.height as f32 * 0.5)
+                / self.projection.scale
+                + map.height as f32;
+            let x0 = ((camera.x - reach).max(0.) as usize / 8) * 8;
+            let x1 = ((camera.x + reach) as usize).min(map.width);
+            let y0 = ((camera.y - reach).max(0.) as usize / 8) * 8;
+            let y1 = ((camera.y + reach) as usize).min(map.depth);
+            for y in (y0..y1).step_by(8) {
+                for x in (x0..x1).step_by(8) {
+                    if map.regions.contains_key(&(x / 64, y / 64)) {
                         continue;
                     }
-                    let mat = m.get(id);
-                    let gas = mat.state == State::Gas;
-                    let p = Point::new(x as f32, y as f32, z as f32);
-                    let screen = self.projection.project(p);
-                    if screen[0] < -8.
-                        || screen[0] > self.width as f32 + 8.
-                        || screen[1] < -8.
-                        || screen[1] > self.height as f32 + 12.
+                    let h = map.ground_height(x as f32, y as f32);
+                    let p = Point::new(x as f32, y as f32, 0.);
+                    let screen = self.projection.project(Point::new(p.x, p.y, h as f32));
+                    if screen[0] < -32.
+                        || screen[0] > self.width as f32 + 32.
+                        || screen[1] < -32.
+                        || screen[1] > self.height as f32 + 64.
                     {
                         continue;
                     }
-                    let visible = |p: Point| {
-                        let other = v.material_at(p);
-                        other == AIR || m.get(other).state == State::Gas
-                    };
-                    let faces = [
-                        visible(Point::new(p.x, p.y, p.z + 1.)),
-                        visible(Point::new(p.x + 1., p.y, p.z)),
-                        visible(Point::new(p.x, p.y + 1., p.z)),
-                    ];
-                    if !gas && !faces.iter().any(|v| *v) {
-                        continue;
-                    }
-                    if gas {
-                        let age = mat
-                            .lifetime
-                            .map_or(1., |l| (w.life[i] as f32 / l.max(1) as f32).clamp(0., 1.));
-                        add_emitter(
-                            &mut effects,
-                            p,
-                            mat.color,
-                            if mat.glow > 0. { 1 } else { 2 },
-                            age,
-                        );
-                        continue;
-                    }
-                    let base = crate::asset::paint_rgb(w.paint[i]).unwrap_or(mat.color);
-                    let f = noise(
-                        (i + y * w.mat.len()) as u32
-                            ^ if gas || w.flags[i] & BURNING != 0 {
-                                v.frame / 3 * 7919
-                            } else {
-                                0
-                            },
-                    ) as f32
-                        / u32::MAX as f32;
-                    let mut color = base.map(|c| (c as f32 * (0.93 + f * 0.14)).min(255.) as u8);
-                    if w.flags[i] & BURNING != 0 {
-                        color = burning_color(color, f);
-                        if faces.iter().any(|v| *v) {
-                            add_emitter(
-                                &mut effects,
-                                Point::new(p.x, p.y, p.z + 1.),
-                                [255, 132, 25],
-                                1,
-                                0.85,
-                            );
-                        }
-                    }
-                    if !gas {
-                        for a in instances {
-                            let dx = p.x - a.at.x;
-                            let dy = p.y - a.at.y;
-                            if a.at.z > p.z && dx * dx + dy * dy < a.shadow_radius.powi(2) {
-                                color = color.map(|c| (c as f32 * 0.57) as u8);
-                            }
-                        }
-                    }
-                    if gas && mat.glow == 0. {
-                        color = color.map(|c| (c as f32 * 0.65) as u8);
-                    }
                     draw.push(Draw {
                         p,
-                        color,
-                        faces,
+                        size: [8., 8., h as f32 + 1.],
+                        color: map.ground_color(x as f32 + 4., y as f32 + 4.),
+                        faces: [
+                            true,
+                            h > map.ground_height((x + 8) as f32, y as f32),
+                            h > map.ground_height(x as f32, (y + 8) as f32),
+                        ],
                         gas: 0,
-                        alpha: if gas {
-                            if mat.glow > 0. { 0.7 } else { 0.25 }
-                        } else {
-                            1.
-                        },
+                        alpha: 1.,
                     });
                 }
             }
         }
-        for plume in &v.plumes {
-            let mat = m.get(plume.material);
-            let age = mat
-                .lifetime
-                .map_or(1., |l| (plume.life as f32 / l.max(1) as f32).clamp(0., 1.));
-            add_emitter(
-                &mut effects,
-                plume.at,
-                mat.color,
-                if mat.glow > 0. { 1 } else { 2 },
-                age,
-            );
-        }
-        for (centre, cell) in v.debris.voxels() {
-            let mat = m.get(cell.mat);
-            let p = Point::new(centre.x - 0.5, centre.y - 0.5, centre.z - 0.5);
-            let base = crate::asset::paint_rgb(cell.paint).unwrap_or(mat.color);
-            let f = noise(
-                cell.shade as u32
-                    ^ if cell.flags & BURNING != 0 {
-                        v.frame / 3 * 7919
-                    } else {
-                        0
-                    },
-            ) as f32
-                / u32::MAX as f32;
-            let mut color = base.map(|c| (c as f32 * (0.93 + 0.14 * f)).min(255.) as u8);
-            if cell.flags & BURNING != 0 {
-                color = burning_color(color, f);
+        for &(v, offset) in volumes {
+            for (y, s) in v.sections.iter().enumerate() {
+                let w = &s.world;
+                for row in 0..v.height {
+                    let z = v.height - 1 - row;
+                    for x in 0..v.width {
+                        let i = row * v.width + x;
+                        let id = w.mat[i];
+                        if id == AIR || v.debris.is_stamped(y, i) {
+                            continue;
+                        }
+                        let mat = m.get(id);
+                        let gas = mat.state == State::Gas;
+                        let p = Point::new(x as f32 + offset.x, y as f32 + offset.y, z as f32);
+                        let screen = self.projection.project(p);
+                        if screen[0] < -8.
+                            || screen[0] > self.width as f32 + 8.
+                            || screen[1] < -8.
+                            || screen[1] > self.height as f32 + 12.
+                        {
+                            continue;
+                        }
+                        let visible = |p: Point| {
+                            let other = map.map_or_else(
+                                || v.material_at(Point::new(p.x - offset.x, p.y - offset.y, p.z)),
+                                |map| map.material_at(p),
+                            );
+                            other == AIR || m.get(other).state == State::Gas
+                        };
+                        let faces = [
+                            visible(Point::new(p.x, p.y, p.z + 1.)),
+                            visible(Point::new(p.x + 1., p.y, p.z)),
+                            visible(Point::new(p.x, p.y + 1., p.z)),
+                        ];
+                        if !gas && !faces.iter().any(|v| *v) {
+                            continue;
+                        }
+                        if gas {
+                            let age = mat
+                                .lifetime
+                                .map_or(1., |l| (w.life[i] as f32 / l.max(1) as f32).clamp(0., 1.));
+                            add_emitter(
+                                &mut effects,
+                                p,
+                                mat.color,
+                                if mat.glow > 0. { 1 } else { 2 },
+                                age,
+                            );
+                            continue;
+                        }
+                        let base = crate::asset::paint_rgb(w.paint[i]).unwrap_or(mat.color);
+                        let f = noise(
+                            (i + y * w.mat.len()) as u32
+                                ^ if gas || w.flags[i] & BURNING != 0 {
+                                    v.frame / 3 * 7919
+                                } else {
+                                    0
+                                },
+                        ) as f32
+                            / u32::MAX as f32;
+                        let mut color =
+                            base.map(|c| (c as f32 * (0.93 + f * 0.14)).min(255.) as u8);
+                        if w.flags[i] & BURNING != 0 {
+                            color = burning_color(color, f);
+                            if faces.iter().any(|v| *v) {
+                                add_emitter(
+                                    &mut effects,
+                                    Point::new(p.x, p.y, p.z + 1.),
+                                    [255, 132, 25],
+                                    1,
+                                    0.85,
+                                );
+                            }
+                        }
+                        if !gas {
+                            for a in instances {
+                                let dx = p.x - a.at.x;
+                                let dy = p.y - a.at.y;
+                                if a.at.z > p.z && dx * dx + dy * dy < a.shadow_radius.powi(2) {
+                                    color = color.map(|c| (c as f32 * 0.57) as u8);
+                                }
+                            }
+                        }
+                        if gas && mat.glow == 0. {
+                            color = color.map(|c| (c as f32 * 0.65) as u8);
+                        }
+                        draw.push(Draw {
+                            size: [1.; 3],
+                            p,
+                            color,
+                            faces,
+                            gas: 0,
+                            alpha: if gas {
+                                if mat.glow > 0. { 0.7 } else { 0.25 }
+                            } else {
+                                1.
+                            },
+                        });
+                    }
+                }
+            }
+            for plume in &v.plumes {
+                let projected = self.projection.project(Point::new(
+                    plume.at.x + offset.x,
+                    plume.at.y + offset.y,
+                    plume.at.z,
+                ));
+                if projected[0] < -16.
+                    || projected[0] > self.width as f32 + 16.
+                    || projected[1] < -16.
+                    || projected[1] > self.height as f32 + 24.
+                {
+                    continue;
+                }
+                let mat = m.get(plume.material);
+                let age = mat
+                    .lifetime
+                    .map_or(1., |l| (plume.life as f32 / l.max(1) as f32).clamp(0., 1.));
                 add_emitter(
                     &mut effects,
-                    Point::new(p.x, p.y, p.z + 1.),
-                    [255, 132, 25],
-                    1,
-                    0.85,
+                    Point::new(plume.at.x + offset.x, plume.at.y + offset.y, plume.at.z),
+                    mat.color,
+                    if mat.glow > 0. { 1 } else { 2 },
+                    age,
                 );
             }
-            draw.push(Draw {
-                p,
-                color,
-                faces: [true; 3],
-                gas: 0,
-                alpha: 1.,
-            });
+            for (centre, cell) in v.debris.voxels() {
+                let mat = m.get(cell.mat);
+                let p = Point::new(
+                    centre.x + offset.x - 0.5,
+                    centre.y + offset.y - 0.5,
+                    centre.z - 0.5,
+                );
+                let projected = self.projection.project(p);
+                if projected[0] < -16.
+                    || projected[0] > self.width as f32 + 16.
+                    || projected[1] < -16.
+                    || projected[1] > self.height as f32 + 24.
+                {
+                    continue;
+                }
+                let base = crate::asset::paint_rgb(cell.paint).unwrap_or(mat.color);
+                let f = noise(
+                    cell.shade as u32
+                        ^ if cell.flags & BURNING != 0 {
+                            v.frame / 3 * 7919
+                        } else {
+                            0
+                        },
+                ) as f32
+                    / u32::MAX as f32;
+                let mut color = base.map(|c| (c as f32 * (0.93 + 0.14 * f)).min(255.) as u8);
+                if cell.flags & BURNING != 0 {
+                    color = burning_color(color, f);
+                    add_emitter(
+                        &mut effects,
+                        Point::new(p.x, p.y, p.z + 1.),
+                        [255, 132, 25],
+                        1,
+                        0.85,
+                    );
+                }
+                draw.push(Draw {
+                    size: [1.; 3],
+                    p,
+                    color,
+                    faces: [true; 3],
+                    gas: 0,
+                    alpha: 1.,
+                });
+            }
         }
-
         for a in instances {
             let (s, c) = a.angle.sin_cos();
             for cell in a.cells {
@@ -421,6 +583,7 @@ impl Viewport {
                     a.at.z + cell.at.z,
                 );
                 draw.push(Draw {
+                    size: [1.; 3],
                     p,
                     color: cell.color,
                     faces: [true; 3],
@@ -431,6 +594,7 @@ impl Viewport {
         }
         for p in tracers {
             draw.push(Draw {
+                size: [1.; 3],
                 p: *p,
                 color: [255, 224, 110],
                 faces: [true; 3],
@@ -443,6 +607,7 @@ impl Viewport {
             let p = Point::new(e.p.x / n, e.p.y / n, e.p.z / n);
             let color = e.color.map(|v| (v / n).clamp(0., 255.) as u8);
             draw.push(Draw {
+                size: [1.; 3],
                 p,
                 color,
                 faces: [false; 3],
@@ -454,30 +619,52 @@ impl Viewport {
                 },
             });
         }
-        draw.sort_by(|a, b| (a.p.x + a.p.y + a.p.z).total_cmp(&(b.p.x + b.p.y + b.p.z)));
+        draw.sort_by(|a, b| {
+            let key = |d: &Draw| d.p.x + d.p.y + d.p.z + d.size.iter().sum::<f32>();
+            key(a).total_cmp(&key(b))
+        });
         for d in draw {
+            self.terrain_texture = d.size[0] > 1.;
             self.cube(&d);
         }
-        // The same box-blur used by the 2D renderer, with a small capped halo
-        // so a large fire lights its surroundings without bleaching the fuel.
-        crate::render::blur(
-            &mut self.glow,
-            &mut self.glow_scratch,
-            self.width,
-            self.height,
-            4,
-        );
-        crate::render::blur(
-            &mut self.glow,
-            &mut self.glow_scratch,
-            self.width,
-            self.height,
-            4,
-        );
-        for (i, p) in self.pixels.chunks_exact_mut(4).enumerate() {
-            for k in 0..3 {
-                let halo = (self.glow[i][k] * 0.8).min([24., 13., 4.][k]);
-                p[k] = (p[k] as f32 + halo).min(255.) as u8;
+        self.terrain_texture = false;
+        let mut x0 = self.width;
+        let mut y0 = self.height;
+        let mut x1 = 0;
+        let mut y1 = 0;
+        for (i, g) in self.glow.iter().enumerate() {
+            if g[0] > 0. {
+                x0 = x0.min(i % self.width);
+                y0 = y0.min(i / self.width);
+                x1 = x1.max(i % self.width + 1);
+                y1 = y1.max(i / self.width + 1);
+            }
+        }
+        if x1 > x0 && y1 > y0 {
+            x0 = x0.saturating_sub(10);
+            y0 = y0.saturating_sub(10);
+            x1 = (x1 + 10).min(self.width);
+            y1 = (y1 + 10).min(self.height);
+            let (w, h) = (x1 - x0, y1 - y0);
+            let mut glow = vec![[0.; 3]; w * h];
+            let mut scratch = vec![[0.; 3]; w * h];
+            for y in 0..h {
+                glow[y * w..(y + 1) * w].copy_from_slice(
+                    &self.glow[(y + y0) * self.width + x0..(y + y0) * self.width + x1],
+                );
+            }
+            for _ in 0..2 {
+                crate::render::blur(&mut glow, &mut scratch, w, h, 4);
+            }
+            for y in 0..h {
+                for x in 0..w {
+                    let i = (y + y0) * self.width + x + x0;
+                    for k in 0..3 {
+                        let halo = (glow[y * w + x][k] * 0.8).min([24., 13., 4.][k]);
+                        self.pixels[i * 4 + k] =
+                            (self.pixels[i * 4 + k] as f32 + halo).min(255.) as u8;
+                    }
+                }
             }
         }
         &self.pixels

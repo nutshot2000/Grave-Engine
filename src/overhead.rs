@@ -11,6 +11,8 @@ pub mod atmosphere;
 pub mod cargo;
 pub mod combat;
 pub mod debris;
+pub mod map;
+pub mod space;
 pub mod view;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -201,7 +203,13 @@ impl Volume {
         }
     }
     pub fn explode(&mut self, e: Explosion) {
-        if self.index(e.at).is_some()
+        if [e.at.x, e.at.y, e.at.z].iter().all(|v| v.is_finite())
+            && e.at.x + e.radius >= 0.
+            && e.at.x - e.radius < self.width as f32
+            && e.at.y + e.radius >= 0.
+            && e.at.y - e.radius < self.depth as f32
+            && e.at.z + e.radius >= 0.
+            && e.at.z - e.radius < self.height as f32
             && e.radius.is_finite()
             && e.radius > 0.
             && e.power.is_finite()
@@ -459,7 +467,7 @@ impl Aircraft {
             blocked: false,
         }
     }
-    pub fn step(&mut self, input: FlightInput, v: &Volume, m: &Materials, dt: f32) {
+    pub fn step(&mut self, input: FlightInput, v: &impl space::Space, m: &Materials, dt: f32) {
         if !dt.is_finite() || dt <= 0. {
             return;
         }
@@ -486,9 +494,9 @@ impl Aircraft {
         };
         self.velocity.z += (climb * c.climb_speed - self.velocity.z) * (dt * 8.).min(1.);
         let desired = Point::new(
-            (self.at.x + self.velocity.x * dt).clamp(4., v.width as f32 - 5.),
-            (self.at.y + self.velocity.y * dt).clamp(4., v.depth as f32 - 5.),
-            (self.at.z + self.velocity.z * dt).clamp(5., v.height as f32 - 10.),
+            (self.at.x + self.velocity.x * dt).clamp(4., v.extent()[0] as f32 - 5.),
+            (self.at.y + self.velocity.y * dt).clamp(4., v.extent()[1] as f32 - 5.),
+            (self.at.z + self.velocity.z * dt).clamp(5., v.extent()[2] as f32 - 10.),
         );
         self.blocked = false;
         // Sweep the fuselage in small steps; rotor cosmetics do not snag walls.

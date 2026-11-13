@@ -1,6 +1,6 @@
 //! Reusable sling loads: capture material cells, carry a suspended container,
 //! release it ballistically, and deposit or rupture its real material contents.
-use super::{Point, Volume};
+use super::{Point, space::Space};
 use crate::{Materials, State, World, material::AIR, physics::BodyCell, world::OWNED};
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CargoState {
@@ -20,8 +20,8 @@ pub struct Cargo {
     thermal: Vec<World>,
 }
 impl Cargo {
-    pub fn capture(id: u32, v: &mut Volume, origin: [usize; 3], size: [usize; 3]) -> Self {
-        let limits = [v.width, v.depth, v.height];
+    pub fn capture(id: u32, v: &mut impl Space, origin: [usize; 3], size: [usize; 3]) -> Self {
+        let limits = v.extent();
         let origin = std::array::from_fn::<_, 3, _>(|i| origin[i].min(limits[i]));
         let size = std::array::from_fn::<_, 3, _>(|i| size[i].min(limits[i] - origin[i]));
         let mut cells = Vec::new();
@@ -33,23 +33,8 @@ impl Cargo {
                         (origin[1] + y) as f32,
                         (origin[2] + z) as f32,
                     );
-                    if let Some((sy, i)) = v.index(p) {
-                        let w = &mut v.sections[sy].world;
-                        if w.mat[i] != AIR {
-                            cells.push((
-                                Point::new(x as f32, y as f32, z as f32),
-                                BodyCell {
-                                    mat: w.mat[i],
-                                    temp: w.temp[i],
-                                    burn: w.burn[i],
-                                    life: w.life[i],
-                                    flags: w.flags[i],
-                                    shade: w.shade[i],
-                                    paint: w.paint[i],
-                                },
-                            ));
-                            w.make_air(i);
-                        }
+                    if let Some(c) = v.take_cell(p).filter(|c| c.mat != AIR) {
+                        cells.push((Point::new(x as f32, y as f32, z as f32), c));
                     }
                 }
             }
@@ -78,7 +63,7 @@ impl Cargo {
         self.state = CargoState::Falling;
         self.velocity = velocity;
     }
-    pub fn step(&mut self, v: &mut Volume, m: &Materials, anchor: Option<Point>, dt: f32) {
+    pub fn step(&mut self, v: &mut impl Space, m: &Materials, anchor: Option<Point>, dt: f32) {
         if !dt.is_finite() || dt <= 0. {
             return;
         }
@@ -152,7 +137,7 @@ impl Cargo {
     }
     /// Carried materials retain native heat, ignition and decay rules. OWNED
     /// keeps liquid in its suspended case; phase changes leave it into the world.
-    fn material_step(&mut self, v: &mut Volume, m: &Materials) {
+    fn material_step(&mut self, v: &mut impl Space, m: &Materials) {
         for w in &mut self.thermal {
             w.fill(m, AIR);
             w.depth_air.fill(true);
@@ -173,13 +158,12 @@ impl Cargo {
                 self.at.y + offset.y,
                 self.at.z + offset.z,
             );
-            if let Some((sy, j)) = v.index(at) {
-                let ambient = v.sections[sy].world.temp[j];
+            if let Some(cell) = v.cell(at) {
                 let conduct = m
                     .get(c.mat)
                     .conducts_heat
-                    .min(m.get(v.sections[sy].world.mat[j]).conducts_heat);
-                w.temp[i] += (ambient - w.temp[i]) * conduct * 0.12;
+                    .min(m.get(cell.mat).conducts_heat);
+                w.temp[i] += (cell.temp - w.temp[i]) * conduct * 0.12;
             }
         }
         for y in 1..self.thermal.len() {
@@ -215,13 +199,20 @@ impl Cargo {
                     self.at.y + y as f32,
                     self.at.z + self.size[2] as f32 - (i / w.w) as f32,
                 );
-                if let Some((sy, j)) = v.index(at) {
-                    let world = &mut v.sections[sy].world;
-                    if m.get(world.mat[j]).state == State::Gas {
-                        world.set(m, j % v.width, j / v.width, id);
-                        world.temp[j] = w.temp[i];
-                        world.life[j] = w.life[i];
-                    }
+                if v.contains(at) && m.get(v.material_at(at)).state == State::Gas {
+                    v.put_cell(
+                        at,
+                        Some(BodyCell {
+                            mat: id,
+                            temp: w.temp[i],
+                            life: w.life[i],
+                            flags: 0,
+                            burn: 0,
+                            shade: w.shade[i],
+                            paint: 0,
+                        }),
+                        m,
+                    );
                 }
             }
             for e in &w.blasts {
@@ -238,7 +229,7 @@ impl Cargo {
             }
         }
     }
-    fn deposit(&self, v: &mut Volume, m: &Materials, ruptured: bool) {
+    fn deposit(&self, v: &mut impl Space, m: &Materials, ruptured: bool) {
         for (n, (offset, c)) in self.cells.iter().enumerate() {
             let mut p = Point::new(
                 self.at.x + offset.x,
@@ -260,7 +251,7 @@ impl Cargo {
                     for dy in -radius..=radius {
                         for dx in -radius..=radius {
                             let q = Point::new(p.x + dx as f32, p.y + dy as f32, p.z);
-                            if v.index(q).is_some() && m.get(v.material_at(q)).state == State::Gas {
+                            if v.contains(q) && m.get(v.material_at(q)).state == State::Gas {
                                 p = q;
                                 break 'search;
                             }
@@ -268,18 +259,8 @@ impl Cargo {
                     }
                 }
             }
-            if let Some((y, i)) = v.index(p) {
-                let w = &mut v.sections[y].world;
-                if m.get(w.mat[i]).state == State::Gas {
-                    w.set(m, i % v.width, i / v.width, c.mat);
-                    w.temp[i] = c.temp;
-                    w.paint[i] = c.paint;
-                    w.burn[i] = c.burn;
-                    w.life[i] = c.life;
-                    w.shade[i] = c.shade;
-                    w.flags[i] = c.flags & !OWNED;
-                    w.wake_at(i);
-                }
+            if v.contains(p) && m.get(v.material_at(p)).state == State::Gas {
+                v.put_cell(p, Some(*c), m);
             }
         }
     }

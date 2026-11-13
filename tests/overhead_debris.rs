@@ -343,3 +343,30 @@ fn fracture_produces_a_mix_of_shapes_sizes_and_long_pieces() {
         "include irregular shapes, not only cuboids"
     );
 }
+#[test]
+fn rubble_beyond_a_material_patch_lands_on_supplied_terrain_height() {
+    let m = mats();
+    let mut v = room(&m);
+    let c = cell(&m, "wood");
+    v.debris.ensure_ground_patch(
+        (5, 0),
+        Point::new(40., 0., 0.),
+        Point::new(24., 32., 10.),
+        0.8,
+    );
+    v.debris.spawn(
+        vec![(Point::new(50., 10., 24.), c)],
+        Point::default(),
+        Point::default(),
+        &m,
+    );
+    for _ in 0..240 {
+        v.step(&m);
+    }
+    let state = v.debris.states()[0];
+    assert!(
+        state.at.z >= 10.3 && state.at.z < 12.,
+        "external rubble fell through the scrolling terrain: {:?}",
+        state.at
+    );
+}

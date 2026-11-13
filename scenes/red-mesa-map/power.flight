@@ -1,0 +1,10 @@
+size 64 64 88
+spawn 8 8 70
+box ground stone 0 0 0 64 64 3 #bea476
+box yard concrete 9 12 3 46 43 1 #8e8b75
+prop ../../assets/overhead/mesa-power.volume 17 22 4
+prop ../../assets/overhead/mesa-aa.volume 5 4 4
+prop ../../assets/overhead/oil-barrel.volume 50 40 4
+box supply_armour wood 7 52 4 5 5 5 #b59956
+box crate wood 5 25 4 5 5 5 #987d4d
+box cactus wood 58 46 3 2 2 13 #6c844b

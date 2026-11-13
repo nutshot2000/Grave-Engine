@@ -132,6 +132,7 @@ pub struct Debris {
     stamps: Vec<Stamp>,
     owners: Vec<bool>,
     terrain: Vec<Terrain>,
+    external_ground: std::collections::BTreeSet<(i32, i32)>,
     next_id: u64,
     tick: u64,
     thermal: Option<World>,
@@ -209,6 +210,7 @@ impl Debris {
             stamps: vec![],
             owners: vec![false; width * depth * height],
             terrain: vec![],
+            external_ground: std::collections::BTreeSet::new(),
             next_id: 1,
             tick: 0,
             thermal: None,
@@ -216,6 +218,33 @@ impl Debris {
             depth,
             height,
         }
+    }
+    /// Cache coarse fixed terrain beyond the bounded material grid. A sparse
+    /// world can supply nearby ground as fragments travel outside their patch.
+    pub fn ensure_ground_patch(&mut self, key: (i32, i32), at: Point, size: Point, friction: f32) {
+        if ![at.x, at.y, at.z, size.x, size.y, size.z]
+            .iter()
+            .all(|v| v.is_finite())
+            || size.x <= 0.
+            || size.y <= 0.
+            || size.z <= 0.
+            || !self.external_ground.insert(key)
+        {
+            return;
+        }
+        self.colliders.insert(
+            ColliderBuilder::cuboid(
+                size.x * CELL * 0.5,
+                size.y * CELL * 0.5,
+                size.z * CELL * 0.5,
+            )
+            .translation(Vector::new(
+                (at.x + size.x * 0.5) * CELL,
+                (at.y + size.y * 0.5) * CELL,
+                (at.z + size.z * 0.5) * CELL,
+            ))
+            .friction(friction),
+        );
     }
     pub fn len(&self) -> usize {
         self.fragments.len()

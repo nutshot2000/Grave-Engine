@@ -1,0 +1,12 @@
+size 64 64 88
+spawn 8 8 70
+box ground stone 0 0 0 64 64 11 #bea476
+box yard concrete 9 12 11 46 43 1 #8e8b75
+prop ../../assets/overhead/mesa-radar.volume 22 18 12
+prop ../../assets/overhead/mesa-aa.volume 46 4 12
+box rescue_awning cloth 10 44 23 11 7 1 #aa976d
+box awning_post wood 10 44 12 1 7 11 #88704a
+box awning_post wood 20 44 12 1 7 11 #88704a
+box supply_fuel wood 5 6 12 5 5 5 #b59956
+box crate wood 5 25 12 5 5 5 #987d4d
+box cactus wood 58 46 11 2 2 13 #6c844b

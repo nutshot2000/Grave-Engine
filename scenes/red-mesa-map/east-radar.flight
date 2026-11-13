@@ -1,0 +1,9 @@
+size 64 64 88
+spawn 8 8 70
+box ground stone 0 0 0 64 64 19 #bea476
+box yard concrete 9 12 19 46 43 1 #8e8b75
+prop ../../assets/overhead/mesa-radar.volume 24 20 20
+prop ../../assets/overhead/mesa-sam.volume 4 5 20
+box supply_ammo wood 51 48 20 5 5 5 #b59956
+box crate wood 5 25 20 5 5 5 #987d4d
+box cactus wood 58 46 19 2 2 13 #6c844b

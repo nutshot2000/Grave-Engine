@@ -1,0 +1,35 @@
+size 1536 1152 88
+spawn 160 992 32
+region red-mesa-map/base.flight 2 15 2
+region red-mesa-map/west-radar.flight 4 10 10
+region red-mesa-map/east-radar.flight 18 3 18
+region red-mesa-map/power.flight 10 9 2
+region red-mesa-map/command.flight 19 13 10
+region red-mesa-map/ammo-dump.flight 7 5 2
+region red-mesa-map/prison.flight 20 15 2
+region red-mesa-map/workshop.flight 9 14 2
+region red-mesa-map/crash-site.flight 12 6 2
+region red-mesa-map/west-pass.flight 4 13 2
+region red-mesa-map/central-pass.flight 8 10 2
+region red-mesa-map/north-pass.flight 13 4 2
+region red-mesa-map/east-pass.flight 17 10 2
+region red-mesa-map/command-road.flight 18 14 2
+region red-mesa-map/north-lz.flight 11 3 2
+region red-mesa-map/east-lz.flight 20 9 2
+road 160 992 288 864 11
+road 288 864 288 672 11
+road 288 672 480 352 11
+road 288 672 544 672 11
+road 544 672 672 608 11
+road 544 672 608 928 11
+road 480 352 736 224 11
+road 736 224 864 288 11
+road 864 288 1184 224 11
+road 672 608 800 416 11
+road 800 416 864 288 11
+road 672 608 1120 672 11
+road 1120 672 1312 608 11
+road 1120 672 1248 864 11
+road 1248 864 1312 992 11
+road 1248 864 1184 928 11
+road 1312 608 1184 224 11
