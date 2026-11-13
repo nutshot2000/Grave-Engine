@@ -19,7 +19,8 @@ The helicopter has a rotating rotor, tail, cockpit, skids, altitude and a projec
 
 `grave_engine::overhead` supplies:
 
-- `Volume`: ground X/Y plus height Z. It arranges existing X/height `Sim` sections along ground Y. Each section retains the engine's material heat, burning, fluid, explosion, rigid fragmentation and downward gravity behavior. Adjacent sections exchange heat and provide oxygen through their faces.
+- `Volume`: ground X/Y plus height Z. It arranges existing X/height `Sim` sections along ground Y. Each section retains the engine's material heat, burning, fluid and fracture rules. Adjacent sections exchange heat and provide oxygen through their faces. Detached solid material transfers into shared 3D rigid bodies for gravity and contacts.
+- `overhead::debris::Debris`: reusable 3D fragments with mass from material density, gravity, free XYZ translation and rotation, terrain/rubble contacts, CCD, friction, bounce and sleeping. Native fracture results automatically become connected material chunks. `spawn`, `states`, `voxels`, `heat` and `blast` are public for other games.
 - `box_part`: named boxes made from real material IDs, with optional surface paint. No helicopter-specific material rules.
 - `Volume::load`: bounded, validated plain-text levels and reusable `.volume` prefab files. The test hangar and fuel tank are separate reusable assets in `assets/overhead/`.
 - `Aircraft`, `FlightSettings`, `FlightInput`: configurable acceleration, damping, speed, climbing, collision radius and altitude-aware swept obstacle checks. A game supplies input; it can reuse this for drones or other aircraft.
@@ -44,8 +45,21 @@ Other games can load these same prefabs or construct volumes with the public API
 
 `cargo test --release --test overhead` checks high clearance versus low wall hits, very fast projectile sweeps, flight response and damping, projection/picking, cross-section fire spread, unsupported roof collapse, reusable prefab loading and invalid inputs.
 
-`cargo run --release --bin flight-test -- --verify` checks the intact hangar, high/low rays and a 1,800-frame native material burn. It writes intact, burning and damaged screenshots into `shots/`. The validated burn reduced hangar timber from 8,826 to 4,102 cells while exposing rooms.
+`cargo run --release --bin flight-test -- --verify` checks the intact hangar, high/low rays and a 1,800-frame native material burn. It writes intact, burning and damaged screenshots into `shots/`. It also verifies rubble velocity in both ground-depth directions. `flight-test-scatter.png` captures the initial burst; the longer burn exposes rooms.
 
 ## Current limits
 
-This is a fixed-angle 2.5D adapter, not a freely rotating 3D world. Rigid fragments collide and fall inside their own vertical section; they do not yet tumble or move sideways between ground-depth sections. Liquids likewise flow within sections; heat/fire can spread between sections. Aircraft use a swept fuselage collision envelope; individual rotor parts do not physically crash or detach yet. Levels load from text and reset from the source; overhead save/rewind and workshop editing are future work. Large maps need active regions rather than stepping every section.
+This is a fixed-angle 2.5D adapter, not a freely rotating 3D world. Detached solid fragments now move, spin, collide and settle in shared 3D space, crossing any number of former section boundaries. Static support/fracture detection and fluid flow still use vertical sections; this is not yet a full 3D structural-strength or fluid solver. Aircraft use a swept fuselage collision envelope; individual rotor parts do not physically crash or detach yet. Levels load from text and reset from the source; overhead save/rewind and workshop editing are future work. Large maps need active regions rather than stepping every section.
+
+
+## Shared rubble implementation
+
+Material cells carry their physical material, paint, temperature and burn/lifetime counters into the 3D fragment. In-bounds cells briefly stamp into the native grids for heat exchange and material changes, then lift out before rigid simulation. Above/outside the grids, isolated native thermal patches keep burn and cooling rules running. Counts include unstamped material, so off-map or rotated pieces do not disappear from material accounting.
+
+Collision cuboids are greedily merged, retaining material mass, friction and bounce while removing artificial internal voxel edges. Only changed 8³ terrain chunks rebuild their colliders. CCD catches fast fragments against thin walls. Fragments created together ignore mutual contacts for their first four physics ticks to release a shared cut face; they still hit terrain and older rubble, then collide with each other normally. Thin panels receive pressure out of their plane so a roof can open instead of remaining a jammed jigsaw. Further explosions can relaunch settled rubble.
+
+`cargo test --release --test overhead_debris` covers travel across ground depth, native building blasts in both directions, fast wall collision, stacking/settling, solid cell conservation, airborne burning and paint, density-dependent mass/impulses, secondary blasts and actual roof-panel ejection. This is engine behavior; the flight lab does not implement a separate debris effect.
+
+The shared solver uses [Rapier 3D](https://rapier.rs/docs/user_guides/rust/getting_started/) alongside the existing Rapier 2D section solver. Rigid rubble is 3D; static support detection remains section-based. Secondary impact-driven re-fracture, 3D liquids and overhead save/rewind remain future work.
+
+![Roof pieces crossing sections](flight-test-scatter.png)

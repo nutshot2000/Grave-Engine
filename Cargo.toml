@@ -10,6 +10,7 @@ eframe = "0.37"
 rodio = { version = "0.21.1", default-features = false, features = ["playback"] }
 png = "0.18"
 rapier2d = "0.36"
+rapier3d = "0.36"
 gltf = "1.4"
 tobj = "4"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }

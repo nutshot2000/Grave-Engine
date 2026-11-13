@@ -173,7 +173,7 @@ impl Viewport {
                 for x in 0..v.width {
                     let i = row * v.width + x;
                     let id = w.mat[i];
-                    if id == AIR {
+                    if id == AIR || v.debris.is_stamped(y, i) {
                         continue;
                     }
                     let mat = m.get(id);
@@ -242,6 +242,35 @@ impl Viewport {
                 }
             }
         }
+        for (centre, cell) in v.debris.voxels() {
+            let mat = m.get(cell.mat);
+            let p = Point::new(centre.x - 0.5, centre.y - 0.5, centre.z - 0.5);
+            let base = crate::asset::paint_rgb(cell.paint).unwrap_or(mat.color);
+            let f = noise(
+                cell.shade as u32
+                    ^ if cell.flags & BURNING != 0 {
+                        v.frame / 3 * 7919
+                    } else {
+                        0
+                    },
+            ) as f32
+                / u32::MAX as f32;
+            let mut color = base.map(|c| (c as f32 * (0.93 + 0.14 * f)).min(255.) as u8);
+            if cell.flags & BURNING != 0 {
+                let flame = [255., 90. + 120. * f, 20. + 30. * f];
+                for k in 0..3 {
+                    color[k] = (color[k] as f32 * 0.3 + flame[k] * 0.7) as u8;
+                }
+            }
+            draw.push(Draw {
+                p,
+                color,
+                faces: [true; 3],
+                gas: false,
+                alpha: 1.,
+            });
+        }
+
         for a in instances {
             let (s, c) = a.angle.sin_cos();
             for cell in a.cells {

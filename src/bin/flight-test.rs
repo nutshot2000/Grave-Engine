@@ -162,12 +162,28 @@ impl FlightTest {
             fire: t.m.id("fire"),
         });
         let mut burning = false;
+        let (mut forward, mut backward) = (false, false);
         let burn_started = Instant::now();
         for frame in 0..1800 {
             if frame < 90 && frame % 20 == 0 {
                 t.world.heat(Point::new(86., 47., 26.), 8., 1050.);
             }
             t.world.step(&t.m);
+            for s in t.world.debris.states() {
+                forward |= s.velocity.y > 2.;
+                backward |= s.velocity.y < -2.;
+            }
+            if frame == 12 {
+                t.draw_pixels();
+                grave_engine::headless::write_png(
+                    Path::new("shots/flight-test-scatter.png"),
+                    t.view.width,
+                    t.view.height,
+                    &t.view.pixels,
+                    2,
+                )
+                .unwrap();
+            }
             burning |= t.world.sections.iter().any(|s| {
                 s.world
                     .flags
@@ -197,6 +213,10 @@ impl FlightTest {
         .unwrap();
         let after = t.world.count(t.m.id("weathered_wood").unwrap());
         assert!(burning);
+        assert!(
+            forward && backward,
+            "roof fragments must scatter across depth sections"
+        );
         assert!(after < wood, "wood burns and roof damage is real");
         t.step_ms = burn_started.elapsed().as_secs_f32() * 1000. / 1800.;
         println!(
@@ -306,10 +326,11 @@ impl eframe::App for FlightTest {
             ui.colored_label(
                 Color32::from_rgb(209, 201, 151),
                 format!(
-                    "ALTITUDE {:.1} m   |   SPEED {:.1} m/s   |   TIMBER {}%   |   {:.1} ms / step",
+                    "ALTITUDE {:.1} m   |   SPEED {:.1} m/s   |   TIMBER {}%   |   RUBBLE {}   |   {:.1} ms / step",
                     self.craft.at.z * 0.1,
                     self.craft.velocity.x.hypot(self.craft.velocity.y) * 0.1,
                     remains * 100 / self.wood_start.max(1),
+                    self.world.debris.len(),
                     self.step_ms
                 ),
             );

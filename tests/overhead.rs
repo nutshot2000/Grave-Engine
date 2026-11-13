@@ -163,7 +163,7 @@ fn unsupported_roof_fragments_fall_along_altitude_not_ground_y() {
         v.step(&m);
     }
     assert_ne!(v.material_at(Point::new(14., 4., 12.)), wood);
-    assert!(v.sections[4].physics.body_count() > 0);
+    assert!(!v.debris.is_empty());
 }
 #[test]
 fn named_prefabs_load_and_bad_worlds_are_rejected() {

@@ -7,6 +7,7 @@ use crate::{
     world::{ANCHORED, Blast},
 };
 use std::{collections::HashSet, path::Path};
+pub mod debris;
 pub mod view;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -60,6 +61,7 @@ pub struct Volume {
     pub sections: Vec<Sim>,
     pending: Vec<Explosion>,
     pub explosions: Vec<Explosion>,
+    pub debris: debris::Debris,
 }
 impl Volume {
     pub fn new(width: usize, depth: usize, height: usize, m: &Materials) -> Result<Self, String> {
@@ -85,6 +87,7 @@ impl Volume {
             sections: (0..depth).map(|_| Sim::empty(width, height, m)).collect(),
             pending: vec![],
             explosions: vec![],
+            debris: debris::Debris::new(width, depth, height),
         })
     }
     pub fn index(&self, p: Point) -> Option<(usize, usize)> {
@@ -151,6 +154,7 @@ impl Volume {
         if !radius.is_finite() || radius <= 0. || !temp.is_finite() {
             return;
         }
+        self.debris.heat(at, radius, temp);
         for (y, s) in self.sections.iter_mut().enumerate() {
             let dy = (y as f32 + 0.5 - at.y).abs();
             if dy > radius {
@@ -194,10 +198,11 @@ impl Volume {
         self.sections
             .iter()
             .map(|s| s.world.mat.iter().filter(|v| **v == id).count())
-            .sum()
+            .sum::<usize>()
+            + self.debris.count_unrepresented(id)
     }
     /// Adjacent section faces exchange heat and oxygen. Gravity remains along
-    /// height, not screen Y. Rigid fragments currently remain in their section.
+    /// height, not screen Y. Detached material becomes shared 3D rigid rubble.
     pub fn step(&mut self, m: &Materials) {
         self.frame = self.frame.wrapping_add(1);
         let feeding: Vec<Vec<bool>> = self
@@ -233,6 +238,8 @@ impl Volume {
                 });
             }
         });
+        self.pending
+            .extend(self.debris.read_back(&mut self.sections, m));
         // Nearby explosive cells form one volume blast rather than launching
         // the same charge once for every overlapping cross section.
         let mut occupied = HashSet::new();
@@ -280,6 +287,8 @@ impl Volume {
                 });
             }
         });
+        self.debris.promote(&mut self.sections, m, &self.explosions);
+        self.debris.step(&mut self.sections, m);
     }
     /// Simple authored boxes and reusable prefab files. Unknown commands and
     /// invalid materials produce errors instead of silently changing a level.
