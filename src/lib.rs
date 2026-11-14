@@ -9,6 +9,7 @@ pub mod camera;
 pub mod edit;
 pub mod headless;
 pub mod import;
+pub mod input;
 pub mod light;
 pub mod look;
 pub mod notes;

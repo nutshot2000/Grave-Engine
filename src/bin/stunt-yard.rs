@@ -21,7 +21,10 @@ struct Part { id:u64, name:String }
 
 // Fuses, checkpoints and their messages are engine triggers in the scene
 // (`trigger ... by frame : ...`); the game reacts to `sim.events`.
-struct Game { ai_wait:u32, level:usize, checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, upside_down:u32, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: Vec<bool>, cam_x:f32, cam_y:f32, cam_width:f32 }
+struct Game { ai_wait:u32, level:usize, checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, upside_down:u32, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: Vec<bool>, cam_x:f32, cam_y:f32, cam_width:f32, input:Option<grave_engine::input::Input> }
+/// Default controls, built in; assets/input/stunt-yard.input is read at start-up,
+/// so editing it changes the controls (keyboard or game controller) without rebuilding.
+const STUNT_YARD_INPUT:&str=include_str!("../../assets/input/stunt-yard.input");
 impl Game {
  /// Wreck Run.
  fn new() -> Self {Self::with_level(0)}
@@ -42,7 +45,7 @@ impl Game {
   }).collect();
   assert!(parts.iter().any(|p|p.name=="frame"),"missing bike frame");
   let start=sim.physics.spec_of(&sim.world,sim.follow.unwrap_or(1)).map_or((110.,100.),|b|(b.x,b.y-80.));
-  Self {ai_wait:0,level,checkpoint:0.,surface:String::new(),parts,crashed:false,upside_down:0,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE  (1 / 2: pick a course)".into(),started:false,best:0,score:0,gates:vec![false;lv.stages.len()],cam_x:start.0,cam_y:start.1,cam_width:220.}
+  Self {ai_wait:0,level,checkpoint:0.,surface:String::new(),parts,crashed:false,upside_down:0,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE  (1 / 2: pick a course)".into(),started:false,best:0,score:0,gates:vec![false;lv.stages.len()],cam_x:start.0,cam_y:start.1,cam_width:220.,input:None}
  }
  fn lv(&self)->Level {LEVELS[self.level]}
  /// Where the finish line is (for the progress bar): the level's, or its
@@ -192,24 +195,26 @@ impl eframe::App for Game {
  fn ui(&mut self,ui:&mut egui::Ui,_:&mut eframe::Frame) {
   let ctx=ui.ctx().clone();
   let dt=self.last.elapsed().as_secs_f64().min(0.1);self.last=Instant::now();
-  if ctx.input(|i|i.key_pressed(egui::Key::R)){self.retry_checkpoint();}
-  if ctx.input(|i|i.key_pressed(egui::Key::Backspace)){self.retry();}
-  if ctx.input(|i|i.key_pressed(egui::Key::Space)) && self.frame==0 {self.started=true;self.state="ACTION!".into();}
+  // Keyboard and game controller, as named actions (assets/input/stunt-yard.input).
+  let input=self.input.get_or_insert_with(||grave_engine::input::Input::load_or("assets/input/stunt-yard.input",STUNT_YARD_INPUT).unwrap_or_else(|e|{eprintln!("Controls file problem, using the defaults: {e}");let mut i=grave_engine::input::Input::parse(STUNT_YARD_INPUT).expect("default controls");i.connect_controllers();i}));
+  input.update(&ctx);
+  let (checkpoint,restart,start,crash,course)=(input.pressed("checkpoint"),input.pressed("restart"),input.pressed("start"),input.pressed("crash_test"),[input.pressed("course_1"),input.pressed("course_2")]);
+  let (gas,brake_v,lean)=(input.value("throttle"),input.value("brake"),input.axis("lean"));
+  if checkpoint {self.retry_checkpoint();}
+  if restart {self.retry();}
+  if start && self.frame==0 {self.started=true;self.state="ACTION!".into();}
   // Pick a course before starting.
   if self.frame==0 && !self.started {
-   for (k,key) in [egui::Key::Num1,egui::Key::Num2].into_iter().enumerate() {
-    if ctx.input(|i|i.key_pressed(key)) && k!=self.level {let best=self.best;*self=Self::with_level(k);self.best=best;}
+   for (k,&go) in course.iter().enumerate() {
+    if go && k!=self.level {let (best,input)=(self.best,self.input.take());*self=Self::with_level(k);self.best=best;self.input=input;}
    }
   }
-  if ctx.input(|i|i.key_pressed(egui::Key::C)){self.crash_test();}
-  // Trials controls: W / ↑ throttle, S / ↓ brake (and back up when stopped),
-  // A / ← lean back, D / → lean forward (Q / E too).
-  let down=|k:&[egui::Key]|ctx.input(|i|k.iter().any(|k|i.key_down(*k)));
-  let gas=down(&[egui::Key::W,egui::Key::ArrowUp]);
-  let brake=down(&[egui::Key::S,egui::Key::ArrowDown]);
-  let lean=if down(&[egui::Key::D,egui::Key::ArrowRight,egui::Key::E]){1.}else if down(&[egui::Key::A,egui::Key::ArrowLeft,egui::Key::Q]){-1.}else{0.};
+  if crash {self.crash_test();}
+  // Trials controls: throttle and brake (analogue triggers on a controller),
+  // lean back/forward (stick or keys). Hold brake when stopped to back up.
+  let (gas_on,brake)=(gas>0.1,brake_v>0.5);
   let slow=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).is_some_and(|b|b.vx.abs()<4.);
-  let (throttle,brake)=if brake && slow && !gas {(-0.6,false)} else {(if gas {1.} else {0.},brake)};
+  let (throttle,brake)=if brake && slow && !gas_on {(-0.6,false)} else {(gas,brake)};
   if self.started && ctx.input(|i|i.focused){self.clock+=dt*self.sim.camera.time_scale() as f64;let mut n=0;while self.clock>=1./60. && n<6 && self.started {self.drive(throttle,lean,brake);self.clock-=1./60.;n+=1;}}else{self.clock=0.;}
   let lv=self.lv();
   ui.heading(format!("STUNT YARD  /  {}",lv.title));
@@ -218,7 +223,7 @@ impl eframe::App for Game {
   let speed=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1)).map_or(0.,|b|b.vx.abs()*0.36);
   ui.label(format!("{speed:.0} km/h   {}   |   CHECKPOINT {}m",if self.surface.is_empty(){"HARD SURFACE / AIR"}else{&self.surface},(self.checkpoint/10.) as u32));
   ui.label(egui::RichText::new(&self.state).color(Color32::from_rgb(255,190,65)).size(21.));
-  ui.label("SPACE: start  •  W / ↑: throttle  •  S / ↓: brake (hold when stopped: back up)  •  A / ←: lean back  •  D / →: lean forward  •  R: checkpoint  •  BACKSPACE: restart  •  1 / 2: course  •  C: crash test");
+  ui.label(if self.input.as_ref().and_then(|i|i.controller()).is_some(){"CONTROLLER: Start/A start  •  RT throttle  •  LT brake  •  left stick lean  •  Y checkpoint  •  Back restart  •  LB/RB course".to_string()}else{"SPACE: start  •  W / ↑: throttle  •  S / ↓: brake (hold when stopped: back up)  •  A / ←: lean back  •  D / →: lean forward  •  R: checkpoint  •  BACKSPACE: restart  •  1 / 2: course  •  C: crash test".to_string()});
   let (rect,_)=ui.allocate_exact_size(ui.available_size(),egui::Sense::hover());
   let b=self.sim.physics.spec_of(&self.sim.world,self.sim.follow.unwrap_or(1));
   let vw=self.update_zoom(dt as f32);let vh=(vw*rect.height()/rect.width()).min(240.);

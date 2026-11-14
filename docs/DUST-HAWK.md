@@ -20,6 +20,8 @@ Destroy two elevated radar arrays, cut power to disable guided SAMs, rescue six 
 | M | Tactical map |
 | Wheel | Zoom |
 | P / Escape | Pause |
+
+With a game controller: left stick flies, RB/LB climb/descend, right stick aims (the reticle stays where you push it), RT fires, LT heavy weapon, A winch, B flares, Y next weapon, Start begins and pauses, Back map. Remap everything in `assets/input/dust-hawk.input`.
 | R | Restart |
 
 ## Tactics

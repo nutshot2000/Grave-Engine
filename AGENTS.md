@@ -88,6 +88,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/weather.rs` | weather: `Weather` settings on `Sim` (snow/rain/hail/dust/fog/gusts 0..1, lightning per minute, master `on`, `fades` for triggers) and `WeatherRun` (flash, bolt, strike timer). `step` (called in `Sim::step` right after `World::step`, before physics so strikes can add `Blast`s) spawns flying cells just above `Sim::weather_view` (the screen area, set each frame by the editor/games; else around the followed object; else the whole world), modulates `world.wind` for gusts (`gust_base` remembers the scene's wind: saved instead), and runs lightning: tallest of 6 sampled columns, 26-frame flicker warning, then bolt + flash + shake + heat + blast + sand to glass. Fog/bolt/flash are drawn by `render.rs` (`renderer.light(&sim)` picks them up). Scene lines `weather ...`; trigger action `weather KIND V [S]` / `weather clear [S]`; saved, undoable (☁ Weather menu in app.rs) |
 | `src/backdrop.rs` | sky gradient + parallax layers (hills, mountains, city, forest, clouds, image) drawn at world resolution for the camera centre (`renderer.set_camera`): layer x = world x - camera x (1 - depth). Renderer shows it in plain AIR cells; lit by ambient + sun, not world shadows; lamp haze in front. `PRESETS` for the editor menu. Scene lines `sky`/`layer` |
 | `src/light.rs` | lighting (sun shadows are swept per frame over just the slanted band that can reach the drawn window, from at most `MAX_SHADOW_ROWS` above it): `Lighting` on `Sim` (ambient level + tint, `Sun` swept row by row for shadows, `Light` lamps cast as rays with falloff, cones, flicker, `on` an object), `illuminate` (per-cell light; materials' `light_through()`), fades from the `lighting L S` trigger action. The renderer draws with it after `renderer.light(&sim)`; plain lighting = the old picture exactly. Saved as `lighting`/`sun`/`light` scene lines; in snapshots and undo |
+| `src/input.rs` | **Controls for every game**: keyboard, mouse and game controllers (gamepads/joysticks, via gilrs) as named actions from a plain-text `.input` file (`assets/input/GAME.input`, embedded with `include_str!` as the default and re-read at start-up so players can remap). `Input::load_or`, then each frame `update(ctx)` and `pressed/down/released/value/axis("name")`. `update_from` feeds fake states for tests. Dust Hawk and Stunt Yard use it |
 | `src/camera.rs` | `Effects` (`Sim::camera`: slow motion, zoom, focus, shake, timed in sim frames so replays match; `time_scale()` scales how many steps games run per second) and `Camera` (smooth follow with look-ahead, applies effects). Editor and Stunt Yard both use them |
 | `src/bin/stunt-yard.rs` | **Stunt Yard**, the stunt-bike game built on the engine (`Play-Stunt-Yard.cmd`). Courses are `LEVELS` (scene file + title; Wreck Run also has built-in stages/signs/finish; newer levels use triggers incl. `finish`). Trials controls (W/S/A/D). The bike's parts are found from the followed frame. `ai_controls` + `--verify-ai --level=N [--from=X] [--every=N]` = an automatic rider for checking levels (prints where it gets stuck). The editor shows a **🎮 Play as game** button for scenes listed in `game_level` (src/app.rs): add new courses there too. Courses from `tools/make_stunt_course.py` (Wreck Run) and `tools/make_mountain_run.py` (Mountain Run); docs in `docs/` |
 | `src/physics/actor.rs` | characters (the player): movement, swimming, breathing, health, death, animation choice, body cells |
@@ -204,6 +205,19 @@ sound, active simulation regions, regression scenes, contact inspector.
 includes riding the whole course).
 
 ## Workflows
+
+### Controls for a game (keyboard + controller)
+
+Never read keys or controller buttons directly in a game. Write
+`assets/input/GAME.input` with one line per action, e.g.
+`jump = key Space, pad A` or `walk = keys D A, stick LeftX, pads Right Left`
+(all names: top of `src/input.rs`), then in the game:
+`const INPUT: &str = include_str!("../../assets/input/GAME.input");`,
+`Input::load_or("assets/input/GAME.input", INPUT)`, `input.update(ctx)` once a
+frame, and ask `input.pressed("jump")`, `input.axis("walk")`. Give every action
+a keyboard *and* a controller source. Show controller hints when
+`input.controller()` is `Some`. `Input::update_from` with a hand-made
+`PadState` tests controller play without a real controller.
 
 ### Do the owner's notes
 1. Read every `scenes/*.notes.md`; open each unticked note's picture.

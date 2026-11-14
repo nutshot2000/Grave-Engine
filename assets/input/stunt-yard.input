@@ -1,0 +1,12 @@
+# Stunt Yard controls. NAME = sources, separated by commas.
+# Keyboard keys, mouse buttons and game-controller buttons/sticks all work;
+# every name is listed at the top of src/input.rs. Edit and restart the game.
+throttle = key W, key ArrowUp, pad RT, pad A
+brake    = key S, key ArrowDown, pad LT, pad B
+lean     = keys D A, keys ArrowRight ArrowLeft, keys E Q, stick LeftX, pads Right Left
+start    = key Space, pad Start, pad A
+checkpoint = key R, pad Y
+restart  = key Backspace, pad Back
+course_1 = key Num1, pad LB
+course_2 = key Num2, pad RB
+crash_test = key C

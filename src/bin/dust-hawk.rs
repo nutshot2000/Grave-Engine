@@ -36,7 +36,17 @@ struct App {
     tap_fire: bool,
     tap_heavy: bool,
     audio: Option<audio::Audio>,
+    /// Keyboard, mouse and game controller, as named actions (see DUST_HAWK_INPUT).
+    input: grave_engine::input::Input,
+    /// Where the controller's right stick has put the aim (screen offset from
+    /// the helicopter), and whether the controller is aiming rather than the mouse.
+    pad_offset: [f32; 2],
+    pad_aiming: bool,
 }
+
+/// Default controls, built in; the same file is read at start-up, so editing
+/// assets/input/dust-hawk.input changes the controls without rebuilding.
+const DUST_HAWK_INPUT: &str = include_str!("../../assets/input/dust-hawk.input");
 impl App {
     fn new() -> Self {
         let m = Materials::load_dir("materials");
@@ -45,6 +55,12 @@ impl App {
         let mut view = Viewport::new(900, 560);
         view.projection.scale = 2.45;
         view.ground_color = Some([190, 164, 118]);
+        let input = grave_engine::input::Input::load_or("assets/input/dust-hawk.input", DUST_HAWK_INPUT).unwrap_or_else(|e| {
+            eprintln!("Controls file problem, using the defaults: {e}");
+            let mut i = grave_engine::input::Input::parse(DUST_HAWK_INPUT).expect("default controls");
+            i.connect_controllers();
+            i
+        });
         Self {
             m,
             game,
@@ -63,6 +79,9 @@ impl App {
             tap_fire: false,
             tap_heavy: false,
             audio: None,
+            input,
+            pad_offset: [0., 60.],
+            pad_aiming: false,
         }
     }
     fn reset(&mut self) {
@@ -666,37 +685,38 @@ impl eframe::App for App {
         ui.visuals_mut().widgets.hovered.weak_bg_fill = Color32::from_rgb(67, 82, 64);
         let elapsed = self.last.elapsed().as_secs_f32().min(0.08);
         self.last = Instant::now();
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && self.game.phase == Phase::Briefing {
+        self.input.update(&ctx);
+        // (Pause first: Start both begins the mission and pauses it later.)
+        if self.input.pressed("pause") && self.game.phase == Phase::Flying {
+            self.paused = !self.paused;
+        }
+        if self.input.pressed("start") && self.game.phase == Phase::Briefing {
             self.game.start();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::M)) {
+        if self.input.pressed("map") {
             self.map = !self.map;
             if self.map {
                 self.map_image(&ctx);
             }
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::P) || i.key_pressed(egui::Key::Escape)) {
-            self.paused = !self.paused;
-        }
-        if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+        if self.input.pressed("restart") {
             self.reset();
         }
         if !self.map && !self.paused && self.game.phase == Phase::Flying {
-            if ctx.input(|i| i.key_pressed(egui::Key::G)) {
+            if self.input.pressed("winch") {
                 self.game.hook(&self.m);
             }
-            if ctx.input(|i| i.key_pressed(egui::Key::F)) {
+            if self.input.pressed("flares") {
                 self.game.flares();
             }
         }
-        for (key, n) in [
-            (egui::Key::Num1, 0),
-            (egui::Key::Num2, 1),
-            (egui::Key::Num3, 2),
-        ] {
-            if ctx.input(|i| i.key_pressed(key)) {
+        for (action, n) in [("weapon_1", 0), ("weapon_2", 1), ("weapon_3", 2)] {
+            if self.input.pressed(action) {
                 self.game.selected = n;
             }
+        }
+        if self.input.pressed("weapon") {
+            self.game.selected = (self.game.selected + 1) % 3;
         }
         ui.horizontal(|ui| {
             ui.heading("DUST HAWK");
@@ -773,7 +793,10 @@ impl eframe::App for App {
                 ui.colored_label(Color32::LIGHT_GREEN, "LZ SERVICE / UNLOADING");
             } else {
                 ui.label(
-                    "WASD fly • E/Q altitude • mouse aim/fire • Space heavy weapon • wheel zoom",
+                    match self.input.controller() {
+                        Some(_) => "Controller: left stick fly • RB/LB altitude • right stick aim • RT fire • LT heavy • A winch • B flares • Y weapon",
+                        None => "WASD fly • E/Q altitude • mouse aim/fire • Space heavy weapon • wheel zoom",
+                    },
                 );
             }
         });
@@ -786,8 +809,22 @@ impl eframe::App for App {
             .input(|i| i.pointer.hover_pos())
             .filter(|p| rect.contains(*p));
         let mut selected = None;
-        if let Some(pos) = pointer {
-            let local = [(pos.x - rect.left()) / scale, (pos.y - rect.top()) / scale];
+        // Aim with the mouse, or with the controller's right stick (twin-stick:
+        // the reticle sits where the stick last pushed it, around the helicopter).
+        let stick = [self.input.axis("aim_x"), self.input.axis("aim_y")];
+        if stick[0].hypot(stick[1]) > 0.05 {
+            self.pad_aiming = true;
+            self.pad_offset = [stick[0] * 190., stick[1] * 190.];
+        } else if ctx.input(|i| i.pointer.delta().length() > 0.5) {
+            self.pad_aiming = false;
+        }
+        let aim_local = if self.pad_aiming {
+            let c = self.view.projection.project(self.game.craft.at);
+            Some([c[0] + self.pad_offset[0], c[1] + self.pad_offset[1]])
+        } else {
+            pointer.map(|pos| [(pos.x - rect.left()) / scale, (pos.y - rect.top()) / scale])
+        };
+        if let Some(local) = aim_local {
             self.game.aim = self.view.projection.pick(local, &self.game.world, &self.m);
             let mut best = 22f32;
             for u in &self.game.units {
@@ -814,20 +851,15 @@ impl eframe::App for App {
             // A press and release may both arrive in a single rendered frame.
             self.tap_fire |= response.hovered()
                 && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary));
-            self.tap_heavy |= ctx.input(|i| i.key_pressed(egui::Key::Space))
+            self.tap_fire |= self.input.pressed("fire");
+            self.tap_heavy |= self.input.pressed("heavy")
                 || (response.hovered()
                     && ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)));
-            let (mx, my, climb, fire, heavy) = ctx.input(|i| {
-                let a = |x, y| i.key_down(x) as i32 - i.key_down(y) as i32;
+            let (mx, my, climb) = (self.input.axis("move_x"), self.input.axis("move_y"), self.input.axis("climb"));
+            let (fire, heavy) = ctx.input(|i| {
                 (
-                    (a(egui::Key::D, egui::Key::A) + a(egui::Key::ArrowRight, egui::Key::ArrowLeft))
-                        as f32,
-                    (a(egui::Key::S, egui::Key::W) + a(egui::Key::ArrowDown, egui::Key::ArrowUp))
-                        as f32,
-                    a(egui::Key::E, egui::Key::Q) as f32,
-                    response.hovered() && i.pointer.primary_down(),
-                    i.key_down(egui::Key::Space)
-                        || (response.hovered() && i.pointer.secondary_down()),
+                    self.input.down("fire") || (response.hovered() && i.pointer.primary_down()),
+                    self.input.down("heavy") || (response.hovered() && i.pointer.secondary_down()),
                 )
             });
             let input = FlightInput {

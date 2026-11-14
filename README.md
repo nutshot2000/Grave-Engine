@@ -606,6 +606,7 @@ Scenes can set `depth 0.02` after a body for its physical thickness in metres (d
 
 ## Stunt Yard courses
 
+(A game controller works too: RT throttle, LT brake, left stick lean, Start to begin. Controls for both games live in `assets/input/*.input` and can be remapped there.)
 `Play-Stunt-Yard.cmd` (or open the course in the editor and press **🎮 Play as game**). On the start screen press **1** or **2** to pick a course, then
 SPACE. Trials controls: **W / ↑** throttle, **S / ↓** brake (hold it when stopped to
 back up), **A / ←** lean back, **D / →** lean forward. R returns to the last
