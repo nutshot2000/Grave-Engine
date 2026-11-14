@@ -141,7 +141,8 @@ fn run_from_copy(args: &[String]) -> Option<()> {
     std::fs::create_dir_all(&dir).ok()?;
     // Tidy old copies (ones still running are locked and stay).
     if let Ok(rd) = std::fs::read_dir(&dir) {
-        for e in rd.flatten() {
+        // Only old program copies: never anything else that might be there.
+        for e in rd.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "exe" || x.is_empty())) {
             let _ = std::fs::remove_file(e.path());
         }
     }

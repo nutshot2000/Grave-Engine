@@ -214,6 +214,18 @@ struct NoteDraft {
     focused: bool,
 }
 
+/// The asset files a scene places (`asset FILE ...`), and when each last changed.
+fn scene_assets(text: &str, scene: &Path) -> Vec<(PathBuf, Option<SystemTime>)> {
+    text.lines()
+        .filter_map(|l| l.trim().strip_prefix("asset ")?.split_whitespace().next())
+        .map(|f| scene.parent().map(|d| d.join(f)).filter(|p| p.exists()).unwrap_or_else(|| PathBuf::from(f)))
+        .map(|p| {
+            let s = stamp(&p);
+            (p, s)
+        })
+        .collect()
+}
+
 /// Which Stunt Yard course (its `--level=` number) a scene file is, if any.
 fn game_level(scene_path: &str) -> Option<usize> {
     let name = std::path::Path::new(scene_path).file_name()?.to_str()?;
@@ -446,6 +458,8 @@ impl Sandbox {
         if let Ok(path) = std::env::var(RESUME_SCENE) {
             app.scene_path = path;
             app.scene_stamp = stamp(Path::new(&app.scene_path));
+            let file = PathBuf::from(&app.scene_path);
+            app.scene_assets = scene_assets(&std::fs::read_to_string(&file).unwrap_or_default(), &file);
         }
         if let Ok(notes_scene) = std::env::var(RESUME_NOTES) {
             app.notes_scene = PathBuf::from(notes_scene);
@@ -479,7 +493,8 @@ impl Sandbox {
     fn restart_into_new_build(&mut self) {
         let Some((exe, _)) = self.original_exe.clone() else { return };
         let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) else { return };
-        let resume = dir.join("resume.txt");
+        // (Next to the copies, not among them: the new start tidies that folder.)
+        let resume = dir.parent().unwrap_or(&dir).join("editor-resume.txt");
         let snap = self.sim.snapshot();
         if std::fs::write(&resume, scene::save(&snap, &self.mats)).is_err() {
             self.say("Couldn't save the scene to restart: keep working, then reopen the editor");
@@ -1365,7 +1380,14 @@ impl Sandbox {
         self.highlight_since = Instant::now();
         let n = self.highlights.len();
         let path = PathBuf::from(&self.scene_path);
-        self.log_activity(if n > 0 { format!("{why} ({n} area{} changed)", if n == 1 { "" } else { "s" }) } else { why }, Some(path));
+        let detail = if n > 0 {
+            format!("{n} area{} changed", if n == 1 { "" } else { "s" })
+        } else if (self.sim.world.w, self.sim.world.h) != (w, h) {
+            format!("new size {}x{}", self.sim.world.w, self.sim.world.h)
+        } else {
+            format!("no difference found in {}x{} cells", w, h)
+        };
+        self.log_activity(format!("{why} ({detail})"), Some(path));
     }
 
     /// The 🤖 AI activity panel: newest first, each with a button to open its file again.
@@ -1688,15 +1710,7 @@ impl Sandbox {
                 self.hover = None;
                 self.cam = None;
                 self.scene_stamp = stamp(&path);
-                self.scene_assets = text
-                    .lines()
-                    .filter_map(|l| l.trim().strip_prefix("asset ")?.split_whitespace().next())
-                    .map(|f| path.parent().map(|d| d.join(f)).filter(|p| p.exists()).unwrap_or_else(|| PathBuf::from(f)))
-                    .map(|p| {
-                        let s = stamp(&p);
-                        (p, s)
-                    })
-                    .collect();
+                self.scene_assets = scene_assets(&text, &path);
                 self.notes_scene = path.clone();
                 self.notes = notes::load(&notes::path_for(&path));
                 self.notes_stamp = stamp(&notes::path_for(&path));
@@ -3520,6 +3534,29 @@ mod tests {
     use egui_kittest::Harness;
     use egui_kittest::kittest::Queryable;
     use eframe::egui::{Event, PointerButton};
+
+    #[test]
+    fn a_scene_changed_on_disk_reloads_and_outlines_what_changed() {
+        let dir = std::env::temp_dir().join(format!("grave-outline-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("s.txt");
+        std::fs::write(&file, "size 120 80
+fill air
+rect stone 0 70 120 10
+").unwrap();
+        let mut app = Sandbox::new(PathBuf::from("materials"), Some(file.clone()));
+        std::fs::write(&file, "size 120 80
+fill air
+rect stone 0 70 120 10
+rect wood 90 50 12 20
+").unwrap();
+        app.reload_highlighting("changed".into());
+        println!("{:?}", app.highlights);
+        assert!(!app.highlights.is_empty(), "the new wood is outlined");
+        let (x0, y0, x1, y1) = app.highlights.iter().fold((usize::MAX, usize::MAX, 0, 0), |a, r| (a.0.min(r.0), a.1.min(r.1), a.2.max(r.2), a.3.max(r.3)));
+        assert!(x0 >= 80 && x1 <= 110 && y0 >= 40 && y1 <= 72, "only around the change: {:?}", app.highlights);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn course_scenes_can_be_played_as_a_game() {
