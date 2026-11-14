@@ -4,7 +4,7 @@ param crouched 0
 param rolling 0
 state crouch_idle clip ual_crouch_idle_loop loop speed 1
 state crouch_walk clip ual_crouch_fwd_loop loop speed 1 rate speed 0.625 0.3 1.5
-state roll clip ual_roll once speed 2
+state roll clip roll_low once speed 1
 param dead 0
 param hanging 0
 param climbing 0

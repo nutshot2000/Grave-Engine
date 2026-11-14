@@ -79,3 +79,32 @@ fn mobility_settings_roundtrip_and_reject_invalid_heights() {
     assert!(reload.problems.is_empty());assert_eq!(reload.actors[0].mobility,s.physics.export_actors()[0].mobility);
     assert!(!scene::load(&text.replace("crouch_height 10","crouch_height 3"),&m,None).problems.is_empty());
 }
+
+#[test]
+fn capsule_waits_for_the_visible_tuck_before_entering_a_low_beam() {
+    use grave_engine::look::{Look,Frame,Anim,MASK_W};
+    use grave_engine::animation::Graph;
+    use std::sync::Arc;
+    let graph=Arc::new(Graph::parse("initial idle\nparam crouched 0\nparam rolling 0\nstate idle clip idle loop speed 1\nstate roll clip roll once speed 1\ntransition idle roll priority 99 after 0 when rolling > 0\ntransition roll idle priority 40 after 0 when rolling == 0\n").unwrap());
+    let frame=|height:usize| {
+        let mut mask=vec![false;MASK_W*16];
+        for y in 16-height..16 { for x in 8..12 { mask[y*MASK_W+x]=true; } }
+        Frame{scale:1.0,w:20,h:16,rgba:vec![0;20*16*4],mask}
+    };
+    let look=Arc::new(Look{graph,name:"test-tuck".into(),dir:Default::default(),figure:16.0,feet:16.0,faces_right:true,blends:Default::default(),anims:[
+        ("idle".into(),Anim{fps:10.0,looping:true,frames:vec![frame(16)]}),
+        ("roll".into(),Anim{fps:10.0,looping:false,frames:vec![frame(16),frame(8),frame(8),frame(8)]}),
+    ].into()});
+    let m=Materials::load_dir("materials");
+    let mut loaded=scene::load("size 200 170\nfill air\nrect stone 0 150 200 20\nrect concrete 47 133 75 6\nanchor 47 133 75 6\nplayer 40 150 moves\n",&m,None);
+    loaded.actors[0].look=Some(look);
+    let (mut s,e)=loaded.into_sim(&m);assert!(e.is_empty());
+    run(&mut s,&m,Controls::default(),20);
+    run(&mut s,&m,Controls{roll:true,..Default::default()},4);
+    let a=&s.physics.actor_status()[0];
+    assert_eq!(a.body_height,16.0,"the upright entry frame still needs a full-height capsule");
+    assert!(a.x<47.0,"an upright entry pose must not pass through the roof");
+    run(&mut s,&m,Controls{roll:true,..Default::default()},16);
+    let a=&s.physics.actor_status()[0];
+    assert!(a.rolling && a.body_height<=10.0 && a.x>50.0,"the tucked pose must unlock the passage: {a:?}");
+}

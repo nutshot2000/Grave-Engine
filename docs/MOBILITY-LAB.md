@@ -32,8 +32,12 @@ mass fixed. Walls stop rolling, and rolling grants no damage immunity.
 
 The animation graph receives `crouched` and `rolling` alongside the existing
 movement parameters. The local imported character uses the supplied UAL crouch
-idle, crouch walk and roll clips. A roll plays at twice its original speed to
-match the default 0.76-second action. Changing the physical roll duration should
+idle, crouch walk and roll clips. The derived `roll_low` uses the tucked section
+of the original roll, without its standing recovery, timed to 0.76 seconds.
+Standing recovery is chosen separately after checking the ceiling; the original
+full roll remains available in the clip inspector. The capsule also waits for
+the visible tuck before letting a standing entry blend pass beneath a beam.
+Changing the physical roll duration should
 also change the graph's roll speed and rebake its incoming blends.
 
 The Mixamo graph includes real skeletal pose blends at the current source

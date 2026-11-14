@@ -237,7 +237,7 @@ fn imported_crouch_roll_and_recovery_use_pose_blends_and_death_interrupts() {
     advance(&mut a,12);a.set("speed",1.6);advance(&mut a,1);
     assert_eq!(a.state().name,"crouch_walk");assert!(a.blend.is_some());
     a.set("rolling",1.0);a.set("crouched",0.0);advance(&mut a,1);
-    assert_eq!(a.state().name,"roll");assert_eq!(a.state().speed,2.0);assert!(a.blend.is_some());
+    assert_eq!(a.state().name,"roll");assert_eq!(a.state().clip,"roll_low");assert_eq!(a.state().speed,1.0);assert!(a.blend.is_some());
     advance(&mut a,45);assert_eq!(a.state().name,"roll","physical roll owns duration");
     a.set("rolling",0.0);a.set("crouched",1.0);advance(&mut a,1);
     assert_eq!(a.state().name,"crouch_walk");assert!(a.blend.is_some());
