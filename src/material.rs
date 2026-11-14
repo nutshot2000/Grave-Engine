@@ -115,7 +115,7 @@ pub struct Material {
     /// snowdrift melts into a puddle, not a flood. 1 = all of it.
     pub melt_yield: f32,
     /// How much of the wind's push a flying bit of it feels, 0..1 (embers 1,
-    /// snow 0.4: it comes down, drifting, instead of streaming sideways).
+    /// snow 0.2: it comes down, drifting, instead of streaming sideways).
     pub wind_effect: f32,
     /// A solid whose top layer tyres chew up and throw (dirt).
     pub tyres_dig: bool,

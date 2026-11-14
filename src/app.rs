@@ -2664,10 +2664,6 @@ impl Sandbox {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
         } else if p.hanging {
             Some("Hanging: release W/Up, then press again to climb. S/Down drops.".to_string())
-        } else if p.rolling {
-            Some("Rolling! C holds a crouch afterwards.".to_string())
-        } else if p.crouched {
-            Some(if p.stand_blocked { "Low ceiling: keep moving to stand up safely." } else { "Crouching: release C to stand. X rolls." }.to_string())
         } else if p.climbing {
             Some("Climbing onto the ledge. S/Down lets go.".to_string())
         } else if let Some(h) = p.hurt_by {
@@ -2993,9 +2989,7 @@ impl eframe::App for Sandbox {
             && self.playing
             && ctx.input(|i| i.key_down(Key::ArrowUp) || (i.key_down(Key::W) && i.modifiers.is_none()));
         let drop = !typing && self.playing && ctx.input(|i| i.key_down(Key::ArrowDown) || (i.key_down(Key::S) && i.modifiers.is_none()));
-        let crouch = !typing && self.playing && ctx.input(|i| i.key_down(Key::C) && i.modifiers.is_none());
-        let roll = !typing && self.playing && ctx.input(|i| i.key_down(Key::X) && i.modifiers.is_none());
-        self.sim.physics.set_controls(grave_engine::physics::Controls { crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
+        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
