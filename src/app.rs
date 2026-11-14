@@ -2800,8 +2800,8 @@ impl Sandbox {
         let pin_hover = self.draw_notes(&painter, &to_screen, pointer);
         // Fresh changes from disk: a fading outline for a few seconds.
         let age = self.highlight_since.elapsed().as_secs_f32();
-        if !self.highlights.is_empty() && age < 6.0 {
-            let a = ((1.0 - age / 6.0) * 255.0) as u8;
+        if !self.highlights.is_empty() && age < 12.0 {
+            let a = ((1.0 - age / 12.0).sqrt() * 255.0) as u8;
             let pulse = 2.0 + (age * 6.0).sin().abs() * 1.5;
             for &(x0, y0, x1, y1) in &self.highlights {
                 let r = Rect::from_min_max(to_screen((x0 as f32, y0 as f32)), to_screen((x1 as f32, y1 as f32)));

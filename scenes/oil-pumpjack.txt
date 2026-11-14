@@ -11,3 +11,7 @@ asset ../assets/workshop/oil_pumpjack.asset 110 110 as jack
 # A pile of rocks beside the well.
 rect gravel 30 104 18 6
 rect stone 34 100 10 4
+# A small wooden storage shed.
+rect wood 182 92 22 18
+rect brick 180 89 26 3
+rect air 188 100 6 10
