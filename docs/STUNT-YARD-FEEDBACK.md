@@ -4,7 +4,7 @@ The earlier sections record the build history. The latest tested verdict is the 
 
 ## First playable prototype
 
-Open Play-Stunt-Yard.cmd in the Grave-Engine folder.
+Open Play/Stunt-Yard.cmd in the Grave-Engine folder.
 SPACE starts. D/right accelerates, A/left reverses, Q/E leans, R retries.
 One course contains a fire jump, a water landing and a lightweight breakaway obstacle.
 The rider art and editable Blender model are assets/stunt-rider.png and assets/stunt-rider.blend.

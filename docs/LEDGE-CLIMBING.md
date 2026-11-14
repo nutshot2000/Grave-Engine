@@ -1,6 +1,6 @@
 # Ledge climbing
 
-Open **Play-Climbing-Lab.cmd**. The course has four rising roofs to reach,
+Open **Play/Climbing-Lab.cmd**. The course has four rising roofs to reach,
 with the imported character and actual hanging/climbing animations when
 the local animation look is installed. The public example uses the hero.
 

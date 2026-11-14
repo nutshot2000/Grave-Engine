@@ -251,7 +251,7 @@ crate to climb, a campfire, a lava pit and a powder keg.
   jump. In water, hold W to swim up; at the bank, W jumps you out. The camera
   follows the player while the game is playing.
 - **Crouch and roll:** `moves` on a player enables collision-aware low stances.
-  Hold **C** to crouch; press **X** to roll. Try **Play-Mobility-Lab.cmd**
+  Hold **C** to crouch; press **X** to roll. Try **Play/Mobility-Lab.cmd**
   with the imported animation pack; see [the course guide](docs/MOBILITY-LAB.md).
 - **The player is made of cells** (the `flesh` material), so it's really in the
   world: sand heaps up around it, it shoves water aside, it floats, and it
@@ -286,7 +286,7 @@ in Blender by `tools/make_hero_in_blender.py` and rendered to
   priorities, action triggers and timed events, with an isolated character
   preview. Graphs can be shared between games or saved with a scene. See
   [Animation state machines](docs/ANIMATION-STATE-MACHINES.md).
-- **Ledge climbing:** `Play-Climbing-Lab.cmd` opens a four-roof course. Hold
+- **Ledge climbing:** `Play/Climbing-Lab.cmd` opens a four-roof course. Hold
   W/Up towards a ledge to catch it, release and press again to climb, or
   S/Down to drop. Enable it per actor in any scene; see
   [Ledge climbing](docs/LEDGE-CLIMBING.md).
@@ -544,7 +544,7 @@ and steam, and scenes save and load correctly.
 
 ## Vehicles, level shapes and triggers
 
-Built for the stunt-bike game (Stunt Yard / Wreck Run: `Play-Stunt-Yard.cmd`),
+Built for the stunt-bike game (Stunt Yard / Wreck Run: `Play/Stunt-Yard.cmd`),
 usable in any game:
 
 - **Vehicles:** wheels with `drive` motors go with the throttle; **brakes**
@@ -603,14 +603,14 @@ Ideas for 5, 6, 7 and 11 come from Petri Purho's GDC talk on Noita's engine.
 
 ## Material motorcycle and breakable attachments
 
-Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycle. Run `Play-Stunt-Yard.cmd`; C starts a high-speed wall crash, R resets.
+Stunt Yard now uses ten material-cell bodies exported from the Blender motorcycle. Run `Play/Stunt-Yard.cmd`; C starts a high-speed wall crash, R resets.
 
 Scenes can set `depth 0.02` after a body for its physical thickness in metres (default 1). Joints accept an optional `break 500` failure load in kN. Both survive scene saves and snapshots; fragments inherit thickness. Omit these settings for the existing behaviour. See `assets/stunt-bike/README.md` for the complete model/export and material notes.
 
 ## Stunt Yard courses
 
 (A game controller works too: RT throttle, LT brake, left stick lean, Start to begin. Controls for both games live in `assets/input/*.input` and can be remapped there.)
-`Play-Stunt-Yard.cmd` (or open the course in the editor and press **🎮 Play as game**). On the start screen press **1** or **2** to pick a course, then
+`Play/Stunt-Yard.cmd` (or open the course in the editor and press **🎮 Play as game**). On the start screen press **1** or **2** to pick a course, then
 SPACE. Trials controls: **W / ↑** throttle, **S / ↓** brake (hold it when stopped to
 back up), **A / ←** lean back, **D / →** lean forward. R returns to the last
 checkpoint, Backspace restarts.
@@ -640,11 +640,11 @@ to check a new level can be finished. `--from=X` starts at the checkpoint at X.
 
 ## Dust Hawk — overhead helicopter mission
 
-Open `Play-Dust-Hawk.cmd` or choose **Scenes… → Dust Hawk — Operation Red Mesa** in the editor. Fly across a 1,536 × 1,152 scrolling desert with separate compounds, road defences, ridges and forward landing pads. Destroy a radar network, cut power, rescue six survivors and manage ammunition/supplies. Winch oil barrels, drop them and ignite real material spills. Shared sparse-map scheduling limits distant simulation work; the camera follows across the whole operation. Controls and limits: [Dust Hawk](docs/DUST-HAWK.md). Engine priorities: [overhead feedback](docs/OVERHEAD-FEEDBACK.md).
+Open `Play/Dust-Hawk.cmd` or choose **Scenes… → Dust Hawk — Operation Red Mesa** in the editor. Fly across a 1,536 × 1,152 scrolling desert with separate compounds, road defences, ridges and forward landing pads. Destroy a radar network, cut power, rescue six survivors and manage ammunition/supplies. Winch oil barrels, drop them and ignite real material spills. Shared sparse-map scheduling limits distant simulation work; the camera follows across the whole operation. Controls and limits: [Dust Hawk](docs/DUST-HAWK.md). Engine priorities: [overhead feedback](docs/OVERHEAD-FEEDBACK.md).
 
 ## Voidrunner — space shooter
 
-Open `Play-Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with material-cell ships, explosive fuel, enemy formations, weapon/shield pickups, limited lives, pulse bombs and a reactor carrier. WASD/arrows move, Space/Z fires, X bombs, Enter starts. See `docs/VOIDRUNNER.md` and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md`.
+Open `Play/Voidrunner.cmd` for Operation Cinder: a scrolling convoy assault with material-cell ships, explosive fuel, enemy formations, weapon/shield pickups, limited lives, pulse bombs and a reactor carrier. WASD/arrows move, Space/Z fires, X bombs, Enter starts. See `docs/VOIDRUNNER.md` and `docs/VOIDRUNNER-ENGINE-IMPROVEMENTS.md`.
 
 Voidrunner now adds synthesised music and combat sounds, Shift dodge, telegraphed heavy lasers, a small visible player hitbox, chain scoring, magnetic pickups and escalating reactor attacks. `voidrunner --verify-normal` checks a complete run with ordinary damage enabled. M toggles sound.
 

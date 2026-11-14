@@ -1,6 +1,6 @@
 # Wreck Run — material stunt course
 
-Open Play-Stunt-Yard.cmd (it builds the latest version first). Press 1 for Wreck Run (2 is Mountain Run, see the README), then SPACE. Trials controls: W/up throttle, S/down brake (hold it when stopped to back up), A/left lean back, D/right lean forward (Q/E work too). R rebuilds the bike at the last checkpoint; Backspace starts the whole course again.
+Open Play/Stunt-Yard.cmd (it builds the latest version first). Press 1 for Wreck Run (2 is Mountain Run, see the README), then SPACE. Trials controls: W/up throttle, S/down brake (hold it when stopped to back up), A/left lean back, D/right lean forward (Q/E work too). R rebuilds the bike at the last checkpoint; Backspace starts the whole course again.
 
 The 360-metre route now has distinct sections rather than repeated ramps:
 

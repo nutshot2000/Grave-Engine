@@ -1,6 +1,6 @@
 # Crouching and rolling
 
-Open **Play-Mobility-Lab.cmd**. Press Play in the editor.
+Open **Play/Mobility-Lab.cmd**. Press Play in the editor.
 
 - A/D or arrows: move. W/Up: jump, grab ledges, or swim upwards.
 - Hold C: crouch and walk slowly. Release C: stand when there is room.

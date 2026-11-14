@@ -25,4 +25,4 @@ subprocess.run([blender,'-b','--factory-startup','--python-exit-code','1','-P',s
 if not(out/'character.txt').is_file():raise SystemExit('Blender did not finish the character look.')
 scene=(ROOT/'scenes/animation-lab.txt').read_text(encoding='utf-8').replace('look hero','look mixamo-lab-local')
 (ROOT/'scenes/animation-lab.local.txt').write_text(scene,encoding='utf-8')
-print('Ready: scenes/animation-lab.local.txt. Open Play-Animation-Lab.cmd.')
+print('Ready: scenes/animation-lab.local.txt. Open Play/Animation-Lab.cmd.')

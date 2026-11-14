@@ -1,6 +1,6 @@
 # Imported animation lab
 
-Open **Play-Animation-Lab.cmd**, then press **Play**. A/D moves and W/Up
+Open **Play/Animation-Lab.cmd**, then press **Play**. A/D moves and W/Up
 jumps or swims upward. The course has steps, a gap, a contained pool and
 an optional lava pit to test death and respawn.
 
@@ -18,7 +18,7 @@ No generated Kimodo motion is needed when the full library is installed.
   pose blends. Release and press W again for another jump after landing.
 - Swimming and treading water come from the two supplied water FBXs.
   Swimming input selects the forward stroke; releasing it selects treading.
-- Hanging and climbing come from the supplied FBXs. **Play-Climbing-Lab.cmd**
+- Hanging and climbing come from the supplied FBXs. **Play/Climbing-Lab.cmd**
   opens a course with physical ledge grabbing: hold W/Up while jumping
   towards a ledge, release and press it again to climb, or S/Down to drop.
   See [Ledge climbing](LEDGE-CLIMBING.md) for reusable scene settings.

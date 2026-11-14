@@ -1,6 +1,6 @@
 # Dust Hawk — Operation Red Mesa
 
-Start **Play-Dust-Hawk.cmd**, or choose **Scenes… → Dust Hawk — Operation Red Mesa** in the editor. Press Enter at the briefing.
+Start **Play/Dust-Hawk.cmd**, or choose **Scenes… → Dust Hawk — Operation Red Mesa** in the editor. Press Enter at the briefing.
 
 ## Mission
 

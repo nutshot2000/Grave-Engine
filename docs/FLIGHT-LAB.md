@@ -1,6 +1,6 @@
 # Dust Hawk: flight and destruction engine test
 
-Open **Scenes... > Flight & destruction lab (2.5D)** in the rebuilt editor, or double-click **Play-Flight-Test.cmd**. This is a small reusable-engine test, not a completed Desert Strike game.
+Open **Scenes... > Flight & destruction lab (2.5D)** in the rebuilt editor, or double-click **Play/Flight-Test.cmd**. This is a small reusable-engine test, not a completed Desert Strike game.
 
 - WASD or arrows: move in screen directions. Release to slow down.
 - E / Q: climb / descend toward the landing pad. Buildings block low flight; climb above the roof to cross them.

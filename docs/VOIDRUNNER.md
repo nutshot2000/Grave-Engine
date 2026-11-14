@@ -1,6 +1,6 @@
 # Voidrunner — Operation Cinder
 
-A new horizontal scrolling shooter built on Grave Engine. Open Play-Voidrunner.cmd in the engine folder.
+A new horizontal scrolling shooter built on Grave Engine. Open Play/Voidrunner.cmd in the engine folder.
 
 Controls: Enter launches; WASD or arrows move; Space/Z fires; X spends a pulse bomb; P/Escape pauses; R restarts. Movement speed stays constant while firing. Collect green + pickups for shields and gold W pickups for a wider weapon spread. Three lives and three bombs per run.
 

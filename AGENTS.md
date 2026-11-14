@@ -77,6 +77,8 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 
 ## Where things live
 
+Top level: `src/` (engine, editor in `app.rs`, games in `bin/`), `materials/`, `scenes/`, `assets/` (workshop assets, characters, models), `templates/`, `docs/` (guides; index in `docs/README.md`), `tools/` (level/asset generators, Blender and character scripts, `check.sh`), `tests/`, `examples/` (level builders), `Play/` (double-click launchers: each builds first, then runs). Build into `target/` only; don't leave extra target folders behind.
+
 | Path | What |
 | --- | --- |
 | `src/world.rs` | the cell grid: heat, changes (melt, burn, react), movement (powder, liquid, gas), air currents, **flying cells** (light ones drift on `flow_at`: embers, ash, snow; `spawn_flyer` for new ones), **embers** (burning cells with `sparks` throw them). **Sleeping areas**: 32x32 blocks with an awake countdown; only blocks awake or next to one are worked on. Anything that writes a cell must wake it: world helpers (`become_`, `make_air`, `swap`, `land`, `heat_circle`) do; direct writes elsewhere call `world.wake_at(i)` (physics stamping, explosions, triggers, editor `put`; `History::touch`, scene load and `Sim::restore` call `wake_all`). Physics skips terrain/collapse work in `block_still` blocks, and `snap_overhangs` (which scenery hangs too far) only re-checks boxes around awake blocks padded by the strongest material's reach (`snap_regions`/`snap_region`); a box's edge counts as ground only where that structure really connects to the world's ground or edge (flood-filled: floating islands must not look supported; `tests/sleep.rs` guards this). `world.sleeping = false` turns it off (tests compare). Slow reactions (chance < 0.02 per frame: mud/wet sand drying) don't keep an area awake: their block is visited every 16 frames with the chance scaled up 16x |
@@ -92,7 +94,7 @@ Exit code 3 = it ran but material or scene files have problems (printed).
 | `src/asset.rs` joints | Assets have rigid `weld`s and moving `joint`s (`hinge` = pivot, `motor` on a hinge, `wheel`, `rope`; second part may be `ground`). Always-on motors (no `drive`) use full strength through linkages (physics `MotorModel::ForceBased`); `drive` motors keep the tuned vehicle feel. Example: `oil_pumpjack.asset`. Guide: docs/ASSET-WORKSHOP.md |
 | `src/input.rs` | **Controls for every game**: keyboard, mouse and game controllers (gamepads/joysticks, via gilrs) as named actions from a plain-text `.input` file (`assets/input/GAME.input`, embedded with `include_str!` as the default and re-read at start-up so players can remap). `Input::load_or`, then each frame `update(ctx)` and `pressed/down/released/value/axis("name")`. `update_from` feeds fake states for tests. Dust Hawk, Stunt Yard and the editor's Play mode (`assets/input/editor.input`) use it |
 | `src/camera.rs` | `Effects` (`Sim::camera`: slow motion, zoom, focus, shake, timed in sim frames so replays match; `time_scale()` scales how many steps games run per second) and `Camera` (smooth follow with look-ahead, applies effects). Editor and Stunt Yard both use them |
-| `src/bin/stunt-yard.rs` | **Stunt Yard**, the stunt-bike game built on the engine (`Play-Stunt-Yard.cmd`). Courses are `LEVELS` (scene file + title; Wreck Run also has built-in stages/signs/finish; newer levels use triggers incl. `finish`). Trials controls (W/S/A/D). The bike's parts are found from the followed frame. `ai_controls` + `--verify-ai --level=N [--from=X] [--every=N]` = an automatic rider for checking levels (prints where it gets stuck). The editor shows a **🎮 Play as game** button for scenes listed in `game_level` (src/app.rs): add new courses there too. Courses from `tools/make_stunt_course.py` (Wreck Run) and `tools/make_mountain_run.py` (Mountain Run); docs in `docs/` |
+| `src/bin/stunt-yard.rs` | **Stunt Yard**, the stunt-bike game built on the engine (`Play/Stunt-Yard.cmd`). Courses are `LEVELS` (scene file + title; Wreck Run also has built-in stages/signs/finish; newer levels use triggers incl. `finish`). Trials controls (W/S/A/D). The bike's parts are found from the followed frame. `ai_controls` + `--verify-ai --level=N [--from=X] [--every=N]` = an automatic rider for checking levels (prints where it gets stuck). The editor shows a **🎮 Play as game** button for scenes listed in `game_level` (src/app.rs): add new courses there too. Courses from `tools/make_stunt_course.py` (Wreck Run) and `tools/make_mountain_run.py` (Mountain Run); docs in `docs/` |
 | `src/physics/actor.rs` | characters (the player): movement, swimming, breathing, health, death, animation choice, body cells |
 | `src/sim.rs` | `Sim` = world + physics + template links + camera follow; `Snapshot` for reset/undo/rewind/save |
 | `src/scene.rs` | scene text format: load and save (format reference at the top of the file) |
@@ -195,7 +197,7 @@ Key ideas:
 ## The game project: Stunt Yard / Wreck Run
 
 The owner and their agents are building a stunt-bike game (`src/bin/stunt-yard.rs`,
-`Play-Stunt-Yard.cmd`, docs in `docs/WRECK-RUN.md` and
+`Play/Stunt-Yard.cmd`, docs in `docs/WRECK-RUN.md` and
 `docs/STUNT-YARD-FEEDBACK.md`) **to find out what the engine lacks, then fix
 it in the engine**. Rule: when the game needs something general, build it in
 the engine (with a test and docs) and make the game use it, rather than

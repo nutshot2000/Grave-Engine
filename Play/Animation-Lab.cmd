@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0.."
 if not exist "scenes\animation-lab.local.txt" (
   if exist "assets\animations\Jump.fbx" (
     py tools\build_fbx_animation_lab.py

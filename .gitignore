@@ -29,3 +29,6 @@ noita_gdc_talk_clean_transcript.md
 /assets/characters/*.fbx
 
 /scenes/mobility-lab.local.txt
+
+# Python caches
+__pycache__/
