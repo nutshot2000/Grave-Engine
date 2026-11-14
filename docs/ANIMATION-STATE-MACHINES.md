@@ -24,6 +24,10 @@ Landing currently uses the idle clip for a short settling interval; assign
 a dedicated landing clip when one is available. Walking playback follows
 movement speed. Death and swimming interrupt lower-priority actions.
 
+Actors with `moves` also supply `crouched` and `rolling`. The imported Mixamo
+graph connects these to the supplied crouch idle, crouch walk and forward roll
+clips with pose blends. See [the mobility course](MOBILITY-LAB.md).
+
 ## Reusable files
 
 `assets/animations/locomotion.graph` is the shared default, embedded when

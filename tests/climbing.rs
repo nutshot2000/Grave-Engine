@@ -9,7 +9,7 @@ fn setup(text: &str) -> (Materials, Sim) {
     assert!(e.is_empty(),"{e:?}"); (m,s)
 }
 fn run(s: &mut Sim, m: &Materials, n: usize, walk: f32, up: bool, drop: bool) {
-    s.physics.set_controls(Controls { walk, jump: up, drop });
+    s.physics.set_controls(Controls { walk, jump: up, drop, ..Default::default() });
     for _ in 0..n { s.step(m); }
 }
 fn grab(s: &mut Sim, m: &Materials) {

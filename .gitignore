@@ -27,3 +27,5 @@ noita_gdc_talk_clean_transcript.md
 
 # Character models from third-party rigs (Mixamo etc.): keep them local
 /assets/characters/*.fbx
+
+/scenes/mobility-lab.local.txt

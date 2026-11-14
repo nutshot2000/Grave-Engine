@@ -228,6 +228,24 @@ fn imported_fall_loops_until_ground_contact_and_then_recovers() {
     assert_eq!(a.state().name,"idle");
 }
 
+#[test]
+fn imported_crouch_roll_and_recovery_use_pose_blends_and_death_interrupts() {
+    let mut a=player(include_str!("../assets/animations/mixamo-pack.graph"));
+    let advance=|a: &mut Animator,n| { for _ in 0..n { a.advance(1.0/60.0, |_|1.5); } };
+    a.set("crouched",1.0);advance(&mut a,1);
+    assert_eq!(a.state().name,"crouch_idle");assert!(a.blend.is_some());
+    advance(&mut a,12);a.set("speed",1.6);advance(&mut a,1);
+    assert_eq!(a.state().name,"crouch_walk");assert!(a.blend.is_some());
+    a.set("rolling",1.0);a.set("crouched",0.0);advance(&mut a,1);
+    assert_eq!(a.state().name,"roll");assert_eq!(a.state().speed,2.0);assert!(a.blend.is_some());
+    advance(&mut a,45);assert_eq!(a.state().name,"roll","physical roll owns duration");
+    a.set("rolling",0.0);a.set("crouched",1.0);advance(&mut a,1);
+    assert_eq!(a.state().name,"crouch_walk");assert!(a.blend.is_some());
+    advance(&mut a,12);a.set("crouched",0.0);advance(&mut a,1);
+    assert_eq!(a.state().name,"idle");assert!(a.blend.is_some());
+    a.set("dead",1.0);advance(&mut a,1);assert_eq!(a.state().name,"die");
+}
+
 fn setup() -> (Materials, Sim) {
     let m = Materials::load_dir("materials");
     let (s, errors) = scene::load(
@@ -279,16 +297,14 @@ fn default_actor_runs_takeoff_fall_landing_and_walk() {
     s.physics.set_controls(grave_engine::physics::Controls {
         walk: 1.0,
         jump: true,
-        drop: false,
-    });
+        drop: false, ..Default::default() });
     let mut states = std::collections::BTreeSet::new();
     for i in 0..120 {
         if i == 1 {
             s.physics.set_controls(grave_engine::physics::Controls {
                 walk: 1.0,
                 jump: false,
-                drop: false,
-            });
+                drop: false, ..Default::default() });
         }
         s.step(&m);
         states.insert(s.physics.actor_status()[0].animation_state.clone());

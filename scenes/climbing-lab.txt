@@ -8,7 +8,7 @@ layer mountains #778c9a depth 0.15 y 236 height 80 seed 4
 layer hills #708f86 depth 0.35 y 243 height 36 seed 7
 layer clouds #dbe5e5 depth 0.1 y 40 height 15
 rect stone 0 236 520 24
-player 50 236 look hero zoom 4 climb 2 reach 6
+player 50 236 look hero zoom 4 moves climb 2 reach 6
 
 # Each next roof needs another jump and grab from the previous platform.
 rect concrete 92 212 70 24

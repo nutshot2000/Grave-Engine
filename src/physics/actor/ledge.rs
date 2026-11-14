@@ -50,8 +50,11 @@ fn supported(h: LedgeHold, w: &World, m: &Materials) -> bool {
 }
 
 fn clear(at: (f32, f32), own: ColliderHandle, w: &World, m: &Materials, colliders: &ColliderSet, ground: RigidBodyHandle) -> bool {
+    clear_height(at, H as f32, own, w, m, colliders, ground)
+}
+pub(super) fn clear_height(at: (f32, f32), height: f32, own: ColliderHandle, w: &World, m: &Materials, colliders: &ColliderSet, ground: RigidBodyHandle) -> bool {
     let (x0, x1) = (at.0 - W as f32 / 2.0 + 0.1, at.0 + W as f32 / 2.0 - 0.1);
-    let (y0, y1) = (at.1 - H as f32 / 2.0 + 0.1, at.1 + H as f32 / 2.0 - 0.1);
+    let (y0, y1) = (at.1 - height / 2.0 + 0.1, at.1 + height / 2.0 - 0.1);
     if x0 < 0.0 || y0 < 0.0 || x1 >= w.w as f32 || y1 >= w.h as f32 { return false; }
     for y in y0.floor() as i32..=y1.floor() as i32 {
         for x in x0.floor() as i32..=x1.floor() as i32 {

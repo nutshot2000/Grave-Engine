@@ -823,6 +823,25 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 match (nums(1, 2), mat(&material)) {
                     (Ok(v), Ok(id)) => {
                         let mut a = crate::physics::ActorSpec::standing_at(id, v[0], v[1]);
+                        if words.iter().any(|w| *w == "moves") {
+                            let mut c = crate::physics::MobilitySettings::default();
+                            for (key,value,low,high) in [
+                                ("crouch_height", &mut c.crouch_height,6.0,15.0),
+                                ("roll_height", &mut c.roll_height,6.0,15.0),
+                                ("crouch_speed", &mut c.crouch_speed,0.2,4.0),
+                                ("roll_speed", &mut c.roll_speed,1.0,8.0),
+                                ("roll_seconds", &mut c.roll_seconds,0.2,2.0),
+                            ] {
+                                if let Some(raw) = opt(key) {
+                                    match raw.parse::<f32>() {
+                                        Ok(n) if n.is_finite() && n>=low && n<=high => *value=n,
+                                        _ => err(format!("{key} needs {low}..{high}")),
+                                    }
+                                }
+                            }
+                            if c.roll_height > c.crouch_height { err("roll_height must not exceed crouch_height".into()); }
+                            a.mobility = Some(c);
+                        }
                         if words.iter().any(|w| *w == "climb") {
                             let seconds = opt("climb").and_then(|v| v.parse::<f32>().ok()).unwrap_or(2.0);
                             let reach = opt("reach").and_then(|v| v.parse::<f32>().ok()).unwrap_or(6.0);
@@ -1380,6 +1399,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         }
         if mats.get(a.mat).name != "flesh" {
             line += &format!(" material {}", mats.get(a.mat).name);
+        }
+        if let Some(c) = a.mobility {
+            line += &format!(" moves crouch_height {} roll_height {} crouch_speed {} roll_speed {} roll_seconds {}", c.crouch_height, c.roll_height, c.crouch_speed, c.roll_speed, c.roll_seconds);
         }
         if let Some(c) = a.climb { line += &format!(" climb {} reach {}", c.seconds, c.reach); }
         if snap.follow.is_none() && snap.zoom > 0.0 {

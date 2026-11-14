@@ -11,8 +11,14 @@ p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--look',type=Path,required=True)
 p.add_argument('--seconds',type=float,default=.14)
 p.add_argument('--graph',type=Path)
+p.add_argument('--reuse-existing',action='store_true')
+p.add_argument('--shard',type=int,default=0)
+p.add_argument('--shards',type=int,default=1)
+p.add_argument('--no-install',action='store_true')
 a=p.parse_args(sys.argv[sys.argv.index('--')+1:])
 if not .04<=a.seconds<=1.5:raise SystemExit('Use .04..1.5 seconds.')
+if not 1<=a.shards<=16 or not 0<=a.shard<a.shards:raise SystemExit('Use 1..16 shards and an index from 0 to shards-1.')
+if a.shards>1 and not a.no_install:raise SystemExit('Sharded workers need --no-install; install only after every worker finishes.')
 folder=a.look.resolve()
 bpy.ops.wm.open_mainfile(filepath=str(folder/'mixamo-fbx-animations.blend'))
 scene=bpy.context.scene
@@ -62,11 +68,15 @@ fps=50
 scene.render.resolution_x=scene.render.resolution_y=128
 scene.render.resolution_percentage=100
 scene.render.use_stamp=False
-for source,target,speed,seconds in pairs:
+for pair_index,(source,target,speed,seconds) in enumerate(pairs):
+ if pair_index%a.shards!=a.shard:continue
  steps=round(seconds*fps)+1
  out=folder/'blends'/(source+'--'+target)
  out.mkdir(parents=True,exist_ok=True)
  count,source_fps,_=clips[source]
+ metadata=f'from {source}\nto {target}\nseconds {seconds}\nsteps {steps}\nsource_frames {count}\nsource_fps {source_fps}\ntarget_speed {speed}\nscale 2\n'
+ if a.reuse_existing and (out/'blend.txt').is_file() and dict(line.split(' ',1) for line in (out/'blend.txt').read_text(encoding='utf-8').splitlines())==dict(line.split(' ',1) for line in metadata.splitlines()) and all((out/f'{phase:03d}_{step:02d}.png').is_file() for phase in range(count) for step in range(steps)):
+  print('BANK REUSED',source,target,flush=True);continue
  for phase in range(count):
   for step in range(steps):
    t=seconds*step/(steps-1)
@@ -86,4 +96,4 @@ for source,target,speed,seconds in pairs:
  (out/'blend.txt').write_text(f'from {source}\nto {target}\nseconds {seconds}\nsteps {steps}\nsource_frames {count}\nsource_fps {source_fps}\ntarget_speed {speed}\nscale 2\n',encoding='utf-8')
  print('BANK READY',source,target,count*steps,flush=True)
 print('ALL MOVEMENT BANKS READY',flush=True)
-if a.graph:(folder/'animation.graph').write_text(a.graph.read_text(encoding='utf-8'),encoding='utf-8')
+if a.graph and not a.no_install:(folder/'animation.graph').write_text(a.graph.read_text(encoding='utf-8'),encoding='utf-8')

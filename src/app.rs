@@ -2676,6 +2676,10 @@ impl Sandbox {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
         } else if p.hanging {
             Some("Hanging: release W/Up, then press again to climb. S/Down drops.".to_string())
+        } else if p.rolling {
+            Some("Rolling! C holds a crouch afterwards.".to_string())
+        } else if p.crouched {
+            Some(if p.stand_blocked { "Low ceiling: keep moving to stand up safely." } else { "Crouching: release C to stand. X rolls." }.to_string())
         } else if p.climbing {
             Some("Climbing onto the ledge. S/Down lets go.".to_string())
         } else if let Some(h) = p.hurt_by {
@@ -2995,7 +2999,9 @@ impl eframe::App for Sandbox {
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
         let jump = live && self.input.down("jump");
         let drop = live && self.input.down("drop");
-        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump, drop });
+        let crouch = live && self.input.down("crouch");
+        let roll = live && self.input.down("roll");
+        self.sim.physics.set_controls(grave_engine::physics::Controls { crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
@@ -3568,6 +3574,15 @@ player 50 100
         h.run_steps(2);
         assert_eq!(h.state().sim.physics.controls().walk, -1.0, "A walks left");
         assert_eq!(h.state().sim.physics.throttle(), 0.0, "cars don't move while there's a player");
+        h.event(key(Key::C, true));
+        h.event(key(Key::X, true));
+        h.run_steps(2);
+        let c = h.state().sim.physics.controls();
+        assert!(c.crouch && c.roll, "named C/X bindings reach the physical character controls");
+        h.event(key(Key::C, false));
+        h.event(key(Key::X, false));
+        h.run_steps(2);
+        assert!(!h.state().sim.physics.controls().crouch && !h.state().sim.physics.controls().roll);
     }
 
     #[test]

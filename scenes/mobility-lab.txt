@@ -1,0 +1,36 @@
+# Low stances, rolls and ledge traversal on one reusable course.
+size 680 260
+seed 118
+fill air
+sky #324c67 #c6d7d7
+layer mountains #778c9a depth 0.15 y 236 height 80 seed 4
+layer hills #708f86 depth 0.35 y 243 height 36 seed 7
+layer clouds #dbe5e5 depth 0.1 y 40 height 15
+rect stone 0 236 680 24
+player 50 236 look hero zoom 4 moves climb 2 reach 6
+
+# Eleven cells of headroom: crouch, then release C inside to test safe standing.
+rect concrete 130 219 110 6
+anchor 130 219 110 6
+rect wood 130 217 110 2
+anchor 130 217 110 2
+
+# Short low beam for the roll. You can remain crouched underneath it.
+rect concrete 320 220 28 6
+anchor 320 220 28 6
+rect wood 320 218 28 2
+anchor 320 218 28 2
+
+# A wall stops rolls; a jump and grab leads onto the roofs beyond.
+rect concrete 450 212 65 24
+rect wood 450 212 65 2
+rect concrete 535 188 65 48
+rect wood 535 188 65 2
+rect wood 612 202 10 34
+rect wood 622 216 10 20
+
+trigger 0 0 120 260 by player : message MOBILITY LAB: A/D move. Hold C to crouch. Press X to roll. W jumps.
+trigger 120 210 120 26 by player : message LOW BEAM: hold C and move through. Release C inside: he stays low until it is safe to stand.
+trigger 265 210 48 26 by player : message ROLL TEST: face right and press X to roll under the short beam. Hold C to stay crouched afterwards.
+trigger 390 210 50 26 by player : message LEDGES: D + W jumps and grabs. Release W, then press W again to climb. S drops.
+trigger 540 163 60 25 by player : message COURSE COMPLETE. Try reversing direction, rolling from a crouch, and jumping after standing up.

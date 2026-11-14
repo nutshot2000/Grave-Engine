@@ -13,6 +13,8 @@ use crate::look::{Look, MASK_W};
 use crate::world::Blast;
 use std::sync::Arc;
 mod ledge;
+mod posture;
+pub use posture::{MobilitySettings, Posture};
 pub use ledge::{ClimbSettings, LedgeHold};
 
 /// The figure's size in cells (0.6 m wide, 1.6 m tall).
@@ -45,6 +47,8 @@ const RESPAWN_FRAMES: u32 = 120;
 /// What the player is pressing.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Controls {
+    pub crouch: bool,
+    pub roll: bool,
     /// Release a ledge (S/down in the editor).
     pub drop: bool,
     /// -1 = left, 1 = right.
@@ -56,6 +60,8 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    pub mobility: Option<MobilitySettings>,
+    pub posture: Posture,
     /// Optional reusable ledge traversal and its rewindable runtime state.
     pub climb: Option<ClimbSettings>,
     pub ledge: Option<LedgeHold>,
@@ -93,6 +99,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            mobility: None, posture: Posture::default(),
             climb: None, ledge: None, up_held: false, grab_cooldown: 0, jump_buffer: 0,
             animation: None,
             x,
@@ -157,6 +164,10 @@ impl ActorSpec {
 /// What the HUD needs to show.
 #[derive(Clone, Debug)]
 pub struct ActorStatus {
+    pub crouched: bool,
+    pub rolling: bool,
+    pub body_height: f32,
+    pub stand_blocked: bool,
     pub blend: Option<crate::animation::ActiveBlend>,
     pub visual_offset: (f32, f32),
     pub hanging: bool,
@@ -245,6 +256,15 @@ impl Physics {
             let graph = spec.look.as_ref().map_or_else(|| Arc::new(crate::animation::Graph::parse(crate::animation::DEFAULT).expect("default graph")), |l| l.graph.clone());
             spec.animation = Some(crate::animation::Animator::new(graph).expect("validated look graph"));
         }
+        if let Some(c) = &mut spec.mobility {
+            let safe = |n: f32, low, high, default| if n.is_finite() { n.clamp(low, high) } else { default };
+            c.crouch_height = safe(c.crouch_height, 6.0, 15.0, 9.0);
+            c.roll_height = safe(c.roll_height, 6.0, c.crouch_height, 8.0);
+            c.crouch_speed = safe(c.crouch_speed, 0.2, WALK, 1.6);
+            c.roll_speed = safe(c.roll_speed, 1.0, 8.0, 5.5);
+            c.roll_seconds = safe(c.roll_seconds, 0.2, 2.0, 0.76);
+            spec.posture.height = safe(spec.posture.height, 6.0, H as f32, H as f32);
+        }
         let radius = W as f32 / 2.0 * CELL;
         let half = H as f32 / 2.0 * CELL - radius;
         let rb = (if spec.ledge.is_some() { RigidBodyBuilder::kinematic_position_based() } else { RigidBodyBuilder::dynamic() })
@@ -263,6 +283,7 @@ impl Physics {
             .restitution(0.0)
             .density(mats.get(spec.mat).density.max(50.0));
         let collider = self.colliders.insert_with_parent(col, handle, &mut self.set);
+        if spec.mobility.is_some() { posture::shape(&mut self.colliders[collider], spec.posture.height); }
         let mut a = Actor {
             temps: vec![spec.temp; MASK_W * H],
             head_air: true,
@@ -332,6 +353,8 @@ impl Physics {
         let v = bodies[a.handle].linvel();
         let anim = a.spec.animation.as_mut().unwrap();
         for (p, value) in [
+            ("crouched", a.spec.posture.crouched as u8 as f32),
+            ("rolling", (a.spec.posture.roll_left > 0.0) as u8 as f32),
             ("dead", (a.spec.dead_for > 0) as u8 as f32),
             ("swimming", (a.wet > 0.4) as u8 as f32),
             ("swim_moving", (controls.walk.abs() > 0.1 || controls.jump) as u8 as f32),
@@ -373,6 +396,10 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
+                    crouched: a.spec.posture.crouched,
+                    rolling: a.spec.posture.roll_left > 0.0,
+                    body_height: a.spec.posture.height,
+                    stand_blocked: a.spec.posture.blocked,
                     blend: a.spec.animation.as_ref().unwrap().blend.clone(),
                     visual_offset: a.spec.visual_offset(),
                     hanging: a.spec.ledge.is_some_and(|h| !h.climbing),
@@ -550,6 +577,8 @@ impl Physics {
                     a.temps.fill(BODY_TEMP);
                     a.spec.animation.as_mut().unwrap().reset();
                     a.spec.jump_buffer = 0;
+                    a.spec.posture = Posture { roll_held: controls.roll, ..Posture::default() };
+                    posture::shape(&mut self.colliders[a.collider], H as f32);
                     a.spec.up_held = controls.jump;
                     a.spec.dead_for = 0;
                     a.hurt = None;
@@ -601,13 +630,17 @@ impl Physics {
 
             // Moving.
             let pressed = controls.jump && !a.spec.up_held;
-            a.spec.jump_buffer = if pressed { 6 } else { a.spec.jump_buffer.saturating_sub(1) };
-            if ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
+            a.spec.jump_buffer = if pressed { if a.spec.posture.height < H as f32 { 12 } else { 6 } } else { a.spec.jump_buffer.saturating_sub(1) };
+            posture::update(a, &mut self.set, &mut self.colliders, world, mats, controls, self.ground, wall, knock.length() > 0.1);
+            if a.spec.posture.height >= H as f32 - 0.05 && ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
+            a.spec.up_held = controls.jump;
             let rb = &mut self.set[a.handle];
             let v = rb.linvel();
             let swimming = a.wet > 0.4;
             let walk = controls.walk.clamp(-1.0, 1.0);
-            if walk != 0.0 {
+            if a.spec.posture.roll_left > 0.0 {
+                a.spec.facing = a.spec.posture.direction;
+            } else if walk != 0.0 {
                 a.spec.facing = walk.signum();
                 a.stride = a.stride.wrapping_add(1);
             } else {
@@ -622,16 +655,17 @@ impl Physics {
                 }
             }).count();
             let buried = head_under && !head_wet && above >= 2;
-            let top_speed = if buried { 1.0 } else if swimming { WALK * 0.5 } else { WALK };
+            let top_speed = if buried { 1.0 } else if swimming { WALK * 0.5 } else if a.spec.posture.crouched { a.spec.mobility.unwrap().crouch_speed } else { WALK };
             let accel = if a.since_ground == 0 { ACCEL_GROUND } else { ACCEL_AIR } * DT;
             let target = walk * top_speed;
             let mut vx = v.x + (target - v.x).clamp(-accel, accel);
+            if a.spec.posture.roll_left > 0.0 { vx = a.spec.posture.direction * a.spec.mobility.unwrap().roll_speed; }
             let mut vy = v.y;
             a.jump_wait = a.jump_wait.saturating_sub(1);
             if controls.jump && buried {
                 vy += (-CLAW_UP - vy).clamp(-15.0 * DT, 15.0 * DT);
             } else if controls.jump {
-                if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming && (a.spec.jump_buffer > 0 || powder_ground) {
+                if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming && a.spec.posture.height >= H as f32 - 0.05 && a.spec.posture.roll_left == 0.0 && (a.spec.jump_buffer > 0 || powder_ground) {
                     a.spec.jump_buffer = 0;
                     vy = -JUMP;
                     a.jump_wait = 15;
@@ -704,6 +738,8 @@ impl Physics {
                     if a.spec.health <= 0.0 {
                         a.spec.health = 0.0;
                         a.spec.dead_for = 1;
+                        a.spec.posture.roll_left = 0.0;
+                        a.spec.posture.crouched = false;
                         if a.spec.ledge.is_some() { ledge::release(a, &mut self.set[a.handle]); }
                     }
                 }

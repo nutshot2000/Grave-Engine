@@ -281,7 +281,7 @@ pub fn run(o: &Options) -> i32 {
 }
 
 fn grave_engine_controls(walk: f32, jump: bool) -> crate::physics::Controls {
-    crate::physics::Controls { walk, jump, drop: false }
+    crate::physics::Controls { walk, jump, drop: false, ..Default::default() }
 }
 
 /// A window `cells` wide (16:9) around the first player, inside the world.

@@ -250,6 +250,9 @@ crate to climb, a campfire, a lava pit and a powder keg.
 - **Controls:** press Play, then **A / D** (or ← / →) to walk and **W** (or ↑) to
   jump. In water, hold W to swim up; at the bank, W jumps you out. The camera
   follows the player while the game is playing.
+- **Crouch and roll:** `moves` on a player enables collision-aware low stances.
+  Hold **C** to crouch; press **X** to roll. Try **Play-Mobility-Lab.cmd**
+  with the imported animation pack; see [the course guide](docs/MOBILITY-LAB.md).
 - **The player is made of cells** (the `flesh` material), so it's really in the
   world: sand heaps up around it, it shoves water aside, it floats, and it
   warms up next to fire through the same heat rules as everything else.
