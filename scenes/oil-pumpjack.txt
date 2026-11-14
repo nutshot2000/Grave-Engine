@@ -16,7 +16,7 @@ rect wood 182 92 22 18
 rect brick 180 89 26 3
 rect air 188 100 6 10
 # An oil tank.
-rect iron 160 96 8 14
-rect oil 161 98 6 11
-rect iron 148 100 8 10
-rect oil 149 102 6 7
+rect iron 6 96 8 14
+rect oil 7 98 6 11
+rect iron 17 100 8 10
+rect oil 18 102 6 7
