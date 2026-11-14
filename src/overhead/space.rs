@@ -1,6 +1,6 @@
 //! Common material access for a bounded volume or a sparse scrolling map.
 use super::{Explosion, Hit, Point, Volume};
-use crate::{MatId, Materials, State, material::AIR, physics::BodyCell};
+use crate::{MatId, Materials, State, material::AIR, physics::BodyCell, world::OWNED};
 pub trait Space {
     fn extent(&self) -> [usize; 3];
     fn frame(&self) -> u32;
@@ -65,6 +65,11 @@ impl Space for Volume {
     fn take_cell(&mut self, p: Point) -> Option<BodyCell> {
         let c = self.cell(p)?;
         let (y, i) = self.index(p)?;
+        // A cell stamped by a moving 3D fragment belongs to that fragment:
+        // taking it here would leave the fragment and the taker both holding it.
+        if self.sections[y].world.is_owned(i) {
+            return None;
+        }
         self.sections[y].world.make_air(i);
         Some(c)
     }
@@ -76,7 +81,8 @@ impl Space for Volume {
                 w.temp[i] = c.temp;
                 w.burn[i] = c.burn;
                 w.life[i] = c.life;
-                w.flags[i] = c.flags;
+                // Placed cells are scenery: never mark them as an object's.
+                w.flags[i] = c.flags & !OWNED;
                 w.shade[i] = c.shade;
                 w.paint[i] = c.paint;
             } else {

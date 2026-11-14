@@ -217,6 +217,22 @@ impl WorldMap {
             },
         );
     }
+    /// Allocate every patch an effect of this radius reaches, so a blast or
+    /// fire beside a patch edge affects both sides (not a straight cut-off).
+    fn ensure_around(&mut self, p: Point, radius: f32, m: &Materials) {
+        if !p.x.is_finite() || !p.y.is_finite() || !radius.is_finite() {
+            return;
+        }
+        let lo = |v: f32| ((v - radius).max(0.) as usize) / TILE;
+        let hi = |v: f32, n: usize| (((v + radius).max(0.) as usize).min(n.saturating_sub(1))) / TILE;
+        for ky in lo(p.y)..=hi(p.y, self.depth) {
+            for kx in lo(p.x)..=hi(p.x, self.width) {
+                if (kx + 1) * TILE <= self.width && (ky + 1) * TILE <= self.depth {
+                    self.ensure((kx, ky), m);
+                }
+            }
+        }
+    }
     pub fn step(&mut self, m: &Materials) {
         self.frame = self.frame.wrapping_add(1);
         self.explosions.clear();
@@ -375,9 +391,7 @@ impl Space for WorldMap {
     }
     fn heat(&mut self, p: Point, radius: f32, t: f32) {
         let m = self.materials.clone();
-        if let Some(k) = self.key(p) {
-            self.ensure(k, &m);
-        }
+        self.ensure_around(p, radius, &m);
         for (&k, r) in &mut self.regions {
             let o = Self::offset(k);
             let local = Self::local(p, o);
@@ -393,9 +407,7 @@ impl Space for WorldMap {
         }
     }
     fn impact(&mut self, p: Point, radius: f32, power: f32, m: &Materials) {
-        if let Some(k) = self.key(p) {
-            self.ensure(k, m);
-        }
+        self.ensure_around(p, radius, m);
         for (&k, r) in &mut self.regions {
             let local = Self::local(p, Self::offset(k));
             if local.x >= -radius
@@ -411,9 +423,7 @@ impl Space for WorldMap {
     }
     fn explode(&mut self, e: Explosion) {
         let m = self.materials.clone();
-        if let Some(k) = self.key(e.at) {
-            self.ensure(k, &m);
-        }
+        self.ensure_around(e.at, e.radius, &m);
         for (&k, r) in &mut self.regions {
             let local = Self::local(e.at, Self::offset(k));
             if local.x >= -e.radius

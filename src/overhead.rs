@@ -170,7 +170,7 @@ impl Volume {
             let r = (radius * radius - dy * dy).sqrt();
             s.world.heat_circle(
                 at.x as i32,
-                (self.height as f32 - 1. - at.z) as i32,
+                (self.height as f32 - at.z).floor() as i32,
                 r.ceil() as i32,
                 temp,
             );
@@ -293,7 +293,7 @@ impl Volume {
         let mut events = std::mem::take(&mut self.pending);
         for (y, s) in self.sections.iter_mut().enumerate() {
             for b in s.world.blasts.drain(..) {
-                let p = Point::new(b.x, y as f32, self.height as f32 - 1. - b.y);
+                let p = Point::new(b.x, y as f32 + 0.5, self.height as f32 - b.y);
                 let key = ((p.x / 6.) as i32, (p.y / 6.) as i32, (p.z / 6.) as i32);
                 if occupied.insert(key) {
                     events.push(Explosion {
@@ -308,12 +308,13 @@ impl Volume {
         self.explosions = events;
         for e in &self.explosions {
             for (y, s) in self.sections.iter_mut().enumerate() {
-                let dy = (y as f32 - e.at.y).abs();
+                let dy = (y as f32 + 0.5 - e.at.y).abs();
                 if dy >= e.radius {
                     continue;
                 }
                 let r = (e.radius * e.radius - dy * dy).sqrt();
-                let wy = self.height as f32 - 1. - e.at.z;
+                // Height z to section row: cell row r spans z in (H-r-1, H-r].
+                let wy = self.height as f32 - e.at.z;
 
                 s.world.blasts.push(Blast {
                     x: e.at.x,
@@ -493,10 +494,13 @@ impl Aircraft {
             0.
         };
         self.velocity.z += (climb * c.climb_speed - self.velocity.z) * (dt * 8.).min(1.);
+        // (Margins never cross in a tiny volume: clamp would panic.)
+        let keep = |p: f32, lo: f32, hi: f32| p.clamp(lo.min(hi), hi.max(lo));
+        let n = v.extent();
         let desired = Point::new(
-            (self.at.x + self.velocity.x * dt).clamp(4., v.extent()[0] as f32 - 5.),
-            (self.at.y + self.velocity.y * dt).clamp(4., v.extent()[1] as f32 - 5.),
-            (self.at.z + self.velocity.z * dt).clamp(5., v.extent()[2] as f32 - 10.),
+            keep(self.at.x + self.velocity.x * dt, 4., n[0] as f32 - 5.),
+            keep(self.at.y + self.velocity.y * dt, 4., n[1] as f32 - 5.),
+            keep(self.at.z + self.velocity.z * dt, 5., n[2] as f32 - 10.),
         );
         self.blocked = false;
         // Sweep the fuselage in small steps; rotor cosmetics do not snag walls.
