@@ -514,7 +514,7 @@ to paint it in place instead). In a scene: `object ../assets/tower.glb 50 30`.
 
 ## For AI agents: headless mode
 
-**Live editor:** open it with `Play/Editor.cmd` and leave it open. When an AI agent (or you) edits scenes, materials or assets, they reload on the spot; when the engine is rebuilt, the editor restarts itself into the new version and keeps your scene.
+**Live editor:** open it with `Play/Editor.cmd` and leave it open. When an AI agent (or you) edits scenes, materials or assets, they reload on the spot; when the engine is rebuilt, the editor restarts itself into the new version and keeps your scene. With **👁 Follow AI** on (top bar), whatever scene or asset an AI is working on opens by itself, with a note saying what it's doing; switch it off to carry on with your own thing (you get a "Go there" button instead).
 
 **AI agents: start with [AGENTS.md](AGENTS.md)**: how the engine works,
 where everything lives, the workflows (notes, characters, Blender, Kimodo,

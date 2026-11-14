@@ -32,3 +32,6 @@ noita_gdc_talk_clean_transcript.md
 
 # Python caches
 __pycache__/
+
+# Notes from AI agents to the live editor
+/live/

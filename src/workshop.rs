@@ -195,6 +195,14 @@ impl Workshop {
             self.sync();
         }
     }
+    /// Unsaved changes in the draft?
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+    /// The asset file the draft came from (or was last saved to).
+    pub fn current_file(&self) -> Option<&Path> {
+        self.disk.as_ref().map(|(p, _)| p.as_path())
+    }
     pub fn load(&mut self, path: &Path, mats: &Materials) {
         match Asset::load_file(path, mats) {
             Ok(a) => {

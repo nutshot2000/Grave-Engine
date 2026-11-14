@@ -68,6 +68,13 @@ The owner keeps the editor open while you work and watches changes arrive:
   open in the workshop (if it has no unsaved changes).
 - So: edit a scene/asset/material file and the owner sees it at once; change
   Rust code, build, and the editor updates itself. Open it with `Play/Editor.cmd`.
+- **Follow mode** (👁 Follow AI in the top bar, on by default): when a scene
+  (`scenes/*.txt`) or workshop asset (`assets/workshop/*.asset`) changes on
+  disk and isn't already on screen, the editor opens it (one Undo goes back).
+  Off: it offers a "Go there" button instead. **Tell the owner what you're
+  doing** by writing `live/agent.txt` (git-ignored) as you start each piece:
+  `say Building a windmill`, `open scenes/x.txt` or `open assets/workshop/y.asset`,
+  `look X Y` (point the camera). Rewrite the whole file each time.
 - The games (`Play/*.cmd`) still lock their own exe while running: ask before
   rebuilding a game that's open.
 

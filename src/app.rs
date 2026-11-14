@@ -148,6 +148,17 @@ struct Sandbox {
     /// disk (saved in the workshop, or edited by an AI tool), the scene reloads.
     scene_assets: Vec<(PathBuf, Option<SystemTime>)>,
     messages: Vec<(Instant, String)>,
+    /// Follow mode: when an AI agent (or anything) changes a scene or asset
+    /// file, open it so you can watch. Toggle off to work on your own.
+    follow_ai: bool,
+    /// Scene and workshop asset files and when they last changed.
+    watched: std::collections::HashMap<PathBuf, SystemTime>,
+    watch_check: Instant,
+    /// `live/agent.txt`: what the AI says it's doing (and when we read it).
+    agent_stamp: Option<SystemTime>,
+    agent_note: Option<(Instant, String)>,
+    /// Something the AI is working on that we didn't jump to (follow off, or busy).
+    follow_pending: Option<PathBuf>,
     last_file_check: Instant,
     sim_clock: f64,
     last_frame: Instant,
@@ -314,6 +325,12 @@ impl Sandbox {
             scene_stamp: None,
             scene_assets: Vec::new(),
             messages: Vec::new(),
+            follow_ai: std::env::var("GRAVE_FOLLOW_AI").map_or(true, |v| v != "0"),
+            watched: std::collections::HashMap::new(),
+            watch_check: Instant::now(),
+            agent_stamp: None,
+            agent_note: None,
+            follow_pending: None,
             last_file_check: Instant::now(),
             sim_clock: 0.0,
             last_frame: Instant::now(),
@@ -403,6 +420,7 @@ impl Sandbox {
         if let Some((x, y, s)) = self.cam {
             cmd.env(RESUME_CAM, format!("{x},{y},{s}"));
         }
+        cmd.env("GRAVE_FOLLOW_AI", if self.follow_ai { "1" } else { "0" });
         match cmd.spawn() {
             Ok(_) => std::process::exit(0),
             Err(e) => {
@@ -1528,7 +1546,106 @@ impl Sandbox {
     }
 
     /// Live reload: material files and the open scene file.
+    /// Follow mode. Watches `scenes/*.txt`, `assets/workshop/*.asset` and the
+    /// agent note file `live/agent.txt` (lines: `say TEXT`, `open PATH`,
+    /// `look X Y`). A changed file that isn't already on screen is opened:
+    /// a scene in the editor (one Undo goes back), an asset in the workshop.
+    /// With follow off (or while you're playing, dragging or writing a note)
+    /// it's offered instead: "Go there".
+    fn follow_files(&mut self) {
+        if self.watch_check.elapsed().as_secs_f32() < 0.5 {
+            return;
+        }
+        self.watch_check = Instant::now();
+        let first = self.watched.is_empty();
+        let mut changed: Vec<(SystemTime, PathBuf)> = Vec::new();
+        for (dir, ext) in [("scenes", "txt"), ("assets/workshop", "asset")] {
+            let Ok(rd) = std::fs::read_dir(dir) else { continue };
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.extension().is_none_or(|x| x != ext) || p.to_string_lossy().contains(".local.") {
+                    continue;
+                }
+                let Some(t) = stamp(&p) else { continue };
+                if self.watched.insert(p.clone(), t).is_some_and(|old| old != t) {
+                    changed.push((t, p));
+                }
+            }
+        }
+        // What the agent says it's doing.
+        let note_file = Path::new("live/agent.txt");
+        let now = stamp(note_file);
+        let mut look = None;
+        if now.is_some() && now != self.agent_stamp {
+            let fresh = self.agent_stamp.is_some() || now.and_then(|t| t.elapsed().ok()).is_some_and(|e| e.as_secs() < 30);
+            self.agent_stamp = now;
+            if fresh && let Ok(text) = std::fs::read_to_string(note_file) {
+                for line in text.lines() {
+                    let line = line.trim();
+                    if let Some(msg) = line.strip_prefix("say ") {
+                        self.agent_note = Some((Instant::now(), msg.trim().to_string()));
+                    } else if let Some(p) = line.strip_prefix("open ") {
+                        changed.push((SystemTime::now(), PathBuf::from(p.trim())));
+                    } else if let Some(xy) = line.strip_prefix("look ") {
+                        let v: Vec<f32> = xy.split_whitespace().filter_map(|n| n.parse().ok()).collect();
+                        if v.len() >= 2 {
+                            look = Some((v[0], v[1]));
+                        }
+                    }
+                }
+            }
+        }
+        if first {
+            return;
+        }
+        let same = |a: &Path, b: &Path| match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => a == b,
+        };
+        changed.sort();
+        if let Some((_, path)) = changed.pop() {
+            let shown = same(&path, Path::new(&self.scene_path))
+                || self.scene_assets.iter().any(|(p, _)| same(p, &path))
+                || (self.workshop.open && self.workshop.current_file().is_some_and(|w| same(w, &path)));
+            if !shown {
+                self.follow_pending = Some(path);
+            }
+        }
+        let free = !self.playing && matches!(self.drag, Drag::None) && self.note_draft.is_none();
+        if self.follow_ai && free {
+            if let Some(path) = self.follow_pending.take() {
+                self.follow_to(&path);
+            }
+            if let Some((x, y)) = look {
+                self.cam = Some((x, y, self.canvas_at.1.max(self.cam.map_or(0.0, |c| c.2))));
+            }
+        }
+    }
+
+    /// Show a file the AI is working on: a scene in the editor, an asset in the workshop.
+    fn follow_to(&mut self, path: &Path) {
+        if path.extension().is_some_and(|x| x == "asset") {
+            if self.workshop.is_dirty() {
+                self.say(format!("The AI changed {}; your workshop draft has unsaved changes, so it wasn't opened", path.display()));
+                return;
+            }
+            self.workshop.load(path, &self.mats);
+            self.workshop.open = true;
+            self.say(format!("Following the AI: {}", path.display()));
+        } else {
+            if self.workshop.open && self.workshop.is_dirty() {
+                self.say(format!("The AI is working on {}; leave the workshop to follow", path.display()));
+                return;
+            }
+            self.workshop.open = false;
+            self.scene_path = path.display().to_string();
+            self.load_scene();
+            self.say(format!("Following the AI: {} (Undo goes back)", path.display()));
+        }
+    }
+
     fn check_files(&mut self) {
+        self.follow_files();
         if self.last_file_check.elapsed().as_secs_f32() < 0.25 {
             return;
         }
@@ -1719,6 +1836,25 @@ impl Sandbox {
     // ----------------------------------------------------------------- UI --
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
+        // What the AI is doing, and the follow switch.
+        let note = self.agent_note.as_ref().filter(|(t, _)| t.elapsed().as_secs() < 120).map(|(_, m)| m.clone());
+        if note.is_some() || self.follow_pending.is_some() {
+            ui.horizontal(|ui| {
+                if let Some(m) = &note {
+                    ui.label(RichText::new(format!("🤖 {m}")).strong().color(Color32::from_rgb(140, 200, 255)));
+                }
+                if let Some(p) = self.follow_pending.clone() {
+                    ui.label(RichText::new(format!("AI is working on {}", p.display())).weak());
+                    if ui.button("Go there").clicked() {
+                        self.follow_pending = None;
+                        self.follow_to(&p);
+                    }
+                    if ui.small_button("×").clicked() {
+                        self.follow_pending = None;
+                    }
+                }
+            });
+        }
         if self.new_build_since.is_some() {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("🔄 A new build of the engine is ready.").strong().color(Color32::from_rgb(255, 214, 64)));
@@ -1731,6 +1867,9 @@ impl Sandbox {
             ui.label(RichText::new("GRAVE").size(22.).strong().color(Color32::from_rgb(105,221,204)));
             ui.label(RichText::new("LEVEL EDITOR").size(11.).weak());ui.separator();
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(240.));
+            ui.toggle_value(&mut self.follow_ai, "👁 Follow AI").on_hover_text(
+                "On: when an AI agent changes a scene or asset, it opens here so you can watch (Undo goes back).\nOff: work on your own; you'll get a \"Go there\" button instead.",
+            );
             if ui.button("💾 Save").clicked(){self.save_scene();}
             if ui.button("📂 Load").clicked(){self.load_scene();}
             ui.menu_button("Scenes...",|ui|{
@@ -3082,6 +3221,8 @@ impl eframe::App for Sandbox {
                 });
             }
             self.studio.needs_refresh=true;
+            // Follow mode works here too (an asset the AI changes opens in the workshop).
+            self.follow_files();
             return;
         }
 
