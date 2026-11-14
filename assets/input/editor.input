@@ -1,0 +1,8 @@
+# Editor play controls (while the scene is playing). NAME = sources.
+# Edit and restart the editor; every name is listed at the top of src/input.rs.
+# walk drives vehicle motors marked `drive`, or walks the player.
+walk   = keys D A, keys ArrowRight ArrowLeft, stick LeftX, pads Right Left
+jump   = key W, key ArrowUp, pad A
+drop   = key S, key ArrowDown, pad B
+crouch = key C, pad X
+roll   = key X, pad RB

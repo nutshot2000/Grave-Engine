@@ -216,7 +216,12 @@ impl Input {
     /// Read this frame's keyboard, mouse and controller. Call once a frame.
     pub fn update(&mut self, ctx: &egui::Context) {
         let keys = ctx.input(|i| KeyState {
-            keys: i.keys_down.iter().copied().collect(),
+            // Ctrl/Alt/Cmd + key is a shortcut (Ctrl+S saves), never a game control.
+            keys: if i.modifiers.ctrl || i.modifiers.alt || i.modifiers.command || i.modifiers.mac_cmd {
+                Vec::new()
+            } else {
+                i.keys_down.iter().copied().collect()
+            },
             mouse: [egui::PointerButton::Primary, egui::PointerButton::Secondary, egui::PointerButton::Middle]
                 .into_iter()
                 .filter(|b| i.pointer.button_down(*b))

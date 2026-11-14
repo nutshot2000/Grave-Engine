@@ -150,6 +150,8 @@ struct Sandbox {
     last_frame: Instant,
     fps: f32,
     sim_ms: f32,
+    /// Play controls: keyboard and game controller (assets/input/editor.input).
+    input: grave_engine::input::Input,
     /// How long drawing the visible world takes (ms, smoothed).
     draw_ms: f32,
     /// Where the world is drawn on screen (top-left) and how big a cell is.
@@ -192,6 +194,10 @@ fn game_level(scene_path: &str) -> Option<usize> {
         _ => None,
     }
 }
+
+/// Default play controls, built in; assets/input/editor.input is read at
+/// start-up, so editing it remaps them without rebuilding.
+const EDITOR_INPUT: &str = include_str!("../assets/input/editor.input");
 
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
     let options = eframe::NativeOptions {
@@ -299,6 +305,12 @@ impl Sandbox {
             last_frame: Instant::now(),
             fps: 60.0,
             sim_ms: 0.0,
+            input: grave_engine::input::Input::load_or("assets/input/editor.input", EDITOR_INPUT).unwrap_or_else(|e| {
+                eprintln!("Controls file problem, using the defaults: {e}");
+                let mut i = grave_engine::input::Input::parse(EDITOR_INPUT).expect("default controls");
+                i.connect_controllers();
+                i
+            }),
             draw_ms: 0.0,
             canvas_at: (Pos2::ZERO, 1.0),
             cam: None,
@@ -2972,23 +2984,17 @@ impl eframe::App for Sandbox {
         }
         self.shortcuts(&ctx);
 
-        // Driving: → / D ahead, ← / A reverse (motors marked `drive`).
+        // Driving and the player: keyboard or game controller, through the
+        // engine's controls (assets/input/editor.input). → / D or the left
+        // stick drive motors marked `drive`, or walk the player.
         let typing = ctx.egui_wants_keyboard_input();
-        let throttle = if typing || !self.playing {
-            0.0
-        } else {
-            ctx.input(|i| {
-                let fwd = i.key_down(Key::ArrowRight) || (i.key_down(Key::D) && i.modifiers.is_none());
-                let back = i.key_down(Key::ArrowLeft) || (i.key_down(Key::A) && i.modifiers.is_none());
-                fwd as i32 as f32 - back as i32 as f32
-            })
-        };
+        self.input.update(&ctx);
+        let live = !typing && self.playing && !ctx.input(|i| i.modifiers.shift);
+        let throttle = if live { self.input.axis("walk") } else { 0.0 };
         let has_player = self.sim.physics.actor_count() > 0;
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
-        let jump = !typing
-            && self.playing
-            && ctx.input(|i| i.key_down(Key::ArrowUp) || (i.key_down(Key::W) && i.modifiers.is_none()));
-        let drop = !typing && self.playing && ctx.input(|i| i.key_down(Key::ArrowDown) || (i.key_down(Key::S) && i.modifiers.is_none()));
+        let jump = live && self.input.down("jump");
+        let drop = live && self.input.down("drop");
         self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
