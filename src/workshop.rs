@@ -1,7 +1,8 @@
 //! The asset workshop's editable model and actual simulation are deliberately separate.
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke, TextureHandle, TextureOptions, Vec2};
 use grave_engine::{
-    asset::{Asset, Brush, Weld},
+    asset::{Asset, Brush, Joint, JointType, Weld},
+    physics::Motor,
     material::{AIR, MatId, Materials},
     render::{Renderer, View},
     sim::Sim,
@@ -14,6 +15,27 @@ enum Tool {
     Move,
     Pivot,
     Joint,
+}
+/// What the joint tool makes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum JointPick {
+    Weld,
+    Pivot,
+    Motor,
+    Wheel,
+    Rope,
+}
+impl JointPick {
+    const ALL: [JointPick; 5] = [JointPick::Weld, JointPick::Pivot, JointPick::Motor, JointPick::Wheel, JointPick::Rope];
+    fn label(self) -> &'static str {
+        match self {
+            JointPick::Weld => "Weld (rigid)",
+            JointPick::Pivot => "Pivot (hinge: turns freely)",
+            JointPick::Motor => "Motor (pivot that turns by itself)",
+            JointPick::Wheel => "Wheel axle (spring + optional drive)",
+            JointPick::Rope => "Rope (two points)",
+        }
+    }
 }
 pub struct Workshop {
     pub open: bool,
@@ -44,6 +66,15 @@ pub struct Workshop {
     parent: usize,
     child: usize,
     force: f32,
+    /// Joint tool settings: the kind, pin to the world, motor and wheel settings,
+    /// and a rope's first end while waiting for the second click.
+    joint_pick: JointPick,
+    pin_ground: bool,
+    motor_speed: f32,
+    motor_strength: f32,
+    motor_drive: bool,
+    wheel_spring: f32,
+    rope_start: Option<(f32, f32)>,
     test: Option<Sim>,
     running: bool,
     clock: f64,
@@ -97,6 +128,13 @@ impl Workshop {
             parent: 0,
             child,
             force: 400.,
+            joint_pick: JointPick::Weld,
+            pin_ground: false,
+            motor_speed: 0.5,
+            motor_strength: 50.,
+            motor_drive: false,
+            wheel_spring: 60.,
+            rope_start: None,
             test: None,
             running: false,
             clock: 0.,
@@ -585,21 +623,53 @@ impl Workshop {
                 }
             });
         ui.separator();
-        ui.strong("Weld attachments");
+        ui.strong("Joints: welds, pivots, motors, wheels, ropes");
+        egui::ComboBox::from_id_salt("asset_joint_kind")
+            .selected_text(self.joint_pick.label())
+            .show_ui(ui, |ui| {
+                for k in JointPick::ALL {
+                    ui.selectable_value(&mut self.joint_pick, k, k.label());
+                }
+            });
         egui::ComboBox::from_id_salt("asset_parent")
-            .selected_text(format!("Parent: {}", self.asset.parts[self.parent].name))
+            .selected_text(format!("First: {}", self.asset.parts[self.parent].name))
             .show_ui(ui, |ui| {
                 for (i, p) in self.asset.parts.iter().enumerate() {
                     ui.selectable_value(&mut self.parent, i, &p.name);
                 }
             });
-        egui::ComboBox::from_id_salt("asset_child")
-            .selected_text(format!("Child: {}", self.asset.parts[self.child].name))
-            .show_ui(ui, |ui| {
-                for (i, p) in self.asset.parts.iter().enumerate() {
-                    ui.selectable_value(&mut self.child, i, &p.name);
+        let weld = self.joint_pick == JointPick::Weld;
+        if !weld {
+            ui.checkbox(&mut self.pin_ground, "Pin to the world (ground) instead of a second part")
+                .on_hover_text("For bases, windmill axles, crane posts: the part is held where the asset is placed");
+        }
+        let ground = self.pin_ground && !weld;
+        if !ground {
+            egui::ComboBox::from_id_salt("asset_child")
+                .selected_text(format!("Second: {}", self.asset.parts[self.child].name))
+                .show_ui(ui, |ui| {
+                    for (i, p) in self.asset.parts.iter().enumerate() {
+                        ui.selectable_value(&mut self.child, i, &p.name);
+                    }
+                });
+        }
+        match self.joint_pick {
+            JointPick::Motor => {
+                ui.add(egui::DragValue::new(&mut self.motor_speed).range(-10.0..=10.0).speed(0.02).prefix("speed ").suffix(" turns/s"));
+                ui.add(egui::DragValue::new(&mut self.motor_strength).range(0.1..=100000.0).speed(1.).prefix("strength ").suffix(" kN·m"));
+                ui.checkbox(&mut self.motor_drive, "Only while driving (player throttle)")
+                    .on_hover_text("On for vehicle wheels and player machines; off = always running (pumps, fans, cranks)");
+            }
+            JointPick::Wheel => {
+                ui.add(egui::DragValue::new(&mut self.wheel_spring).range(1.0..=2000.0).speed(1.).prefix("spring ").suffix(" kN/m"));
+                ui.checkbox(&mut self.motor_drive, "Driven by the player's throttle");
+                if self.motor_drive {
+                    ui.add(egui::DragValue::new(&mut self.motor_speed).range(-10.0..=10.0).speed(0.02).prefix("top speed ").suffix(" turns/s"));
+                    ui.add(egui::DragValue::new(&mut self.motor_strength).range(0.1..=100000.0).speed(1.).prefix("strength ").suffix(" kN·m"));
                 }
-            });
+            }
+            _ => {}
+        }
         ui.add(
             egui::DragValue::new(&mut self.force)
                 .range(0.0..=100000.0)
@@ -607,18 +677,42 @@ impl Workshop {
                 .suffix(" kN to break"),
         );
         ui.label(
-            egui::RichText::new("0 = unbreakable attachment")
+            egui::RichText::new("0 = unbreakable")
                 .small()
                 .weak(),
         );
+        let ready = ground || self.parent != self.child;
+        let prompt = match (self.joint_pick, self.rope_start) {
+            (JointPick::Rope, None) => "Click the rope's first end on the grid",
+            (JointPick::Rope, Some(_)) => "Click the rope's other end",
+            (JointPick::Weld, _) => "Click weld anchor on grid",
+            _ => "Click the pivot point on the grid",
+        };
         if ui
-            .add_enabled(
-                self.parent != self.child,
-                egui::Button::new("Click weld anchor on grid"),
-            )
+            .add_enabled(ready, egui::Button::new(prompt))
             .clicked()
         {
             self.tool = Tool::Joint;
+        }
+        let mut gone = None;
+        for (i, j) in self.asset.joints.iter().enumerate() {
+            let what = match (&j.kind, &j.motor) {
+                (JointType::Hinge, Some(m)) => format!("motor {:.2} turns/s{}", m.speed, if m.drive { ", driven" } else { "" }),
+                (JointType::Hinge, None) => "pivot".into(),
+                (JointType::Wheel { .. }, _) => "wheel axle".into(),
+                (JointType::Rope { length }, _) => format!("rope {:.1} m", length / 10.),
+            };
+            ui.horizontal(|ui| {
+                ui.label(format!("{} ↻ {}: {what}", j.a, j.b));
+                if ui.small_button("×").clicked() {
+                    gone = Some(i);
+                }
+            });
+        }
+        if let Some(i) = gone {
+            self.remember();
+            self.asset.joints.remove(i);
+            self.changed();
         }
         let mut delete = None;
         let mut edit_force = None;
@@ -832,6 +926,23 @@ impl Workshop {
                         Stroke::new(1.5, Color32::from_rgb(255, 190, 65)),
                     );
                 }
+                // Moving joints: pivots cyan, motors magenta, ropes as a line.
+                for j in &self.asset.joints {
+                    let c = if j.motor.is_some() { Color32::from_rgb(235, 90, 230) } else { Color32::from_rgb(80, 220, 255) };
+                    let p = pt(j.x, j.y);
+                    if let Some(to) = j.to {
+                        painter.line_segment([p, pt(to.0, to.1)], Stroke::new(1.5, c));
+                        painter.circle_filled(pt(to.0, to.1), 2.5, c);
+                    }
+                    painter.circle_stroke(p, 5., Stroke::new(2., c));
+                    painter.circle_filled(p, 1.8, c);
+                    if j.b == "ground" {
+                        painter.line_segment([p + Vec2::new(-5., 7.), p + Vec2::new(5., 7.)], Stroke::new(2., c));
+                    }
+                }
+                if let Some(start) = self.rope_start {
+                    painter.circle_filled(pt(start.0, start.1), 3., Color32::from_rgb(80, 220, 255));
+                }
                 let pointer = response
                     .interact_pointer_pos()
                     .or_else(|| response.hover_pos());
@@ -931,22 +1042,41 @@ impl Workshop {
             }
             Tool::Pivot => self.asset.pivot = (b.0 as f32 + 0.5, b.1 as f32 + 0.5),
             Tool::Joint => {
-                if self.parent != self.child
-                    && self.asset.parts[self.parent].layer == self.asset.parts[self.child].layer
-                {
-                    self.asset.welds.push(Weld {
-                        a: self.asset.parts[self.parent].name.clone(),
-                        b: self.asset.parts[self.child].name.clone(),
-                        x: b.0 as f32 + 0.5,
-                        y: b.1 as f32 + 0.5,
-                        break_force: if self.force == 0. {
-                            None
-                        } else {
-                            Some(self.force)
-                        },
-                    });
-                    self.tool = Tool::Paint(Brush::Pencil);
+                let at = (b.0 as f32 + 0.5, b.1 as f32 + 0.5);
+                let first = self.asset.parts[self.parent].name.clone();
+                let ground = self.pin_ground && self.joint_pick != JointPick::Weld;
+                let second = if ground { "ground".to_string() } else { self.asset.parts[self.child].name.clone() };
+                let same_layer = ground || self.asset.parts[self.parent].layer == self.asset.parts[self.child].layer;
+                let break_force = if self.force == 0. { None } else { Some(self.force) };
+                if first == second || !same_layer {
+                    self.message = "Pick two different parts on the same depth layer (or pin to the world).".into();
+                    return;
                 }
+                let motor = |speed: f32, strength: f32, drive: bool| Some(Motor { speed, strength, drive });
+                let joint = |kind, motor, to| Joint { kind, a: first.clone(), b: second.clone(), x: at.0, y: at.1, to, motor, break_force };
+                match self.joint_pick {
+                    JointPick::Weld => self.asset.welds.push(Weld { a: first.clone(), b: second.clone(), x: at.0, y: at.1, break_force }),
+                    JointPick::Pivot => self.asset.joints.push(joint(JointType::Hinge, None, None)),
+                    JointPick::Motor => self.asset.joints.push(joint(JointType::Hinge, motor(self.motor_speed, self.motor_strength, self.motor_drive), None)),
+                    JointPick::Wheel => self.asset.joints.push(joint(
+                        JointType::Wheel { stiffness: self.wheel_spring, damping: 4., travel: 3. },
+                        if self.motor_drive { motor(self.motor_speed, self.motor_strength, true) } else { None },
+                        None,
+                    )),
+                    JointPick::Rope => match self.rope_start.take() {
+                        None => {
+                            // First end: wait for the second click (keep the joint tool on).
+                            self.rope_start = Some(at);
+                            self.message = "Now click where the rope's other end is fixed (on the second part).".into();
+                            return;
+                        }
+                        Some(start) => {
+                            let length = ((at.0 - start.0).powi(2) + (at.1 - start.1).powi(2)).sqrt();
+                            self.asset.joints.push(Joint { x: start.0, y: start.1, ..joint(JointType::Rope { length }, None, Some(at)) });
+                        }
+                    },
+                }
+                self.tool = Tool::Paint(Brush::Pencil);
             }
         }
     }
@@ -1136,6 +1266,22 @@ mod tests {
         let s = w.test.as_ref().unwrap();
         assert!(s.physics.joints().len() < 2 || s.physics.body_count() != 3);
         assert_eq!(w.asset, draft);
+    }
+    #[test]
+    fn the_test_bay_runs_moving_joints() {
+        let mats = Materials::load_dir("materials");
+        let mut w = Workshop::new(&mats);
+        w.asset = Asset::load_file(Path::new("assets/workshop/oil_pumpjack.asset"), &mats).unwrap();
+        w.rebuild_test(&mats, false);
+        let s = w.test.as_mut().unwrap();
+        assert_eq!(s.physics.joints().len(), 6, "welds and moving joints all made");
+        let angles = |s: &Sim| s.physics.ids().iter().map(|id| s.physics.spec_of(&s.world, *id).unwrap().angle).collect::<Vec<_>>();
+        let start = angles(s);
+        for _ in 0..90 {
+            s.step(&mats);
+        }
+        let moved = angles(s).iter().zip(&start).filter(|(a, b)| (*a - *b).abs() > 0.05).count();
+        assert!(moved >= 2, "the crank and beam move in the preview");
     }
     #[test]
     fn changing_the_pivot_does_not_push_the_preview_outside_its_bay() {

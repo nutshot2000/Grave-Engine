@@ -2084,6 +2084,14 @@ impl Physics {
                     .contacts_enabled(false);
                 if let Some(m) = &motor {
                     j = j.motor_velocity(JointAxis::AngX, target(m, self.throttle), MOTOR_RESPONSE).motor_max_force(JointAxis::AngX, motor_force(m, self.throttle));
+                    if !m.drive {
+                        // An always-on machine motor (a crank, a winch, a fan)
+                        // pushes with its full strength until it's up to speed,
+                        // however heavy the parts it drives through other joints.
+                        j = j
+                            .motor_model(JointAxis::AngX, MotorModel::ForceBased)
+                            .motor_velocity(JointAxis::AngX, target(m, self.throttle), m.strength * 1000.0);
+                    }
                 }
                 j.build()
             }
@@ -2096,6 +2104,14 @@ impl Physics {
                     .limits(JointAxis::LinY, [-travel * CELL, travel * CELL]);
                 if let Some(m) = &motor {
                     j = j.motor_velocity(JointAxis::AngX, target(m, self.throttle), MOTOR_RESPONSE).motor_max_force(JointAxis::AngX, motor_force(m, self.throttle));
+                    if !m.drive {
+                        // An always-on machine motor (a crank, a winch, a fan)
+                        // pushes with its full strength until it's up to speed,
+                        // however heavy the parts it drives through other joints.
+                        j = j
+                            .motor_model(JointAxis::AngX, MotorModel::ForceBased)
+                            .motor_velocity(JointAxis::AngX, target(m, self.throttle), m.strength * 1000.0);
+                    }
                 }
                 j.build()
             }

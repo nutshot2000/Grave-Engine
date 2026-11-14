@@ -1,0 +1,34 @@
+# Oil pumpjack ("nodding donkey"): a motor turns the crank, the arm pulls
+# the walking beam's tail down and up, and the horse head nods.
+# Moving joints: hinges (pivots), one with a motor; the base is pinned to the ground.
+format 1
+asset oil_pumpjack 126 80
+depth 0.6
+pivot 63 79
+part base
+rect concrete 2 75 122 4
+rect iron 2 72 122 3
+line iron 40 72 55 29
+line iron 41 72 56 29
+line iron 39 72 54 29
+line iron 70 72 55 29
+line iron 69 72 54 29
+line iron 71 72 56 29
+rect iron 52 25 7 5
+rect iron 99 63 18 9
+rect iron 46 50 19 2
+part beam
+rect steel 12 21 92 4
+rect steel 4 14 10 26
+rect steel 14 17 4 10
+part crank
+circle steel 108 54 7
+rect iron 113 51 5 7
+part arm
+rect steel 101 25 3 29
+joint hinge beam base at 55.5 23 break 0
+joint hinge crank base at 108.5 54.5 motor 0.35 strength 300
+joint hinge arm crank at 102.5 53.5
+joint hinge arm beam at 102.5 26.5
+joint hinge base ground at 10 76
+joint hinge base ground at 118 76

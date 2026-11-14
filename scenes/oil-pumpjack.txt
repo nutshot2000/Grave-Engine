@@ -1,0 +1,10 @@
+# An oil pumpjack ("nodding donkey") built in the asset workshop with moving
+# joints: a motor turns the crank, the arm rocks the beam, the head nods.
+# Press Play. Open assets/workshop/oil_pumpjack.asset in the workshop to edit it.
+size 240 130
+seed 5
+fill air
+sky #7fb2d8 #e9d3a6
+rect sand 0 110 240 20
+rect stone 0 122 240 8
+asset ../assets/workshop/oil_pumpjack.asset 110 110 as jack

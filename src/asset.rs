@@ -3,7 +3,7 @@
 use crate::{
     MatId, Materials, Sim,
     material::AIR,
-    physics::{BodySpec, JointKind},
+    physics::{BodySpec, GROUND, JointKind, Motor},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -26,6 +26,63 @@ pub struct Weld {
     pub y: f32,
     pub break_force: Option<f32>,
 }
+/// A moving joint: parts that turn, swing or hang instead of being welded.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JointType {
+    /// A pivot both parts turn around (doors, levers, crank arms, the beam of
+    /// a pumpjack). With a motor it turns by itself.
+    Hinge,
+    /// An axle with a suspension spring (vehicle wheels). Can have a motor.
+    Wheel { stiffness: f32, damping: f32, travel: f32 },
+    /// A rope between two points: never further apart than `length` cells.
+    Rope { length: f32 },
+}
+
+/// A moving joint between two parts (`b` can be `ground`: pinned to the world
+/// where the asset is placed, like a windmill's axle or a crane's base).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Joint {
+    pub kind: JointType,
+    pub a: String,
+    pub b: String,
+    /// The pivot (or the rope's end on `a`), in grid coordinates.
+    pub x: f32,
+    pub y: f32,
+    /// A rope's other end, on `b`.
+    pub to: Option<(f32, f32)>,
+    /// Turns by itself: speed in turns a second (+ = clockwise), strength in kN m.
+    /// `drive` = only while the player presses throttle (vehicles).
+    pub motor: Option<Motor>,
+    pub break_force: Option<f32>,
+}
+
+impl Joint {
+    /// The joint as a scene line (`hinge a b at X Y motor ...`), offset by `(dx, dy)`.
+    pub fn scene_line(&self, dx: f32, dy: f32) -> String {
+        let mut out = match &self.kind {
+            JointType::Hinge => format!("hinge {} {} at {} {}", self.a, self.b, dx + self.x, dy + self.y),
+            JointType::Wheel { stiffness, damping, travel } => format!(
+                "wheel {} {} at {} {} spring {stiffness} damping {damping} travel {travel}",
+                self.a, self.b, dx + self.x, dy + self.y
+            ),
+            JointType::Rope { length } => {
+                let to = self.to.unwrap_or((self.x, self.y));
+                format!("rope {} {} at {} {} to {} {} length {length}", self.a, self.b, dx + self.x, dy + self.y, dx + to.0, dy + to.1)
+            }
+        };
+        if let Some(m) = &self.motor {
+            out += &format!(" motor {} strength {}", m.speed, m.strength);
+            if m.drive {
+                out += " drive";
+            }
+        }
+        if let Some(f) = self.break_force {
+            out += &format!(" break {f}");
+        }
+        out
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asset {
     pub name: String,
@@ -36,6 +93,8 @@ pub struct Asset {
     pub parts: Vec<Part>,
     pub layers: Vec<String>,
     pub welds: Vec<Weld>,
+    /// Moving joints: hinges (pivots), motors, wheels, ropes.
+    pub joints: Vec<Joint>,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Brush {
@@ -86,6 +145,7 @@ impl Asset {
                 layer: 0,
             }],
             welds: vec![],
+            joints: vec![],
         })
     }
     pub fn add_part(&mut self, name: &str) -> Result<usize, String> {
@@ -124,6 +184,14 @@ impl Asset {
                 j.b = name.into();
             }
         }
+        for j in &mut self.joints {
+            if j.a == old {
+                j.a = name.into();
+            }
+            if j.b == old {
+                j.b = name.into();
+            }
+        }
         Ok(())
     }
     pub fn remove_part(&mut self, i: usize) {
@@ -132,6 +200,7 @@ impl Asset {
         }
         let name = self.parts.remove(i).name;
         self.welds.retain(|j| j.a != name && j.b != name);
+        self.joints.retain(|j| j.a != name && j.b != name);
     }
     pub fn resize(&mut self, w: usize, h: usize) -> Result<(), String> {
         if w == 0 || h == 0 || w > MAX_SIZE || h > MAX_SIZE {
@@ -154,6 +223,7 @@ impl Asset {
         self.pivot.0 = self.pivot.0.clamp(0., w as f32);
         self.pivot.1 = self.pivot.1.clamp(0., h as f32);
         self.welds.retain(|j| j.x <= w as f32 && j.y <= h as f32);
+        self.joints.retain(|j| j.x <= w as f32 && j.y <= h as f32 && j.to.is_none_or(|t| t.0 <= w as f32 && t.1 <= h as f32));
         Ok(())
     }
     pub fn put(&mut self, part: usize, x: i32, y: i32, mat: MatId) {
@@ -397,6 +467,20 @@ impl Asset {
                 j.y = (j.y + dy as f32).clamp(0., self.h as f32);
             }
         }
+        let (w, h) = (self.w as f32, self.h as f32);
+        let name = self.parts[part].name.clone();
+        for j in &mut self.joints {
+            // A pivot moves with the part; a rope's far end moves with its own part.
+            if j.a == name || (j.b == name && j.to.is_none()) {
+                j.x = (j.x + dx as f32).clamp(0., w);
+                j.y = (j.y + dy as f32).clamp(0., h);
+            }
+            if j.b == name
+                && let Some(t) = &mut j.to
+            {
+                *t = ((t.0 + dx as f32).clamp(0., w), (t.1 + dy as f32).clamp(0., h));
+            }
+        }
         true
     }
     pub fn composite_layer(&self, layer: usize) -> Vec<MatId> {
@@ -415,6 +499,8 @@ impl Asset {
         let names: BTreeSet<_> = a.parts.iter().map(|p| p.name.clone()).collect();
         a.welds
             .retain(|j| names.contains(&j.a) && names.contains(&j.b));
+        a.joints
+            .retain(|j| names.contains(&j.a) && (j.b == "ground" || names.contains(&j.b)));
         for p in &mut a.parts {
             p.layer = 0;
         }
@@ -520,7 +606,20 @@ impl Asset {
                 ));
             }
         }
-        if self.welds.is_empty() && (0..self.layers.len()).any(|z| self.parts.iter().filter(|p|p.layer==z).count()>1) {
+        for j in &self.joints {
+            let layer = |n: &str| self.parts.iter().find(|p| p.name == n).map(|p| p.layer);
+            if j.a == j.b || j.a == "ground" || !names.contains(&j.a) || (j.b != "ground" && !names.contains(&j.b)) {
+                out.push(format!("Joint {} → {} has missing or identical parts (only the second can be `ground`)", j.a, j.b));
+            } else if j.b != "ground" && layer(&j.a) != layer(&j.b) {
+                out.push("Joints must join parts in the same depth layer".into());
+            }
+            if let Some(m) = &j.motor
+                && (!m.speed.is_finite() || !m.strength.is_finite() || m.strength <= 0.)
+            {
+                out.push(format!("Joint {} → {}: a motor needs a speed and a strength above 0", j.a, j.b));
+            }
+        }
+        if self.welds.is_empty() && self.joints.is_empty() && (0..self.layers.len()).any(|z| self.parts.iter().filter(|p|p.layer==z).count()>1) {
             out.push(
                 "Parts are unjoined and will fall separately. Add welds to assemble them.".into(),
             );
@@ -626,6 +725,22 @@ impl Asset {
                 }
             }
         }
+        for j in &self.joints {
+            let id = |n: &str| if n == "ground" { Some(GROUND) } else { ids.iter().find(|(m, _)| m == n).map(|(_, id)| *id) };
+            if let (Some(a), Some(b)) = (id(&j.a), id(&j.b)) {
+                let at = (x + j.x - self.pivot.0, y + j.y - self.pivot.1);
+                let to = j.to.map(|t| (x + t.0 - self.pivot.0, y + t.1 - self.pivot.1));
+                let kind = match j.kind {
+                    JointType::Hinge => JointKind::Hinge,
+                    JointType::Wheel { stiffness, damping, travel } => JointKind::Wheel { stiffness, damping, travel },
+                    JointType::Rope { length } => JointKind::Rope { length },
+                };
+                sim.physics.join(mats, a, b, kind, at, to, j.motor.clone());
+                if let Some(f) = j.break_force {
+                    sim.physics.set_joint_break_force(a, b, f);
+                }
+            }
+        }
         crate::assemblies::tag_new(sim,&before,&group);
         Ok(ids)
     }
@@ -677,6 +792,9 @@ impl Asset {
                 j.y,
                 j.break_force.unwrap_or(0.)
             ));
+        }
+        for j in &self.joints {
+            out.push_str(&format!("joint {}\n", j.scene_line(0., 0.)));
         }
         out
     }
@@ -738,6 +856,10 @@ impl Asset {
             if let Some(f) = j.break_force {
                 out.push_str(&format!(" break {f}"));
             }
+            out.push('\n');
+        }
+        for j in &self.joints {
+            out.push_str(&j.scene_line(x - self.pivot.0, y - self.pivot.1));
             out.push('\n');
         }
         out
@@ -980,6 +1102,7 @@ impl Asset {
                         break_force: if force == 0. { None } else { Some(force) },
                     });
                 }
+                "joint" => a.joints.push(parse_joint(&v[1..]).map_err(|e| err(&e))?),
                 _ => return Err(err("unknown asset command")),
             }
         }
@@ -990,6 +1113,11 @@ impl Asset {
                 return Err("Weld references missing or identical parts.".into());
             }
         }
+        for j in &a.joints {
+            if j.a == j.b || j.a == "ground" || !names.contains(j.a.as_str()) || (j.b != "ground" && !names.contains(j.b.as_str())) {
+                return Err(format!("Joint {} → {} names a missing part (only the second can be `ground`).", j.a, j.b));
+            }
+        }
         if a.validate(mats)
             .iter()
             .any(|s| s.contains("same depth layer"))
@@ -998,6 +1126,57 @@ impl Asset {
         }
         Ok(a)
     }
+}
+
+/// Read `hinge|wheel|rope A B at X Y [to X Y] [length L] [spring S damping D travel T]
+/// [motor SPEED [strength N] [drive]] [break F]` (the words after `joint`).
+pub fn parse_joint(w: &[&str]) -> Result<Joint, String> {
+    let usage = "use `joint hinge A B at X Y [motor SPEED strength N [drive]] [break F]`, `joint wheel A B at X Y [spring S damping D travel T]` or `joint rope A B at X Y to X Y [length L]` (B can be `ground`)";
+    let (Some(kind), Some(a), Some(b)) = (w.first(), w.get(1), w.get(2)) else { return Err(usage.into()) };
+    let rest = &w[3..];
+    let num = |key: &str| -> Result<Option<f32>, String> {
+        match rest.iter().position(|x| x.eq_ignore_ascii_case(key)) {
+            None => Ok(None),
+            Some(i) => rest.get(i + 1).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).map(Some).ok_or(format!("`{key}` needs a number")),
+        }
+    };
+    let pair = |key: &str| -> Result<Option<(f32, f32)>, String> {
+        match rest.iter().position(|x| x.eq_ignore_ascii_case(key)) {
+            None => Ok(None),
+            Some(i) => {
+                let n = |k: usize| rest.get(i + k).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite());
+                n(1).zip(n(2)).map(Some).ok_or(format!("`{key}` needs X Y"))
+            }
+        }
+    };
+    let (x, y) = pair("at")?.ok_or(usage)?;
+    let kind = match kind.to_ascii_lowercase().as_str() {
+        "hinge" | "pivot" => JointType::Hinge,
+        "wheel" | "axle" => JointType::Wheel {
+            stiffness: num("spring")?.unwrap_or(60.),
+            damping: num("damping")?.unwrap_or(4.),
+            travel: num("travel")?.unwrap_or(3.),
+        },
+        "rope" => JointType::Rope { length: num("length")?.unwrap_or(0.).max(0.) },
+        _ => return Err(usage.into()),
+    };
+    let motor = match num("motor")? {
+        Some(speed) => Some(Motor { speed, strength: num("strength")?.unwrap_or(2.), drive: rest.iter().any(|x| x.eq_ignore_ascii_case("drive")) }),
+        None => None,
+    };
+    if motor.is_some() && matches!(kind, JointType::Rope { .. }) {
+        return Err("a rope can't have a motor".into());
+    }
+    Ok(Joint {
+        kind,
+        a: a.to_string(),
+        b: b.to_string(),
+        x,
+        y,
+        to: pair("to")?,
+        motor,
+        break_force: num("break")?.filter(|f| *f > 0.),
+    })
 }
 
 /// Characters for the material legend in asset text: plain ones first, then

@@ -17,6 +17,19 @@ The preview uses actual engine cells, gravity, material heat/burning, contact da
 
 The checks panel highlights empty parts, overlapping cells, disconnected islands and an entirely unjoined multi-part prop. These are authoring diagnostics, not proof of structural stability; use the test bay. Painting into another part's cell transfers ownership, so the physical bodies do not overlap. Fill treats other occupied parts as boundaries.
 
+## Moving parts: pivots, motors, wheels, ropes
+
+Machines and vehicles need parts that move. In **Joints**, pick the kind, the two parts, then click the point on the grid:
+
+- **Weld**: rigid (amber circle). Set a break load to make it come apart under force.
+- **Pivot**: a hinge both parts turn around (cyan circle): doors, levers, crank arms, a pumpjack's walking beam.
+- **Motor**: a pivot that turns by itself (magenta): speed in turns a second (minus turns the other way), strength in kN·m. Tick *Only while driving* for machines the player controls; leave it off for things that always run (pumps, fans, windmills). An always-on motor pushes with its full strength through everything it drives.
+- **Wheel axle**: a pivot with a suspension spring for vehicle wheels; tick *Driven* to give it a motor on the player's throttle.
+- **Rope**: click one end, then the other; it can go slack but never longer.
+- **Pin to the world**: instead of a second part, hold a part where the asset is placed (bases, axles, crane posts). Two pins hold a part completely still.
+
+The test bay runs the joints for real, so press **Run** to watch a machine work. `assets/workshop/oil_pumpjack.asset` (and `scenes/oil-pumpjack.txt`) is a complete example: a motor turns the crank, the arm rocks the beam, the horse head nods. In the text format: `joint hinge A B at X Y [motor SPEED strength N [drive]] [break F]`, `joint wheel A B at X Y [spring S damping D travel T] [motor ...]`, `joint rope A B at X Y to X Y [length L]`; `B` can be `ground`.
+
 ## Paint colours and lettering
 
 **Material** chooses what a cell physically is. **Surface paint** changes its visible colour while keeping that material, temperature, density, strength and burning/explosive rules. Click the colour swatch for the RGB/HSV colour picker, or use the Red, Black and White shortcuts. Pencil, Fill, Line, Rectangle and Ellipse all work with surface paint. In this mode Erase removes only the paint. Fill stops at material and existing paint boundaries and only affects the selected part.
