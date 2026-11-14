@@ -352,9 +352,26 @@ impl Asset {
             x += 6 * scale;
         }
     }
-    pub fn move_part(&mut self, part: usize, dx: i32, dy: i32) {
+    /// Slide a part. Refuses (returns false, changing nothing) if any of its
+    /// cells would leave the grid or land on another part in the same layer:
+    /// moving must never silently erase work.
+    pub fn move_part(&mut self, part: usize, dx: i32, dy: i32) -> bool {
         if part >= self.parts.len() {
-            return;
+            return false;
+        }
+        let layer = self.parts[part].layer;
+        for (i, m) in self.parts[part].cells.iter().enumerate() {
+            if *m == AIR {
+                continue;
+            }
+            let (x, y) = ((i % self.w) as i32 + dx, (i / self.w) as i32 + dy);
+            if x < 0 || y < 0 || x >= self.w as i32 || y >= self.h as i32 {
+                return false;
+            }
+            let at = y as usize * self.w + x as usize;
+            if self.parts.iter().enumerate().any(|(k, p)| k != part && p.layer == layer && p.cells[at] != AIR) {
+                return false;
+            }
         }
         let old = self.parts[part].cells.clone();
         let colors = self.parts[part].paint.clone();
@@ -380,6 +397,7 @@ impl Asset {
                 j.y = (j.y + dy as f32).clamp(0., self.h as f32);
             }
         }
+        true
     }
     pub fn composite_layer(&self, layer: usize) -> Vec<MatId> {
         self.for_layer(layer).composite()

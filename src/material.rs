@@ -114,6 +114,9 @@ pub struct Material {
     /// How much of it is left when it melts (0..1): snow is mostly air, so a
     /// snowdrift melts into a puddle, not a flood. 1 = all of it.
     pub melt_yield: f32,
+    /// How much of the wind's push a flying bit of it feels, 0..1 (embers 1,
+    /// snow 0.4: it comes down, drifting, instead of streaming sideways).
+    pub wind_effect: f32,
     /// A solid whose top layer tyres chew up and throw (dirt).
     pub tyres_dig: bool,
     /// Above this temperature it gets weaker the hotter it is (strength,
@@ -225,6 +228,7 @@ impl Material {
             rolling_resistance: 0.0,
             clump: 1,
             melt_yield: 1.0,
+            wind_effect: 1.0,
             tyres_dig: false,
             softens_at: None,
             yield_strength: None,
@@ -703,6 +707,7 @@ fn apply(
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
         "melt_yield" => m.melt_yield = num(v)?.clamp(0.0, 1.0),
+        "wind_effect" => m.wind_effect = num(v)?.clamp(0.0, 1.0),
         "softens_at" => m.softens_at = opt_num(v)?,
         "lets_light_through" | "transparency" => m.lets_light_through = opt_num(v)?.map(|t| t.clamp(0.0, 1.0)),
         "yield" | "yield_strength" => m.yield_strength = opt_num(v)?.map(|y| y.max(0.0)).filter(|y| *y > 0.0),

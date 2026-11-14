@@ -40,6 +40,14 @@ pub struct Sim {
     /// set each frame by the editor or game. None = around the followed
     /// object, or everywhere.
     pub weather_view: Option<(f32, f32, f32, f32)>,
+    /// Where things were last frame (for triggers to see fast things cross them).
+    seen: Seen,
+}
+
+#[derive(Default)]
+struct Seen {
+    bodies: HashMap<u64, (f32, f32)>,
+    actors: Vec<(f32, f32)>,
 }
 
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
@@ -86,7 +94,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -237,13 +245,21 @@ impl Sim {
         use crate::trigger::By;
         let bodies: Vec<(u64, (f32, f32))> = self.physics.ids().into_iter().filter_map(|id| Some((id, self.physics.centre(id)?))).collect();
         let actors: Vec<(f32, f32)> = self.physics.actor_status().iter().map(|a| (a.x, a.y)).collect();
+        // A trigger is set off by being inside it now, or by having crossed it
+        // since last frame (a fast thing can leap right over a thin box).
+        let seen = std::mem::take(&mut self.seen);
         for t in self.triggers.iter_mut() {
             if t.fired && !t.repeat {
                 continue;
             }
             use crate::camera::Focus;
-            let body_in = |only: Option<u64>| bodies.iter().find(|(b, p)| only.is_none_or(|o| o == *b) && t.contains(p.0, p.1)).map(|(b, _)| Focus::Object(*b));
-            let actor_in = || actors.iter().position(|p| t.contains(p.0, p.1)).map(Focus::Actor);
+            let body_in = |only: Option<u64>| {
+                bodies
+                    .iter()
+                    .find(|(b, p)| only.is_none_or(|o| o == *b) && (t.contains(p.0, p.1) || seen.bodies.get(b).is_some_and(|&q| t.crossed(q, *p))))
+                    .map(|(b, _)| Focus::Object(*b))
+            };
+            let actor_in = || actors.iter().enumerate().position(|(n, p)| t.contains(p.0, p.1) || seen.actors.get(n).is_some_and(|&q| t.crossed(q, *p))).map(Focus::Actor);
             // What set it off (for `focus it`).
             let who = match t.by {
                 By::Object(id) => body_in(Some(id)),
@@ -257,6 +273,7 @@ impl Sim {
             }
             t.occupied = inside;
         }
+        self.seen = Seen { bodies: bodies.into_iter().collect(), actors };
         for e in &self.events {
             if let crate::trigger::Event::Checkpoint(x, y) = e {
                 self.checkpoint = Some((*x, *y));
@@ -327,7 +344,7 @@ impl Sim {
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let mut world = snap.world.clone();
         world.wake_all(); // restored: look at everything again
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None };
+        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
         sim.layers = snap.layers.iter().map(|s| Sim::restore(s,mats)).collect();
         sim.layer_names = snap.layer_names.clone();
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));

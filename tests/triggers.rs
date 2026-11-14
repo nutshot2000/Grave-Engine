@@ -75,3 +75,31 @@ fn bad_trigger_lines_say_what_is_wrong() {
     let l = scene::load("size 50 50\nfill air\ntrigger 1 2 3 4 by nobody : score 1\ntrigger 1 2 3 4 : explode\ntrigger 1 2 3 4\n", &m, None);
     assert_eq!(l.problems.len(), 3, "{:?}", l.problems);
 }
+
+#[test]
+fn a_fast_thing_cannot_leap_over_a_thin_trigger() {
+    use grave_engine::trigger::{Action, Trigger, By};
+    // The box is 2 cells wide; a thing moving 20 cells a step is never inside it.
+    let t = Trigger { x: 45.0, y: 30.0, w: 2.0, h: 20.0, by: By::Any, repeat: false, actions: vec![Action::Score(1)], fired: false, occupied: false };
+    assert!(!t.contains(40.0, 41.0) && !t.contains(60.0, 41.0));
+    assert!(t.crossed((40.0, 41.0), (60.0, 41.0)), "the path goes through it");
+    assert!(!t.crossed((40.0, 10.0), (60.0, 10.0)), "above it, no");
+    assert!(!t.crossed((50.0, 41.0), (60.0, 41.0)), "past it, no");
+    assert!(!t.crossed((-500.0, 41.0), (60.0, 41.0)), "a teleport doesn't count");
+    // And in a running scene: a heavy iron ball thrown fast through a thin box.
+    let m = mats();
+    let text = "size 200 100\nfill air\nbody circle iron 10 40 3\nname ball\ntrigger 100 20 2 40 by ball : score 5\n";
+    let mut s = sim(&m, text);
+    let id = s.physics.ids()[0];
+    s.physics.set_velocity(id, 1200.0, 0.0, 0.0);
+    let mut score = 0;
+    for _ in 0..60 {
+        s.step(&m);
+        for e in s.events.drain(..) {
+            if let Event::Score(n) = e {
+                score += n;
+            }
+        }
+    }
+    assert_eq!(score, 5, "the thin trigger saw the ball go through");
+}

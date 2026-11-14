@@ -464,7 +464,12 @@ impl Animator {
             })
             .max_by_key(|(i, t)| (t.priority, std::cmp::Reverse(*i)))
             .map(|(_, t)| t.to.clone());
-        self.fired.clear();
+        // A request that a blend blocked waits for the blend to end (a half-
+        // second at most) instead of being lost: an attack pressed just after
+        // a gait change must still happen.
+        if self.blend.is_none() || selected.is_some() {
+            self.fired.clear();
+        }
         if let Some(to) = selected {
             let rule = self.graph.blends.iter().find(|b| b.from == self.state().name && b.to == to);
             let mut from_clip = self.state().clip.clone();

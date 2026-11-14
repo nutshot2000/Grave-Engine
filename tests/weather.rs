@@ -214,3 +214,26 @@ fn fog_hides_the_distance_and_presets_exist() {
     let presets = Weather::presets();
     assert!(presets.len() >= 6 && presets.iter().any(|(n, w)| n.contains("Storm") && w.lightning > 0.0 && w.rain > 0.0));
 }
+
+#[test]
+fn snow_comes_down_instead_of_streaming_sideways() {
+    let m = mats();
+    // A stiff breeze with gusts on top: flakes should still mostly fall.
+    let mut s = sim(&m, &format!("{COLD}wind 1.5\nweather snow 0.6\nweather gusts 0.4\n"));
+    let snow = m.id("snow").unwrap();
+    let (mut sideways, mut down, mut n) = (0.0f32, 0.0f32, 0u32);
+    for frame in 0..900 {
+        s.step(&m);
+        if frame > 200 {
+            for f in s.world.flying.iter().filter(|f| f.mat == snow && f.y > 5.0) {
+                sideways += f.vx.abs();
+                down += f.vy;
+                n += 1;
+            }
+        }
+    }
+    let (sideways, down) = (sideways / n as f32, down / n as f32);
+    println!("snow flakes: {sideways:.2} cells/frame sideways, {down:.2} down");
+    assert!(n > 500 && down > 0.15, "flakes are falling: {down}");
+    assert!(sideways < down * 0.8, "mostly down, not sideways: {sideways} vs {down}");
+}

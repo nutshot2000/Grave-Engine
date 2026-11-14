@@ -150,6 +150,8 @@ struct Sandbox {
     last_frame: Instant,
     fps: f32,
     sim_ms: f32,
+    /// How long drawing the visible world takes (ms, smoothed).
+    draw_ms: f32,
     /// Where the world is drawn on screen (top-left) and how big a cell is.
     canvas_at: (Pos2, f32),
     /// Camera: centre (cells) and zoom (screen pixels per cell). None = show
@@ -297,6 +299,7 @@ impl Sandbox {
             last_frame: Instant::now(),
             fps: 60.0,
             sim_ms: 0.0,
+            draw_ms: 0.0,
             canvas_at: (Pos2::ZERO, 1.0),
             cam: None,
             zoom_acc: 0.0,
@@ -2172,9 +2175,10 @@ impl Sandbox {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(format!(
-                        "{:.0} fps · sim {:.1} ms · {} objects · {} undo steps · frame {}",
+                        "{:.0} fps · sim {:.1} ms · draw {:.1} ms · {} objects · {} undo steps · frame {}",
                         self.fps,
                         self.sim_ms,
+                        self.draw_ms,
                         self.sim.physics.body_count(),
                         self.history.len(),
                         self.sim.world.frame
@@ -2243,7 +2247,9 @@ impl Sandbox {
         // Weather falls around what's on screen.
         self.sim.weather_view = Some((cx - half.0 - 25.0, cy - half.1, cx + half.0 + 25.0, cy + half.1));
         let win = grave_engine::render::view_window(&self.sim.world, (cx, cy), half, 4.0);
+        let drawn = Instant::now();
         let rgba = self.renderer.draw_window(&self.sim.world, &self.mats, self.view, win);
+        self.draw_ms = self.draw_ms * 0.9 + drawn.elapsed().as_secs_f32() * 1000.0 * 0.1;
         let image = egui::ColorImage::from_rgba_unmultiplied([win.2, win.3], rgba);
         match &mut self.texture {
             Some(t) if t.size() == [win.2, win.3] => t.set(image, TextureOptions::NEAREST),
@@ -2658,6 +2664,10 @@ impl Sandbox {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
         } else if p.hanging {
             Some("Hanging: release W/Up, then press again to climb. S/Down drops.".to_string())
+        } else if p.rolling {
+            Some("Rolling! C holds a crouch afterwards.".to_string())
+        } else if p.crouched {
+            Some(if p.stand_blocked { "Low ceiling: keep moving to stand up safely." } else { "Crouching: release C to stand. X rolls." }.to_string())
         } else if p.climbing {
             Some("Climbing onto the ledge. S/Down lets go.".to_string())
         } else if let Some(h) = p.hurt_by {
@@ -2983,7 +2993,9 @@ impl eframe::App for Sandbox {
             && self.playing
             && ctx.input(|i| i.key_down(Key::ArrowUp) || (i.key_down(Key::W) && i.modifiers.is_none()));
         let drop = !typing && self.playing && ctx.input(|i| i.key_down(Key::ArrowDown) || (i.key_down(Key::S) && i.modifiers.is_none()));
-        self.sim.physics.set_controls(grave_engine::physics::Controls { walk: if has_player { throttle } else { 0.0 }, jump, drop });
+        let crouch = !typing && self.playing && ctx.input(|i| i.key_down(Key::C) && i.modifiers.is_none());
+        let roll = !typing && self.playing && ctx.input(|i| i.key_down(Key::X) && i.modifiers.is_none());
+        self.sim.physics.set_controls(grave_engine::physics::Controls { crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {

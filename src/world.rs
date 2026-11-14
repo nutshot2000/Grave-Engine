@@ -586,9 +586,8 @@ impl World {
                 let k = 0.12 * light * (0.55 + 0.9 * me);
                 let sway = ((self.frame as f32) * (0.035 + 0.03 * me) + me * 40.0).sin() * 0.16 * light * light;
                 f.vx += sway * 0.12;
-                // Heavier flakes (snow) feel the wind far less than embers do:
-                // they come down, drifting, instead of streaming sideways.
-                f.vx += (u * 2.0 * light * light - f.vx) * k;
+                // (`wind_effect`: snow feels the wind much less than embers do.)
+                f.vx += (u * 2.0 * light * m.wind_effect - f.vx) * k;
                 f.vy += (v * 2.0 - f.vy) * k;
                 if f.temp > 300.0 {
                     f.vy -= FLY_GRAVITY * 0.85 * light;

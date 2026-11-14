@@ -924,7 +924,11 @@ impl Workshop {
                 self.text_scale,
                 self.paint_color,
             ),
-            Tool::Move => self.asset.move_part(self.selected, b.0 - a.0, b.1 - a.1),
+            Tool::Move => {
+                if !self.asset.move_part(self.selected, b.0 - a.0, b.1 - a.1) {
+                    self.message = "Can't move there: the part would leave the grid or overlap another part.".into();
+                }
+            }
             Tool::Pivot => self.asset.pivot = (b.0 as f32 + 0.5, b.1 as f32 + 0.5),
             Tool::Joint => {
                 if self.parent != self.child

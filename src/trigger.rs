@@ -116,6 +116,35 @@ impl Trigger {
         x >= self.x && x < self.x + self.w && y >= self.y && y < self.y + self.h
     }
 
+    /// Did something moving from `a` to `b` in one step pass through the box?
+    /// (Not for jumps of more than 300 cells: that's a teleport or a reset.)
+    pub fn crossed(&self, a: (f32, f32), b: (f32, f32)) -> bool {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        if dx.abs() > 300.0 || dy.abs() > 300.0 || (dx == 0.0 && dy == 0.0) {
+            return false;
+        }
+        // Clip the segment against the box (Liang-Barsky).
+        let (mut t0, mut t1) = (0.0f32, 1.0f32);
+        for (p, q) in [(-dx, a.0 - self.x), (dx, self.x + self.w - a.0), (-dy, a.1 - self.y), (dy, self.y + self.h - a.1)] {
+            if p == 0.0 {
+                if q < 0.0 {
+                    return false;
+                }
+            } else {
+                let r = q / p;
+                if p < 0.0 {
+                    t0 = t0.max(r);
+                } else {
+                    t1 = t1.min(r);
+                }
+                if t0 > t1 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     /// Do its actions: changes to the world now, events for the game.
     /// `who` = what set it off (for `focus it`).
     pub fn fire(&self, world: &mut World, events: &mut Vec<Event>, camera: &mut crate::camera::Effects, lighting: &mut crate::light::Lighting, backdrop: &mut crate::backdrop::Backdrop, weather: &mut crate::weather::Weather, who: Option<crate::camera::Focus>) {
