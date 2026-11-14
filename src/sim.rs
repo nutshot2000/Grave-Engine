@@ -133,6 +133,40 @@ impl Sim {
             crate::layers::exchange_heat(previous,&mut layer.world,mats);
             previous=&mut layer.world;
         }
+        self.echo_blasts();
+    }
+    /// An explosion is a pressure wave: a blast in one depth plane also
+    /// shoves (and cracks) the planes in front of and behind it, weaker the
+    /// further away they are. Its fire reaches only the next plane. Without
+    /// this a powder core could go off while the painted front stayed intact.
+    fn echo_blasts(&mut self) {
+        if self.layers.is_empty() {
+            return;
+        }
+        let outgoing: Vec<Vec<crate::world::Blast>> = std::iter::once(&mut self.world)
+            .chain(self.layers.iter_mut().map(|l| &mut l.world))
+            .map(|w| std::mem::take(&mut w.blast_echo_out))
+            .collect();
+        if outgoing.iter().all(|b| b.is_empty()) {
+            return;
+        }
+        let planes = std::iter::once(&mut self.world).chain(self.layers.iter_mut().map(|l| &mut l.world));
+        for (z, w) in planes.enumerate() {
+            for (from, blasts) in outgoing.iter().enumerate() {
+                let d = z.abs_diff(from) as i32;
+                if d == 0 {
+                    continue;
+                }
+                for b in blasts {
+                    w.blast_echo_in.push(crate::world::Blast {
+                        power: b.power * 0.6f32.powi(d),
+                        size: b.size * 0.85f32.powi(d),
+                        fire: if d == 1 { b.fire } else { None },
+                        ..*b
+                    });
+                }
+            }
+        }
     }
     fn step_layers(&mut self,mats:&Materials) {
         self.prepare_layers(mats);
@@ -198,6 +232,16 @@ impl Sim {
         if !inherited_air && self.layers.is_empty() {self.world.depth_air.fill(false);}
         {let _p=crate::profile::scope("sim.depth_planes"); self.step_layers(mats);}
         {let _p=crate::profile::scope("sim.cells"); self.world.step(mats);}
+        if inherited_air || !self.layers.is_empty() {
+            // Depth planes: share this plane's blasts, feel the others' (see echo_blasts).
+            self.world.blast_echo_out = self.world.blasts.clone();
+            let echoes = std::mem::take(&mut self.world.blast_echo_in);
+            for b in &echoes {
+                let r = (b.size * 2.0) as i32 + 2;
+                self.world.wake_box(b.x as i32 - r, b.y as i32 - r, b.x as i32 + r, b.y as i32 + r);
+            }
+            self.world.blasts.extend(echoes);
+        }
         // Weather falls (and lightning strikes, adding blasts) before the
         // objects feel this frame's physics.
         let follow = self.follow.and_then(|id| self.physics.centre(id));

@@ -131,6 +131,10 @@ pub struct World {
     pub ambient: f32,
     /// Explosions that happened during the last step.
     pub blasts: Vec<Blast>,
+    /// Depth planes: this plane's own blasts last step (for the planes in
+    /// front/behind to feel), and blasts from other planes to feel next step.
+    pub blast_echo_out: Vec<Blast>,
+    pub blast_echo_in: Vec<Blast>,
     /// Cells flying through the air.
     pub flying: Vec<Flyer>,
     /// Steady wind blowing gases sideways, in metres per second (+ = right).
@@ -203,6 +207,8 @@ impl World {
             frame: 1,
             ambient: ROOM_TEMP,
             blasts: Vec::new(),
+            blast_echo_out: Vec::new(),
+            blast_echo_in: Vec::new(),
             flying: Vec::new(),
             wind: 0.0,
             turbulence: 1.0,

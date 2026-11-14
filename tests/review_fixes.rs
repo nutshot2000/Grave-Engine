@@ -81,3 +81,33 @@ fn asset_files_can_use_more_than_88_materials() {
     let b = Asset::parse(&a.to_text(&m), &m).expect("an asset with 120 materials saves and loads");
     assert_eq!(a.parts[0].cells, b.parts[0].cells);
 }
+
+#[test]
+fn a_blast_in_a_back_plane_also_breaks_the_plane_in_front() {
+    // The layered barrel: painted steel front, powder core, steel back.
+    let m = Materials::load_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/materials"));
+    let text = format!(
+        "size 120 80\nfill air\nrect stone 0 72 120 8\nasset {}/assets/workshop/explosive_barrel_layered.asset 60 48 as barrel\n",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (mut s, p) = grave_engine::scene::load(&text, &m, None).into_sim(&m);
+    assert!(p.is_empty(), "{p:?}");
+    assert_eq!(s.layers.len(), 2, "core and back planes");
+    let front_before = s.physics.body_count();
+    // Light the powder core (only the middle plane).
+    let powder = m.id("gunpowder").unwrap();
+    let core = &mut s.layers[0].world;
+    for i in 0..core.mat.len() {
+        if core.mat[i] == powder {
+            core.temp[i] = 400.0;
+        }
+    }
+    for _ in 0..40 {
+        s.step(&m);
+    }
+    assert!(
+        s.physics.body_count() > front_before + 3,
+        "the painted front shell is torn apart by the core's blast: {} pieces",
+        s.physics.body_count()
+    );
+}
