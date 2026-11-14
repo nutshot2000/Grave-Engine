@@ -159,72 +159,11 @@ impl Mission {
             service: 0.,
             step_ms: 0.,
         };
-        let text = std::fs::read_to_string("assets/missions/red-mesa.ops").unwrap();
-        for raw in text.lines() {
-            let t: Vec<_> = raw.split_whitespace().collect();
-            if t.is_empty() || t[0].starts_with('#') {
-                continue;
-            }
-            let n = |i: usize| t[i].parse::<f32>().unwrap();
-            match t[0] {
-                "base" => me.base = Point::new(n(1), n(2), n(3)),
-                "service" => me.service_bases.push(Point::new(n(1), n(2), n(3))),
-                "target" => {
-                    let id = t[1].parse().unwrap();
-                    let role = match t[2] {
-                        "radar" => Role::Radar,
-                        "power" => Role::Power,
-                        "command" => Role::Command,
-                        "armoury" => Role::Armoury,
-                        "aa" => Role::Aa,
-                        "sam" => Role::Sam,
-                        _ => panic!("target role"),
-                    };
-                    let min = Point::new(n(4), n(5), n(6));
-                    let max = Point::new(min.x + n(7), min.y + n(8), min.z + n(9));
-                    let mut target = Target::new(id, 2, Bounds { min, max }, n(10), n(11));
-                    target.material_backed = true;
-                    target.death_blast = Some(if role == Role::Radar {
-                        (10., 70000.)
-                    } else if role == Role::Power {
-                        (13., 32000.)
-                    } else if role == Role::Command {
-                        (18., 48000.)
-                    } else if role == Role::Armoury {
-                        (14., 45000.)
-                    } else {
-                        (7., 40000.)
-                    });
-                    me.combat.targets.push(target);
-                    me.units.push(Unit {
-                        id,
-                        role,
-                        name: t[3].replace('_', " "),
-                        timer: 1.5 + (id % 3) as f32 * 0.4,
-                        heading: 0.,
-                        seen_dead: false,
-                    });
-                }
-                "rescue" => me.rescues.push(Rescue {
-                    id: t[1].parse().unwrap(),
-                    name: t[2].replace('_', " "),
-                    at: Point::new(n(3), n(4), n(5)),
-                    people: t[6].parse().unwrap(),
-                    collected: false,
-                    progress: 0.,
-                }),
-                "cache" => me.supplies.push(Supply {
-                    kind: t[2].into(),
-                    at: Point::new(n(3), n(4), n(5)),
-                    taken: false,
-                }),
-                "barrel" => me.barrels.push(Barrel {
-                    id: t[1].parse().unwrap(),
-                    at: [n(2) as usize, n(3) as usize, n(4) as usize],
-                    taken: false,
-                }),
-                _ => panic!("mission metadata"),
-            }
+        let path = "assets/missions/red-mesa.ops";
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("Can't read {path}: {e}"));
+        if let Err(e) = me.read_ops(&text) {
+            // A broken mission file is a level-design mistake: say exactly where.
+            panic!("{path}: {e}");
         }
         me.combat
             .targets
@@ -234,6 +173,76 @@ impl Mission {
         me.craft.settings.speed = 65.;
         me.craft.settings.damping = 2.2;
         me
+    }
+    /// Read the mission file: bases, targets, rescues, caches and barrels.
+    /// Every line is checked; a mistake names its line instead of crashing blindly.
+    pub fn read_ops(&mut self, text: &str) -> Result<(), String> {
+        for (ln, raw) in text.lines().enumerate() {
+            let t: Vec<_> = raw.split_whitespace().collect();
+            if t.is_empty() || t[0].starts_with('#') {
+                continue;
+            }
+            let err = |what: &str| format!("line {}: {what}: `{}`", ln + 1, raw.trim());
+            let word = |i: usize| t.get(i).copied().ok_or_else(|| err("missing a value"));
+            let n = |i: usize| word(i)?.parse::<f32>().ok().filter(|v| v.is_finite()).ok_or_else(|| err("not a number"));
+            let int = |i: usize| word(i)?.parse::<u32>().map_err(|_| err("not a whole number"));
+            match t[0] {
+                "base" => self.base = Point::new(n(1)?, n(2)?, n(3)?),
+                "service" => self.service_bases.push(Point::new(n(1)?, n(2)?, n(3)?)),
+                "target" => {
+                    let id = int(1)?;
+                    let role = match word(2)? {
+                        "radar" => Role::Radar,
+                        "power" => Role::Power,
+                        "command" => Role::Command,
+                        "armoury" => Role::Armoury,
+                        "aa" => Role::Aa,
+                        "sam" => Role::Sam,
+                        _ => return Err(err("role must be radar, power, command, armoury, aa or sam")),
+                    };
+                    let min = Point::new(n(4)?, n(5)?, n(6)?);
+                    let max = Point::new(min.x + n(7)?, min.y + n(8)?, min.z + n(9)?);
+                    let mut target = Target::new(id, 2, Bounds { min, max }, n(10)?, n(11)?);
+                    target.material_backed = true;
+                    target.death_blast = Some(match role {
+                        Role::Radar => (10., 70000.),
+                        Role::Power => (13., 32000.),
+                        Role::Command => (18., 48000.),
+                        Role::Armoury => (14., 45000.),
+                        _ => (7., 40000.),
+                    });
+                    self.combat.targets.push(target);
+                    self.units.push(Unit {
+                        id,
+                        role,
+                        name: word(3)?.replace('_', " "),
+                        timer: 1.5 + (id % 3) as f32 * 0.4,
+                        heading: 0.,
+                        seen_dead: false,
+                    });
+                }
+                "rescue" => self.rescues.push(Rescue {
+                    id: int(1)?,
+                    name: word(2)?.replace('_', " "),
+                    at: Point::new(n(3)?, n(4)?, n(5)?),
+                    people: int(6)?,
+                    collected: false,
+                    progress: 0.,
+                }),
+                "cache" => self.supplies.push(Supply {
+                    kind: word(2)?.into(),
+                    at: Point::new(n(3)?, n(4)?, n(5)?),
+                    taken: false,
+                }),
+                "barrel" => self.barrels.push(Barrel {
+                    id: int(1)?,
+                    at: [int(2)? as usize, int(3)? as usize, int(4)? as usize],
+                    taken: false,
+                }),
+                _ => return Err(err("unknown command (use base, service, target, rescue, cache or barrel)")),
+            }
+        }
+        Ok(())
     }
     pub fn craft_bounds(&self) -> Bounds {
         Bounds {

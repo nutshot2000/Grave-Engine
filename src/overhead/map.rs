@@ -1,6 +1,8 @@
 //! Sparse scrolling terrain. Only authored or damaged 64-cell patches allocate
 //! native material volumes. Near patches run at 60 Hz; distant changed patches
-//! retain their exact material/body state and run at a staggered 5 Hz detail rate.
+//! retain their exact material/body state and run at a staggered 5 Hz detail rate
+//! (up to `MAX_DISTANT_STEPS` a frame; beyond that many busy distant patches
+//! they share the budget and each runs a little slower).
 use super::{Explosion, Point, Volume, space::Space};
 use crate::{MatId, Materials, asset::pack_paint, physics::BodyCell};
 use std::{
@@ -8,6 +10,8 @@ use std::{
     path::Path,
 };
 pub const TILE: usize = 64;
+/// The most distant patches stepped in one frame (keeps frames even).
+pub const MAX_DISTANT_STEPS: usize = 6;
 pub struct Region {
     pub volume: Volume,
     pub touched: bool,
@@ -24,7 +28,8 @@ pub struct WorldMap {
     pub focus: Point,
     pub active_radius: f32,
     pub active_regions: usize,
-    /// Fixed work quotas keep distant fires from creating synchronized spikes.
+    /// The least distant patches stepped a frame. More are stepped when needed
+    /// to keep each at 5 Hz, up to `MAX_DISTANT_STEPS` (no synchronized spikes).
     pub distant_steps: usize,
     far_cursor: usize,
     terrain: Vec<u8>,
@@ -260,8 +265,10 @@ impl WorldMap {
         // Round robin is deterministic and never lets a busy earlier region
         // starve later ones. Distant simulation is deliberately lower detail.
         let mut done = 0;
+        // Enough a frame that each distant patch gets a turn every 12 frames.
+        let budget = self.distant_steps.max(distant.len().div_ceil(12)).min(MAX_DISTANT_STEPS.max(self.distant_steps));
         for _ in 0..distant.len() {
-            if done >= self.distant_steps {
+            if done >= budget {
                 break;
             }
             let key = distant[self.far_cursor % distant.len()];

@@ -24,3 +24,6 @@ noita_gdc_talk_clean_transcript.md
 /assets/animations/*.fbx
 /assets/animations/*.zip
 /assets/animations/ual-local/
+
+# Character models from third-party rigs (Mixamo etc.): keep them local
+/assets/characters/*.fbx

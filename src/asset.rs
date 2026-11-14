@@ -595,10 +595,17 @@ impl Asset {
         }
         let mut ids = vec![];
         for (name, b) in specs {
-            let id = sim
-                .physics
-                .add_exact(&mut sim.world, mats, b)
-                .ok_or("Couldn't create asset body")?;
+            let Some(id) = sim.physics.add_exact(&mut sim.world, mats, b) else {
+                // Don't leave half an asset behind: remove what this call made.
+                let after = crate::assemblies::all_ids(sim);
+                for (z, now) in after.iter().enumerate() {
+                    let p = crate::assemblies::plane_mut(sim, z);
+                    for id in now.iter().filter(|id| !before.get(z).is_some_and(|b| b.contains(id))) {
+                        p.physics.remove(&mut p.world, *id);
+                    }
+                }
+                return Err("Couldn't create asset body (nothing was placed)".into());
+            };
             ids.push((name, id));
         }
         for j in &self.welds {
@@ -627,7 +634,7 @@ impl Asset {
             "# Grave material asset. One cell = 10 cm. Named parts share a local grid.\nformat 1\nasset {} {} {}\ndepth {}\npivot {} {}\n",
             self.name, self.w, self.h, self.depth, self.pivot.0, self.pivot.1
         );
-        let chars:Vec<_>="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%&*+=?@$~^!:;<>/|()[]{}-_,".chars().collect();
+        let chars = legend_chars();
         let used: BTreeSet<_> = self
             .parts
             .iter()
@@ -687,7 +694,7 @@ impl Asset {
             return out;
         }
         let mut out = String::from("fill air\n");
-        let chars:Vec<_>="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%&*+=?@$~^!:;<>/|()[]{}-_,".chars().collect();
+        let chars = legend_chars();
         let used: BTreeSet<_> = self
             .parts
             .iter()
@@ -991,6 +998,14 @@ impl Asset {
         }
         Ok(a)
     }
+}
+
+/// Characters for the material legend in asset text: plain ones first, then
+/// as many accented letters as needed (no limit on how many materials).
+fn legend_chars() -> impl Iterator<Item = char> {
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%&*+=?@$~^!:;<>/|()[]{}-_,"
+        .chars()
+        .chain((0xC0u32..0x2FFF).filter_map(char::from_u32).filter(|c| c.is_alphabetic()))
 }
 
 fn glyph(ch: char) -> [u8; 7] {

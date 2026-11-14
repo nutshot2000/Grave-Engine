@@ -68,3 +68,16 @@ fn asset_text_round_trips_with_many_materials() {
     let b = Asset::parse(&text, &m).expect("reload");
     assert_eq!(a.parts[0].cells, b.parts[0].cells);
 }
+
+#[test]
+fn asset_files_can_use_more_than_88_materials() {
+    let names: Vec<String> = (0..120).map(|i| format!("m{i}")).collect();
+    let texts: Vec<(&str, &str)> = names.iter().map(|n| (n.as_str(), "state = solid\n")).collect();
+    let m = Materials::from_texts(&texts);
+    let mut a = Asset::blank("many", 120, 1).unwrap();
+    for x in 0..120 {
+        a.put(0, x, 0, m.id(&format!("m{x}")).unwrap());
+    }
+    let b = Asset::parse(&a.to_text(&m), &m).expect("an asset with 120 materials saves and loads");
+    assert_eq!(a.parts[0].cells, b.parts[0].cells);
+}

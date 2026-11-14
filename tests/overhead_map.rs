@@ -87,13 +87,22 @@ fn distant_simulation_has_a_deterministic_work_quota_and_fair_progress() {
     for _ in 0..100 {
         world.step(&m);
         assert!(
-            world.active_regions <= 1,
+            world.active_regions <= grave_engine::overhead::map::MAX_DISTANT_STEPS,
             "remote work synchronized into a spike"
         );
     }
     assert!(
         world.regions.values().all(|r| r.volume.frame >= 5),
         "a distant region starved"
+    );
+    // With a handful of busy distant patches, each keeps its 5 Hz pace
+    // (one step every 12 frames), not one shared turn a frame.
+    let n = world.regions.len();
+    let budget = n.div_ceil(12).min(grave_engine::overhead::map::MAX_DISTANT_STEPS).max(1);
+    let expected = (100 * budget / n.max(1)).min(100 / 12);
+    assert!(
+        world.regions.values().all(|r| r.volume.frame as usize + 1 >= expected),
+        "distant patches fall behind their 5 Hz pace ({n} patches)"
     );
 }
 #[test]

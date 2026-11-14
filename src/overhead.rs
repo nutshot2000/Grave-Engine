@@ -246,19 +246,32 @@ impl Volume {
         let _total = crate::profile::scope("volume.total");
         let phase = crate::profile::scope("volume.air");
         self.frame = self.frame.wrapping_add(1);
-        let feeding: Vec<Vec<bool>> = self
-            .sections
-            .iter()
-            .map(|s| s.world.mat.iter().map(|id| m.get(*id).feeds_fire).collect())
-            .collect();
-        for y in 0..self.depth {
-            let w = &mut self.sections[y].world;
-            for i in 0..w.mat.len() {
-                let air =
-                    (y == 0 || feeding[y - 1][i]) || (y + 1 == self.depth || feeding[y + 1][i]);
-                if w.depth_air[i] != air {
-                    w.depth_air[i] = air;
-                    w.wake_at(i);
+        // Which faces touch air in the neighbouring slices. Only blocks where
+        // something changed (in this slice or either neighbour) need a look:
+        // sleeping areas keep last frame's answer, so a settled map costs ~nothing.
+        let depth = self.depth;
+        for y in 0..depth {
+            let (before, rest) = self.sections.split_at_mut(y);
+            let (here, after) = rest.split_first_mut().unwrap();
+            let (prev, next) = (before.last().map(|s| &s.world), after.first().map(|s| &s.world));
+            let w = &mut here.world;
+            let (bw, bh) = w.block_dims();
+            for b in 0..bw * bh {
+                let still = |o: Option<&crate::World>| o.is_none_or(|o| o.block_still(b));
+                if w.block_still(b) && still(prev) && still(next) && self.frame > 1 {
+                    continue;
+                }
+                let (bx, by) = (b % bw * 32, b / bw * 32);
+                for row in by..(by + 32).min(w.h) {
+                    for x in bx..(bx + 32).min(w.w) {
+                        let i = row * w.w + x;
+                        let feeds = |o: Option<&crate::World>| o.is_none_or(|o| m.get(o.mat[i]).feeds_fire);
+                        let air = feeds(prev) || feeds(next);
+                        if w.depth_air[i] != air {
+                            w.depth_air[i] = air;
+                            w.wake_at(i);
+                        }
+                    }
                 }
             }
         }

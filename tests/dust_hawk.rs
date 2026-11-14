@@ -187,3 +187,14 @@ fn sustained_rockets_keep_local_materials_and_rubble_running() {
         times[900], times[1710], times[1799], peak
     );
 }
+#[test]
+fn a_broken_mission_line_is_explained_not_a_blind_crash() {
+    let m = Materials::load_dir("materials");
+    let mut g = Mission::new(&m);
+    let e = g.read_ops("base 1 2 3\ntarget 99 tank BIG 1 2 3 4 5 6 7 8\n").unwrap_err();
+    assert!(e.contains("line 2") && e.contains("role"), "{e}");
+    let e = g.read_ops("rescue 5 BOB 1 2\n").unwrap_err();
+    assert!(e.contains("line 1") && e.contains("missing"), "{e}");
+    let e = g.read_ops("cache 1 ammo x 2 3\n").unwrap_err();
+    assert!(e.contains("not a number"), "{e}");
+}
