@@ -144,6 +144,9 @@ struct Sandbox {
     hover_f: Option<(f32, f32)>,
     scene_path: String,
     scene_stamp: Option<SystemTime>,
+    /// Asset files the scene places (`asset FILE ...`): when one changes on
+    /// disk (saved in the workshop, or edited by an AI tool), the scene reloads.
+    scene_assets: Vec<(PathBuf, Option<SystemTime>)>,
     messages: Vec<(Instant, String)>,
     last_file_check: Instant,
     sim_clock: f64,
@@ -173,6 +176,10 @@ struct Sandbox {
     show_done_notes: bool,
     /// The material whose settings window is open.
     mat_settings: Option<MatId>,
+    /// The real program file (the editor runs from a copy) and when it was
+    /// last built, to notice new builds; and since when a new one is waiting.
+    original_exe: Option<(PathBuf, Option<SystemTime>)>,
+    new_build_since: Option<Instant>,
 }
 
 /// The note box: where it goes, the text so far, and which note it is
@@ -198,6 +205,12 @@ fn game_level(scene_path: &str) -> Option<usize> {
 /// Default play controls, built in; assets/input/editor.input is read at
 /// start-up, so editing it remaps them without rebuilding.
 const EDITOR_INPUT: &str = include_str!("../assets/input/editor.input");
+/// Environment variables for running from a copy and restarting into a new
+/// build: where the real program is, and what to come back to.
+pub const ORIGINAL_EXE: &str = "GRAVE_EDITOR_ORIGINAL";
+const RESUME_SCENE: &str = "GRAVE_RESUME_SCENE_PATH";
+const RESUME_NOTES: &str = "GRAVE_RESUME_NOTES_SCENE";
+const RESUME_CAM: &str = "GRAVE_RESUME_CAMERA";
 
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
     let options = eframe::NativeOptions {
@@ -299,6 +312,7 @@ impl Sandbox {
             hover_f: None,
             scene_path: "scenes/my_scene.txt".into(),
             scene_stamp: None,
+            scene_assets: Vec::new(),
             messages: Vec::new(),
             last_file_check: Instant::now(),
             sim_clock: 0.0,
@@ -323,6 +337,11 @@ impl Sandbox {
             show_done_notes: false,
             mat_settings: None,
             animation_editor: Default::default(),
+            original_exe: std::env::var_os(ORIGINAL_EXE).map(PathBuf::from).map(|p| {
+                let s = stamp(&p);
+                (p, s)
+            }),
+            new_build_since: None,
         };
         for p in app.mats.problems.clone() {
             app.say(p);
@@ -336,12 +355,61 @@ impl Sandbox {
             p.exists().then_some(p)
         });
         if let Some(p) = start {
+            // Keep the file it was opened with: Save writes back to it, and
+            // when it changes on disk (an AI agent editing it), it reloads.
             app.scene_path = p.display().to_string();
             app.load_scene_inner();
-            app.scene_path = "scenes/my_scene.txt".into();
-            app.scene_stamp = None;
+        }
+        // Restarted into a new build: pick up where we were (the scene as
+        // it was, under its own file name, still watched for changes).
+        if let Ok(path) = std::env::var(RESUME_SCENE) {
+            app.scene_path = path;
+            app.scene_stamp = stamp(Path::new(&app.scene_path));
+        }
+        if let Ok(notes_scene) = std::env::var(RESUME_NOTES) {
+            app.notes_scene = PathBuf::from(notes_scene);
+            app.notes = notes::load(&notes::path_for(&app.notes_scene));
+            app.notes_stamp = stamp(&notes::path_for(&app.notes_scene));
+        }
+        if let Some(c) = std::env::var(RESUME_CAM).ok().and_then(|c| {
+            let v: Vec<f32> = c.split(',').filter_map(|x| x.parse().ok()).collect();
+            (v.len() == 3).then(|| (v[0], v[1], v[2]))
+        }) {
+            app.cam = Some(c);
+        }
+        if std::env::var_os(RESUME_SCENE).is_some() {
+            app.say("Restarted with the new build of the engine");
         }
         app
+    }
+
+    /// Restart into a new build of the engine, keeping the scene (as it is
+    /// now), its file name, its notes and the camera. Undo history is lost.
+    fn restart_into_new_build(&mut self) {
+        let Some((exe, _)) = self.original_exe.clone() else { return };
+        let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) else { return };
+        let resume = dir.join("resume.txt");
+        let snap = self.sim.snapshot();
+        if std::fs::write(&resume, scene::save(&snap, &self.mats)).is_err() {
+            self.say("Couldn't save the scene to restart: keep working, then reopen the editor");
+            self.original_exe = None;
+            return;
+        }
+        let mut cmd = std::process::Command::new(&exe);
+        cmd.arg(&resume).env_remove(ORIGINAL_EXE).env(RESUME_SCENE, &self.scene_path).env(RESUME_NOTES, &self.notes_scene);
+        if let Some(dir) = &self.mats.dir {
+            cmd.arg("--materials").arg(dir);
+        }
+        if let Some((x, y, s)) = self.cam {
+            cmd.env(RESUME_CAM, format!("{x},{y},{s}"));
+        }
+        match cmd.spawn() {
+            Ok(_) => std::process::exit(0),
+            Err(e) => {
+                self.say(format!("Couldn't start the new build: {e}"));
+                self.original_exe = None;
+            }
+        }
     }
 
     /// Write the notes file (right away, so notes are never lost).
@@ -1381,7 +1449,9 @@ impl Sandbox {
     fn play_as_game(&mut self, level: usize) {
         let arg = format!("--level={level}");
         let name = if cfg!(windows) { "stunt-yard.exe" } else { "stunt-yard" };
-        let sibling = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name))).filter(|p| p.exists());
+        // (The editor runs from a copy: the games are next to the real program.)
+        let home = self.original_exe.as_ref().map(|(p, _)| p.clone()).or_else(|| std::env::current_exe().ok());
+        let sibling = home.and_then(|e| e.parent().map(|d| d.join(name))).filter(|p| p.exists());
         let started = match sibling {
             Some(exe) => std::process::Command::new(exe).arg(&arg).spawn(),
             None => std::process::Command::new("cargo").args(["run", "--release", "--bin", "stunt-yard", "--", &arg]).spawn(),
@@ -1418,6 +1488,15 @@ impl Sandbox {
                 self.hover = None;
                 self.cam = None;
                 self.scene_stamp = stamp(&path);
+                self.scene_assets = text
+                    .lines()
+                    .filter_map(|l| l.trim().strip_prefix("asset ")?.split_whitespace().next())
+                    .map(|f| path.parent().map(|d| d.join(f)).filter(|p| p.exists()).unwrap_or_else(|| PathBuf::from(f)))
+                    .map(|p| {
+                        let s = stamp(&p);
+                        (p, s)
+                    })
+                    .collect();
                 self.notes_scene = path.clone();
                 self.notes = notes::load(&notes::path_for(&path));
                 self.notes_stamp = stamp(&notes::path_for(&path));
@@ -1454,6 +1533,23 @@ impl Sandbox {
             return;
         }
         self.last_file_check = Instant::now();
+        // A new build of the engine? (Wait until the file has stopped
+        // changing for a moment: the build is still writing it.)
+        if let Some((path, seen)) = &self.original_exe {
+            let now = stamp(path);
+            if now.is_some() && now != *seen {
+                let quiet = now.and_then(|t| t.elapsed().ok()).is_some_and(|e| e.as_secs_f32() > 1.5);
+                if quiet && self.new_build_since.is_none() {
+                    self.new_build_since = Some(Instant::now());
+                    self.say("The engine was rebuilt: restarting into the new build when you're not playing (or press Update)");
+                }
+            }
+        }
+        // Restart when nothing would be lost: not playing, not dragging, not
+        // typing a note, not in the asset workshop (its draft isn't a scene).
+        if self.new_build_since.is_some() && !self.playing && matches!(self.drag, Drag::None) && self.note_draft.is_none() && !self.workshop.open {
+            self.restart_into_new_build();
+        }
         if self.mats.changed_on_disk() {
             self.mats.reload();
             self.sim.materials_changed(&self.mats);
@@ -1485,6 +1581,11 @@ impl Sandbox {
             let path = PathBuf::from(&self.scene_path);
             if stamp(&path).is_some_and(|s| s != old) {
                 self.say("Scene file changed on disk, reloading");
+                self.load_scene();
+            } else if !self.playing
+                && let Some((p, _)) = self.scene_assets.iter().find(|(p, s)| stamp(p).is_some_and(|now| Some(now) != *s))
+            {
+                self.say(format!("{} changed on disk, reloading the scene", p.display()));
                 self.load_scene();
             }
         }
@@ -1618,6 +1719,14 @@ impl Sandbox {
     // ----------------------------------------------------------------- UI --
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
+        if self.new_build_since.is_some() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("🔄 A new build of the engine is ready.").strong().color(Color32::from_rgb(255, 214, 64)));
+                if ui.button("Update now (keeps your scene)").clicked() {
+                    self.restart_into_new_build();
+                }
+            });
+        }
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new("GRAVE").size(22.).strong().color(Color32::from_rgb(105,221,204)));
             ui.label(RichText::new("LEVEL EDITOR").size(11.).weak());ui.separator();

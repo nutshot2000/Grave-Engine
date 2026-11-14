@@ -54,6 +54,23 @@ and `cargo build --release` fails with "Access is denied". Close it first
 (`Stop-Process -Name grave-engine` in PowerShell). Tests use other files
 and still run.
 
+## The live editor (keep it open)
+
+The owner keeps the editor open while you work and watches changes arrive:
+- It runs from a copy (`target/release/editor-copies/`), so **build normally**
+  (`cargo build --release`, plain `target/`; no separate target folders) even
+  while it's open. When `grave-engine.exe` is rebuilt it restarts itself into
+  the new build within a few seconds, keeping the scene, its file name, notes and camera
+  (it waits while the scene is playing, during a drag or a note, or while the
+  asset workshop is open). `--no-copy` turns this off.
+- Content reloads live with no restart: the open scene file, materials,
+  templates, notes, asset files the scene places (`asset FILE`), and the asset
+  open in the workshop (if it has no unsaved changes).
+- So: edit a scene/asset/material file and the owner sees it at once; change
+  Rust code, build, and the editor updates itself. Open it with `Play/Editor.cmd`.
+- The games (`Play/*.cmd`) still lock their own exe while running: ask before
+  rebuilding a game that's open.
+
 ## Headless mode: check your own work
 
 Always verify changes by running scenes headless and **looking at the

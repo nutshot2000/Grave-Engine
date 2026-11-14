@@ -24,6 +24,8 @@ Headless (no window), for agents and scripts:
       --jump          hold the player's jump
       --player-view N screenshot just N cells across around the player
       --materials DIR use a different materials folder (default materials)
+      --no-copy       run the editor from this file (normally it runs from a copy,
+                      so the engine can be rebuilt while it's open)
 
 Characters:
   grave-engine --make-character DOWNLOADS/knight [--name knight]
@@ -85,6 +87,7 @@ fn main() {
             "--name" => name = Some(val("--name")),
             "--player-view" => player_view = val("--player-view").parse().unwrap_or(0),
             "--materials" => materials = PathBuf::from(val("--materials")),
+            "--no-copy" => {}
             other if !other.starts_with('-') => scene = Some(PathBuf::from(other)),
             other => {
                 eprintln!("unknown option {other}\n\n{HELP}");
@@ -115,8 +118,37 @@ fn main() {
         let code = headless::run(&headless::Options { scene, materials, frames, shot, every, scale, heat, throttle, walk, jump, player_view });
         std::process::exit(code);
     }
+    // The editor runs from a copy of this program, so the real file is never
+    // locked: the engine can be rebuilt while you watch, and the editor
+    // restarts itself into the new build (see app.rs, `restart_into_new_build`).
+    if std::env::var_os(app::ORIGINAL_EXE).is_none() && !args.iter().any(|a| a == "--no-copy") {
+        if let Some(()) = run_from_copy(&args) {
+            return;
+        }
+    }
     if let Err(e) = app::run(materials, scene) {
         eprintln!("couldn't open the window: {e}");
         std::process::exit(1);
     }
+}
+
+/// Copy this program next to itself (`editor-copies/`) and start the copy
+/// instead, remembering where the real one is. Returns None if that didn't
+/// work (then this process just runs the editor itself).
+fn run_from_copy(args: &[String]) -> Option<()> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.join("editor-copies");
+    std::fs::create_dir_all(&dir).ok()?;
+    // Tidy old copies (ones still running are locked and stay).
+    if let Ok(rd) = std::fs::read_dir(&dir) {
+        for e in rd.flatten() {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+    let ext = exe.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_millis();
+    let copy = dir.join(format!("grave-engine-{stamp}{ext}"));
+    std::fs::copy(&exe, &copy).ok()?;
+    std::process::Command::new(&copy).args(args).env(app::ORIGINAL_EXE, &exe).spawn().ok()?;
+    Some(())
 }

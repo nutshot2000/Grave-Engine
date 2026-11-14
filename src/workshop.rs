@@ -83,6 +83,13 @@ pub struct Workshop {
     renderer: Renderer,
     texture: Option<TextureHandle>,
     test_frame: u32,
+    /// The asset file as last loaded or saved, and when: a newer file on disk
+    /// (an AI tool editing it) is loaded live if there are no unsaved changes.
+    disk: Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+    disk_check: std::time::Instant,
+}
+fn file_time(p: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 pub enum Action {
     Place(Asset),
@@ -143,6 +150,8 @@ impl Workshop {
             renderer: Renderer::default(),
             texture: None,
             test_frame: 0,
+            disk: Some((std::path::PathBuf::from(&requested), file_time(Path::new(&requested)))),
+            disk_check: std::time::Instant::now(),
         }
     }
     fn remember(&mut self) {
@@ -195,6 +204,7 @@ impl Workshop {
                 self.changed();
                 self.sync();
                 self.dirty = false;
+                self.disk = Some((path.to_path_buf(), file_time(path)));
                 self.message = "Loaded asset. Undo can recover your previous draft.".into();
             }
             Err(e) => self.message = e,
@@ -267,6 +277,22 @@ impl Workshop {
     }
     pub fn ui(&mut self, ui: &mut egui::Ui, mats: &Materials, dt: f64) -> Option<Action> {
         let mut action = None;
+        // Live: the open asset changed on disk (an AI tool, another program).
+        if self.disk_check.elapsed().as_secs_f32() > 0.5 {
+            self.disk_check = std::time::Instant::now();
+            if let Some((path, seen)) = self.disk.clone() {
+                let now = file_time(&path);
+                if now.is_some() && now != seen {
+                    if self.dirty {
+                        self.message = "This asset changed on disk. Save to keep your version, or Reload from disk to see the new one.".into();
+                        self.disk = Some((path, now));
+                    } else {
+                        self.load(&path, mats);
+                        self.message = format!("{} changed on disk: updated live", path.display());
+                    }
+                }
+            }
+        }
         if !ui.ctx().egui_wants_keyboard_input() {
             let undo = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Z));
             let redo = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Y));
@@ -303,6 +329,7 @@ impl Workshop {
                     match self.asset.save(&path, mats) {
                         Ok(()) => {
                             self.dirty = false;
+                            self.disk = Some((path.to_path_buf(), file_time(&path)));
                             self.message = format!("Saved {}", path.display());
                         }
                         Err(e) => self.message = e,
