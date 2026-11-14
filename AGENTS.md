@@ -74,7 +74,11 @@ The owner keeps the editor open while you work and watches changes arrive:
   Off: it offers a "Go there" button instead. **Tell the owner what you're
   doing** by writing `live/agent.txt` (git-ignored) as you start each piece:
   `say Building a windmill`, `open scenes/x.txt` or `open assets/workshop/y.asset`,
-  `look X Y` (point the camera). Rewrite the whole file each time.
+  `look X Y` (point the camera), and before building the editor
+  `update WHAT CHANGED` (shown as "✨ Engine updated: ..." after it restarts).
+  Rewrite the whole file each time. Everything lands in the editor's
+  **🤖 Activity** panel (kept in `live/activity.txt`), and areas of the open
+  scene that change on disk get a fading yellow outline.
 - The games (`Play/*.cmd`) still lock their own exe while running: ask before
   rebuilding a game that's open.
 

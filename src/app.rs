@@ -159,6 +159,17 @@ struct Sandbox {
     agent_note: Option<(Instant, String)>,
     /// Something the AI is working on that we didn't jump to (follow off, or busy).
     follow_pending: Option<PathBuf>,
+    /// What the AI has done lately (the 🤖 Activity panel), and whether it's showing.
+    activity: Vec<Activity>,
+    show_activity: bool,
+    /// Areas of the scene that just changed on disk (cells: x0, y0, x1, y1),
+    /// outlined for a few seconds so you can see what's new.
+    highlights: Vec<(usize, usize, usize, usize)>,
+    highlight_since: Instant,
+    /// Where the window is (x, y, width, height, maximised), to come back there after an update.
+    window_at: Option<[f32; 5]>,
+    /// "Updated: what changed" after an engine update (until when it shows).
+    update_note: Option<(Instant, String)>,
     last_file_check: Instant,
     sim_clock: f64,
     last_frame: Instant,
@@ -222,15 +233,62 @@ pub const ORIGINAL_EXE: &str = "GRAVE_EDITOR_ORIGINAL";
 const RESUME_SCENE: &str = "GRAVE_RESUME_SCENE_PATH";
 const RESUME_NOTES: &str = "GRAVE_RESUME_NOTES_SCENE";
 const RESUME_CAM: &str = "GRAVE_RESUME_CAMERA";
+const RESUME_WINDOW: &str = "GRAVE_RESUME_WINDOW";
+
+/// One thing that happened with the AI: when (seconds since 1970), what, and
+/// the file it was about (to jump back to it).
+#[derive(Clone, Debug)]
+struct Activity {
+    at: u64,
+    text: String,
+    file: Option<PathBuf>,
+}
+
+const ACTIVITY_FILE: &str = "live/activity.txt";
+
+fn now_secs() -> u64 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
+
+/// The activity log, kept on disk so it survives updates (newest last, at most 200).
+fn load_activity() -> Vec<Activity> {
+    std::fs::read_to_string(ACTIVITY_FILE)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| {
+            let mut it = l.splitn(3, '|');
+            let at = it.next()?.parse().ok()?;
+            let file = it.next().filter(|f| !f.is_empty()).map(PathBuf::from);
+            Some(Activity { at, file, text: it.next()?.to_string() })
+        })
+        .collect()
+}
+
+/// How long ago, in words.
+fn ago(at: u64) -> String {
+    let s = now_secs().saturating_sub(at);
+    match s {
+        0..=59 => "just now".into(),
+        60..=3599 => format!("{} min ago", s / 60),
+        _ => format!("{} h ago", s / 3600),
+    }
+}
 
 pub fn run(materials: PathBuf, scene_file: Option<PathBuf>) -> Result<(), String> {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("Grave Engine")
-            .with_inner_size([1500.0, 900.0])
-            .with_min_inner_size([900.0, 550.0]),
-        ..Default::default()
-    };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("Grave Engine")
+        .with_inner_size([1500.0, 900.0])
+        .with_min_inner_size([900.0, 550.0]);
+    if let Ok(icon) = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")) {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+    // Restarted into a new build: the window comes back where it was.
+    if let Some(v) = std::env::var(RESUME_WINDOW).ok().map(|s| s.split(',').filter_map(|x| x.parse::<f32>().ok()).collect::<Vec<_>>())
+        && v.len() == 5
+    {
+        viewport = viewport.with_position([v[0], v[1]]).with_inner_size([v[2].max(900.0), v[3].max(550.0)]).with_maximized(v[4] > 0.5);
+    }
+    let options = eframe::NativeOptions { viewport, ..Default::default() };
     eframe::run_native(
         "Grave Engine",
         options,
@@ -331,6 +389,12 @@ impl Sandbox {
             agent_stamp: None,
             agent_note: None,
             follow_pending: None,
+            activity: load_activity(),
+            show_activity: false,
+            highlights: Vec::new(),
+            highlight_since: Instant::now(),
+            window_at: None,
+            update_note: None,
             last_file_check: Instant::now(),
             sim_clock: 0.0,
             last_frame: Instant::now(),
@@ -395,7 +459,17 @@ impl Sandbox {
             app.cam = Some(c);
         }
         if std::env::var_os(RESUME_SCENE).is_some() {
-            app.say("Restarted with the new build of the engine");
+            // What the AI said the update was (`update TEXT` in live/agent.txt).
+            let what = std::fs::read_to_string("live/agent.txt")
+                .ok()
+                .and_then(|t| t.lines().rev().find_map(|l| l.trim().strip_prefix("update ").map(|s| s.trim().to_string())));
+            let text = match &what {
+                Some(w) => format!("Engine updated: {w}"),
+                None => "Engine updated to the new build".to_string(),
+            };
+            app.say(text.clone());
+            app.log_activity(text.clone(), None);
+            app.update_note = Some((Instant::now(), text));
         }
         app
     }
@@ -419,6 +493,9 @@ impl Sandbox {
         }
         if let Some((x, y, s)) = self.cam {
             cmd.env(RESUME_CAM, format!("{x},{y},{s}"));
+        }
+        if let Some(w) = self.window_at {
+            cmd.env(RESUME_WINDOW, w.map(|v| v.to_string()).join(","));
         }
         cmd.env("GRAVE_FOLLOW_AI", if self.follow_ai { "1" } else { "0" });
         match cmd.spawn() {
@@ -1230,6 +1307,111 @@ impl Sandbox {
         hovered
     }
 
+    /// Add to the AI activity log (and its file, so it survives updates).
+    fn log_activity(&mut self, text: impl Into<String>, file: Option<PathBuf>) {
+        let a = Activity { at: now_secs(), text: text.into(), file };
+        self.activity.push(a);
+        if self.activity.len() > 200 {
+            self.activity.remove(0);
+        }
+        let _ = std::fs::create_dir_all("live");
+        let body: String = self
+            .activity
+            .iter()
+            .map(|a| format!("{}|{}|{}\n", a.at, a.file.as_ref().map(|f| f.display().to_string()).unwrap_or_default(), a.text.replace('\n', " ")))
+            .collect();
+        let _ = std::fs::write(ACTIVITY_FILE, body);
+    }
+
+    /// Reload the scene from disk and outline the areas that changed.
+    fn reload_highlighting(&mut self, why: String) {
+        let (w, h) = (self.sim.world.w, self.sim.world.h);
+        let before = self.sim.world.mat.clone();
+        self.say(why.clone());
+        self.load_scene();
+        self.highlights.clear();
+        if (self.sim.world.w, self.sim.world.h) == (w, h) {
+            // Changed cells, gathered into 8-cell blocks, merged along rows.
+            const B: usize = 8;
+            let (bw, bh) = (w.div_ceil(B), h.div_ceil(B));
+            let mut hit = vec![false; bw * bh];
+            for (i, (a, b)) in before.iter().zip(&self.sim.world.mat).enumerate() {
+                if a != b {
+                    hit[(i / w / B) * bw + (i % w) / B] = true;
+                }
+            }
+            for by in 0..bh {
+                let mut bx = 0;
+                while bx < bw {
+                    if hit[by * bw + bx] {
+                        let start = bx;
+                        while bx < bw && hit[by * bw + bx] {
+                            bx += 1;
+                        }
+                        let rect = (start * B, by * B, (bx * B).min(w), ((by + 1) * B).min(h));
+                        // Join to the rectangle just above if it spans the same columns.
+                        if let Some(r) = self.highlights.iter_mut().find(|r| r.0 == rect.0 && r.2 == rect.2 && r.3 == rect.1) {
+                            r.3 = rect.3;
+                        } else {
+                            self.highlights.push(rect);
+                        }
+                    } else {
+                        bx += 1;
+                    }
+                }
+            }
+            self.highlights.truncate(40);
+        }
+        self.highlight_since = Instant::now();
+        let n = self.highlights.len();
+        let path = PathBuf::from(&self.scene_path);
+        self.log_activity(if n > 0 { format!("{why} ({n} area{} changed)", if n == 1 { "" } else { "s" }) } else { why }, Some(path));
+    }
+
+    /// The 🤖 AI activity panel: newest first, each with a button to open its file again.
+    fn activity_window(&mut self, ctx: &egui::Context) {
+        if !self.show_activity {
+            return;
+        }
+        let mut open = true;
+        let mut go = None;
+        let mut clear = false;
+        egui::Window::new("🤖 AI activity")
+            .open(&mut open)
+            .default_width(380.0)
+            .default_pos(ctx.content_rect().right_top() + Vec2::new(-400.0, 90.0))
+            .show(ctx, |ui| {
+                ui.label(RichText::new("What the AI has done lately. Open jumps back to that scene or asset.").small().weak());
+                if self.activity.is_empty() {
+                    ui.label("Nothing yet.");
+                }
+                egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    for a in self.activity.iter().rev().take(80) {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(ago(a.at)).small().weak());
+                            ui.label(&a.text);
+                            if let Some(f) = &a.file
+                                && ui.small_button("Open").on_hover_text(f.display().to_string()).clicked()
+                            {
+                                go = Some(f.clone());
+                            }
+                        });
+                    }
+                });
+                if ui.small_button("Clear the list").clicked() {
+                    clear = true;
+                }
+            });
+        self.show_activity = open;
+        if clear {
+            self.activity.clear();
+            let _ = std::fs::write(ACTIVITY_FILE, "");
+        }
+        if let Some(f) = go {
+            self.follow_to(&f);
+        }
+    }
+
     fn say(&mut self, msg: impl Into<String>) {
         self.messages.push((Instant::now(), msg.into()));
         if self.messages.len() > 8 {
@@ -1584,6 +1766,7 @@ impl Sandbox {
                     let line = line.trim();
                     if let Some(msg) = line.strip_prefix("say ") {
                         self.agent_note = Some((Instant::now(), msg.trim().to_string()));
+                        self.log_activity(format!("🤖 {}", msg.trim()), None);
                     } else if let Some(p) = line.strip_prefix("open ") {
                         changed.push((SystemTime::now(), PathBuf::from(p.trim())));
                     } else if let Some(xy) = line.strip_prefix("look ") {
@@ -1632,6 +1815,7 @@ impl Sandbox {
             self.workshop.load(path, &self.mats);
             self.workshop.open = true;
             self.say(format!("Following the AI: {}", path.display()));
+            self.log_activity(format!("Opened {} in the workshop", path.display()), Some(path.to_path_buf()));
         } else {
             if self.workshop.open && self.workshop.is_dirty() {
                 self.say(format!("The AI is working on {}; leave the workshop to follow", path.display()));
@@ -1641,6 +1825,7 @@ impl Sandbox {
             self.scene_path = path.display().to_string();
             self.load_scene();
             self.say(format!("Following the AI: {} (Undo goes back)", path.display()));
+            self.log_activity(format!("Opened {}", path.display()), Some(path.to_path_buf()));
         }
     }
 
@@ -1697,13 +1882,12 @@ impl Sandbox {
         if let Some(old) = self.scene_stamp {
             let path = PathBuf::from(&self.scene_path);
             if stamp(&path).is_some_and(|s| s != old) {
-                self.say("Scene file changed on disk, reloading");
-                self.load_scene();
+                self.reload_highlighting(format!("{} changed", path.display()));
             } else if !self.playing
                 && let Some((p, _)) = self.scene_assets.iter().find(|(p, s)| stamp(p).is_some_and(|now| Some(now) != *s))
             {
-                self.say(format!("{} changed on disk, reloading the scene", p.display()));
-                self.load_scene();
+                let why = format!("{} changed (the scene uses it)", p.display());
+                self.reload_highlighting(why);
             }
         }
     }
@@ -1855,6 +2039,13 @@ impl Sandbox {
                 }
             });
         }
+        if let Some((t, text)) = self.update_note.clone() {
+            if t.elapsed().as_secs() < 20 {
+                ui.label(RichText::new(format!("✨ {text}")).strong().color(Color32::from_rgb(140, 230, 140)));
+            } else {
+                self.update_note = None;
+            }
+        }
         if self.new_build_since.is_some() {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("🔄 A new build of the engine is ready.").strong().color(Color32::from_rgb(255, 214, 64)));
@@ -1867,6 +2058,9 @@ impl Sandbox {
             ui.label(RichText::new("GRAVE").size(22.).strong().color(Color32::from_rgb(105,221,204)));
             ui.label(RichText::new("LEVEL EDITOR").size(11.).weak());ui.separator();
             ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(240.));
+            let fresh = self.activity.iter().filter(|a| now_secs().saturating_sub(a.at) < 600).count();
+            ui.toggle_value(&mut self.show_activity, if fresh > 0 { format!("🤖 Activity ({fresh})") } else { "🤖 Activity".to_string() })
+                .on_hover_text("What the AI has been doing, with buttons to jump back to each scene or asset");
             ui.toggle_value(&mut self.follow_ai, "👁 Follow AI").on_hover_text(
                 "On: when an AI agent changes a scene or asset, it opens here so you can watch (Undo goes back).\nOff: work on your own; you'll get a \"Go there\" button instead.",
             );
@@ -2604,6 +2798,18 @@ impl Sandbox {
 
         // Note pins, and the right-click menu (Select tool).
         let pin_hover = self.draw_notes(&painter, &to_screen, pointer);
+        // Fresh changes from disk: a fading outline for a few seconds.
+        let age = self.highlight_since.elapsed().as_secs_f32();
+        if !self.highlights.is_empty() && age < 6.0 {
+            let a = ((1.0 - age / 6.0) * 255.0) as u8;
+            let pulse = 2.0 + (age * 6.0).sin().abs() * 1.5;
+            for &(x0, y0, x1, y1) in &self.highlights {
+                let r = Rect::from_min_max(to_screen((x0 as f32, y0 as f32)), to_screen((x1 as f32, y1 as f32)));
+                painter.rect_stroke(r, 2.0, Stroke::new(pulse, Color32::from_rgba_unmultiplied(255, 220, 60, a)), egui::StrokeKind::Outside);
+            }
+        } else if !self.highlights.is_empty() {
+            self.highlights.clear();
+        }
         if self.tool == Tool::Select {
             if resp.secondary_clicked() {
                 self.menu_at = pointer.map(to_cells);
@@ -3231,6 +3437,12 @@ impl eframe::App for Sandbox {
         }
 
         self.check_files();
+        // Where the window is, so an engine update brings it back in the same place.
+        self.window_at = ctx.input(|i| {
+            let v = i.viewport();
+            v.outer_rect.zip(v.inner_rect).map(|(o, inner)| [o.min.x, o.min.y, inner.width(), inner.height(), v.maximized.unwrap_or(false) as u8 as f32])
+        });
+        self.activity_window(&ctx);
         let dropped: Vec<PathBuf> =
             ui.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect());
         for path in dropped {
