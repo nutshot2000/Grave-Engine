@@ -6,7 +6,7 @@
 size 960 480
 seed 21
 fill air
-generate 0 0 960 480 tile 48 seed 21 tiles tiles/rooms pools 0.3
+generate 0 0 960 480 seed 21 tiles tiles/rooms
 rect air 24 392 96 70                      # a start chamber...
 rect rock 24 462 96 8                      # ...with a floor
 anchor 24 462 96 8

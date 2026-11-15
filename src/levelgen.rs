@@ -174,6 +174,30 @@ pub struct Settings {
     /// fall as the engine's strength rules say (Noita's lesson: a level left
     /// to real physics ends up as a pile of rubble).
     pub anchored: bool,
+    /// The wall drawn behind the caves (`AIR` = none: the sky shows).
+    pub back: MatId,
+    /// How often a tile gets a special room (vault, ore ring, flooded room,
+    /// lava pit, powder cache), 0..1.
+    pub rooms: f32,
+}
+
+impl Settings {
+    /// The usual settings: rock caves, tile 64, rock wall behind.
+    pub fn new(mats: &Materials) -> Settings {
+        let rock = mats.id("rock").unwrap_or(AIR);
+        Settings {
+            tile: 64,
+            seed: 1,
+            rock,
+            open: 0.6,
+            pools: 0.2,
+            pool: mats.id("water").unwrap_or(AIR),
+            open_sides: false,
+            anchored: true,
+            back: rock,
+            rooms: 0.25,
+        }
+    }
 }
 
 /// One brick of the layout: shape and top-left corner in units.
@@ -297,6 +321,15 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
             carve(world, mats, b, edges, (px, py), t, s, &inside);
         }
     }
+    // Varied ground: patches of other stone, and ore specks in the walls.
+    texture_ground(world, mats, (ax, ay, aw, ah), s, &free);
+    // The wall behind the caves.
+    for y in ay..ay + ah {
+        for x in ax..ax + aw {
+            let i = world.idx(x, y);
+            world.back[i] = s.back;
+        }
+    }
     // Sealed: a solid rim, so no cavern bulges out of the sides.
     if !s.open_sides {
         for y in ay..ay + ah {
@@ -321,97 +354,331 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
     hand
 }
 
-/// The built-in cave tile for brick `b` (top-left at `at`, in cells).
+/// Blocks across one tile unit in the built-in tiles (each block is
+/// `tile / GRID` cells): the coarse grid the tiles are drawn on, like the
+/// pixels of Sean Barrett's hand-drawn tiles.
+const GRID: i32 = 8;
+
+/// What a block of a built-in tile is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Block {
+    Ground,
+    Open,
+    Brick,
+    Stone,
+    Water,
+    Lava,
+    Powder,
+    Wood,
+    Ore,
+}
+
+/// A material by name, or a fallback.
+fn pick(mats: &Materials, name: &str, or: MatId) -> MatId {
+    mats.id(name).unwrap_or(or)
+}
+
+/// The built-in tile for brick `b` (top-left at `at`, in cells), drawn on a
+/// coarse grid: corridors (straight, turning, or stepping diagonally) from
+/// each opening to a hub in its half, rooms at the hubs, dead-end branches,
+/// and now and then a special room.
 fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, i32), t: usize, s: &Settings, inside: &dyn Fn(i32, i32) -> bool) {
-    let tf = t as f32;
+    let g = GRID;
+    let (gw, gh) = match b.shape {
+        Shape::Horizontal => (2 * g, g),
+        Shape::Vertical => (g, 2 * g),
+    };
     let seed = hash(s.seed, b.u, b.v, b.shape as i32 + 3);
-    let rnd = |n: i32| unit(hash(seed, n, 17, 29));
-    // The two squares of the brick (their centres, in cells), and which
-    // square each edge piece belongs to.
-    let (c0, c1, owner): ((f32, f32), (f32, f32), [usize; 6]) = match b.shape {
-        Shape::Horizontal => ((0.5, 0.5), (1.5, 0.5), [0, 1, 1, 1, 0, 0]),
-        Shape::Vertical => ((0.5, 0.5), (0.5, 1.5), [0, 0, 1, 1, 1, 0]),
+    let mut n = 0i32;
+    let mut rnd = || {
+        n += 1;
+        unit(hash(seed, n, 17, 29))
     };
-    // Where each edge piece's middle is (in units, within the brick).
-    let mids: [(f32, f32); 6] = match b.shape {
-        Shape::Horizontal => [(0.5, 0.0), (1.5, 0.0), (2.0, 0.5), (1.5, 1.0), (0.5, 1.0), (0.0, 0.5)],
-        Shape::Vertical => [(0.5, 0.0), (1.0, 0.5), (1.0, 1.5), (0.5, 2.0), (0.0, 1.5), (0.0, 0.5)],
+    let mut grid = vec![Block::Ground; (gw * gh) as usize];
+    let set = |grid: &mut Vec<Block>, x: i32, y: i32, v: Block| {
+        if x >= 0 && y >= 0 && x < gw && y < gh {
+            grid[(y * gw + x) as usize] = v;
+        }
     };
-    let cell = |p: (f32, f32)| (at.0 as f32 + p.0 * tf, at.1 as f32 + p.1 * tf);
-    // Squares wander a little from dead centre, so caverns don't line up.
-    let wobble = |c: (f32, f32), n: i32| (c.0 + (rnd(n) - 0.5) * 0.3, c.1 + (rnd(n + 1) - 0.5) * 0.3);
-    let centres = [cell(wobble(c0, 1)), cell(wobble(c1, 3))];
-    let mut dig = |x: f32, y: f32, r: f32| {
-        let ri = r.ceil() as i32;
-        for dy in -ri..=ri {
-            for dx in -ri..=ri {
-                let (cx, cy) = (x as i32 + dx, y as i32 + dy);
-                if (dx * dx + dy * dy) as f32 <= r * r && inside(cx, cy) {
-                    world.set(mats, cx as usize, cy as usize, AIR);
+    // The two halves (squares) of the brick, in blocks.
+    let halves: [(i32, i32); 2] = match b.shape {
+        Shape::Horizontal => [(0, 0), (g, 0)],
+        Shape::Vertical => [(0, 0), (0, g)],
+    };
+    // Each edge piece: where it starts (blocks), which way it runs, which
+    // way is inwards, and which half it belongs to (same order as `Edges`).
+    let pieces: [((i32, i32), (i32, i32), (i32, i32), usize); 6] = match b.shape {
+        Shape::Horizontal => [
+            ((0, 0), (1, 0), (0, 1), 0),
+            ((g, 0), (1, 0), (0, 1), 1),
+            ((2 * g - 1, 0), (0, 1), (-1, 0), 1),
+            ((g, g - 1), (1, 0), (0, -1), 1),
+            ((0, g - 1), (1, 0), (0, -1), 0),
+            ((0, 0), (0, 1), (1, 0), 0),
+        ],
+        Shape::Vertical => [
+            ((0, 0), (1, 0), (0, 1), 0),
+            ((g - 1, 0), (0, 1), (-1, 0), 0),
+            ((g - 1, g), (0, 1), (-1, 0), 1),
+            ((0, 2 * g - 1), (1, 0), (0, -1), 1),
+            ((0, g), (0, 1), (1, 0), 1),
+            ((0, 0), (0, 1), (1, 0), 0),
+        ],
+    };
+    // Hubs: a spot in each half, away from its edges.
+    let hubs: Vec<(i32, i32)> = halves.iter().map(|&(hx, hy)| (hx + 2 + (rnd() * (g - 4) as f32) as i32, hy + 2 + (rnd() * (g - 4) as f32) as i32)).collect();
+    let mut used = [false; 2];
+    for (k, open) in edges.iter().enumerate() {
+        if *open {
+            used[pieces[k].3] = true;
+        }
+    }
+    // Rooms at the hubs, and maybe a special room in one of them.
+    let mut rooms: [Option<(i32, i32, i32, i32)>; 2] = [None, None];
+    for h in 0..2 {
+        if used[h] && rnd() < 0.8 {
+            let (rw, rh) = (2 + (rnd() * 5.0) as i32, 2 + (rnd() * 4.0) as i32);
+            let (hx, hy) = halves[h];
+            let x0 = (hubs[h].0 - rw / 2).clamp(hx + 1, hx + g - 1 - rw);
+            let y0 = (hubs[h].1 - rh / 2).clamp(hy + 1, hy + g - 1 - rh);
+            rooms[h] = Some((x0, y0, rw, rh));
+        }
+    }
+    let special = if rnd() < s.rooms { Some((rnd() * 5.0) as u32) } else { None };
+    let special_half = if used[1] && (!used[0] || rnd() < 0.5) { 1 } else { 0 };
+    if let Some(kind) = special
+        && used[special_half]
+    {
+        // A special room is a bit bigger, filling most of its half.
+        let (hx, hy) = halves[special_half];
+        let (rw, rh) = (4 + (rnd() * 2.0) as i32, 3 + (rnd() * 2.0) as i32);
+        let (x0, y0) = (hx + (g - rw) / 2, hy + (g - rh) / 2);
+        rooms[special_half] = Some((x0, y0, rw, rh));
+        let wall = match kind {
+            0 => Some(Block::Brick),
+            1 => Some(Block::Stone),
+            _ => None,
+        };
+        if let Some(wall) = wall {
+            for y in y0 - 1..=y0 + rh {
+                for x in x0 - 1..=x0 + rw {
+                    set(&mut grid, x, y, wall);
+                }
+            }
+        }
+    }
+    for room in rooms.iter().flatten() {
+        let (x0, y0, rw, rh) = *room;
+        for y in y0..y0 + rh {
+            for x in x0..x0 + rw {
+                set(&mut grid, x, y, Block::Open);
+            }
+        }
+    }
+    // A corridor from (x0,y0) to (x1,y1), `wide` blocks across: an L (either
+    // way round) or a staircase of small steps.
+    let corridor = |grid: &mut Vec<Block>, a: (i32, i32), z: (i32, i32), wide: i32, style: f32| {
+        let mut dig = |x: i32, y: i32| {
+            for dy in 0..wide {
+                for dx in 0..wide {
+                    let (cx, cy) = (x + dx - wide / 2, y + dy - wide / 2);
+                    if cx >= 0 && cy >= 0 && cx < gw && cy < gh {
+                        grid[(cy * gw + cx) as usize] = Block::Open;
+                    }
+                }
+            }
+        };
+        let (mut x, mut y) = a;
+        dig(x, y);
+        if style < 0.4 {
+            // Staircase: one step across, one step along, until lined up.
+            while (x, y) != z {
+                if x != z.0 {
+                    x += (z.0 - x).signum();
+                    dig(x, y);
+                }
+                if y != z.1 {
+                    y += (z.1 - y).signum();
+                    dig(x, y);
+                }
+            }
+        } else {
+            let across_first = style < 0.7;
+            for leg in 0..2 {
+                if (leg == 0) == across_first {
+                    while x != z.0 {
+                        x += (z.0 - x).signum();
+                        dig(x, y);
+                    }
+                } else {
+                    while y != z.1 {
+                        y += (z.1 - y).signum();
+                        dig(x, y);
+                    }
                 }
             }
         }
     };
-    // A wobbly tunnel. Ends are always the same width (`end_r`), so a
-    // passage meets its neighbour's exactly at the shared edge.
-    let end_r = (tf * 0.13).max(2.5);
-    let tunnel = |a: (f32, f32), z: (f32, f32), n: i32, dig: &mut dyn FnMut(f32, f32, f32)| {
-        let (dx, dy) = (z.0 - a.0, z.1 - a.1);
-        let len = (dx * dx + dy * dy).sqrt().max(1.0);
-        let (nx, ny) = (-dy / len, dx / len);
-        let steps = len.ceil() as i32;
-        let (f1, f2) = (rnd(n) * 6.28, rnd(n + 1) * 6.28);
-        for k in 0..=steps {
-            let p = k as f32 / steps as f32;
-            // Wobble most in the middle, none at the ends.
-            let bend = (p * std::f32::consts::PI).sin();
-            let off = bend * tf * 0.12 * ((p * 5.0 + f1).sin() + 0.5 * (p * 11.0 + f2).sin());
-            let r = end_r * (1.0 + 0.35 * bend * (p * 7.0 + f2).sin().abs());
-            dig(a.0 + dx * p + nx * off, a.1 + dy * p + ny * off, r);
-        }
-    };
-    let mut used = [false; 2];
-    for (n, open) in edges.iter().enumerate() {
-        if *open && inside(centres[owner[n]].0 as i32, centres[owner[n]].1 as i32) {
-            let sq = owner[n];
-            used[sq] = true;
-            tunnel(cell(mids[n]), centres[sq], 10 + n as i32 * 3, &mut dig);
-        }
-    }
-    // Join the two halves, so every way in leads everywhere in the brick.
-    if used[0] && used[1] {
-        tunnel(centres[0], centres[1], 40, &mut dig);
-    }
-    // Caverns in the used halves (and, rarely, a hidden pocket): a few
-    // overlapping blobs, some small, some roomy.
-    let mut caverns = [0.0f32; 2];
-    for sq in 0..2 {
-        let (x, y) = centres[sq];
-        if !inside(x as i32, y as i32) {
+    // Openings: three blocks in the middle of the edge piece, then a corridor
+    // in to the hub. (Every brick uses the same three, so they line up.)
+    for (k, open) in edges.iter().enumerate() {
+        if !*open {
             continue;
         }
-        if used[sq] || rnd(50 + sq as i32) < 0.12 {
-            let r = tf * (0.18 + 0.16 * rnd(60 + sq as i32).powf(0.7));
-            caverns[sq] = r;
-            dig(x, y, r);
-            for n in 0..3 {
-                let a = rnd(70 + n * 2 + sq as i32 * 9) * 6.28;
-                let d = r * 0.55;
-                dig(x + a.cos() * d, y + a.sin() * d * 0.5, r * (0.5 + 0.3 * rnd(71 + n * 2)));
+        let ((sx, sy), (dx, dy), (nx, ny), h) = pieces[k];
+        for along in g / 2 - 1..=g / 2 + 1 {
+            for depth in 0..2 {
+                set(&mut grid, sx + dx * along + nx * depth, sy + dy * along + ny * depth, Block::Open);
+            }
+        }
+        let port = (sx + dx * (g / 2) + nx * 2, sy + dy * (g / 2) + ny * 2);
+        let (wide, style) = (if rnd() < 0.3 { 3 } else { 2 }, rnd());
+        corridor(&mut grid, port, hubs[h], wide, style);
+    }
+    if used[0] && used[1] {
+        let style = rnd();
+        corridor(&mut grid, hubs[0], hubs[1], 2, style);
+    }
+    // Dead-end branches.
+    for h in 0..2 {
+        if used[h] && rnd() < 0.55 {
+            let (dx, dy) = [(1, 0), (-1, 0), (0, 1), (0, -1)][(rnd() * 4.0) as usize % 4];
+            let len = 2 + (rnd() * 3.0) as i32;
+            let (hx, hy) = halves[h];
+            let end = ((hubs[h].0 + dx * len).clamp(hx + 1, hx + g - 2), (hubs[h].1 + dy * len).clamp(hy + 1, hy + g - 2));
+            corridor(&mut grid, hubs[h], end, 2, 0.5);
+        }
+    }
+    // What fills the special room (after the corridors, so they're its doors).
+    if let (Some(kind), Some((x0, y0, rw, rh))) = (special, rooms[special_half])
+        && used[special_half]
+    {
+        let floor = y0 + rh - 1;
+        match kind {
+            // Brick vault: a wooden shelf.
+            0 => {
+                for x in x0 + 1..x0 + rw - 1 {
+                    set(&mut grid, x, y0 + rh / 2, Block::Wood);
+                }
+            }
+            // Stone ring: ore in the middle.
+            1 => set(&mut grid, x0 + rw / 2, floor, Block::Ore),
+            // Flooded room.
+            2 => {
+                for y in y0 + rh / 2..=floor {
+                    for x in x0..x0 + rw {
+                        set(&mut grid, x, y, Block::Water);
+                    }
+                }
+            }
+            // Lava pit.
+            3 => {
+                for x in x0 + 1..x0 + rw - 1 {
+                    set(&mut grid, x, floor, Block::Lava);
+                }
+            }
+            // Powder cache.
+            _ => {
+                for x in x0 + rw / 2 - 1..=x0 + rw / 2 {
+                    set(&mut grid, x, floor, Block::Powder);
+                }
             }
         }
     }
-    // Now and then a pool settles in the bottom of a cavern.
-    if s.pools > 0.0 && rnd(80) < s.pools {
-        let sq = if caverns[1] > 0.0 && rnd(81) < 0.5 { 1 } else { 0 };
-        if caverns[sq] > 0.0 {
-            let (x, y) = centres[sq];
-            let r = caverns[sq] * 1.3;
-            for cy in (y + caverns[sq] * 0.3) as i32..(y + r) as i32 {
-                for cx in (x - r) as i32..(x + r) as i32 {
-                    if inside(cx, cy) && world.mat[world.idx(cx as usize, cy as usize)] == AIR {
-                        world.set(mats, cx as usize, cy as usize, s.pool);
+    // A puddle now and then in a room's floor.
+    if s.pools > 0.0 && rnd() < s.pools {
+        if let Some((x0, y0, rw, rh)) = rooms.iter().flatten().next().copied() {
+            for x in x0..x0 + rw {
+                set(&mut grid, x, y0 + rh - 1, Block::Water);
+            }
+        }
+    }
+
+    // Draw it: each block is a square of cells.
+    let px = (t as i32 / g).max(1);
+    let (brick, stone, wood, lava, powder) = (pick(mats, "brick", s.rock), pick(mats, "stone", s.rock), pick(mats, "wood", s.rock), pick(mats, "lava", AIR), pick(mats, "gunpowder", s.rock));
+    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
+    for by in 0..gh {
+        for bx in 0..gw {
+            let block = grid[(by * gw + bx) as usize];
+            let mat = match block {
+                Block::Ground => continue,
+                Block::Open => AIR,
+                Block::Brick => brick,
+                Block::Stone => stone,
+                Block::Water => s.pool,
+                Block::Lava => lava,
+                Block::Powder => powder,
+                Block::Wood => wood,
+                Block::Ore => ores[(hash(seed, bx, by, 5) % 3) as usize],
+            };
+            // Liquids and powder only fill the lower half of their block (room to splash).
+            let liquid = matches!(block, Block::Water | Block::Lava | Block::Powder);
+            for cy in 0..px {
+                for cx in 0..px {
+                    let (x, y) = (at.0 + bx * px + cx, at.1 + by * px + cy);
+                    if inside(x, y) {
+                        let m = if liquid && cy < px / 2 { AIR } else { mat };
+                        world.set(mats, x as usize, y as usize, m);
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Smooth noise 0..1 (for patches of different stone).
+fn noise(seed: u32, x: f32, y: f32) -> f32 {
+    let (x0, y0) = (x.floor(), y.floor());
+    let (fx, fy) = (x - x0, y - y0);
+    let (sx, sy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
+    let at = |dx: i32, dy: i32| unit(hash(seed, x0 as i32 + dx, y0 as i32 + dy, 11));
+    let top = at(0, 0) + (at(1, 0) - at(0, 0)) * sx;
+    let bot = at(0, 1) + (at(1, 1) - at(0, 1)) * sx;
+    top + (bot - top) * sy
+}
+
+/// Patches of other stone through the plain ground, and specks of ore in
+/// the walls next to passages (the coloured dots that make a map readable).
+fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), s: &Settings, free: &dyn Fn(i32, i32) -> bool) {
+    let (ax, ay, aw, ah) = area;
+    let (stone, sand) = (pick(mats, "stone", s.rock), pick(mats, "sandstone", s.rock));
+    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
+    let scale = (s.tile as f32 * 1.5).max(10.0);
+    for y in ay..ay + ah {
+        for x in ax..ax + aw {
+            let i = world.idx(x, y);
+            if world.mat[i] != s.rock || !free(x as i32, y as i32) {
+                continue;
+            }
+            let n = noise(s.seed ^ 0x5151, x as f32 / scale, y as f32 / scale) * 0.75 + noise(s.seed ^ 0x7373, x as f32 / (scale * 0.3), y as f32 / (scale * 0.3)) * 0.25;
+            let m = if n > 0.66 { stone } else if n < 0.17 { sand } else { s.rock };
+            if m != s.rock {
+                world.set(mats, x, y, m);
+            }
+        }
+    }
+    // Ore: small clumps in walls that face a passage.
+    let mut seeds = Vec::new();
+    for y in (ay + 1..ay + ah - 1).step_by(3) {
+        for x in (ax + 1..ax + aw - 1).step_by(3) {
+            let i = world.idx(x, y);
+            if world.mat[i] == AIR || !free(x as i32, y as i32) || unit(hash(s.seed, x as i32, y as i32, 77)) > 0.035 {
+                continue;
+            }
+            let near_open = [i - 1, i + 1, i - world.w, i + world.w].iter().any(|&j| world.mat[j] == AIR);
+            if near_open && mats.get(world.mat[i]).state == crate::material::State::Solid {
+                seeds.push((x, y, ores[(hash(s.seed, x as i32, y as i32, 78) % 3) as usize]));
+            }
+        }
+    }
+    for (x, y, ore) in seeds {
+        for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1), (-1, 0)] {
+            let (cx, cy) = (x as i32 + dx, y as i32 + dy);
+            if cx >= ax as i32 && cy >= ay as i32 && cx < (ax + aw) as i32 && cy < (ay + ah) as i32 && free(cx, cy) {
+                let i = world.idx(cx as usize, cy as usize);
+                if world.mat[i] != AIR && mats.get(world.mat[i]).state == crate::material::State::Solid {
+                    world.set(mats, cx as usize, cy as usize, ore);
                 }
             }
         }

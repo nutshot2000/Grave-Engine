@@ -413,7 +413,7 @@ impl Sandbox {
             join_first: None,
             rewind_pos: None,
             ran_since_snapshot: false,
-            cave_gen: (40, 1, 0.55, 0.25),
+            cave_gen: (64, 1, 0.6, 0.2),
             playing: false,
             fling: Vec::new(),
             speed: 1.0,
@@ -886,16 +886,7 @@ impl Sandbox {
         });
         self.cave_gen = (tile, seed, open, pools);
         if go {
-            let set = grave_engine::levelgen::Settings {
-                tile,
-                seed,
-                rock: self.mats.id("rock").unwrap_or(0),
-                open,
-                pools,
-                pool: self.mats.id("water").unwrap_or(0),
-                open_sides: false,
-                anchored: true,
-            };
+            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, ..grave_engine::levelgen::Settings::new(&self.mats) };
             self.change("generate caves", |app| {
                 let (w, h) = (app.sim.world.w, app.sim.world.h);
                 grave_engine::levelgen::generate(&mut app.sim.world, &app.mats, (0, 0, w, h), &set, &[]);

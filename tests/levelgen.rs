@@ -120,7 +120,7 @@ fn hand_made_tiles_are_used_where_they_fit() {
     assert!(tiles.iter().any(|t| t.shape == Shape::Horizontal) && tiles.iter().any(|t| t.shape == Shape::Vertical));
     // Lots of bricks, so some will match the sample tiles' edges.
     let mut s = Sim::empty(1200, 600, &m);
-    let set = Settings { tile: 40, seed: 11, rock: m.id("rock").unwrap(), open: 0.5, pools: 0.0, pool: m.id("water").unwrap(), open_sides: false, anchored: true };
+    let set = Settings { tile: 40, seed: 11, open: 0.5, pools: 0.0, ..Settings::new(&m) };
     let used = levelgen::generate(&mut s.world, &m, (0, 0, 1200, 600), &set, &tiles);
     assert!(used > 0, "no brick used a hand-made tile");
     let brick = m.id("brick").unwrap();
@@ -138,4 +138,18 @@ fn tile_files_say_what_is_wrong() {
     assert!(Tile::parse("t", "shape h\nedges 0 0 0 0 0 0\nrows\n#x\nend\n", &m).unwrap_err().contains("legend"));
     let (_, problems) = scene::load("size 100 100\ngenerate 0 0 100 100 wobble 3\n", &m, None).into_sim(&m);
     assert!(!problems.is_empty());
+}
+
+#[test]
+fn the_wall_behind_the_caves_is_saved() {
+    let m = mats();
+    let mut s = sim(&m, "size 200 100\nfill air\ngenerate 0 0 200 100 seed 3\n");
+    let rock = m.id("rock").unwrap();
+    assert!(s.world.back.iter().all(|&b| b == rock), "a rock wall behind the whole area");
+    let text = scene::save(&s.snapshot(), &m);
+    assert!(text.contains("backwall rock 0 0 200 1"), "saved as runs");
+    let again = sim(&m, &text);
+    assert!(again.world.back == s.world.back);
+    let none = sim(&m, "size 100 50\nfill air\ngenerate 0 0 100 50 seed 3 back none\n");
+    assert!(none.world.back.iter().all(|&b| b == 0));
 }

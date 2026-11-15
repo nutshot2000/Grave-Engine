@@ -395,6 +395,26 @@ impl Renderer {
                     self.hot[j] = [hc[0] * k * 0.8, hc[1] * k * 0.8, hc[2] * k * 0.8];
                 }
             }
+            // A wall behind (caves): empty cells show it, dimmed, and smoke
+            // drifts over it instead of over the sky.
+            if !view.heat && world.back[i] != crate::material::AIR && m.state == State::Gas {
+                let bm = mats.get(world.back[i]);
+                let (x, y) = (i % world.w, i / world.w);
+                let base = match &pics[world.back[i] as usize] {
+                    Some(p) => {
+                        let o = ((y % p.h) * p.w + x % p.w) * 4;
+                        [p.rgba[o] as f32, p.rgba[o + 1] as f32, p.rgba[o + 2] as f32]
+                    }
+                    None => c3(bm.color),
+                };
+                let wall = [base[0] * 0.5 + 6.0, base[1] * 0.5 + 7.0, base[2] * 0.55 + 10.0];
+                if world.mat[i] == crate::material::AIR {
+                    col = wall;
+                } else {
+                    col = lerp3(wall, self.gas_col[j], self.gas_alpha[j]);
+                    self.gas_alpha[j] = 0.0;
+                }
+            }
             self.light[j] = emit;
             // Flames and glowing materials are light themselves; merely hot
             // things (ash, metal) stay dark and add their heat glow on top.

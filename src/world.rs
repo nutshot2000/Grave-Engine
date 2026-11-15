@@ -130,6 +130,10 @@ pub struct World {
     /// (`coating::FOREVER` = never).
     pub coat: Vec<MatId>,
     pub coat_until: Vec<u32>,
+    /// A wall behind each position (`AIR` = none, the sky shows): purely
+    /// for looks, drawn dimmed behind empty cells (cave walls). It stays
+    /// put when cells move.
+    pub back: Vec<MatId>,
     /// Where in its material's texture picture each cell is (x in the low
     /// byte, y in the high byte). Scenery uses its world position; objects
     /// use their position within the object, so patterns move with them.
@@ -257,6 +261,7 @@ impl World {
             paint: vec![0; n],
             coat: vec![AIR; n],
             coat_until: vec![0; n],
+            back: vec![AIR; n],
             tex: (0..n).map(|i| pack_tex(i % w, i / w)).collect(),
             moved: vec![0; n],
             frame: 1,

@@ -19,10 +19,12 @@
 //! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
-//! generate 0 0 800 400 tile 40 seed 7       # caves from herringbone tiles (levelgen.rs); also
-//!   rock MAT, open 0.55 (passages), pools 0.3, pool water, tiles DIR (hand-made), sides open,
+//! generate 0 0 800 400 tile 64 seed 7       # caves from herringbone tiles (levelgen.rs); also
+//!   rock MAT, open 0.6 (passages), pools 0.2, pool water, rooms 0.25 (special rooms),
+//!   back MAT|none (wall behind), tiles DIR (hand-made), sides open,
 //!   loose (let thin walls collapse; normally the generated rock is anchored)
 //! coat oil 300 200 60 4                    # film the solid ground in this box (wet road, oil slick)
+//! backwall rock 0 0 800 400                # a dim wall drawn behind empty cells (caves); `none` clears
 //! coat water 0 180 400 2 forever           # ...that never dries
 //!
 //! # Lighting (see light.rs): overall light and tint, a sun, lamps
@@ -723,16 +725,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
             }
             "generate" => match nums(1, 4) {
                 Ok(v) => {
-                    let mut set = crate::levelgen::Settings {
-                        tile: 40,
-                        seed: 1,
-                        rock: mats.id("rock").unwrap_or(AIR),
-                        open: 0.55,
-                        pools: 0.25,
-                        pool: mats.id("water").unwrap_or(AIR),
-                        open_sides: false,
-                        anchored: true,
-                    };
+                    let mut set = crate::levelgen::Settings::new(mats);
                     let mut tiles = Vec::new();
                     let mut k = 5;
                     while k < words.len() {
@@ -743,6 +736,8 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                             "seed" => number().map(|n| set.seed = n as u32),
                             "open" => number().map(|n| set.open = n.clamp(0.0, 1.0)),
                             "pools" => number().map(|n| set.pools = n.clamp(0.0, 1.0)),
+                            "rooms" => number().map(|n| set.rooms = n.clamp(0.0, 1.0)),
+                            "back" => if val == "none" { set.back = AIR; Ok(()) } else { mat(val).map(|id| set.back = id) },
                             "rock" => mat(val).map(|id| set.rock = id),
                             "pool" => mat(val).map(|id| set.pool = id),
                             "sides" => {
@@ -760,7 +755,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                                 tiles = t;
                                 problems.into_iter().next().map_or(Ok(()), Err)
                             }
-                            _ => Err(format!("`generate` doesn't know `{key}` (tile, seed, rock, open, pools, pool, tiles, sides, loose)")),
+                            _ => Err(format!("`generate` doesn't know `{key}` (tile, seed, rock, open, pools, pool, rooms, back, tiles, sides, loose)")),
                         };
                         if let Err(e) = result {
                             err(e);
@@ -772,6 +767,26 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 }
                 Err(e) => err(format!("{e} (use `generate X Y W H [tile 40] [seed 7]`)")),
             },
+            "backwall" => {
+                let wall = match words.get(1).copied() {
+                    Some("none") | Some("air") => Ok(AIR),
+                    Some(n) => mat(n),
+                    None => Err("use `backwall MAT X Y W H`".to_string()),
+                };
+                match (wall, nums(2, 4)) {
+                    (Ok(id), Ok(v)) => {
+                        let w = ensure(&mut world, mats);
+                        let (x0, x1, y0, y1) = w.clip(v[0] as i32, (v[0] + v[2]) as i32 - 1, v[1] as i32, (v[1] + v[3]) as i32 - 1);
+                        for y in y0..=y1 {
+                            for x in x0..=x1 {
+                                let i = w.idx(x as usize, y as usize);
+                                w.back[i] = id;
+                            }
+                        }
+                    }
+                    (Err(e), _) | (_, Err(e)) => err(e),
+                }
+            }
             "anchor" => match nums(1, 4) {
                 Ok(v) => {
                     let w = ensure(&mut world, mats);
@@ -1424,6 +1439,27 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if !anchors.is_empty() {
         out.push_str("# Pinned scenery (never collapses)\n");
         out.push_str(&anchors);
+    }
+    // Back walls: one line per run in a row.
+    let mut walls = String::new();
+    for y in 0..world.h {
+        let mut x = 0;
+        while x < world.w {
+            let b = world.back[world.idx(x, y)];
+            if b != AIR {
+                let start = x;
+                while x < world.w && world.back[world.idx(x, y)] == b {
+                    x += 1;
+                }
+                walls += &format!("backwall {} {start} {y} {} 1\n", mats.get(b).name, x - start);
+            } else {
+                x += 1;
+            }
+        }
+    }
+    if !walls.is_empty() {
+        out.push_str("# Walls behind (caves)\n");
+        out.push_str(&walls);
     }
     // Films on the ground (wet, oily): one line per run in a row.
     let mut films = String::new();
