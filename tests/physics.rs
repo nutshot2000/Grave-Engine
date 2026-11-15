@@ -374,8 +374,8 @@ fn blasts_splinter_objects_too() {
 #[test]
 fn objects_placed_inside_the_ground_pop_out() {
     let m = mats();
-    let s = sim(&m, "size 100 60\nfill air\nrect stone 0 50 100 10\nbody rect stone 40 45 10 10\n");
-    let mut s = s;
+    let (mut s, problems) = scene::load("size 100 60\nfill air\nrect stone 0 50 100 10\nbody rect stone 40 45 10 10\n", &m, None).into_sim(&m);
+    assert!(problems.iter().any(|p| p.contains("moved up")), "and the scene says so: {problems:?}");
     let b = s.physics.export(&mut s.world);
     assert!(b[0].y <= 45.5, "should sit on top of the ground, centre y={}", b[0].y);
     assert_eq!(count(&s, &m, "stone"), 1000 + 100, "all of it should be visible");

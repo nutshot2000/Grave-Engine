@@ -143,8 +143,38 @@ impl Loaded {
         let mut sim = crate::sim::Sim::new_with(self.world, Vec::new(), Vec::new(), mats);
         let mut ids = Vec::new();
         let links = self.instances.into_iter().chain(std::iter::repeat(None));
-        for (b, inst) in self.bodies.into_iter().zip(links) {
-            let id = sim.physics.add(&mut sim.world, mats, b);
+        // Objects placed inside scenery are lifted clear. The parts of one
+        // asset move up together (or a machine would be torn apart), and the
+        // scene says so when it's more than settling: it quietly changes the
+        // level (a tank under a machine lifts the machine).
+        let lifts: Vec<f32> = self.bodies.iter().map(|b| crate::physics::Physics::lift_needed(&sim.world, mats, b)).collect();
+        let mut group_lift: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
+        for (b, l) in self.bodies.iter().zip(&lifts) {
+            if let Some(a) = &b.assembly {
+                let g = group_lift.entry(a.clone()).or_default();
+                *g = g.max(*l);
+            }
+        }
+        let mut told = std::collections::HashSet::new();
+        for (n, (mut b, inst)) in self.bodies.into_iter().zip(links).enumerate() {
+            let lift = b.assembly.as_ref().and_then(|a| group_lift.get(a)).copied().unwrap_or(lifts[n]);
+            if lift >= 3.0 {
+                let what = match &b.assembly {
+                    Some(a) => format!("`{a}`"),
+                    None => {
+                        let mut m: Vec<&str> = b.cells.iter().flatten().map(|c| mats.get(c.mat).name.as_str()).collect();
+                        m.sort();
+                        m.dedup();
+                        m.truncate(3);
+                        format!("object {} ({})", n + 1, m.join(", "))
+                    }
+                };
+                if told.insert(what.clone()) {
+                    problems.push(format!("{what} at {:.0} {:.0} was inside scenery and was moved up {:.0} cells: move the scenery or the object", b.x, b.y, lift));
+                }
+            }
+            b.y -= lift;
+            let id = sim.physics.add_exact(&mut sim.world, mats, b);
             if let (Some(id), Some(inst)) = (id, inst) {
                 sim.instances.insert(id, inst);
             }

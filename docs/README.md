@@ -20,6 +20,7 @@ The games and labs open from the [`Play`](../Play) folder.
 ## Simulation
 
 - [Thermal and material update](THERMAL-MATERIAL-UPDATE.md): how heat moves.
+- [Millbrook waterwheel](MILLBROOK.md): water's weight in the buckets turns a wooden wheel; liquid loads on objects.
 - [Iron Heron oil field](IRON-HERON.md): moving machinery that pumps a finite supply of real oil into a tank.
 - [Outside temperature](OUTSIDE-TEMPERATURE.md): cold and hot worlds.
 - [Destruction performance](DESTRUCTION-PERFORMANCE.md): keeping big collapses fast.

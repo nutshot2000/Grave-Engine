@@ -441,6 +441,14 @@ impl Physics {
     /// Add an object and put it into the world straight away. If it was put
     /// inside solid ground, it's moved up until it's clear.
     pub fn add(&mut self, world: &mut World, mats: &Materials, mut spec: BodySpec) -> Option<u64> {
+        spec.y -= Self::lift_needed(world, mats, &spec);
+        self.add_raw(world, mats, spec)
+    }
+
+    /// How far up (cells) an object must move to be clear of solid ground.
+    pub fn lift_needed(world: &World, mats: &Materials, spec: &BodySpec) -> f32 {
+        let mut spec = spec.clone();
+        let start = spec.y;
         let overlap = |spec: &BodySpec| -> usize {
             let (c, s) = (spec.angle.cos(), spec.angle.sin());
             let mut n = 0;
@@ -466,7 +474,7 @@ impl Physics {
                 }
             }
         }
-        self.add_raw(world, mats, spec)
+        start - spec.y
     }
 
     /// Add an object exactly where its spec says, without moving it out of
@@ -722,6 +730,20 @@ impl Physics {
                     rb.set_linear_damping(0.0);
                     rb.set_angular_damping(0.05);
                 }
+            }
+        }
+        // Liquid resting on objects weighs them down where it rests: water in
+        // a waterwheel's buckets, rain pooling in a boat.
+        let loads: Vec<(RigidBodyHandle, Vec<(f32, Vector)>)> =
+            // (An object already in water feels it through floating instead.)
+            self.bodies.iter().map(|b| (b.handle, Self::loads(b, world, mats, Self::buoyancy(b, world, mats).is_some()))).collect();
+        for (h, list) in loads {
+            if list.is_empty() {
+                continue;
+            }
+            let rb = &mut self.set[h];
+            for (force, at) in list {
+                rb.add_force_at_point(Vector::new(0.0, force), at, true);
             }
         }
         // Vehicles: motors and brakes, rolling resistance, balance.
@@ -1529,11 +1551,21 @@ impl Physics {
         };
         let left = level(x0 as i32 - 1);
         let right = level(x1 as i32 + 1);
+        // Water on one side only counts when the other side is a wall (a boat
+        // against a dock). A stream pouring past one side is not a pool.
+        let walled = |x: i32| -> bool {
+            (y0 as i32..=y1 as i32).any(|y| {
+                world.in_bounds(x, y) && {
+                    let i = world.idx(x as usize, y as usize);
+                    !world.is_owned(i) && mats.get(world.mat[i]).state == State::Solid
+                }
+            }) || !world.in_bounds(x, y1 as i32)
+        };
         let ((sl, rl), (sr, rr)) = match (left, right) {
             (Some(l), Some(r)) => (l, r),
-            (Some(l), None) => (l, l),
-            (None, Some(r)) => (r, r),
-            (None, None) => return None,
+            (Some(l), None) if walled(x1 as i32 + 1) => (l, l),
+            (None, Some(r)) if walled(x0 as i32 - 1) => (r, r),
+            _ => return None,
         };
         let rho = (rl + rr) / 2.0;
         let span = (x1 as f32 - x0 as f32 + 2.0).max(1.0);
@@ -1554,6 +1586,38 @@ impl Physics {
         }
         let force = n as f32 * CELL * CELL * rho * GRAVITY * b.depth;
         Some((force, Vector::new(sx / n as f32 * CELL, sy / n as f32 * CELL)))
+    }
+
+    /// The weight of liquid resting on top of an object, column by column:
+    /// (downward force in newtons, where it presses). Each column of up to 64
+    /// liquid cells above a top surface cell counts.
+    fn loads(b: &Body, world: &World, mats: &Materials, floating: bool) -> Vec<(f32, Vector)> {
+        let mut out = Vec::new();
+        for &(wi, _) in &b.stamped {
+            let i = wi as usize;
+            let (x, y) = (i % world.w, i / world.w);
+            if y == 0 {
+                continue;
+            }
+            let mut weight = 0.0f32;
+            let mut yy = y;
+            while yy > 0 && y - yy < 64 {
+                yy -= 1;
+                let j = world.idx(x, yy);
+                let m = mats.get(world.mat[j]);
+                // Liquids only for now: powders (sand thrown onto a bike, snow
+                // on roofs) need their own tuning before they press on things.
+                if world.is_owned(j) || m.state != State::Liquid || floating {
+                    break;
+                }
+                weight += m.density;
+            }
+            if weight > 0.0 {
+                let force = weight * CELL * CELL * GRAVITY * b.depth;
+                out.push((force, Vector::new((x as f32 + 0.5) * CELL, y as f32 * CELL)));
+            }
+        }
+        out
     }
 
     fn is_scenery(world: &World, mats: &Materials, i: usize) -> bool {

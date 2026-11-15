@@ -34,11 +34,13 @@ fn shop_front_is_reusable_stands_and_burns() {
     assert!(problems.is_empty(), "{problems:?}");
     let cloth = m.id("cloth").unwrap();
     let count = s.world.mat.iter().filter(|v| **v == cloth).count();
-    s.world.heat_circle(110, 94, 45, 1000.);
+    // Hot enough to light cloth (250 °C) but not to melt the brass fittings
+    // (930 °C): molten brass would pin and cover the awning (liquids have weight).
+    s.world.heat_circle(110, 94, 45, 800.);
     let mut burning = false;
     for frame in 0..480 {
         if frame < 180 && frame % 30 == 0 {
-            s.world.heat_circle(110, 94, 60, 1000.);
+            s.world.heat_circle(110, 94, 60, 800.);
         }
         s.step(&m);
         burning |= s
@@ -59,6 +61,6 @@ fn shop_front_is_reusable_stands_and_burns() {
     .unwrap();
     assert!(
         s.world.mat.iter().filter(|v| **v == cloth).count() < count * 9 / 10,
-        "exposed fabric must be consumed by fire"
+        "exposed fabric must be consumed by fire: {} of {count} left", s.world.mat.iter().filter(|v| **v == cloth).count()
     );
 }
