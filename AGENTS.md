@@ -120,6 +120,7 @@ Top level: `src/` (engine, editor in `app.rs`, games in `bin/`), `materials/`, `
 | `src/light.rs` | lighting (sun shadows are swept per frame over just the slanted band that can reach the drawn window, from at most `MAX_SHADOW_ROWS` above it): `Lighting` on `Sim` (ambient level + tint, `Sun` swept row by row for shadows, `Light` lamps cast as rays with falloff, cones, flicker, `on` an object), `illuminate` (per-cell light; materials' `light_through()`), fades from the `lighting L S` trigger action. The renderer draws with it after `renderer.light(&sim)`; plain lighting = the old picture exactly. Saved as `lighting`/`sun`/`light` scene lines; in snapshots and undo |
 | `src/sim.rs` depth planes | `Sim::layers` are the planes behind the front (assets' `layer` command). Heat crosses planes each step; blasts echo to the other planes one frame later, weaker with distance (`echo_blasts`) |
 | `src/asset.rs` joints | Assets have rigid `weld`s and moving `joint`s (`hinge` = pivot, `motor` on a hinge, `wheel`, `rope`; second part may be `ground`). Always-on motors (no `drive`) use full strength through linkages (physics `MotorModel::ForceBased`); `drive` motors keep the tuned vehicle feel. Example: `oil_pumpjack.asset`. Guide: docs/ASSET-WORKSHOP.md |
+| `src/pump.rs` | Stroke-driven liquid transfer: a body attachment's upward travel moves existing cells from an intake rectangle to a free outlet. Finite supply, preserved material state, dry/blocked protection and snapshot/save support. Scene `pump LIQUID drive NAME at X Y intake X Y W H outlet X Y W H rate N`. Iron Heron example: docs/IRON-HERON.md |
 | `src/input.rs` | **Controls for every game**: keyboard, mouse and game controllers (gamepads/joysticks, via gilrs) as named actions from a plain-text `.input` file (`assets/input/GAME.input`, embedded with `include_str!` as the default and re-read at start-up so players can remap). `Input::load_or`, then each frame `update(ctx)` and `pressed/down/released/value/axis("name")`. `update_from` feeds fake states for tests. Dust Hawk, Stunt Yard and the editor's Play mode (`assets/input/editor.input`) use it |
 | `src/camera.rs` | `Effects` (`Sim::camera`: slow motion, zoom, focus, shake, timed in sim frames so replays match; `time_scale()` scales how many steps games run per second) and `Camera` (smooth follow with look-ahead, applies effects). Editor and Stunt Yard both use them |
 | `src/bin/stunt-yard.rs` | **Stunt Yard**, the stunt-bike game built on the engine (`Play/Stunt-Yard.cmd`). Courses are `LEVELS` (scene file + title; Wreck Run also has built-in stages/signs/finish; newer levels use triggers incl. `finish`). Trials controls (W/S/A/D). The bike's parts are found from the followed frame. `ai_controls` + `--verify-ai --level=N [--from=X] [--every=N]` = an automatic rider for checking levels (prints where it gets stuck). The editor shows a **🎮 Play as game** button for scenes listed in `game_level` (src/app.rs): add new courses there too. Courses from `tools/make_stunt_course.py` (Wreck Run) and `tools/make_mountain_run.py` (Mountain Run); docs in `docs/` |
@@ -188,6 +189,13 @@ Key ideas:
   tells worlds apart (notes use it to re-attach).
 
 ## Data formats (all plain text)
+
+For detailed asset authoring, first read **docs/AI-ASSET-BUILDER.md**. Prefer
+JSON recipes with `tools/asset_builder.py --strict` over hand-writing grids.
+Use `asset-doctor` to validate, simulate and screenshot a copy; run machinery
+for complete cycles and inspect the images. Recipes live in `assets/recipes/`.
+Keep material and surface paint separate, preserve named parts, and use the
+live editor instructions above so the owner can watch.
 
 - **Materials:** `materials/NAME.txt`, `key = value` lines; every key is
   documented in `materials/README.md`. Live-reloaded by the editor.

@@ -7,6 +7,7 @@ The games and labs open from the [`Play`](../Play) folder.
 
 - [Editor Studio](EDITOR-STUDIO.md): the editor's workspaces (assets, building, events, lights, tests).
 - [Asset Workshop](ASSET-WORKSHOP.md): drawing props from real materials, paint and lettering, moving parts (pivots, motors, wheels, ropes).
+- [AI asset builder](AI-ASSET-BUILDER.md): model-neutral detailed-asset recipes, shared drawing tools and native motion/screenshot checks.
 - [Depth layers](DEPTH-LAYERS.md): front, middle and back planes; heat and blasts between them.
 - [Reusable two-storey house](WORKSHOP-HOUSE.md): a big example asset.
 
@@ -19,6 +20,7 @@ The games and labs open from the [`Play`](../Play) folder.
 ## Simulation
 
 - [Thermal and material update](THERMAL-MATERIAL-UPDATE.md): how heat moves.
+- [Iron Heron oil field](IRON-HERON.md): moving machinery that pumps a finite supply of real oil into a tank.
 - [Outside temperature](OUTSIDE-TEMPERATURE.md): cold and hot worlds.
 - [Destruction performance](DESTRUCTION-PERFORMANCE.md): keeping big collapses fast.
 

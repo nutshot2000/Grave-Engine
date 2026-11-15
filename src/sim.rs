@@ -7,6 +7,7 @@ use crate::world::World;
 use std::collections::HashMap;
 
 pub struct Sim {
+    pub pumps: Vec<crate::pump::Pump>,
     pub world: World,
     /// Independent aligned depth planes, nearest first. Plane zero is this world.
     pub layers: Vec<Sim>,
@@ -53,6 +54,7 @@ struct Seen {
 /// A frozen copy of a simulation, for Reset, undo, rewind and saving.
 #[derive(Clone)]
 pub struct Snapshot {
+    pub pumps: Vec<crate::pump::Pump>,
     pub world: World,
     pub layers: Vec<Snapshot>,
     pub layer_names: Vec<String>,
@@ -81,7 +83,7 @@ pub struct Snapshot {
 impl Snapshot {
     /// A snapshot of just a world, with no objects.
     pub fn of_world(world: World) -> Self {
-        Snapshot { world, layers: Vec::new(), layer_names: Vec::new(), bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), actors: Vec::new() }
+        Snapshot { pumps: Vec::new(), world, layers: Vec::new(), layer_names: Vec::new(), bodies: Vec::new(), instances: Vec::new(), joints: Vec::new(), follow: None, zoom: 0.0, upright: Vec::new(), triggers: Vec::new(), checkpoint: None, lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), actors: Vec::new() }
     }
 }
 
@@ -94,7 +96,7 @@ impl Sim {
 
     /// Like `new`, with template links for the objects (same order).
     pub fn new_with(world: World, bodies: Vec<BodySpec>, instances: Vec<Option<Instance>>, mats: &Materials) -> Self {
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
+        let mut sim = Sim { pumps: Vec::new(), physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: 0.0, triggers: Vec::new(), events: Vec::new(), checkpoint: None, camera: Default::default(), lighting: Default::default(), backdrop: Default::default(), weather: Default::default(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
         for (b, inst) in bodies.into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))) {
             if let (Some(id), Some(inst)) = (sim.physics.add(&mut sim.world, mats, b), inst) {
                 sim.instances.insert(id, inst);
@@ -247,6 +249,7 @@ impl Sim {
         let follow = self.follow.and_then(|id| self.physics.centre(id));
         crate::weather::step(&mut self.world, mats, &mut self.weather, &mut self.weather_run, self.weather_view, follow, &mut self.camera);
         self.physics.update(&mut self.world, mats);
+        for p in &mut self.pumps { p.step(&mut self.world,mats,&self.physics); }
         if !self.triggers.is_empty() {
             self.run_triggers();
         }
@@ -380,7 +383,7 @@ impl Sim {
             Some(id) => index(id).map(|n| l.on = Some(n)).is_some(),
             None => true,
         });
-        Snapshot { world, layers: self.layers.iter_mut().map(|l| l.snapshot()).collect(), layer_names: self.layer_names.clone(), bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, backdrop: self.backdrop.clone(), weather: self.weather.clone(), actors }
+        Snapshot { pumps: self.pumps.iter().filter_map(|p| { let mut p=p.clone(); p.drive=index(p.drive)?; Some(p) }).collect(), world, layers: self.layers.iter_mut().map(|l| l.snapshot()).collect(), layer_names: self.layer_names.clone(), bodies, instances, joints, follow, zoom: self.zoom, upright, triggers, checkpoint: self.checkpoint, lighting, backdrop: self.backdrop.clone(), weather: self.weather.clone(), actors }
     }
 
     /// Put things back exactly as they were (objects aren't nudged out of
@@ -388,7 +391,7 @@ impl Sim {
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let mut world = snap.world.clone();
         world.wake_all(); // restored: look at everything again
-        let mut sim = Sim { physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
+        let mut sim = Sim { pumps: Vec::new(), physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
         sim.layers = snap.layers.iter().map(|s| Sim::restore(s,mats)).collect();
         sim.layer_names = snap.layer_names.clone();
         let links = snap.instances.iter().cloned().chain(std::iter::repeat(None));
@@ -401,6 +404,7 @@ impl Sim {
             new_ids.push(id);
         }
         sim.add_joints(&snap.joints, &new_ids, mats);
+        sim.pumps=snap.pumps.iter().filter_map(|p| { let mut p=p.clone(); p.drive=new_ids.get(p.drive.checked_sub(1)? as usize).copied().flatten()?; Some(p) }).collect();
         for a in &snap.actors {
             sim.physics.add_actor(&mut sim.world, mats, a.clone());
         }

@@ -1,0 +1,4861 @@
+# Built from a reusable AI asset recipe. Materials and surface paint are separate.
+format 1
+asset iron_heron_pumpjack 128 112
+depth 0.12
+pivot 64 111
+part base
+rect iron 56 36 3 1
+rect brass 59 36 5 1
+rect iron 64 36 3 1
+rect iron 56 37 5 1
+rect brass 61 37 1 1
+rect iron 62 37 5 1
+rect iron 56 38 11 1
+rect iron 56 39 11 1
+rect steel 57 40 8 1
+rect steel 57 41 9 1
+rect steel 56 42 10 1
+rect steel 56 43 10 1
+rect steel 56 44 5 1
+rect steel 62 44 4 1
+rect steel 56 45 4 1
+rect steel 62 45 5 1
+rect steel 55 46 5 1
+rect steel 62 46 5 1
+rect steel 55 47 5 1
+rect steel 62 47 5 1
+rect steel 55 48 5 1
+rect steel 63 48 4 1
+rect steel 54 49 5 1
+rect steel 63 49 5 1
+rect steel 54 50 5 1
+rect steel 63 50 5 1
+rect steel 54 51 5 1
+rect steel 63 51 5 1
+rect steel 54 52 4 1
+rect steel 64 52 5 1
+rect steel 53 53 5 1
+rect steel 64 53 5 1
+rect steel 53 54 5 1
+rect steel 64 54 5 1
+rect steel 53 55 5 1
+rect steel 65 55 4 1
+rect steel 53 56 4 1
+rect steel 65 56 5 1
+rect steel 52 57 5 1
+rect steel 65 57 5 1
+rect steel 52 58 5 1
+rect steel 65 58 5 1
+rect steel 52 59 5 1
+rect steel 66 59 5 1
+rect steel 52 60 4 1
+rect steel 66 60 5 1
+rect steel 51 61 5 1
+rect steel 66 61 5 1
+rect steel 51 62 5 1
+rect steel 67 62 4 1
+rect steel 51 63 5 1
+rect steel 67 63 7 1
+rect steel 51 64 4 1
+rect steel 67 64 7 1
+rect steel 50 65 6 1
+rect steel 67 65 6 1
+rect steel 50 66 7 1
+rect steel 68 66 4 1
+rect steel 50 67 8 1
+rect steel 66 67 7 1
+rect steel 49 68 5 1
+rect steel 56 68 3 1
+rect steel 65 68 8 1
+rect steel 49 69 5 1
+rect steel 57 69 3 1
+rect steel 63 69 4 1
+rect steel 68 69 5 1
+rect steel 49 70 5 1
+rect steel 58 70 8 1
+rect steel 69 70 5 1
+rect steel 49 71 4 1
+rect steel 59 71 5 1
+rect steel 69 71 5 1
+rect steel 48 72 5 1
+rect steel 59 72 5 1
+rect steel 69 72 5 1
+rect steel 48 73 5 1
+rect steel 58 73 7 1
+rect steel 70 73 4 1
+rect steel 48 74 5 1
+rect steel 57 74 3 1
+rect steel 63 74 4 1
+rect steel 70 74 5 1
+rect steel 48 75 4 1
+rect steel 55 75 4 1
+rect steel 64 75 4 1
+rect steel 70 75 5 1
+rect steel 47 76 5 1
+rect steel 54 76 4 1
+rect steel 66 76 3 1
+rect steel 70 76 5 1
+rect steel 47 77 9 1
+rect steel 67 77 3 1
+rect steel 71 77 5 1
+rect steel 47 78 8 1
+rect steel 68 78 8 1
+rect steel 47 79 6 1
+rect steel 69 79 7 1
+rect steel 46 80 6 1
+rect steel 70 80 6 1
+rect steel 17 81 2 1
+rect steel 24 81 2 1
+rect steel 46 81 5 1
+rect steel 72 81 5 1
+rect steel 17 82 2 1
+rect steel 24 82 2 1
+rect steel 46 82 5 1
+rect steel 72 82 5 1
+rect steel 17 83 2 1
+rect steel 24 83 2 1
+rect steel 46 83 4 1
+rect steel 72 83 5 1
+rect steel 17 84 2 1
+rect steel 24 84 2 1
+rect steel 45 84 5 1
+rect steel 73 84 5 1
+rect steel 17 85 2 1
+rect steel 24 85 2 1
+rect steel 45 85 5 1
+rect steel 73 85 5 1
+rect steel 17 86 2 1
+rect steel 24 86 2 1
+rect steel 45 86 5 1
+rect steel 73 86 5 1
+rect steel 17 87 2 1
+rect steel 24 87 2 1
+rect steel 44 87 5 1
+rect steel 74 87 4 1
+rect steel 17 88 2 1
+rect steel 24 88 2 1
+rect steel 44 88 5 1
+rect steel 74 88 2 1
+rect steel 17 89 2 1
+rect steel 24 89 2 1
+rect steel 44 89 5 1
+rect steel 74 89 2 1
+rect steel 17 90 2 1
+rect steel 24 90 2 1
+rect steel 44 90 4 1
+rect steel 74 90 2 1
+rect steel 17 91 2 1
+rect steel 24 91 2 1
+rect steel 43 91 5 1
+rect steel 75 91 1 1
+rect steel 17 92 2 1
+rect steel 24 92 2 1
+rect steel 43 92 5 1
+rect steel 75 92 1 1
+rect steel 17 93 2 1
+rect steel 24 93 2 1
+rect steel 43 93 33 1
+rect steel 17 94 2 1
+rect steel 24 94 2 1
+rect steel 43 94 33 1
+rect iron 96 94 25 1
+rect steel 17 95 2 1
+rect steel 24 95 2 1
+rect steel 42 95 5 1
+rect iron 96 95 2 1
+rect steel 98 95 21 1
+rect iron 119 95 2 1
+rect steel 17 96 2 1
+rect steel 24 96 2 1
+rect steel 42 96 5 1
+rect iron 96 96 2 1
+rect steel 98 96 1 1
+rect iron 99 96 1 1
+rect steel 100 96 2 1
+rect iron 102 96 1 1
+rect steel 103 96 2 1
+rect iron 105 96 1 1
+rect steel 106 96 2 1
+rect iron 108 96 1 1
+rect steel 109 96 2 1
+rect iron 111 96 1 1
+rect steel 112 96 2 1
+rect iron 114 96 1 1
+rect steel 115 96 2 1
+rect iron 117 96 1 1
+rect steel 118 96 1 1
+rect iron 119 96 2 1
+rect steel 17 97 2 1
+rect steel 24 97 2 1
+rect steel 42 97 5 1
+rect iron 96 97 2 1
+rect steel 98 97 1 1
+rect iron 99 97 1 1
+rect steel 100 97 2 1
+rect iron 102 97 1 1
+rect steel 103 97 2 1
+rect iron 105 97 1 1
+rect steel 106 97 2 1
+rect iron 108 97 1 1
+rect steel 109 97 2 1
+rect iron 111 97 1 1
+rect steel 112 97 2 1
+rect iron 114 97 1 1
+rect steel 115 97 2 1
+rect iron 117 97 1 1
+rect steel 118 97 1 1
+rect iron 119 97 2 1
+rect steel 17 98 2 1
+rect steel 24 98 2 1
+rect steel 42 98 4 1
+rect iron 96 98 2 1
+rect steel 98 98 1 1
+rect iron 99 98 1 1
+rect steel 100 98 2 1
+rect iron 102 98 1 1
+rect steel 103 98 2 1
+rect iron 105 98 1 1
+rect steel 106 98 2 1
+rect iron 108 98 1 1
+rect steel 109 98 2 1
+rect iron 111 98 1 1
+rect steel 112 98 2 1
+rect iron 114 98 1 1
+rect steel 115 98 2 1
+rect iron 117 98 1 1
+rect steel 118 98 1 1
+rect iron 119 98 2 1
+rect steel 17 99 2 1
+rect steel 24 99 2 1
+rect steel 41 99 5 1
+rect iron 94 99 29 1
+rect iron 15 100 4 1
+rect iron 24 100 5 1
+rect steel 41 100 5 1
+rect iron 94 100 29 1
+rect iron 15 101 4 1
+rect iron 24 101 5 1
+rect steel 41 101 5 1
+rect iron 94 101 29 1
+rect iron 8 102 3 1
+rect brass 11 102 1 1
+rect iron 12 102 7 1
+rect iron 24 102 15 1
+rect brass 39 102 1 1
+rect iron 40 102 1 1
+rect steel 41 102 4 1
+rect iron 45 102 33 1
+rect steel 78 102 4 1
+rect iron 82 102 1 1
+rect brass 83 102 1 1
+rect iron 84 102 33 1
+rect brass 117 102 1 1
+rect iron 118 102 2 1
+rect iron 8 103 2 1
+rect brass 10 103 3 1
+rect iron 13 103 6 1
+rect iron 24 103 14 1
+rect brass 38 103 3 1
+rect steel 41 103 4 1
+rect iron 45 103 33 1
+rect steel 78 103 4 1
+rect brass 82 103 3 1
+rect iron 85 103 31 1
+rect brass 116 103 3 1
+rect iron 119 103 1 1
+rect iron 8 104 3 1
+rect brass 11 104 1 1
+rect iron 12 104 27 1
+rect brass 39 104 1 1
+rect iron 40 104 43 1
+rect brass 83 104 1 1
+rect iron 84 104 33 1
+rect brass 117 104 1 1
+rect iron 118 104 2 1
+rect concrete 4 105 120 1
+rect concrete 4 106 120 1
+rect concrete 4 107 120 1
+rect concrete 4 108 120 1
+rect concrete 4 109 120 1
+rect concrete 4 110 120 1
+rect concrete 4 111 120 1
+paint 56 36 #25383b
+paint 57 36 #25383b
+paint 58 36 #25383b
+paint 59 36 #e5ba63
+paint 60 36 #e5ba63
+paint 61 36 #e5ba63
+paint 62 36 #e5ba63
+paint 63 36 #e5ba63
+paint 64 36 #25383b
+paint 65 36 #25383b
+paint 66 36 #25383b
+paint 56 37 #25383b
+paint 57 37 #25383b
+paint 58 37 #25383b
+paint 59 37 #25383b
+paint 60 37 #25383b
+paint 61 37 #e5ba63
+paint 62 37 #25383b
+paint 63 37 #25383b
+paint 64 37 #25383b
+paint 65 37 #25383b
+paint 66 37 #25383b
+paint 56 38 #25383b
+paint 57 38 #25383b
+paint 58 38 #25383b
+paint 59 38 #25383b
+paint 60 38 #25383b
+paint 61 38 #25383b
+paint 62 38 #25383b
+paint 63 38 #25383b
+paint 64 38 #25383b
+paint 65 38 #25383b
+paint 66 38 #25383b
+paint 56 39 #25383b
+paint 57 39 #25383b
+paint 58 39 #25383b
+paint 59 39 #25383b
+paint 60 39 #25383b
+paint 61 39 #25383b
+paint 62 39 #25383b
+paint 63 39 #25383b
+paint 64 39 #25383b
+paint 65 39 #25383b
+paint 66 39 #25383b
+paint 57 40 #25383b
+paint 58 40 #3d7373
+paint 59 40 #3d7373
+paint 60 40 #25383b
+paint 61 40 #25383b
+paint 62 40 #3d7373
+paint 63 40 #3d7373
+paint 64 40 #25383b
+paint 57 41 #25383b
+paint 58 41 #3d7373
+paint 59 41 #3d7373
+paint 60 41 #25383b
+paint 61 41 #25383b
+paint 62 41 #3d7373
+paint 63 41 #3d7373
+paint 64 41 #25383b
+paint 65 41 #25383b
+paint 56 42 #25383b
+paint 57 42 #25383b
+paint 58 42 #3d7373
+paint 59 42 #3d7373
+paint 60 42 #25383b
+paint 61 42 #25383b
+paint 62 42 #3d7373
+paint 63 42 #3d7373
+paint 64 42 #3d7373
+paint 65 42 #25383b
+paint 56 43 #25383b
+paint 57 43 #3d7373
+paint 58 43 #3d7373
+paint 59 43 #3d7373
+paint 60 43 #25383b
+paint 61 43 #25383b
+paint 62 43 #25383b
+paint 63 43 #3d7373
+paint 64 43 #3d7373
+paint 65 43 #25383b
+paint 56 44 #25383b
+paint 57 44 #3d7373
+paint 58 44 #3d7373
+paint 59 44 #25383b
+paint 60 44 #25383b
+paint 62 44 #25383b
+paint 63 44 #3d7373
+paint 64 44 #3d7373
+paint 65 44 #25383b
+paint 56 45 #25383b
+paint 57 45 #3d7373
+paint 58 45 #3d7373
+paint 59 45 #25383b
+paint 62 45 #25383b
+paint 63 45 #3d7373
+paint 64 45 #3d7373
+paint 65 45 #25383b
+paint 66 45 #25383b
+paint 55 46 #25383b
+paint 56 46 #25383b
+paint 57 46 #3d7373
+paint 58 46 #3d7373
+paint 59 46 #25383b
+paint 62 46 #25383b
+paint 63 46 #3d7373
+paint 64 46 #3d7373
+paint 65 46 #3d7373
+paint 66 46 #25383b
+paint 55 47 #25383b
+paint 56 47 #3d7373
+paint 57 47 #3d7373
+paint 58 47 #3d7373
+paint 59 47 #25383b
+paint 62 47 #25383b
+paint 63 47 #25383b
+paint 64 47 #3d7373
+paint 65 47 #3d7373
+paint 66 47 #25383b
+paint 55 48 #25383b
+paint 56 48 #3d7373
+paint 57 48 #3d7373
+paint 58 48 #25383b
+paint 59 48 #25383b
+paint 63 48 #25383b
+paint 64 48 #3d7373
+paint 65 48 #3d7373
+paint 66 48 #25383b
+paint 54 49 #25383b
+paint 55 49 #25383b
+paint 56 49 #3d7373
+paint 57 49 #3d7373
+paint 58 49 #25383b
+paint 63 49 #25383b
+paint 64 49 #3d7373
+paint 65 49 #3d7373
+paint 66 49 #25383b
+paint 67 49 #25383b
+paint 54 50 #25383b
+paint 55 50 #3d7373
+paint 56 50 #3d7373
+paint 57 50 #3d7373
+paint 58 50 #25383b
+paint 63 50 #25383b
+paint 64 50 #3d7373
+paint 65 50 #3d7373
+paint 66 50 #3d7373
+paint 67 50 #25383b
+paint 54 51 #25383b
+paint 55 51 #3d7373
+paint 56 51 #3d7373
+paint 57 51 #25383b
+paint 58 51 #25383b
+paint 63 51 #25383b
+paint 64 51 #25383b
+paint 65 51 #3d7373
+paint 66 51 #3d7373
+paint 67 51 #25383b
+paint 54 52 #25383b
+paint 55 52 #3d7373
+paint 56 52 #3d7373
+paint 57 52 #25383b
+paint 64 52 #25383b
+paint 65 52 #3d7373
+paint 66 52 #3d7373
+paint 67 52 #25383b
+paint 68 52 #25383b
+paint 53 53 #25383b
+paint 54 53 #25383b
+paint 55 53 #3d7373
+paint 56 53 #3d7373
+paint 57 53 #25383b
+paint 64 53 #25383b
+paint 65 53 #3d7373
+paint 66 53 #3d7373
+paint 67 53 #3d7373
+paint 68 53 #25383b
+paint 53 54 #25383b
+paint 54 54 #3d7373
+paint 55 54 #3d7373
+paint 56 54 #3d7373
+paint 57 54 #25383b
+paint 64 54 #25383b
+paint 65 54 #25383b
+paint 66 54 #3d7373
+paint 67 54 #3d7373
+paint 68 54 #25383b
+paint 53 55 #25383b
+paint 54 55 #3d7373
+paint 55 55 #3d7373
+paint 56 55 #25383b
+paint 57 55 #25383b
+paint 65 55 #25383b
+paint 66 55 #3d7373
+paint 67 55 #3d7373
+paint 68 55 #25383b
+paint 53 56 #25383b
+paint 54 56 #3d7373
+paint 55 56 #3d7373
+paint 56 56 #25383b
+paint 65 56 #25383b
+paint 66 56 #3d7373
+paint 67 56 #3d7373
+paint 68 56 #25383b
+paint 69 56 #25383b
+paint 52 57 #25383b
+paint 53 57 #25383b
+paint 54 57 #3d7373
+paint 55 57 #3d7373
+paint 56 57 #25383b
+paint 65 57 #25383b
+paint 66 57 #3d7373
+paint 67 57 #3d7373
+paint 68 57 #3d7373
+paint 69 57 #25383b
+paint 52 58 #25383b
+paint 53 58 #3d7373
+paint 54 58 #3d7373
+paint 55 58 #3d7373
+paint 56 58 #25383b
+paint 65 58 #25383b
+paint 66 58 #25383b
+paint 67 58 #3d7373
+paint 68 58 #3d7373
+paint 69 58 #25383b
+paint 52 59 #25383b
+paint 53 59 #3d7373
+paint 54 59 #3d7373
+paint 55 59 #25383b
+paint 56 59 #25383b
+paint 66 59 #25383b
+paint 67 59 #3d7373
+paint 68 59 #3d7373
+paint 69 59 #25383b
+paint 70 59 #25383b
+paint 52 60 #25383b
+paint 53 60 #3d7373
+paint 54 60 #3d7373
+paint 55 60 #25383b
+paint 66 60 #25383b
+paint 67 60 #3d7373
+paint 68 60 #3d7373
+paint 69 60 #3d7373
+paint 70 60 #25383b
+paint 51 61 #25383b
+paint 52 61 #25383b
+paint 53 61 #3d7373
+paint 54 61 #3d7373
+paint 55 61 #25383b
+paint 66 61 #25383b
+paint 67 61 #25383b
+paint 68 61 #3d7373
+paint 69 61 #3d7373
+paint 70 61 #25383b
+paint 51 62 #25383b
+paint 52 62 #3d7373
+paint 53 62 #3d7373
+paint 54 62 #3d7373
+paint 55 62 #25383b
+paint 67 62 #25383b
+paint 68 62 #3d7373
+paint 69 62 #3d7373
+paint 70 62 #25383b
+paint 51 63 #90a8a0
+paint 52 63 #90a8a0
+paint 53 63 #3d7373
+paint 54 63 #25383b
+paint 55 63 #25383b
+paint 67 63 #25383b
+paint 68 63 #3d7373
+paint 69 63 #3d7373
+paint 70 63 #25383b
+paint 71 63 #25383b
+paint 72 63 #90a8a0
+paint 73 63 #90a8a0
+paint 51 64 #90a8a0
+paint 52 64 #90a8a0
+paint 53 64 #90a8a0
+paint 54 64 #25383b
+paint 67 64 #25383b
+paint 68 64 #3d7373
+paint 69 64 #3d7373
+paint 70 64 #90a8a0
+paint 71 64 #90a8a0
+paint 72 64 #90a8a0
+paint 73 64 #90a8a0
+paint 50 65 #25383b
+paint 51 65 #25383b
+paint 52 65 #90a8a0
+paint 53 65 #90a8a0
+paint 54 65 #90a8a0
+paint 55 65 #90a8a0
+paint 67 65 #25383b
+paint 68 65 #25383b
+paint 69 65 #90a8a0
+paint 70 65 #90a8a0
+paint 71 65 #90a8a0
+paint 72 65 #90a8a0
+paint 50 66 #25383b
+paint 51 66 #3d7373
+paint 52 66 #3d7373
+paint 53 66 #90a8a0
+paint 54 66 #90a8a0
+paint 55 66 #90a8a0
+paint 56 66 #90a8a0
+paint 68 66 #90a8a0
+paint 69 66 #90a8a0
+paint 70 66 #90a8a0
+paint 71 66 #25383b
+paint 50 67 #25383b
+paint 51 67 #3d7373
+paint 52 67 #3d7373
+paint 53 67 #25383b
+paint 54 67 #25383b
+paint 55 67 #90a8a0
+paint 56 67 #90a8a0
+paint 57 67 #90a8a0
+paint 66 67 #90a8a0
+paint 67 67 #90a8a0
+paint 68 67 #90a8a0
+paint 69 67 #90a8a0
+paint 70 67 #3d7373
+paint 71 67 #25383b
+paint 72 67 #25383b
+paint 49 68 #25383b
+paint 50 68 #25383b
+paint 51 68 #3d7373
+paint 52 68 #3d7373
+paint 53 68 #25383b
+paint 56 68 #90a8a0
+paint 57 68 #90a8a0
+paint 58 68 #90a8a0
+paint 65 68 #90a8a0
+paint 66 68 #90a8a0
+paint 67 68 #90a8a0
+paint 68 68 #90a8a0
+paint 69 68 #3d7373
+paint 70 68 #3d7373
+paint 71 68 #3d7373
+paint 72 68 #25383b
+paint 49 69 #25383b
+paint 50 69 #3d7373
+paint 51 69 #3d7373
+paint 52 69 #3d7373
+paint 53 69 #25383b
+paint 57 69 #90a8a0
+paint 58 69 #90a8a0
+paint 59 69 #90a8a0
+paint 63 69 #90a8a0
+paint 64 69 #90a8a0
+paint 65 69 #90a8a0
+paint 66 69 #90a8a0
+paint 68 69 #25383b
+paint 69 69 #25383b
+paint 70 69 #3d7373
+paint 71 69 #3d7373
+paint 72 69 #25383b
+paint 49 70 #25383b
+paint 50 70 #3d7373
+paint 51 70 #3d7373
+paint 52 70 #25383b
+paint 53 70 #25383b
+paint 58 70 #90a8a0
+paint 59 70 #90a8a0
+paint 60 70 #90a8a0
+paint 61 70 #90a8a0
+paint 62 70 #90a8a0
+paint 63 70 #90a8a0
+paint 64 70 #90a8a0
+paint 65 70 #90a8a0
+paint 69 70 #25383b
+paint 70 70 #3d7373
+paint 71 70 #3d7373
+paint 72 70 #25383b
+paint 73 70 #25383b
+paint 49 71 #25383b
+paint 50 71 #3d7373
+paint 51 71 #3d7373
+paint 52 71 #25383b
+paint 59 71 #90a8a0
+paint 60 71 #90a8a0
+paint 61 71 #90a8a0
+paint 62 71 #90a8a0
+paint 63 71 #90a8a0
+paint 69 71 #25383b
+paint 70 71 #3d7373
+paint 71 71 #3d7373
+paint 72 71 #3d7373
+paint 73 71 #25383b
+paint 48 72 #25383b
+paint 49 72 #25383b
+paint 50 72 #3d7373
+paint 51 72 #3d7373
+paint 52 72 #25383b
+paint 59 72 #90a8a0
+paint 60 72 #90a8a0
+paint 61 72 #90a8a0
+paint 62 72 #90a8a0
+paint 63 72 #90a8a0
+paint 69 72 #25383b
+paint 70 72 #25383b
+paint 71 72 #3d7373
+paint 72 72 #3d7373
+paint 73 72 #25383b
+paint 48 73 #25383b
+paint 49 73 #3d7373
+paint 50 73 #3d7373
+paint 51 73 #3d7373
+paint 52 73 #25383b
+paint 58 73 #90a8a0
+paint 59 73 #90a8a0
+paint 60 73 #90a8a0
+paint 61 73 #90a8a0
+paint 62 73 #90a8a0
+paint 63 73 #90a8a0
+paint 64 73 #90a8a0
+paint 70 73 #25383b
+paint 71 73 #3d7373
+paint 72 73 #3d7373
+paint 73 73 #25383b
+paint 48 74 #25383b
+paint 49 74 #3d7373
+paint 50 74 #3d7373
+paint 51 74 #25383b
+paint 52 74 #25383b
+paint 57 74 #90a8a0
+paint 58 74 #90a8a0
+paint 59 74 #90a8a0
+paint 63 74 #90a8a0
+paint 64 74 #90a8a0
+paint 65 74 #90a8a0
+paint 66 74 #90a8a0
+paint 70 74 #25383b
+paint 71 74 #3d7373
+paint 72 74 #3d7373
+paint 73 74 #25383b
+paint 74 74 #25383b
+paint 48 75 #25383b
+paint 49 75 #3d7373
+paint 50 75 #3d7373
+paint 51 75 #25383b
+paint 55 75 #90a8a0
+paint 56 75 #90a8a0
+paint 57 75 #90a8a0
+paint 58 75 #90a8a0
+paint 64 75 #90a8a0
+paint 65 75 #90a8a0
+paint 66 75 #90a8a0
+paint 67 75 #90a8a0
+paint 70 75 #25383b
+paint 71 75 #3d7373
+paint 72 75 #3d7373
+paint 73 75 #3d7373
+paint 74 75 #25383b
+paint 47 76 #25383b
+paint 48 76 #25383b
+paint 49 76 #3d7373
+paint 50 76 #3d7373
+paint 51 76 #25383b
+paint 54 76 #90a8a0
+paint 55 76 #90a8a0
+paint 56 76 #90a8a0
+paint 57 76 #90a8a0
+paint 66 76 #90a8a0
+paint 67 76 #90a8a0
+paint 68 76 #90a8a0
+paint 70 76 #25383b
+paint 71 76 #25383b
+paint 72 76 #3d7373
+paint 73 76 #3d7373
+paint 74 76 #25383b
+paint 47 77 #25383b
+paint 48 77 #3d7373
+paint 49 77 #3d7373
+paint 50 77 #3d7373
+paint 51 77 #25383b
+paint 52 77 #90a8a0
+paint 53 77 #90a8a0
+paint 54 77 #90a8a0
+paint 55 77 #90a8a0
+paint 67 77 #90a8a0
+paint 68 77 #90a8a0
+paint 69 77 #90a8a0
+paint 71 77 #25383b
+paint 72 77 #3d7373
+paint 73 77 #3d7373
+paint 74 77 #25383b
+paint 75 77 #25383b
+paint 47 78 #25383b
+paint 48 78 #3d7373
+paint 49 78 #3d7373
+paint 50 78 #25383b
+paint 51 78 #90a8a0
+paint 52 78 #90a8a0
+paint 53 78 #90a8a0
+paint 54 78 #90a8a0
+paint 68 78 #90a8a0
+paint 69 78 #90a8a0
+paint 70 78 #90a8a0
+paint 71 78 #25383b
+paint 72 78 #3d7373
+paint 73 78 #3d7373
+paint 74 78 #3d7373
+paint 75 78 #25383b
+paint 47 79 #25383b
+paint 48 79 #3d7373
+paint 49 79 #3d7373
+paint 50 79 #90a8a0
+paint 51 79 #90a8a0
+paint 52 79 #90a8a0
+paint 69 79 #90a8a0
+paint 70 79 #90a8a0
+paint 71 79 #90a8a0
+paint 72 79 #90a8a0
+paint 73 79 #3d7373
+paint 74 79 #3d7373
+paint 75 79 #25383b
+paint 46 80 #25383b
+paint 47 80 #25383b
+paint 48 80 #90a8a0
+paint 49 80 #90a8a0
+paint 50 80 #90a8a0
+paint 51 80 #90a8a0
+paint 70 80 #90a8a0
+paint 71 80 #90a8a0
+paint 72 80 #90a8a0
+paint 73 80 #90a8a0
+paint 74 80 #3d7373
+paint 75 80 #25383b
+paint 17 81 #25383b
+paint 18 81 #25383b
+paint 24 81 #25383b
+paint 25 81 #25383b
+paint 46 81 #25383b
+paint 47 81 #90a8a0
+paint 48 81 #90a8a0
+paint 49 81 #90a8a0
+paint 50 81 #90a8a0
+paint 72 81 #90a8a0
+paint 73 81 #90a8a0
+paint 74 81 #90a8a0
+paint 75 81 #25383b
+paint 76 81 #25383b
+paint 17 82 #25383b
+paint 18 82 #25383b
+paint 24 82 #25383b
+paint 25 82 #25383b
+paint 46 82 #25383b
+paint 47 82 #90a8a0
+paint 48 82 #90a8a0
+paint 49 82 #25383b
+paint 50 82 #25383b
+paint 72 82 #25383b
+paint 73 82 #90a8a0
+paint 74 82 #90a8a0
+paint 75 82 #3d7373
+paint 76 82 #25383b
+paint 17 83 #25383b
+paint 18 83 #25383b
+paint 24 83 #25383b
+paint 25 83 #25383b
+paint 46 83 #25383b
+paint 47 83 #3d7373
+paint 48 83 #3d7373
+paint 49 83 #25383b
+paint 72 83 #25383b
+paint 73 83 #25383b
+paint 74 83 #3d7373
+paint 75 83 #3d7373
+paint 76 83 #25383b
+paint 17 84 #25383b
+paint 18 84 #25383b
+paint 24 84 #25383b
+paint 25 84 #25383b
+paint 45 84 #25383b
+paint 46 84 #25383b
+paint 47 84 #3d7373
+paint 48 84 #3d7373
+paint 49 84 #25383b
+paint 73 84 #25383b
+paint 74 84 #3d7373
+paint 75 84 #3d7373
+paint 76 84 #25383b
+paint 77 84 #25383b
+paint 17 85 #25383b
+paint 18 85 #25383b
+paint 24 85 #25383b
+paint 25 85 #25383b
+paint 45 85 #25383b
+paint 46 85 #3d7373
+paint 47 85 #3d7373
+paint 48 85 #3d7373
+paint 49 85 #25383b
+paint 73 85 #25383b
+paint 74 85 #3d7373
+paint 75 85 #3d7373
+paint 76 85 #3d7373
+paint 77 85 #25383b
+paint 17 86 #25383b
+paint 18 86 #25383b
+paint 24 86 #25383b
+paint 25 86 #25383b
+paint 45 86 #25383b
+paint 46 86 #3d7373
+paint 47 86 #3d7373
+paint 48 86 #25383b
+paint 49 86 #25383b
+paint 73 86 #25383b
+paint 74 86 #25383b
+paint 75 86 #3d7373
+paint 76 86 #3d7373
+paint 77 86 #25383b
+paint 17 87 #25383b
+paint 18 87 #25383b
+paint 24 87 #25383b
+paint 25 87 #25383b
+paint 44 87 #25383b
+paint 45 87 #25383b
+paint 46 87 #3d7373
+paint 47 87 #3d7373
+paint 48 87 #25383b
+paint 74 87 #25383b
+paint 75 87 #3d7373
+paint 76 87 #3d7373
+paint 77 87 #25383b
+paint 17 88 #25383b
+paint 18 88 #25383b
+paint 24 88 #25383b
+paint 25 88 #25383b
+paint 44 88 #25383b
+paint 45 88 #3d7373
+paint 46 88 #3d7373
+paint 47 88 #3d7373
+paint 48 88 #25383b
+paint 74 88 #25383b
+paint 75 88 #3d7373
+paint 17 89 #25383b
+paint 18 89 #25383b
+paint 24 89 #25383b
+paint 25 89 #25383b
+paint 44 89 #25383b
+paint 45 89 #3d7373
+paint 46 89 #3d7373
+paint 47 89 #25383b
+paint 48 89 #25383b
+paint 74 89 #25383b
+paint 75 89 #3d7373
+paint 17 90 #25383b
+paint 18 90 #25383b
+paint 24 90 #25383b
+paint 25 90 #25383b
+paint 44 90 #25383b
+paint 45 90 #3d7373
+paint 46 90 #3d7373
+paint 47 90 #25383b
+paint 74 90 #25383b
+paint 75 90 #25383b
+paint 17 91 #25383b
+paint 18 91 #25383b
+paint 24 91 #25383b
+paint 25 91 #25383b
+paint 43 91 #25383b
+paint 44 91 #25383b
+paint 45 91 #3d7373
+paint 46 91 #3d7373
+paint 47 91 #25383b
+paint 75 91 #25383b
+paint 17 92 #25383b
+paint 18 92 #25383b
+paint 24 92 #25383b
+paint 25 92 #25383b
+paint 43 92 #25383b
+paint 44 92 #3d7373
+paint 45 92 #3d7373
+paint 46 92 #3d7373
+paint 47 92 #25383b
+paint 75 92 #25383b
+paint 17 93 #25383b
+paint 18 93 #25383b
+paint 24 93 #25383b
+paint 25 93 #25383b
+paint 43 93 #25383b
+paint 44 93 #3d7373
+paint 45 93 #90a8a0
+paint 46 93 #90a8a0
+paint 47 93 #90a8a0
+paint 48 93 #90a8a0
+paint 49 93 #90a8a0
+paint 50 93 #90a8a0
+paint 51 93 #90a8a0
+paint 52 93 #90a8a0
+paint 53 93 #90a8a0
+paint 54 93 #90a8a0
+paint 55 93 #90a8a0
+paint 56 93 #90a8a0
+paint 57 93 #90a8a0
+paint 58 93 #90a8a0
+paint 59 93 #90a8a0
+paint 60 93 #90a8a0
+paint 61 93 #90a8a0
+paint 62 93 #90a8a0
+paint 63 93 #90a8a0
+paint 64 93 #90a8a0
+paint 65 93 #90a8a0
+paint 66 93 #90a8a0
+paint 67 93 #90a8a0
+paint 68 93 #90a8a0
+paint 69 93 #90a8a0
+paint 70 93 #90a8a0
+paint 71 93 #90a8a0
+paint 72 93 #90a8a0
+paint 73 93 #90a8a0
+paint 74 93 #90a8a0
+paint 75 93 #90a8a0
+paint 17 94 #25383b
+paint 18 94 #25383b
+paint 24 94 #25383b
+paint 25 94 #25383b
+paint 43 94 #25383b
+paint 44 94 #3d7373
+paint 45 94 #90a8a0
+paint 46 94 #90a8a0
+paint 47 94 #90a8a0
+paint 48 94 #90a8a0
+paint 49 94 #90a8a0
+paint 50 94 #90a8a0
+paint 51 94 #90a8a0
+paint 52 94 #90a8a0
+paint 53 94 #90a8a0
+paint 54 94 #90a8a0
+paint 55 94 #90a8a0
+paint 56 94 #90a8a0
+paint 57 94 #90a8a0
+paint 58 94 #90a8a0
+paint 59 94 #90a8a0
+paint 60 94 #90a8a0
+paint 61 94 #90a8a0
+paint 62 94 #90a8a0
+paint 63 94 #90a8a0
+paint 64 94 #90a8a0
+paint 65 94 #90a8a0
+paint 66 94 #90a8a0
+paint 67 94 #90a8a0
+paint 68 94 #90a8a0
+paint 69 94 #90a8a0
+paint 70 94 #90a8a0
+paint 71 94 #90a8a0
+paint 72 94 #90a8a0
+paint 73 94 #90a8a0
+paint 74 94 #90a8a0
+paint 75 94 #90a8a0
+paint 96 94 #25383b
+paint 97 94 #25383b
+paint 98 94 #25383b
+paint 99 94 #25383b
+paint 100 94 #25383b
+paint 101 94 #25383b
+paint 102 94 #25383b
+paint 103 94 #25383b
+paint 104 94 #25383b
+paint 105 94 #25383b
+paint 106 94 #25383b
+paint 107 94 #25383b
+paint 108 94 #25383b
+paint 109 94 #25383b
+paint 110 94 #25383b
+paint 111 94 #25383b
+paint 112 94 #25383b
+paint 113 94 #25383b
+paint 114 94 #25383b
+paint 115 94 #25383b
+paint 116 94 #25383b
+paint 117 94 #25383b
+paint 118 94 #25383b
+paint 119 94 #25383b
+paint 120 94 #25383b
+paint 17 95 #25383b
+paint 18 95 #25383b
+paint 24 95 #25383b
+paint 25 95 #25383b
+paint 42 95 #25383b
+paint 43 95 #25383b
+paint 44 95 #3d7373
+paint 45 95 #3d7373
+paint 46 95 #25383b
+paint 96 95 #25383b
+paint 97 95 #25383b
+paint 98 95 #3d7373
+paint 99 95 #3d7373
+paint 100 95 #3d7373
+paint 101 95 #3d7373
+paint 102 95 #3d7373
+paint 103 95 #3d7373
+paint 104 95 #3d7373
+paint 105 95 #3d7373
+paint 106 95 #3d7373
+paint 107 95 #3d7373
+paint 108 95 #3d7373
+paint 109 95 #3d7373
+paint 110 95 #3d7373
+paint 111 95 #3d7373
+paint 112 95 #3d7373
+paint 113 95 #3d7373
+paint 114 95 #3d7373
+paint 115 95 #3d7373
+paint 116 95 #3d7373
+paint 117 95 #3d7373
+paint 118 95 #3d7373
+paint 119 95 #25383b
+paint 120 95 #25383b
+paint 17 96 #25383b
+paint 18 96 #25383b
+paint 24 96 #25383b
+paint 25 96 #25383b
+paint 42 96 #25383b
+paint 43 96 #3d7373
+paint 44 96 #3d7373
+paint 45 96 #3d7373
+paint 46 96 #25383b
+paint 96 96 #25383b
+paint 97 96 #25383b
+paint 98 96 #3d7373
+paint 99 96 #25383b
+paint 100 96 #3d7373
+paint 101 96 #3d7373
+paint 102 96 #25383b
+paint 103 96 #3d7373
+paint 104 96 #3d7373
+paint 105 96 #25383b
+paint 106 96 #3d7373
+paint 107 96 #3d7373
+paint 108 96 #25383b
+paint 109 96 #3d7373
+paint 110 96 #3d7373
+paint 111 96 #25383b
+paint 112 96 #3d7373
+paint 113 96 #3d7373
+paint 114 96 #25383b
+paint 115 96 #3d7373
+paint 116 96 #3d7373
+paint 117 96 #25383b
+paint 118 96 #3d7373
+paint 119 96 #25383b
+paint 120 96 #25383b
+paint 17 97 #25383b
+paint 18 97 #25383b
+paint 24 97 #25383b
+paint 25 97 #25383b
+paint 42 97 #25383b
+paint 43 97 #3d7373
+paint 44 97 #3d7373
+paint 45 97 #25383b
+paint 46 97 #25383b
+paint 96 97 #25383b
+paint 97 97 #25383b
+paint 98 97 #3d7373
+paint 99 97 #25383b
+paint 100 97 #3d7373
+paint 101 97 #3d7373
+paint 102 97 #25383b
+paint 103 97 #3d7373
+paint 104 97 #3d7373
+paint 105 97 #25383b
+paint 106 97 #3d7373
+paint 107 97 #3d7373
+paint 108 97 #25383b
+paint 109 97 #3d7373
+paint 110 97 #3d7373
+paint 111 97 #25383b
+paint 112 97 #3d7373
+paint 113 97 #3d7373
+paint 114 97 #25383b
+paint 115 97 #3d7373
+paint 116 97 #3d7373
+paint 117 97 #25383b
+paint 118 97 #3d7373
+paint 119 97 #25383b
+paint 120 97 #25383b
+paint 17 98 #25383b
+paint 18 98 #25383b
+paint 24 98 #25383b
+paint 25 98 #25383b
+paint 42 98 #25383b
+paint 43 98 #3d7373
+paint 44 98 #3d7373
+paint 45 98 #25383b
+paint 96 98 #25383b
+paint 97 98 #25383b
+paint 98 98 #3d7373
+paint 99 98 #25383b
+paint 100 98 #3d7373
+paint 101 98 #3d7373
+paint 102 98 #25383b
+paint 103 98 #3d7373
+paint 104 98 #3d7373
+paint 105 98 #25383b
+paint 106 98 #3d7373
+paint 107 98 #3d7373
+paint 108 98 #25383b
+paint 109 98 #3d7373
+paint 110 98 #3d7373
+paint 111 98 #25383b
+paint 112 98 #3d7373
+paint 113 98 #3d7373
+paint 114 98 #25383b
+paint 115 98 #3d7373
+paint 116 98 #3d7373
+paint 117 98 #25383b
+paint 118 98 #3d7373
+paint 119 98 #25383b
+paint 120 98 #25383b
+paint 17 99 #25383b
+paint 18 99 #25383b
+paint 24 99 #25383b
+paint 25 99 #25383b
+paint 41 99 #25383b
+paint 42 99 #25383b
+paint 43 99 #3d7373
+paint 44 99 #3d7373
+paint 45 99 #25383b
+paint 94 99 #25383b
+paint 95 99 #25383b
+paint 96 99 #25383b
+paint 97 99 #25383b
+paint 98 99 #25383b
+paint 99 99 #25383b
+paint 100 99 #25383b
+paint 101 99 #25383b
+paint 102 99 #25383b
+paint 103 99 #25383b
+paint 104 99 #25383b
+paint 105 99 #25383b
+paint 106 99 #25383b
+paint 107 99 #25383b
+paint 108 99 #25383b
+paint 109 99 #25383b
+paint 110 99 #25383b
+paint 111 99 #25383b
+paint 112 99 #25383b
+paint 113 99 #25383b
+paint 114 99 #25383b
+paint 115 99 #25383b
+paint 116 99 #25383b
+paint 117 99 #25383b
+paint 118 99 #25383b
+paint 119 99 #25383b
+paint 120 99 #25383b
+paint 121 99 #25383b
+paint 122 99 #25383b
+paint 15 100 #25383b
+paint 16 100 #25383b
+paint 17 100 #25383b
+paint 18 100 #25383b
+paint 24 100 #25383b
+paint 25 100 #25383b
+paint 26 100 #25383b
+paint 27 100 #25383b
+paint 28 100 #25383b
+paint 41 100 #25383b
+paint 42 100 #3d7373
+paint 43 100 #3d7373
+paint 44 100 #3d7373
+paint 45 100 #25383b
+paint 94 100 #25383b
+paint 95 100 #25383b
+paint 96 100 #25383b
+paint 97 100 #25383b
+paint 98 100 #25383b
+paint 99 100 #25383b
+paint 100 100 #25383b
+paint 101 100 #25383b
+paint 102 100 #25383b
+paint 103 100 #25383b
+paint 104 100 #25383b
+paint 105 100 #25383b
+paint 106 100 #25383b
+paint 107 100 #25383b
+paint 108 100 #25383b
+paint 109 100 #25383b
+paint 110 100 #25383b
+paint 111 100 #25383b
+paint 112 100 #25383b
+paint 113 100 #25383b
+paint 114 100 #25383b
+paint 115 100 #25383b
+paint 116 100 #25383b
+paint 117 100 #25383b
+paint 118 100 #25383b
+paint 119 100 #25383b
+paint 120 100 #25383b
+paint 121 100 #25383b
+paint 122 100 #25383b
+paint 15 101 #25383b
+paint 16 101 #25383b
+paint 17 101 #25383b
+paint 18 101 #25383b
+paint 24 101 #25383b
+paint 25 101 #25383b
+paint 26 101 #25383b
+paint 27 101 #25383b
+paint 28 101 #25383b
+paint 41 101 #25383b
+paint 42 101 #3d7373
+paint 43 101 #3d7373
+paint 44 101 #25383b
+paint 45 101 #25383b
+paint 94 101 #25383b
+paint 95 101 #25383b
+paint 96 101 #25383b
+paint 97 101 #25383b
+paint 98 101 #25383b
+paint 99 101 #25383b
+paint 100 101 #25383b
+paint 101 101 #25383b
+paint 102 101 #25383b
+paint 103 101 #25383b
+paint 104 101 #25383b
+paint 105 101 #25383b
+paint 106 101 #25383b
+paint 107 101 #25383b
+paint 108 101 #25383b
+paint 109 101 #25383b
+paint 110 101 #25383b
+paint 111 101 #25383b
+paint 112 101 #25383b
+paint 113 101 #25383b
+paint 114 101 #25383b
+paint 115 101 #25383b
+paint 116 101 #25383b
+paint 117 101 #25383b
+paint 118 101 #25383b
+paint 119 101 #25383b
+paint 120 101 #25383b
+paint 121 101 #25383b
+paint 122 101 #25383b
+paint 8 102 #25383b
+paint 9 102 #25383b
+paint 10 102 #25383b
+paint 11 102 #e5ba63
+paint 12 102 #25383b
+paint 13 102 #25383b
+paint 14 102 #25383b
+paint 15 102 #25383b
+paint 16 102 #25383b
+paint 17 102 #25383b
+paint 18 102 #25383b
+paint 24 102 #25383b
+paint 25 102 #25383b
+paint 26 102 #25383b
+paint 27 102 #25383b
+paint 28 102 #25383b
+paint 29 102 #25383b
+paint 30 102 #25383b
+paint 31 102 #25383b
+paint 32 102 #25383b
+paint 33 102 #25383b
+paint 34 102 #25383b
+paint 35 102 #25383b
+paint 36 102 #25383b
+paint 37 102 #25383b
+paint 38 102 #25383b
+paint 39 102 #e5ba63
+paint 40 102 #25383b
+paint 41 102 #25383b
+paint 42 102 #3d7373
+paint 43 102 #3d7373
+paint 44 102 #25383b
+paint 45 102 #25383b
+paint 46 102 #25383b
+paint 47 102 #25383b
+paint 48 102 #25383b
+paint 49 102 #25383b
+paint 50 102 #25383b
+paint 51 102 #25383b
+paint 52 102 #25383b
+paint 53 102 #25383b
+paint 54 102 #25383b
+paint 55 102 #25383b
+paint 56 102 #25383b
+paint 57 102 #25383b
+paint 58 102 #25383b
+paint 59 102 #25383b
+paint 60 102 #25383b
+paint 61 102 #25383b
+paint 62 102 #25383b
+paint 63 102 #25383b
+paint 64 102 #25383b
+paint 65 102 #25383b
+paint 66 102 #25383b
+paint 67 102 #25383b
+paint 68 102 #25383b
+paint 69 102 #25383b
+paint 70 102 #25383b
+paint 71 102 #25383b
+paint 72 102 #25383b
+paint 73 102 #25383b
+paint 74 102 #25383b
+paint 75 102 #25383b
+paint 76 102 #25383b
+paint 77 102 #25383b
+paint 78 102 #25383b
+paint 79 102 #3d7373
+paint 80 102 #3d7373
+paint 81 102 #25383b
+paint 82 102 #25383b
+paint 83 102 #e5ba63
+paint 84 102 #25383b
+paint 85 102 #25383b
+paint 86 102 #25383b
+paint 87 102 #25383b
+paint 88 102 #25383b
+paint 89 102 #25383b
+paint 90 102 #25383b
+paint 91 102 #25383b
+paint 92 102 #25383b
+paint 93 102 #25383b
+paint 94 102 #25383b
+paint 95 102 #25383b
+paint 96 102 #25383b
+paint 97 102 #25383b
+paint 98 102 #25383b
+paint 99 102 #25383b
+paint 100 102 #25383b
+paint 101 102 #25383b
+paint 102 102 #25383b
+paint 103 102 #25383b
+paint 104 102 #25383b
+paint 105 102 #25383b
+paint 106 102 #25383b
+paint 107 102 #25383b
+paint 108 102 #25383b
+paint 109 102 #25383b
+paint 110 102 #25383b
+paint 111 102 #25383b
+paint 112 102 #25383b
+paint 113 102 #25383b
+paint 114 102 #25383b
+paint 115 102 #25383b
+paint 116 102 #25383b
+paint 117 102 #e5ba63
+paint 118 102 #25383b
+paint 119 102 #25383b
+paint 8 103 #25383b
+paint 9 103 #25383b
+paint 10 103 #e5ba63
+paint 11 103 #e5ba63
+paint 12 103 #e5ba63
+paint 13 103 #25383b
+paint 14 103 #25383b
+paint 15 103 #25383b
+paint 16 103 #25383b
+paint 17 103 #25383b
+paint 18 103 #25383b
+paint 24 103 #25383b
+paint 25 103 #25383b
+paint 26 103 #25383b
+paint 27 103 #25383b
+paint 28 103 #25383b
+paint 29 103 #25383b
+paint 30 103 #25383b
+paint 31 103 #25383b
+paint 32 103 #25383b
+paint 33 103 #25383b
+paint 34 103 #25383b
+paint 35 103 #25383b
+paint 36 103 #25383b
+paint 37 103 #25383b
+paint 38 103 #e5ba63
+paint 39 103 #e5ba63
+paint 40 103 #e5ba63
+paint 41 103 #25383b
+paint 42 103 #25383b
+paint 43 103 #25383b
+paint 44 103 #25383b
+paint 45 103 #25383b
+paint 46 103 #25383b
+paint 47 103 #25383b
+paint 48 103 #25383b
+paint 49 103 #25383b
+paint 50 103 #25383b
+paint 51 103 #25383b
+paint 52 103 #25383b
+paint 53 103 #25383b
+paint 54 103 #25383b
+paint 55 103 #25383b
+paint 56 103 #25383b
+paint 57 103 #25383b
+paint 58 103 #25383b
+paint 59 103 #25383b
+paint 60 103 #25383b
+paint 61 103 #25383b
+paint 62 103 #25383b
+paint 63 103 #25383b
+paint 64 103 #25383b
+paint 65 103 #25383b
+paint 66 103 #25383b
+paint 67 103 #25383b
+paint 68 103 #25383b
+paint 69 103 #25383b
+paint 70 103 #25383b
+paint 71 103 #25383b
+paint 72 103 #25383b
+paint 73 103 #25383b
+paint 74 103 #25383b
+paint 75 103 #25383b
+paint 76 103 #25383b
+paint 77 103 #25383b
+paint 78 103 #25383b
+paint 79 103 #25383b
+paint 80 103 #25383b
+paint 81 103 #25383b
+paint 82 103 #e5ba63
+paint 83 103 #e5ba63
+paint 84 103 #e5ba63
+paint 85 103 #25383b
+paint 86 103 #25383b
+paint 87 103 #25383b
+paint 88 103 #25383b
+paint 89 103 #25383b
+paint 90 103 #25383b
+paint 91 103 #25383b
+paint 92 103 #25383b
+paint 93 103 #25383b
+paint 94 103 #25383b
+paint 95 103 #25383b
+paint 96 103 #25383b
+paint 97 103 #25383b
+paint 98 103 #25383b
+paint 99 103 #25383b
+paint 100 103 #25383b
+paint 101 103 #25383b
+paint 102 103 #25383b
+paint 103 103 #25383b
+paint 104 103 #25383b
+paint 105 103 #25383b
+paint 106 103 #25383b
+paint 107 103 #25383b
+paint 108 103 #25383b
+paint 109 103 #25383b
+paint 110 103 #25383b
+paint 111 103 #25383b
+paint 112 103 #25383b
+paint 113 103 #25383b
+paint 114 103 #25383b
+paint 115 103 #25383b
+paint 116 103 #e5ba63
+paint 117 103 #e5ba63
+paint 118 103 #e5ba63
+paint 119 103 #25383b
+paint 8 104 #25383b
+paint 9 104 #25383b
+paint 10 104 #25383b
+paint 11 104 #e5ba63
+paint 12 104 #25383b
+paint 13 104 #25383b
+paint 14 104 #25383b
+paint 15 104 #25383b
+paint 16 104 #25383b
+paint 17 104 #25383b
+paint 18 104 #25383b
+paint 19 104 #25383b
+paint 20 104 #25383b
+paint 21 104 #25383b
+paint 22 104 #25383b
+paint 23 104 #25383b
+paint 24 104 #25383b
+paint 25 104 #25383b
+paint 26 104 #25383b
+paint 27 104 #25383b
+paint 28 104 #25383b
+paint 29 104 #25383b
+paint 30 104 #25383b
+paint 31 104 #25383b
+paint 32 104 #25383b
+paint 33 104 #25383b
+paint 34 104 #25383b
+paint 35 104 #25383b
+paint 36 104 #25383b
+paint 37 104 #25383b
+paint 38 104 #25383b
+paint 39 104 #e5ba63
+paint 40 104 #25383b
+paint 41 104 #25383b
+paint 42 104 #25383b
+paint 43 104 #25383b
+paint 44 104 #25383b
+paint 45 104 #25383b
+paint 46 104 #25383b
+paint 47 104 #25383b
+paint 48 104 #25383b
+paint 49 104 #25383b
+paint 50 104 #25383b
+paint 51 104 #25383b
+paint 52 104 #25383b
+paint 53 104 #25383b
+paint 54 104 #25383b
+paint 55 104 #25383b
+paint 56 104 #25383b
+paint 57 104 #25383b
+paint 58 104 #25383b
+paint 59 104 #25383b
+paint 60 104 #25383b
+paint 61 104 #25383b
+paint 62 104 #25383b
+paint 63 104 #25383b
+paint 64 104 #25383b
+paint 65 104 #25383b
+paint 66 104 #25383b
+paint 67 104 #25383b
+paint 68 104 #25383b
+paint 69 104 #25383b
+paint 70 104 #25383b
+paint 71 104 #25383b
+paint 72 104 #25383b
+paint 73 104 #25383b
+paint 74 104 #25383b
+paint 75 104 #25383b
+paint 76 104 #25383b
+paint 77 104 #25383b
+paint 78 104 #25383b
+paint 79 104 #25383b
+paint 80 104 #25383b
+paint 81 104 #25383b
+paint 82 104 #25383b
+paint 83 104 #e5ba63
+paint 84 104 #25383b
+paint 85 104 #25383b
+paint 86 104 #25383b
+paint 87 104 #25383b
+paint 88 104 #25383b
+paint 89 104 #25383b
+paint 90 104 #25383b
+paint 91 104 #25383b
+paint 92 104 #25383b
+paint 93 104 #25383b
+paint 94 104 #25383b
+paint 95 104 #25383b
+paint 96 104 #25383b
+paint 97 104 #25383b
+paint 98 104 #25383b
+paint 99 104 #25383b
+paint 100 104 #25383b
+paint 101 104 #25383b
+paint 102 104 #25383b
+paint 103 104 #25383b
+paint 104 104 #25383b
+paint 105 104 #25383b
+paint 106 104 #25383b
+paint 107 104 #25383b
+paint 108 104 #25383b
+paint 109 104 #25383b
+paint 110 104 #25383b
+paint 111 104 #25383b
+paint 112 104 #25383b
+paint 113 104 #25383b
+paint 114 104 #25383b
+paint 115 104 #25383b
+paint 116 104 #25383b
+paint 117 104 #e5ba63
+paint 118 104 #25383b
+paint 119 104 #25383b
+paint 4 105 #757c77
+paint 5 105 #757c77
+paint 6 105 #757c77
+paint 7 105 #a5aa99
+paint 8 105 #a5aa99
+paint 9 105 #a5aa99
+paint 10 105 #a5aa99
+paint 11 105 #a5aa99
+paint 12 105 #a5aa99
+paint 13 105 #a5aa99
+paint 14 105 #a5aa99
+paint 15 105 #a5aa99
+paint 16 105 #a5aa99
+paint 17 105 #a5aa99
+paint 18 105 #a5aa99
+paint 19 105 #a5aa99
+paint 20 105 #a5aa99
+paint 21 105 #a5aa99
+paint 22 105 #a5aa99
+paint 23 105 #a5aa99
+paint 24 105 #a5aa99
+paint 25 105 #a5aa99
+paint 26 105 #a5aa99
+paint 27 105 #a5aa99
+paint 28 105 #a5aa99
+paint 29 105 #a5aa99
+paint 30 105 #a5aa99
+paint 31 105 #a5aa99
+paint 32 105 #a5aa99
+paint 33 105 #a5aa99
+paint 34 105 #a5aa99
+paint 35 105 #a5aa99
+paint 36 105 #a5aa99
+paint 37 105 #a5aa99
+paint 38 105 #a5aa99
+paint 39 105 #a5aa99
+paint 40 105 #a5aa99
+paint 41 105 #a5aa99
+paint 42 105 #a5aa99
+paint 43 105 #a5aa99
+paint 44 105 #a5aa99
+paint 45 105 #a5aa99
+paint 46 105 #a5aa99
+paint 47 105 #a5aa99
+paint 48 105 #a5aa99
+paint 49 105 #a5aa99
+paint 50 105 #a5aa99
+paint 51 105 #a5aa99
+paint 52 105 #a5aa99
+paint 53 105 #a5aa99
+paint 54 105 #a5aa99
+paint 55 105 #a5aa99
+paint 56 105 #a5aa99
+paint 57 105 #a5aa99
+paint 58 105 #a5aa99
+paint 59 105 #a5aa99
+paint 60 105 #a5aa99
+paint 61 105 #a5aa99
+paint 62 105 #a5aa99
+paint 63 105 #a5aa99
+paint 64 105 #a5aa99
+paint 65 105 #a5aa99
+paint 66 105 #a5aa99
+paint 67 105 #a5aa99
+paint 68 105 #a5aa99
+paint 69 105 #a5aa99
+paint 70 105 #a5aa99
+paint 71 105 #a5aa99
+paint 72 105 #a5aa99
+paint 73 105 #a5aa99
+paint 74 105 #a5aa99
+paint 75 105 #a5aa99
+paint 76 105 #a5aa99
+paint 77 105 #a5aa99
+paint 78 105 #a5aa99
+paint 79 105 #a5aa99
+paint 80 105 #a5aa99
+paint 81 105 #a5aa99
+paint 82 105 #a5aa99
+paint 83 105 #a5aa99
+paint 84 105 #a5aa99
+paint 85 105 #a5aa99
+paint 86 105 #a5aa99
+paint 87 105 #a5aa99
+paint 88 105 #a5aa99
+paint 89 105 #a5aa99
+paint 90 105 #a5aa99
+paint 91 105 #a5aa99
+paint 92 105 #a5aa99
+paint 93 105 #a5aa99
+paint 94 105 #a5aa99
+paint 95 105 #a5aa99
+paint 96 105 #a5aa99
+paint 97 105 #a5aa99
+paint 98 105 #a5aa99
+paint 99 105 #a5aa99
+paint 100 105 #a5aa99
+paint 101 105 #a5aa99
+paint 102 105 #a5aa99
+paint 103 105 #a5aa99
+paint 104 105 #a5aa99
+paint 105 105 #a5aa99
+paint 106 105 #a5aa99
+paint 107 105 #a5aa99
+paint 108 105 #a5aa99
+paint 109 105 #a5aa99
+paint 110 105 #a5aa99
+paint 111 105 #a5aa99
+paint 112 105 #a5aa99
+paint 113 105 #a5aa99
+paint 114 105 #a5aa99
+paint 115 105 #a5aa99
+paint 116 105 #a5aa99
+paint 117 105 #a5aa99
+paint 118 105 #a5aa99
+paint 119 105 #a5aa99
+paint 120 105 #a5aa99
+paint 121 105 #757c77
+paint 122 105 #757c77
+paint 123 105 #757c77
+paint 4 106 #757c77
+paint 5 106 #757c77
+paint 6 106 #757c77
+paint 7 106 #757c77
+paint 8 106 #757c77
+paint 9 106 #757c77
+paint 10 106 #757c77
+paint 11 106 #757c77
+paint 12 106 #757c77
+paint 13 106 #757c77
+paint 14 106 #757c77
+paint 15 106 #757c77
+paint 16 106 #757c77
+paint 17 106 #757c77
+paint 18 106 #757c77
+paint 19 106 #757c77
+paint 20 106 #757c77
+paint 21 106 #757c77
+paint 22 106 #757c77
+paint 23 106 #757c77
+paint 24 106 #757c77
+paint 25 106 #757c77
+paint 26 106 #757c77
+paint 27 106 #757c77
+paint 28 106 #757c77
+paint 29 106 #757c77
+paint 30 106 #757c77
+paint 31 106 #757c77
+paint 32 106 #757c77
+paint 33 106 #757c77
+paint 34 106 #757c77
+paint 35 106 #757c77
+paint 36 106 #757c77
+paint 37 106 #757c77
+paint 38 106 #757c77
+paint 39 106 #757c77
+paint 40 106 #757c77
+paint 41 106 #757c77
+paint 42 106 #757c77
+paint 43 106 #757c77
+paint 44 106 #757c77
+paint 45 106 #757c77
+paint 46 106 #757c77
+paint 47 106 #757c77
+paint 48 106 #757c77
+paint 49 106 #757c77
+paint 50 106 #757c77
+paint 51 106 #757c77
+paint 52 106 #757c77
+paint 53 106 #757c77
+paint 54 106 #757c77
+paint 55 106 #757c77
+paint 56 106 #757c77
+paint 57 106 #757c77
+paint 58 106 #757c77
+paint 59 106 #757c77
+paint 60 106 #757c77
+paint 61 106 #757c77
+paint 62 106 #757c77
+paint 63 106 #757c77
+paint 64 106 #757c77
+paint 65 106 #757c77
+paint 66 106 #757c77
+paint 67 106 #757c77
+paint 68 106 #757c77
+paint 69 106 #757c77
+paint 70 106 #757c77
+paint 71 106 #757c77
+paint 72 106 #757c77
+paint 73 106 #757c77
+paint 74 106 #757c77
+paint 75 106 #757c77
+paint 76 106 #757c77
+paint 77 106 #757c77
+paint 78 106 #757c77
+paint 79 106 #757c77
+paint 80 106 #757c77
+paint 81 106 #757c77
+paint 82 106 #757c77
+paint 83 106 #757c77
+paint 84 106 #757c77
+paint 85 106 #757c77
+paint 86 106 #757c77
+paint 87 106 #757c77
+paint 88 106 #757c77
+paint 89 106 #757c77
+paint 90 106 #757c77
+paint 91 106 #757c77
+paint 92 106 #757c77
+paint 93 106 #757c77
+paint 94 106 #757c77
+paint 95 106 #757c77
+paint 96 106 #757c77
+paint 97 106 #757c77
+paint 98 106 #757c77
+paint 99 106 #757c77
+paint 100 106 #757c77
+paint 101 106 #757c77
+paint 102 106 #757c77
+paint 103 106 #757c77
+paint 104 106 #757c77
+paint 105 106 #757c77
+paint 106 106 #757c77
+paint 107 106 #757c77
+paint 108 106 #757c77
+paint 109 106 #757c77
+paint 110 106 #757c77
+paint 111 106 #757c77
+paint 112 106 #757c77
+paint 113 106 #757c77
+paint 114 106 #757c77
+paint 115 106 #757c77
+paint 116 106 #757c77
+paint 117 106 #757c77
+paint 118 106 #757c77
+paint 119 106 #757c77
+paint 120 106 #757c77
+paint 121 106 #757c77
+paint 122 106 #757c77
+paint 123 106 #757c77
+paint 4 107 #757c77
+paint 5 107 #757c77
+paint 6 107 #757c77
+paint 7 107 #757c77
+paint 8 107 #757c77
+paint 9 107 #757c77
+paint 10 107 #757c77
+paint 11 107 #757c77
+paint 12 107 #757c77
+paint 13 107 #757c77
+paint 14 107 #757c77
+paint 15 107 #757c77
+paint 16 107 #757c77
+paint 17 107 #757c77
+paint 18 107 #757c77
+paint 19 107 #757c77
+paint 20 107 #757c77
+paint 21 107 #757c77
+paint 22 107 #757c77
+paint 23 107 #757c77
+paint 24 107 #757c77
+paint 25 107 #757c77
+paint 26 107 #757c77
+paint 27 107 #757c77
+paint 28 107 #757c77
+paint 29 107 #757c77
+paint 30 107 #757c77
+paint 31 107 #757c77
+paint 32 107 #757c77
+paint 33 107 #757c77
+paint 34 107 #757c77
+paint 35 107 #757c77
+paint 36 107 #757c77
+paint 37 107 #757c77
+paint 38 107 #757c77
+paint 39 107 #757c77
+paint 40 107 #757c77
+paint 41 107 #757c77
+paint 42 107 #757c77
+paint 43 107 #757c77
+paint 44 107 #757c77
+paint 45 107 #757c77
+paint 46 107 #757c77
+paint 47 107 #757c77
+paint 48 107 #757c77
+paint 49 107 #757c77
+paint 50 107 #757c77
+paint 51 107 #757c77
+paint 52 107 #757c77
+paint 53 107 #757c77
+paint 54 107 #757c77
+paint 55 107 #757c77
+paint 56 107 #757c77
+paint 57 107 #757c77
+paint 58 107 #757c77
+paint 59 107 #757c77
+paint 60 107 #757c77
+paint 61 107 #757c77
+paint 62 107 #757c77
+paint 63 107 #757c77
+paint 64 107 #757c77
+paint 65 107 #757c77
+paint 66 107 #757c77
+paint 67 107 #757c77
+paint 68 107 #757c77
+paint 69 107 #757c77
+paint 70 107 #757c77
+paint 71 107 #757c77
+paint 72 107 #757c77
+paint 73 107 #757c77
+paint 74 107 #757c77
+paint 75 107 #757c77
+paint 76 107 #757c77
+paint 77 107 #757c77
+paint 78 107 #757c77
+paint 79 107 #757c77
+paint 80 107 #757c77
+paint 81 107 #757c77
+paint 82 107 #757c77
+paint 83 107 #757c77
+paint 84 107 #757c77
+paint 85 107 #757c77
+paint 86 107 #757c77
+paint 87 107 #757c77
+paint 88 107 #757c77
+paint 89 107 #757c77
+paint 90 107 #757c77
+paint 91 107 #757c77
+paint 92 107 #757c77
+paint 93 107 #757c77
+paint 94 107 #757c77
+paint 95 107 #757c77
+paint 96 107 #757c77
+paint 97 107 #757c77
+paint 98 107 #757c77
+paint 99 107 #757c77
+paint 100 107 #757c77
+paint 101 107 #757c77
+paint 102 107 #757c77
+paint 103 107 #757c77
+paint 104 107 #757c77
+paint 105 107 #757c77
+paint 106 107 #757c77
+paint 107 107 #757c77
+paint 108 107 #757c77
+paint 109 107 #757c77
+paint 110 107 #757c77
+paint 111 107 #757c77
+paint 112 107 #757c77
+paint 113 107 #757c77
+paint 114 107 #757c77
+paint 115 107 #757c77
+paint 116 107 #757c77
+paint 117 107 #757c77
+paint 118 107 #757c77
+paint 119 107 #757c77
+paint 120 107 #757c77
+paint 121 107 #757c77
+paint 122 107 #757c77
+paint 123 107 #757c77
+paint 4 108 #757c77
+paint 5 108 #757c77
+paint 6 108 #757c77
+paint 7 108 #757c77
+paint 8 108 #757c77
+paint 9 108 #757c77
+paint 10 108 #757c77
+paint 11 108 #757c77
+paint 12 108 #757c77
+paint 13 108 #757c77
+paint 14 108 #757c77
+paint 15 108 #757c77
+paint 16 108 #757c77
+paint 17 108 #757c77
+paint 18 108 #757c77
+paint 19 108 #757c77
+paint 20 108 #757c77
+paint 21 108 #757c77
+paint 22 108 #757c77
+paint 23 108 #757c77
+paint 24 108 #757c77
+paint 25 108 #757c77
+paint 26 108 #757c77
+paint 27 108 #757c77
+paint 28 108 #757c77
+paint 29 108 #757c77
+paint 30 108 #757c77
+paint 31 108 #757c77
+paint 32 108 #757c77
+paint 33 108 #757c77
+paint 34 108 #757c77
+paint 35 108 #757c77
+paint 36 108 #757c77
+paint 37 108 #757c77
+paint 38 108 #757c77
+paint 39 108 #757c77
+paint 40 108 #757c77
+paint 41 108 #757c77
+paint 42 108 #757c77
+paint 43 108 #757c77
+paint 44 108 #757c77
+paint 45 108 #757c77
+paint 46 108 #757c77
+paint 47 108 #757c77
+paint 48 108 #757c77
+paint 49 108 #757c77
+paint 50 108 #757c77
+paint 51 108 #757c77
+paint 52 108 #757c77
+paint 53 108 #757c77
+paint 54 108 #757c77
+paint 55 108 #757c77
+paint 56 108 #757c77
+paint 57 108 #757c77
+paint 58 108 #757c77
+paint 59 108 #757c77
+paint 60 108 #757c77
+paint 61 108 #757c77
+paint 62 108 #757c77
+paint 63 108 #757c77
+paint 64 108 #757c77
+paint 65 108 #757c77
+paint 66 108 #757c77
+paint 67 108 #757c77
+paint 68 108 #757c77
+paint 69 108 #757c77
+paint 70 108 #757c77
+paint 71 108 #757c77
+paint 72 108 #757c77
+paint 73 108 #757c77
+paint 74 108 #757c77
+paint 75 108 #757c77
+paint 76 108 #757c77
+paint 77 108 #757c77
+paint 78 108 #757c77
+paint 79 108 #757c77
+paint 80 108 #757c77
+paint 81 108 #757c77
+paint 82 108 #757c77
+paint 83 108 #757c77
+paint 84 108 #757c77
+paint 85 108 #757c77
+paint 86 108 #757c77
+paint 87 108 #757c77
+paint 88 108 #757c77
+paint 89 108 #757c77
+paint 90 108 #757c77
+paint 91 108 #757c77
+paint 92 108 #757c77
+paint 93 108 #757c77
+paint 94 108 #757c77
+paint 95 108 #757c77
+paint 96 108 #757c77
+paint 97 108 #757c77
+paint 98 108 #757c77
+paint 99 108 #757c77
+paint 100 108 #757c77
+paint 101 108 #757c77
+paint 102 108 #757c77
+paint 103 108 #757c77
+paint 104 108 #757c77
+paint 105 108 #757c77
+paint 106 108 #757c77
+paint 107 108 #757c77
+paint 108 108 #757c77
+paint 109 108 #757c77
+paint 110 108 #757c77
+paint 111 108 #757c77
+paint 112 108 #757c77
+paint 113 108 #757c77
+paint 114 108 #757c77
+paint 115 108 #757c77
+paint 116 108 #757c77
+paint 117 108 #757c77
+paint 118 108 #757c77
+paint 119 108 #757c77
+paint 120 108 #757c77
+paint 121 108 #757c77
+paint 122 108 #757c77
+paint 123 108 #757c77
+paint 4 109 #757c77
+paint 5 109 #757c77
+paint 6 109 #757c77
+paint 7 109 #757c77
+paint 8 109 #757c77
+paint 9 109 #757c77
+paint 10 109 #757c77
+paint 11 109 #757c77
+paint 12 109 #757c77
+paint 13 109 #757c77
+paint 14 109 #757c77
+paint 15 109 #757c77
+paint 16 109 #757c77
+paint 17 109 #757c77
+paint 18 109 #757c77
+paint 19 109 #757c77
+paint 20 109 #757c77
+paint 21 109 #757c77
+paint 22 109 #757c77
+paint 23 109 #757c77
+paint 24 109 #757c77
+paint 25 109 #757c77
+paint 26 109 #757c77
+paint 27 109 #757c77
+paint 28 109 #757c77
+paint 29 109 #757c77
+paint 30 109 #757c77
+paint 31 109 #757c77
+paint 32 109 #757c77
+paint 33 109 #757c77
+paint 34 109 #757c77
+paint 35 109 #757c77
+paint 36 109 #757c77
+paint 37 109 #757c77
+paint 38 109 #757c77
+paint 39 109 #757c77
+paint 40 109 #757c77
+paint 41 109 #757c77
+paint 42 109 #757c77
+paint 43 109 #757c77
+paint 44 109 #757c77
+paint 45 109 #757c77
+paint 46 109 #757c77
+paint 47 109 #757c77
+paint 48 109 #757c77
+paint 49 109 #757c77
+paint 50 109 #757c77
+paint 51 109 #757c77
+paint 52 109 #757c77
+paint 53 109 #757c77
+paint 54 109 #757c77
+paint 55 109 #757c77
+paint 56 109 #757c77
+paint 57 109 #757c77
+paint 58 109 #757c77
+paint 59 109 #757c77
+paint 60 109 #757c77
+paint 61 109 #757c77
+paint 62 109 #757c77
+paint 63 109 #757c77
+paint 64 109 #757c77
+paint 65 109 #757c77
+paint 66 109 #757c77
+paint 67 109 #757c77
+paint 68 109 #757c77
+paint 69 109 #757c77
+paint 70 109 #757c77
+paint 71 109 #757c77
+paint 72 109 #757c77
+paint 73 109 #757c77
+paint 74 109 #757c77
+paint 75 109 #757c77
+paint 76 109 #757c77
+paint 77 109 #757c77
+paint 78 109 #757c77
+paint 79 109 #757c77
+paint 80 109 #757c77
+paint 81 109 #757c77
+paint 82 109 #757c77
+paint 83 109 #757c77
+paint 84 109 #757c77
+paint 85 109 #757c77
+paint 86 109 #757c77
+paint 87 109 #757c77
+paint 88 109 #757c77
+paint 89 109 #757c77
+paint 90 109 #757c77
+paint 91 109 #757c77
+paint 92 109 #757c77
+paint 93 109 #757c77
+paint 94 109 #757c77
+paint 95 109 #757c77
+paint 96 109 #757c77
+paint 97 109 #757c77
+paint 98 109 #757c77
+paint 99 109 #757c77
+paint 100 109 #757c77
+paint 101 109 #757c77
+paint 102 109 #757c77
+paint 103 109 #757c77
+paint 104 109 #757c77
+paint 105 109 #757c77
+paint 106 109 #757c77
+paint 107 109 #757c77
+paint 108 109 #757c77
+paint 109 109 #757c77
+paint 110 109 #757c77
+paint 111 109 #757c77
+paint 112 109 #757c77
+paint 113 109 #757c77
+paint 114 109 #757c77
+paint 115 109 #757c77
+paint 116 109 #757c77
+paint 117 109 #757c77
+paint 118 109 #757c77
+paint 119 109 #757c77
+paint 120 109 #757c77
+paint 121 109 #757c77
+paint 122 109 #757c77
+paint 123 109 #757c77
+paint 4 110 #757c77
+paint 5 110 #757c77
+paint 6 110 #757c77
+paint 7 110 #757c77
+paint 8 110 #757c77
+paint 9 110 #757c77
+paint 10 110 #757c77
+paint 11 110 #757c77
+paint 12 110 #757c77
+paint 13 110 #757c77
+paint 14 110 #757c77
+paint 15 110 #757c77
+paint 16 110 #757c77
+paint 17 110 #757c77
+paint 18 110 #757c77
+paint 19 110 #757c77
+paint 20 110 #757c77
+paint 21 110 #757c77
+paint 22 110 #757c77
+paint 23 110 #757c77
+paint 24 110 #757c77
+paint 25 110 #757c77
+paint 26 110 #757c77
+paint 27 110 #757c77
+paint 28 110 #757c77
+paint 29 110 #757c77
+paint 30 110 #757c77
+paint 31 110 #757c77
+paint 32 110 #757c77
+paint 33 110 #757c77
+paint 34 110 #757c77
+paint 35 110 #757c77
+paint 36 110 #757c77
+paint 37 110 #757c77
+paint 38 110 #757c77
+paint 39 110 #757c77
+paint 40 110 #757c77
+paint 41 110 #757c77
+paint 42 110 #757c77
+paint 43 110 #757c77
+paint 44 110 #757c77
+paint 45 110 #757c77
+paint 46 110 #757c77
+paint 47 110 #757c77
+paint 48 110 #757c77
+paint 49 110 #757c77
+paint 50 110 #757c77
+paint 51 110 #757c77
+paint 52 110 #757c77
+paint 53 110 #757c77
+paint 54 110 #757c77
+paint 55 110 #757c77
+paint 56 110 #757c77
+paint 57 110 #757c77
+paint 58 110 #757c77
+paint 59 110 #757c77
+paint 60 110 #757c77
+paint 61 110 #757c77
+paint 62 110 #757c77
+paint 63 110 #757c77
+paint 64 110 #757c77
+paint 65 110 #757c77
+paint 66 110 #757c77
+paint 67 110 #757c77
+paint 68 110 #757c77
+paint 69 110 #757c77
+paint 70 110 #757c77
+paint 71 110 #757c77
+paint 72 110 #757c77
+paint 73 110 #757c77
+paint 74 110 #757c77
+paint 75 110 #757c77
+paint 76 110 #757c77
+paint 77 110 #757c77
+paint 78 110 #757c77
+paint 79 110 #757c77
+paint 80 110 #757c77
+paint 81 110 #757c77
+paint 82 110 #757c77
+paint 83 110 #757c77
+paint 84 110 #757c77
+paint 85 110 #757c77
+paint 86 110 #757c77
+paint 87 110 #757c77
+paint 88 110 #757c77
+paint 89 110 #757c77
+paint 90 110 #757c77
+paint 91 110 #757c77
+paint 92 110 #757c77
+paint 93 110 #757c77
+paint 94 110 #757c77
+paint 95 110 #757c77
+paint 96 110 #757c77
+paint 97 110 #757c77
+paint 98 110 #757c77
+paint 99 110 #757c77
+paint 100 110 #757c77
+paint 101 110 #757c77
+paint 102 110 #757c77
+paint 103 110 #757c77
+paint 104 110 #757c77
+paint 105 110 #757c77
+paint 106 110 #757c77
+paint 107 110 #757c77
+paint 108 110 #757c77
+paint 109 110 #757c77
+paint 110 110 #757c77
+paint 111 110 #757c77
+paint 112 110 #757c77
+paint 113 110 #757c77
+paint 114 110 #757c77
+paint 115 110 #757c77
+paint 116 110 #757c77
+paint 117 110 #757c77
+paint 118 110 #757c77
+paint 119 110 #757c77
+paint 120 110 #757c77
+paint 121 110 #757c77
+paint 122 110 #757c77
+paint 123 110 #757c77
+paint 4 111 #757c77
+paint 5 111 #757c77
+paint 6 111 #757c77
+paint 7 111 #757c77
+paint 8 111 #757c77
+paint 9 111 #757c77
+paint 10 111 #757c77
+paint 11 111 #757c77
+paint 12 111 #757c77
+paint 13 111 #757c77
+paint 14 111 #757c77
+paint 15 111 #757c77
+paint 16 111 #757c77
+paint 17 111 #757c77
+paint 18 111 #757c77
+paint 19 111 #757c77
+paint 20 111 #757c77
+paint 21 111 #757c77
+paint 22 111 #757c77
+paint 23 111 #757c77
+paint 24 111 #757c77
+paint 25 111 #757c77
+paint 26 111 #757c77
+paint 27 111 #757c77
+paint 28 111 #757c77
+paint 29 111 #757c77
+paint 30 111 #757c77
+paint 31 111 #757c77
+paint 32 111 #757c77
+paint 33 111 #757c77
+paint 34 111 #757c77
+paint 35 111 #757c77
+paint 36 111 #757c77
+paint 37 111 #757c77
+paint 38 111 #757c77
+paint 39 111 #757c77
+paint 40 111 #757c77
+paint 41 111 #757c77
+paint 42 111 #757c77
+paint 43 111 #757c77
+paint 44 111 #757c77
+paint 45 111 #757c77
+paint 46 111 #757c77
+paint 47 111 #757c77
+paint 48 111 #757c77
+paint 49 111 #757c77
+paint 50 111 #757c77
+paint 51 111 #757c77
+paint 52 111 #757c77
+paint 53 111 #757c77
+paint 54 111 #757c77
+paint 55 111 #757c77
+paint 56 111 #757c77
+paint 57 111 #757c77
+paint 58 111 #757c77
+paint 59 111 #757c77
+paint 60 111 #757c77
+paint 61 111 #757c77
+paint 62 111 #757c77
+paint 63 111 #757c77
+paint 64 111 #757c77
+paint 65 111 #757c77
+paint 66 111 #757c77
+paint 67 111 #757c77
+paint 68 111 #757c77
+paint 69 111 #757c77
+paint 70 111 #757c77
+paint 71 111 #757c77
+paint 72 111 #757c77
+paint 73 111 #757c77
+paint 74 111 #757c77
+paint 75 111 #757c77
+paint 76 111 #757c77
+paint 77 111 #757c77
+paint 78 111 #757c77
+paint 79 111 #757c77
+paint 80 111 #757c77
+paint 81 111 #757c77
+paint 82 111 #757c77
+paint 83 111 #757c77
+paint 84 111 #757c77
+paint 85 111 #757c77
+paint 86 111 #757c77
+paint 87 111 #757c77
+paint 88 111 #757c77
+paint 89 111 #757c77
+paint 90 111 #757c77
+paint 91 111 #757c77
+paint 92 111 #757c77
+paint 93 111 #757c77
+paint 94 111 #757c77
+paint 95 111 #757c77
+paint 96 111 #757c77
+paint 97 111 #757c77
+paint 98 111 #757c77
+paint 99 111 #757c77
+paint 100 111 #757c77
+paint 101 111 #757c77
+paint 102 111 #757c77
+paint 103 111 #757c77
+paint 104 111 #757c77
+paint 105 111 #757c77
+paint 106 111 #757c77
+paint 107 111 #757c77
+paint 108 111 #757c77
+paint 109 111 #757c77
+paint 110 111 #757c77
+paint 111 111 #757c77
+paint 112 111 #757c77
+paint 113 111 #757c77
+paint 114 111 #757c77
+paint 115 111 #757c77
+paint 116 111 #757c77
+paint 117 111 #757c77
+paint 118 111 #757c77
+paint 119 111 #757c77
+paint 120 111 #757c77
+paint 121 111 #757c77
+paint 122 111 #757c77
+paint 123 111 #757c77
+part beam
+rect steel 12 15 8 1
+rect steel 12 16 9 1
+rect steel 11 17 10 1
+rect steel 10 18 12 1
+rect steel 9 19 13 1
+rect steel 8 20 14 1
+rect steel 7 21 16 1
+rect steel 6 22 17 1
+rect steel 6 23 18 1
+rect steel 6 24 18 1
+rect steel 50 24 38 1
+rect steel 6 25 18 1
+rect steel 50 25 38 1
+rect steel 6 26 18 1
+rect steel 50 26 38 1
+rect steel 6 27 18 1
+rect steel 50 27 38 1
+rect steel 6 28 18 1
+rect steel 50 28 38 1
+rect steel 6 29 18 1
+rect steel 50 29 38 1
+rect steel 6 30 14 1
+rect brass 20 30 1 1
+rect steel 21 30 90 1
+rect steel 6 31 13 1
+rect brass 19 31 3 1
+rect steel 22 31 89 1
+rect steel 6 32 12 1
+rect brass 18 32 5 1
+rect steel 23 32 88 1
+rect steel 6 33 13 1
+rect brass 19 33 3 1
+rect steel 22 33 6 1
+rect brass 28 33 1 1
+rect steel 29 33 9 1
+rect brass 38 33 1 1
+rect steel 39 33 9 1
+rect brass 48 33 1 1
+rect steel 49 33 9 1
+rect brass 58 33 1 1
+rect steel 59 33 9 1
+rect brass 68 33 1 1
+rect steel 69 33 9 1
+rect brass 78 33 1 1
+rect steel 79 33 9 1
+rect brass 88 33 1 1
+rect steel 89 33 9 1
+rect brass 98 33 1 1
+rect steel 99 33 11 1
+rect steel 6 34 14 1
+rect brass 20 34 1 1
+rect steel 21 34 88 1
+rect steel 6 35 102 1
+rect steel 6 36 18 1
+rect steel 6 37 18 1
+rect steel 6 38 18 1
+rect steel 6 39 18 1
+rect steel 6 40 18 1
+rect steel 7 41 17 1
+rect steel 7 42 17 1
+rect steel 8 43 16 1
+rect steel 8 44 16 1
+rect steel 9 45 15 1
+rect steel 9 46 15 1
+rect steel 9 47 15 1
+rect steel 10 48 13 1
+rect steel 10 49 13 1
+rect steel 11 50 11 1
+rect steel 11 51 11 1
+rect steel 12 52 6 1
+rect steel 20 52 1 1
+rect steel 12 53 6 1
+rect steel 20 53 1 1
+paint 12 15 #25383b
+paint 13 15 #25383b
+paint 14 15 #25383b
+paint 15 15 #25383b
+paint 16 15 #25383b
+paint 17 15 #25383b
+paint 18 15 #25383b
+paint 19 15 #25383b
+paint 12 16 #25383b
+paint 13 16 #25383b
+paint 14 16 #25383b
+paint 15 16 #25383b
+paint 16 16 #25383b
+paint 17 16 #25383b
+paint 18 16 #25383b
+paint 19 16 #25383b
+paint 20 16 #25383b
+paint 11 17 #25383b
+paint 12 17 #25383b
+paint 13 17 #b66c32
+paint 14 17 #b66c32
+paint 15 17 #b66c32
+paint 16 17 #b66c32
+paint 17 17 #b66c32
+paint 18 17 #b66c32
+paint 19 17 #25383b
+paint 20 17 #25383b
+paint 10 18 #25383b
+paint 11 18 #25383b
+paint 12 18 #25383b
+paint 13 18 #b66c32
+paint 14 18 #b66c32
+paint 15 18 #b66c32
+paint 16 18 #b66c32
+paint 17 18 #b66c32
+paint 18 18 #b66c32
+paint 19 18 #b66c32
+paint 20 18 #25383b
+paint 21 18 #25383b
+paint 9 19 #25383b
+paint 10 19 #25383b
+paint 11 19 #25383b
+paint 12 19 #b66c32
+paint 13 19 #b66c32
+paint 14 19 #b66c32
+paint 15 19 #b66c32
+paint 16 19 #b66c32
+paint 17 19 #b66c32
+paint 18 19 #b66c32
+paint 19 19 #b66c32
+paint 20 19 #25383b
+paint 21 19 #25383b
+paint 8 20 #25383b
+paint 9 20 #25383b
+paint 10 20 #25383b
+paint 11 20 #b66c32
+paint 12 20 #b66c32
+paint 13 20 #b66c32
+paint 14 20 #b66c32
+paint 15 20 #b66c32
+paint 16 20 #b66c32
+paint 17 20 #b66c32
+paint 18 20 #b66c32
+paint 19 20 #b66c32
+paint 20 20 #25383b
+paint 21 20 #25383b
+paint 7 21 #25383b
+paint 8 21 #25383b
+paint 9 21 #25383b
+paint 10 21 #b66c32
+paint 11 21 #b66c32
+paint 12 21 #b66c32
+paint 13 21 #b66c32
+paint 14 21 #b66c32
+paint 15 21 #b66c32
+paint 16 21 #b66c32
+paint 17 21 #b66c32
+paint 18 21 #b66c32
+paint 19 21 #b66c32
+paint 20 21 #b66c32
+paint 21 21 #25383b
+paint 22 21 #25383b
+paint 6 22 #25383b
+paint 7 22 #25383b
+paint 8 22 #25383b
+paint 9 22 #b66c32
+paint 10 22 #b66c32
+paint 11 22 #b66c32
+paint 12 22 #b66c32
+paint 13 22 #b66c32
+paint 14 22 #b66c32
+paint 15 22 #b66c32
+paint 16 22 #b66c32
+paint 17 22 #b66c32
+paint 18 22 #b66c32
+paint 19 22 #b66c32
+paint 20 22 #b66c32
+paint 21 22 #25383b
+paint 22 22 #25383b
+paint 6 23 #25383b
+paint 7 23 #25383b
+paint 8 23 #e5ba63
+paint 9 23 #b66c32
+paint 10 23 #b66c32
+paint 11 23 #b66c32
+paint 12 23 #b66c32
+paint 13 23 #b66c32
+paint 14 23 #b66c32
+paint 15 23 #b66c32
+paint 16 23 #b66c32
+paint 17 23 #b66c32
+paint 18 23 #b66c32
+paint 19 23 #b66c32
+paint 20 23 #b66c32
+paint 21 23 #25383b
+paint 22 23 #25383b
+paint 23 23 #25383b
+paint 6 24 #25383b
+paint 7 24 #25383b
+paint 8 24 #e5ba63
+paint 9 24 #b66c32
+paint 10 24 #b66c32
+paint 11 24 #b66c32
+paint 12 24 #b66c32
+paint 13 24 #b66c32
+paint 14 24 #b66c32
+paint 15 24 #b66c32
+paint 16 24 #b66c32
+paint 17 24 #b66c32
+paint 18 24 #b66c32
+paint 19 24 #b66c32
+paint 20 24 #b66c32
+paint 21 24 #b66c32
+paint 22 24 #25383b
+paint 23 24 #25383b
+paint 50 24 #25383b
+paint 51 24 #25383b
+paint 52 24 #25383b
+paint 53 24 #25383b
+paint 54 24 #25383b
+paint 55 24 #25383b
+paint 56 24 #25383b
+paint 57 24 #25383b
+paint 58 24 #25383b
+paint 59 24 #25383b
+paint 60 24 #25383b
+paint 61 24 #25383b
+paint 62 24 #25383b
+paint 63 24 #25383b
+paint 64 24 #25383b
+paint 65 24 #25383b
+paint 66 24 #25383b
+paint 67 24 #25383b
+paint 68 24 #25383b
+paint 69 24 #25383b
+paint 70 24 #25383b
+paint 71 24 #25383b
+paint 72 24 #25383b
+paint 73 24 #25383b
+paint 74 24 #25383b
+paint 75 24 #25383b
+paint 76 24 #25383b
+paint 77 24 #25383b
+paint 78 24 #25383b
+paint 79 24 #25383b
+paint 80 24 #25383b
+paint 81 24 #25383b
+paint 82 24 #25383b
+paint 83 24 #25383b
+paint 84 24 #25383b
+paint 85 24 #25383b
+paint 86 24 #25383b
+paint 87 24 #25383b
+paint 6 25 #25383b
+paint 7 25 #25383b
+paint 8 25 #e5ba63
+paint 9 25 #b66c32
+paint 10 25 #b66c32
+paint 11 25 #b66c32
+paint 12 25 #b66c32
+paint 13 25 #b66c32
+paint 14 25 #b66c32
+paint 15 25 #b66c32
+paint 16 25 #b66c32
+paint 17 25 #b66c32
+paint 18 25 #b66c32
+paint 19 25 #b66c32
+paint 20 25 #b66c32
+paint 21 25 #b66c32
+paint 22 25 #25383b
+paint 23 25 #25383b
+paint 50 25 #25383b
+paint 51 25 #25383b
+paint 52 25 #25383b
+paint 53 25 #25383b
+paint 54 25 #25383b
+paint 55 25 #25383b
+paint 56 25 #25383b
+paint 57 25 #25383b
+paint 58 25 #25383b
+paint 59 25 #e5ba63
+paint 60 25 #25383b
+paint 61 25 #e5ba63
+paint 62 25 #25383b
+paint 63 25 #e5ba63
+paint 64 25 #e5ba63
+paint 65 25 #e5ba63
+paint 66 25 #25383b
+paint 67 25 #e5ba63
+paint 68 25 #e5ba63
+paint 69 25 #25383b
+paint 70 25 #25383b
+paint 71 25 #e5ba63
+paint 72 25 #e5ba63
+paint 73 25 #e5ba63
+paint 74 25 #25383b
+paint 75 25 #e5ba63
+paint 76 25 #25383b
+paint 77 25 #e5ba63
+paint 78 25 #25383b
+paint 79 25 #25383b
+paint 80 25 #25383b
+paint 81 25 #25383b
+paint 82 25 #25383b
+paint 83 25 #25383b
+paint 84 25 #25383b
+paint 85 25 #25383b
+paint 86 25 #25383b
+paint 87 25 #25383b
+paint 6 26 #25383b
+paint 7 26 #25383b
+paint 8 26 #e5ba63
+paint 9 26 #b66c32
+paint 10 26 #b66c32
+paint 11 26 #b66c32
+paint 12 26 #b66c32
+paint 13 26 #b66c32
+paint 14 26 #b66c32
+paint 15 26 #b66c32
+paint 16 26 #b66c32
+paint 17 26 #b66c32
+paint 18 26 #b66c32
+paint 19 26 #b66c32
+paint 20 26 #b66c32
+paint 21 26 #b66c32
+paint 22 26 #25383b
+paint 23 26 #25383b
+paint 50 26 #25383b
+paint 51 26 #25383b
+paint 52 26 #25383b
+paint 53 26 #25383b
+paint 54 26 #25383b
+paint 55 26 #25383b
+paint 56 26 #25383b
+paint 57 26 #25383b
+paint 58 26 #25383b
+paint 59 26 #e5ba63
+paint 60 26 #25383b
+paint 61 26 #e5ba63
+paint 62 26 #25383b
+paint 63 26 #e5ba63
+paint 64 26 #25383b
+paint 65 26 #25383b
+paint 66 26 #25383b
+paint 67 26 #e5ba63
+paint 68 26 #25383b
+paint 69 26 #e5ba63
+paint 70 26 #25383b
+paint 71 26 #e5ba63
+paint 72 26 #25383b
+paint 73 26 #e5ba63
+paint 74 26 #25383b
+paint 75 26 #e5ba63
+paint 76 26 #e5ba63
+paint 77 26 #e5ba63
+paint 78 26 #25383b
+paint 79 26 #25383b
+paint 80 26 #25383b
+paint 81 26 #25383b
+paint 82 26 #25383b
+paint 83 26 #25383b
+paint 84 26 #25383b
+paint 85 26 #25383b
+paint 86 26 #25383b
+paint 87 26 #25383b
+paint 6 27 #25383b
+paint 7 27 #25383b
+paint 8 27 #e5ba63
+paint 9 27 #b66c32
+paint 10 27 #b66c32
+paint 11 27 #b66c32
+paint 12 27 #b66c32
+paint 13 27 #b66c32
+paint 14 27 #b66c32
+paint 15 27 #b66c32
+paint 16 27 #b66c32
+paint 17 27 #b66c32
+paint 18 27 #b66c32
+paint 19 27 #b66c32
+paint 20 27 #b66c32
+paint 21 27 #b66c32
+paint 22 27 #25383b
+paint 23 27 #25383b
+paint 50 27 #25383b
+paint 51 27 #25383b
+paint 52 27 #25383b
+paint 53 27 #25383b
+paint 54 27 #25383b
+paint 55 27 #25383b
+paint 56 27 #25383b
+paint 57 27 #25383b
+paint 58 27 #25383b
+paint 59 27 #e5ba63
+paint 60 27 #e5ba63
+paint 61 27 #e5ba63
+paint 62 27 #25383b
+paint 63 27 #e5ba63
+paint 64 27 #e5ba63
+paint 65 27 #25383b
+paint 66 27 #25383b
+paint 67 27 #e5ba63
+paint 68 27 #e5ba63
+paint 69 27 #25383b
+paint 70 27 #25383b
+paint 71 27 #e5ba63
+paint 72 27 #25383b
+paint 73 27 #e5ba63
+paint 74 27 #25383b
+paint 75 27 #e5ba63
+paint 76 27 #e5ba63
+paint 77 27 #e5ba63
+paint 78 27 #25383b
+paint 79 27 #25383b
+paint 80 27 #25383b
+paint 81 27 #25383b
+paint 82 27 #25383b
+paint 83 27 #25383b
+paint 84 27 #25383b
+paint 85 27 #25383b
+paint 86 27 #25383b
+paint 87 27 #25383b
+paint 6 28 #25383b
+paint 7 28 #25383b
+paint 8 28 #e5ba63
+paint 9 28 #b66c32
+paint 10 28 #b66c32
+paint 11 28 #b66c32
+paint 12 28 #b66c32
+paint 13 28 #b66c32
+paint 14 28 #b66c32
+paint 15 28 #b66c32
+paint 16 28 #b66c32
+paint 17 28 #b66c32
+paint 18 28 #b66c32
+paint 19 28 #b66c32
+paint 20 28 #b66c32
+paint 21 28 #b66c32
+paint 22 28 #25383b
+paint 23 28 #25383b
+paint 50 28 #25383b
+paint 51 28 #25383b
+paint 52 28 #25383b
+paint 53 28 #25383b
+paint 54 28 #25383b
+paint 55 28 #25383b
+paint 56 28 #25383b
+paint 57 28 #25383b
+paint 58 28 #25383b
+paint 59 28 #e5ba63
+paint 60 28 #25383b
+paint 61 28 #e5ba63
+paint 62 28 #25383b
+paint 63 28 #e5ba63
+paint 64 28 #25383b
+paint 65 28 #25383b
+paint 66 28 #25383b
+paint 67 28 #e5ba63
+paint 68 28 #25383b
+paint 69 28 #e5ba63
+paint 70 28 #25383b
+paint 71 28 #e5ba63
+paint 72 28 #25383b
+paint 73 28 #e5ba63
+paint 74 28 #25383b
+paint 75 28 #e5ba63
+paint 76 28 #e5ba63
+paint 77 28 #e5ba63
+paint 78 28 #25383b
+paint 79 28 #25383b
+paint 80 28 #25383b
+paint 81 28 #25383b
+paint 82 28 #25383b
+paint 83 28 #25383b
+paint 84 28 #25383b
+paint 85 28 #25383b
+paint 86 28 #25383b
+paint 87 28 #25383b
+paint 6 29 #25383b
+paint 7 29 #25383b
+paint 8 29 #e5ba63
+paint 9 29 #b66c32
+paint 10 29 #b66c32
+paint 11 29 #b66c32
+paint 12 29 #b66c32
+paint 13 29 #b66c32
+paint 14 29 #b66c32
+paint 15 29 #b66c32
+paint 16 29 #b66c32
+paint 17 29 #b66c32
+paint 18 29 #b66c32
+paint 19 29 #b66c32
+paint 20 29 #b66c32
+paint 21 29 #b66c32
+paint 22 29 #25383b
+paint 23 29 #25383b
+paint 50 29 #25383b
+paint 51 29 #25383b
+paint 52 29 #25383b
+paint 53 29 #25383b
+paint 54 29 #25383b
+paint 55 29 #25383b
+paint 56 29 #25383b
+paint 57 29 #25383b
+paint 58 29 #25383b
+paint 59 29 #e5ba63
+paint 60 29 #25383b
+paint 61 29 #e5ba63
+paint 62 29 #25383b
+paint 63 29 #e5ba63
+paint 64 29 #e5ba63
+paint 65 29 #e5ba63
+paint 66 29 #25383b
+paint 67 29 #e5ba63
+paint 68 29 #25383b
+paint 69 29 #e5ba63
+paint 70 29 #25383b
+paint 71 29 #e5ba63
+paint 72 29 #e5ba63
+paint 73 29 #e5ba63
+paint 74 29 #25383b
+paint 75 29 #e5ba63
+paint 76 29 #25383b
+paint 77 29 #e5ba63
+paint 78 29 #25383b
+paint 79 29 #25383b
+paint 80 29 #25383b
+paint 81 29 #25383b
+paint 82 29 #25383b
+paint 83 29 #25383b
+paint 84 29 #25383b
+paint 85 29 #25383b
+paint 86 29 #25383b
+paint 87 29 #25383b
+paint 6 30 #25383b
+paint 7 30 #25383b
+paint 8 30 #e5ba63
+paint 9 30 #b66c32
+paint 10 30 #b66c32
+paint 11 30 #b66c32
+paint 12 30 #b66c32
+paint 13 30 #b66c32
+paint 14 30 #b66c32
+paint 15 30 #b66c32
+paint 16 30 #b66c32
+paint 17 30 #b66c32
+paint 18 30 #b66c32
+paint 19 30 #b66c32
+paint 20 30 #e5ba63
+paint 21 30 #b66c32
+paint 22 30 #25383b
+paint 23 30 #25383b
+paint 24 30 #90a8a0
+paint 25 30 #90a8a0
+paint 26 30 #90a8a0
+paint 27 30 #90a8a0
+paint 28 30 #90a8a0
+paint 29 30 #90a8a0
+paint 30 30 #90a8a0
+paint 31 30 #90a8a0
+paint 32 30 #90a8a0
+paint 33 30 #90a8a0
+paint 34 30 #90a8a0
+paint 35 30 #90a8a0
+paint 36 30 #90a8a0
+paint 37 30 #90a8a0
+paint 38 30 #90a8a0
+paint 39 30 #90a8a0
+paint 40 30 #90a8a0
+paint 41 30 #90a8a0
+paint 42 30 #90a8a0
+paint 43 30 #90a8a0
+paint 44 30 #90a8a0
+paint 45 30 #90a8a0
+paint 46 30 #90a8a0
+paint 47 30 #90a8a0
+paint 48 30 #90a8a0
+paint 49 30 #90a8a0
+paint 50 30 #25383b
+paint 51 30 #25383b
+paint 52 30 #25383b
+paint 53 30 #25383b
+paint 54 30 #25383b
+paint 55 30 #25383b
+paint 56 30 #25383b
+paint 57 30 #25383b
+paint 58 30 #25383b
+paint 59 30 #25383b
+paint 60 30 #25383b
+paint 61 30 #25383b
+paint 62 30 #25383b
+paint 63 30 #25383b
+paint 64 30 #25383b
+paint 65 30 #25383b
+paint 66 30 #25383b
+paint 67 30 #25383b
+paint 68 30 #25383b
+paint 69 30 #25383b
+paint 70 30 #25383b
+paint 71 30 #25383b
+paint 72 30 #25383b
+paint 73 30 #25383b
+paint 74 30 #25383b
+paint 75 30 #25383b
+paint 76 30 #25383b
+paint 77 30 #25383b
+paint 78 30 #25383b
+paint 79 30 #25383b
+paint 80 30 #25383b
+paint 81 30 #25383b
+paint 82 30 #25383b
+paint 83 30 #25383b
+paint 84 30 #25383b
+paint 85 30 #25383b
+paint 86 30 #25383b
+paint 87 30 #25383b
+paint 88 30 #90a8a0
+paint 89 30 #90a8a0
+paint 90 30 #90a8a0
+paint 91 30 #90a8a0
+paint 92 30 #90a8a0
+paint 93 30 #90a8a0
+paint 94 30 #90a8a0
+paint 95 30 #90a8a0
+paint 96 30 #90a8a0
+paint 97 30 #90a8a0
+paint 98 30 #90a8a0
+paint 99 30 #90a8a0
+paint 100 30 #90a8a0
+paint 101 30 #90a8a0
+paint 102 30 #90a8a0
+paint 103 30 #90a8a0
+paint 104 30 #90a8a0
+paint 105 30 #90a8a0
+paint 106 30 #90a8a0
+paint 107 30 #90a8a0
+paint 108 30 #90a8a0
+paint 109 30 #90a8a0
+paint 110 30 #25383b
+paint 6 31 #25383b
+paint 7 31 #25383b
+paint 8 31 #e5ba63
+paint 9 31 #b66c32
+paint 10 31 #b66c32
+paint 11 31 #b66c32
+paint 12 31 #b66c32
+paint 13 31 #b66c32
+paint 14 31 #b66c32
+paint 15 31 #b66c32
+paint 16 31 #b66c32
+paint 17 31 #b66c32
+paint 18 31 #b66c32
+paint 19 31 #e5ba63
+paint 20 31 #e5ba63
+paint 21 31 #e5ba63
+paint 22 31 #25383b
+paint 23 31 #25383b
+paint 24 31 #25383b
+paint 25 31 #25383b
+paint 26 31 #25383b
+paint 27 31 #25383b
+paint 28 31 #25383b
+paint 29 31 #25383b
+paint 30 31 #25383b
+paint 31 31 #25383b
+paint 32 31 #25383b
+paint 33 31 #25383b
+paint 34 31 #25383b
+paint 35 31 #25383b
+paint 36 31 #25383b
+paint 37 31 #25383b
+paint 38 31 #25383b
+paint 39 31 #25383b
+paint 40 31 #25383b
+paint 41 31 #25383b
+paint 42 31 #25383b
+paint 43 31 #25383b
+paint 44 31 #25383b
+paint 45 31 #25383b
+paint 46 31 #25383b
+paint 47 31 #25383b
+paint 48 31 #25383b
+paint 49 31 #25383b
+paint 50 31 #25383b
+paint 51 31 #25383b
+paint 52 31 #25383b
+paint 53 31 #25383b
+paint 54 31 #25383b
+paint 55 31 #25383b
+paint 56 31 #25383b
+paint 57 31 #25383b
+paint 58 31 #25383b
+paint 59 31 #25383b
+paint 60 31 #25383b
+paint 61 31 #25383b
+paint 62 31 #25383b
+paint 63 31 #25383b
+paint 64 31 #25383b
+paint 65 31 #25383b
+paint 66 31 #25383b
+paint 67 31 #25383b
+paint 68 31 #25383b
+paint 69 31 #25383b
+paint 70 31 #25383b
+paint 71 31 #25383b
+paint 72 31 #25383b
+paint 73 31 #25383b
+paint 74 31 #25383b
+paint 75 31 #25383b
+paint 76 31 #25383b
+paint 77 31 #25383b
+paint 78 31 #25383b
+paint 79 31 #25383b
+paint 80 31 #25383b
+paint 81 31 #25383b
+paint 82 31 #25383b
+paint 83 31 #25383b
+paint 84 31 #25383b
+paint 85 31 #25383b
+paint 86 31 #25383b
+paint 87 31 #25383b
+paint 88 31 #25383b
+paint 89 31 #25383b
+paint 90 31 #25383b
+paint 91 31 #25383b
+paint 92 31 #25383b
+paint 93 31 #25383b
+paint 94 31 #25383b
+paint 95 31 #25383b
+paint 96 31 #25383b
+paint 97 31 #25383b
+paint 98 31 #25383b
+paint 99 31 #25383b
+paint 100 31 #25383b
+paint 101 31 #25383b
+paint 102 31 #25383b
+paint 103 31 #25383b
+paint 104 31 #25383b
+paint 105 31 #25383b
+paint 106 31 #25383b
+paint 107 31 #25383b
+paint 108 31 #25383b
+paint 109 31 #25383b
+paint 110 31 #25383b
+paint 6 32 #25383b
+paint 7 32 #25383b
+paint 8 32 #e5ba63
+paint 9 32 #b66c32
+paint 10 32 #b66c32
+paint 11 32 #b66c32
+paint 12 32 #b66c32
+paint 13 32 #b66c32
+paint 14 32 #b66c32
+paint 15 32 #b66c32
+paint 16 32 #b66c32
+paint 17 32 #b66c32
+paint 18 32 #e5ba63
+paint 19 32 #e5ba63
+paint 20 32 #e5ba63
+paint 21 32 #e5ba63
+paint 22 32 #e5ba63
+paint 23 32 #25383b
+paint 24 32 #3d7373
+paint 25 32 #3d7373
+paint 26 32 #3d7373
+paint 27 32 #3d7373
+paint 28 32 #3d7373
+paint 29 32 #3d7373
+paint 30 32 #3d7373
+paint 31 32 #3d7373
+paint 32 32 #3d7373
+paint 33 32 #3d7373
+paint 34 32 #3d7373
+paint 35 32 #3d7373
+paint 36 32 #3d7373
+paint 37 32 #3d7373
+paint 38 32 #3d7373
+paint 39 32 #3d7373
+paint 40 32 #3d7373
+paint 41 32 #3d7373
+paint 42 32 #3d7373
+paint 43 32 #3d7373
+paint 44 32 #3d7373
+paint 45 32 #3d7373
+paint 46 32 #3d7373
+paint 47 32 #3d7373
+paint 48 32 #3d7373
+paint 49 32 #3d7373
+paint 50 32 #3d7373
+paint 51 32 #3d7373
+paint 52 32 #3d7373
+paint 53 32 #3d7373
+paint 54 32 #3d7373
+paint 55 32 #3d7373
+paint 56 32 #3d7373
+paint 57 32 #3d7373
+paint 58 32 #3d7373
+paint 59 32 #3d7373
+paint 60 32 #3d7373
+paint 61 32 #3d7373
+paint 62 32 #3d7373
+paint 63 32 #3d7373
+paint 64 32 #3d7373
+paint 65 32 #3d7373
+paint 66 32 #3d7373
+paint 67 32 #3d7373
+paint 68 32 #3d7373
+paint 69 32 #3d7373
+paint 70 32 #3d7373
+paint 71 32 #3d7373
+paint 72 32 #3d7373
+paint 73 32 #3d7373
+paint 74 32 #3d7373
+paint 75 32 #3d7373
+paint 76 32 #3d7373
+paint 77 32 #3d7373
+paint 78 32 #3d7373
+paint 79 32 #3d7373
+paint 80 32 #3d7373
+paint 81 32 #3d7373
+paint 82 32 #3d7373
+paint 83 32 #3d7373
+paint 84 32 #3d7373
+paint 85 32 #3d7373
+paint 86 32 #3d7373
+paint 87 32 #3d7373
+paint 88 32 #3d7373
+paint 89 32 #3d7373
+paint 90 32 #3d7373
+paint 91 32 #3d7373
+paint 92 32 #3d7373
+paint 93 32 #3d7373
+paint 94 32 #3d7373
+paint 95 32 #3d7373
+paint 96 32 #3d7373
+paint 97 32 #3d7373
+paint 98 32 #3d7373
+paint 99 32 #3d7373
+paint 100 32 #3d7373
+paint 101 32 #3d7373
+paint 102 32 #3d7373
+paint 103 32 #3d7373
+paint 104 32 #3d7373
+paint 105 32 #3d7373
+paint 106 32 #3d7373
+paint 107 32 #3d7373
+paint 108 32 #3d7373
+paint 109 32 #3d7373
+paint 110 32 #25383b
+paint 6 33 #25383b
+paint 7 33 #25383b
+paint 8 33 #e5ba63
+paint 9 33 #b66c32
+paint 10 33 #b66c32
+paint 11 33 #b66c32
+paint 12 33 #b66c32
+paint 13 33 #b66c32
+paint 14 33 #b66c32
+paint 15 33 #b66c32
+paint 16 33 #b66c32
+paint 17 33 #b66c32
+paint 18 33 #b66c32
+paint 19 33 #e5ba63
+paint 20 33 #e5ba63
+paint 21 33 #e5ba63
+paint 22 33 #25383b
+paint 23 33 #25383b
+paint 24 33 #3d7373
+paint 25 33 #3d7373
+paint 26 33 #3d7373
+paint 27 33 #3d7373
+paint 28 33 #e5ba63
+paint 29 33 #3d7373
+paint 30 33 #3d7373
+paint 31 33 #3d7373
+paint 32 33 #3d7373
+paint 33 33 #3d7373
+paint 34 33 #3d7373
+paint 35 33 #3d7373
+paint 36 33 #3d7373
+paint 37 33 #3d7373
+paint 38 33 #e5ba63
+paint 39 33 #3d7373
+paint 40 33 #3d7373
+paint 41 33 #3d7373
+paint 42 33 #3d7373
+paint 43 33 #3d7373
+paint 44 33 #3d7373
+paint 45 33 #3d7373
+paint 46 33 #3d7373
+paint 47 33 #3d7373
+paint 48 33 #e5ba63
+paint 49 33 #3d7373
+paint 50 33 #3d7373
+paint 51 33 #3d7373
+paint 52 33 #3d7373
+paint 53 33 #3d7373
+paint 54 33 #3d7373
+paint 55 33 #3d7373
+paint 56 33 #3d7373
+paint 57 33 #3d7373
+paint 58 33 #e5ba63
+paint 59 33 #3d7373
+paint 60 33 #3d7373
+paint 61 33 #3d7373
+paint 62 33 #3d7373
+paint 63 33 #3d7373
+paint 64 33 #3d7373
+paint 65 33 #3d7373
+paint 66 33 #3d7373
+paint 67 33 #3d7373
+paint 68 33 #e5ba63
+paint 69 33 #3d7373
+paint 70 33 #3d7373
+paint 71 33 #3d7373
+paint 72 33 #3d7373
+paint 73 33 #3d7373
+paint 74 33 #3d7373
+paint 75 33 #3d7373
+paint 76 33 #3d7373
+paint 77 33 #3d7373
+paint 78 33 #e5ba63
+paint 79 33 #3d7373
+paint 80 33 #3d7373
+paint 81 33 #3d7373
+paint 82 33 #3d7373
+paint 83 33 #3d7373
+paint 84 33 #3d7373
+paint 85 33 #3d7373
+paint 86 33 #3d7373
+paint 87 33 #3d7373
+paint 88 33 #e5ba63
+paint 89 33 #3d7373
+paint 90 33 #3d7373
+paint 91 33 #3d7373
+paint 92 33 #3d7373
+paint 93 33 #3d7373
+paint 94 33 #3d7373
+paint 95 33 #3d7373
+paint 96 33 #3d7373
+paint 97 33 #3d7373
+paint 98 33 #e5ba63
+paint 99 33 #3d7373
+paint 100 33 #3d7373
+paint 101 33 #3d7373
+paint 102 33 #3d7373
+paint 103 33 #3d7373
+paint 104 33 #3d7373
+paint 105 33 #3d7373
+paint 106 33 #3d7373
+paint 107 33 #3d7373
+paint 108 33 #3d7373
+paint 109 33 #3d7373
+paint 6 34 #25383b
+paint 7 34 #25383b
+paint 8 34 #e5ba63
+paint 9 34 #b66c32
+paint 10 34 #b66c32
+paint 11 34 #b66c32
+paint 12 34 #b66c32
+paint 13 34 #b66c32
+paint 14 34 #b66c32
+paint 15 34 #b66c32
+paint 16 34 #b66c32
+paint 17 34 #b66c32
+paint 18 34 #b66c32
+paint 19 34 #b66c32
+paint 20 34 #e5ba63
+paint 21 34 #b66c32
+paint 22 34 #25383b
+paint 23 34 #25383b
+paint 24 34 #25383b
+paint 25 34 #25383b
+paint 26 34 #25383b
+paint 27 34 #25383b
+paint 28 34 #25383b
+paint 29 34 #25383b
+paint 30 34 #25383b
+paint 31 34 #25383b
+paint 32 34 #25383b
+paint 33 34 #25383b
+paint 34 34 #25383b
+paint 35 34 #25383b
+paint 36 34 #25383b
+paint 37 34 #25383b
+paint 38 34 #25383b
+paint 39 34 #25383b
+paint 40 34 #25383b
+paint 41 34 #25383b
+paint 42 34 #25383b
+paint 43 34 #25383b
+paint 44 34 #25383b
+paint 45 34 #25383b
+paint 46 34 #25383b
+paint 47 34 #25383b
+paint 48 34 #25383b
+paint 49 34 #25383b
+paint 50 34 #25383b
+paint 51 34 #25383b
+paint 52 34 #25383b
+paint 53 34 #25383b
+paint 54 34 #25383b
+paint 55 34 #25383b
+paint 56 34 #25383b
+paint 57 34 #25383b
+paint 58 34 #25383b
+paint 59 34 #25383b
+paint 60 34 #25383b
+paint 61 34 #25383b
+paint 62 34 #25383b
+paint 63 34 #25383b
+paint 64 34 #25383b
+paint 65 34 #25383b
+paint 66 34 #25383b
+paint 67 34 #25383b
+paint 68 34 #25383b
+paint 69 34 #25383b
+paint 70 34 #25383b
+paint 71 34 #25383b
+paint 72 34 #25383b
+paint 73 34 #25383b
+paint 74 34 #25383b
+paint 75 34 #25383b
+paint 76 34 #25383b
+paint 77 34 #25383b
+paint 78 34 #25383b
+paint 79 34 #25383b
+paint 80 34 #25383b
+paint 81 34 #25383b
+paint 82 34 #25383b
+paint 83 34 #25383b
+paint 84 34 #25383b
+paint 85 34 #25383b
+paint 86 34 #25383b
+paint 87 34 #25383b
+paint 88 34 #25383b
+paint 89 34 #25383b
+paint 90 34 #25383b
+paint 91 34 #25383b
+paint 92 34 #25383b
+paint 93 34 #25383b
+paint 94 34 #25383b
+paint 95 34 #25383b
+paint 96 34 #25383b
+paint 97 34 #25383b
+paint 98 34 #25383b
+paint 99 34 #25383b
+paint 100 34 #25383b
+paint 101 34 #25383b
+paint 102 34 #25383b
+paint 103 34 #25383b
+paint 104 34 #25383b
+paint 105 34 #25383b
+paint 106 34 #25383b
+paint 107 34 #25383b
+paint 108 34 #25383b
+paint 6 35 #25383b
+paint 7 35 #25383b
+paint 8 35 #e5ba63
+paint 9 35 #b66c32
+paint 10 35 #b66c32
+paint 11 35 #b66c32
+paint 12 35 #b66c32
+paint 13 35 #b66c32
+paint 14 35 #b66c32
+paint 15 35 #b66c32
+paint 16 35 #b66c32
+paint 17 35 #b66c32
+paint 18 35 #b66c32
+paint 19 35 #b66c32
+paint 20 35 #b66c32
+paint 21 35 #b66c32
+paint 22 35 #25383b
+paint 23 35 #25383b
+paint 24 35 #25383b
+paint 25 35 #25383b
+paint 26 35 #25383b
+paint 27 35 #25383b
+paint 28 35 #25383b
+paint 29 35 #25383b
+paint 30 35 #25383b
+paint 31 35 #25383b
+paint 32 35 #25383b
+paint 33 35 #25383b
+paint 34 35 #25383b
+paint 35 35 #25383b
+paint 36 35 #25383b
+paint 37 35 #25383b
+paint 38 35 #25383b
+paint 39 35 #25383b
+paint 40 35 #25383b
+paint 41 35 #25383b
+paint 42 35 #25383b
+paint 43 35 #25383b
+paint 44 35 #25383b
+paint 45 35 #25383b
+paint 46 35 #25383b
+paint 47 35 #25383b
+paint 48 35 #25383b
+paint 49 35 #25383b
+paint 50 35 #25383b
+paint 51 35 #25383b
+paint 52 35 #25383b
+paint 53 35 #25383b
+paint 54 35 #25383b
+paint 55 35 #25383b
+paint 56 35 #25383b
+paint 57 35 #25383b
+paint 58 35 #25383b
+paint 59 35 #25383b
+paint 60 35 #25383b
+paint 61 35 #25383b
+paint 62 35 #25383b
+paint 63 35 #25383b
+paint 64 35 #25383b
+paint 65 35 #25383b
+paint 66 35 #25383b
+paint 67 35 #25383b
+paint 68 35 #25383b
+paint 69 35 #25383b
+paint 70 35 #25383b
+paint 71 35 #25383b
+paint 72 35 #25383b
+paint 73 35 #25383b
+paint 74 35 #25383b
+paint 75 35 #25383b
+paint 76 35 #25383b
+paint 77 35 #25383b
+paint 78 35 #25383b
+paint 79 35 #25383b
+paint 80 35 #25383b
+paint 81 35 #25383b
+paint 82 35 #25383b
+paint 83 35 #25383b
+paint 84 35 #25383b
+paint 85 35 #25383b
+paint 86 35 #25383b
+paint 87 35 #25383b
+paint 88 35 #25383b
+paint 89 35 #25383b
+paint 90 35 #25383b
+paint 91 35 #25383b
+paint 92 35 #25383b
+paint 93 35 #25383b
+paint 94 35 #25383b
+paint 95 35 #25383b
+paint 96 35 #25383b
+paint 97 35 #25383b
+paint 98 35 #25383b
+paint 99 35 #25383b
+paint 100 35 #25383b
+paint 101 35 #25383b
+paint 102 35 #25383b
+paint 103 35 #25383b
+paint 104 35 #25383b
+paint 105 35 #25383b
+paint 106 35 #25383b
+paint 107 35 #25383b
+paint 6 36 #25383b
+paint 7 36 #25383b
+paint 8 36 #e5ba63
+paint 9 36 #b66c32
+paint 10 36 #b66c32
+paint 11 36 #b66c32
+paint 12 36 #b66c32
+paint 13 36 #b66c32
+paint 14 36 #b66c32
+paint 15 36 #b66c32
+paint 16 36 #b66c32
+paint 17 36 #b66c32
+paint 18 36 #b66c32
+paint 19 36 #b66c32
+paint 20 36 #b66c32
+paint 21 36 #b66c32
+paint 22 36 #25383b
+paint 23 36 #25383b
+paint 6 37 #25383b
+paint 7 37 #25383b
+paint 8 37 #e5ba63
+paint 9 37 #b66c32
+paint 10 37 #b66c32
+paint 11 37 #b66c32
+paint 12 37 #b66c32
+paint 13 37 #b66c32
+paint 14 37 #b66c32
+paint 15 37 #b66c32
+paint 16 37 #b66c32
+paint 17 37 #b66c32
+paint 18 37 #b66c32
+paint 19 37 #b66c32
+paint 20 37 #b66c32
+paint 21 37 #b66c32
+paint 22 37 #25383b
+paint 23 37 #25383b
+paint 6 38 #25383b
+paint 7 38 #25383b
+paint 8 38 #b66c32
+paint 9 38 #b66c32
+paint 10 38 #b66c32
+paint 11 38 #b66c32
+paint 12 38 #b66c32
+paint 13 38 #b66c32
+paint 14 38 #b66c32
+paint 15 38 #b66c32
+paint 16 38 #b66c32
+paint 17 38 #b66c32
+paint 18 38 #b66c32
+paint 19 38 #b66c32
+paint 20 38 #b66c32
+paint 21 38 #b66c32
+paint 22 38 #25383b
+paint 23 38 #25383b
+paint 6 39 #25383b
+paint 7 39 #25383b
+paint 8 39 #b66c32
+paint 9 39 #b66c32
+paint 10 39 #b66c32
+paint 11 39 #b66c32
+paint 12 39 #b66c32
+paint 13 39 #b66c32
+paint 14 39 #b66c32
+paint 15 39 #b66c32
+paint 16 39 #b66c32
+paint 17 39 #b66c32
+paint 18 39 #b66c32
+paint 19 39 #b66c32
+paint 20 39 #b66c32
+paint 21 39 #b66c32
+paint 22 39 #25383b
+paint 23 39 #25383b
+paint 6 40 #25383b
+paint 7 40 #25383b
+paint 8 40 #25383b
+paint 9 40 #b66c32
+paint 10 40 #b66c32
+paint 11 40 #b66c32
+paint 12 40 #b66c32
+paint 13 40 #b66c32
+paint 14 40 #b66c32
+paint 15 40 #b66c32
+paint 16 40 #b66c32
+paint 17 40 #b66c32
+paint 18 40 #b66c32
+paint 19 40 #b66c32
+paint 20 40 #b66c32
+paint 21 40 #b66c32
+paint 22 40 #25383b
+paint 23 40 #25383b
+paint 7 41 #25383b
+paint 8 41 #25383b
+paint 9 41 #b66c32
+paint 10 41 #b66c32
+paint 11 41 #b66c32
+paint 12 41 #b66c32
+paint 13 41 #b66c32
+paint 14 41 #b66c32
+paint 15 41 #b66c32
+paint 16 41 #b66c32
+paint 17 41 #b66c32
+paint 18 41 #b66c32
+paint 19 41 #b66c32
+paint 20 41 #b66c32
+paint 21 41 #b66c32
+paint 22 41 #25383b
+paint 23 41 #25383b
+paint 7 42 #25383b
+paint 8 42 #25383b
+paint 9 42 #25383b
+paint 10 42 #b66c32
+paint 11 42 #b66c32
+paint 12 42 #b66c32
+paint 13 42 #b66c32
+paint 14 42 #b66c32
+paint 15 42 #b66c32
+paint 16 42 #b66c32
+paint 17 42 #b66c32
+paint 18 42 #b66c32
+paint 19 42 #b66c32
+paint 20 42 #b66c32
+paint 21 42 #b66c32
+paint 22 42 #25383b
+paint 23 42 #25383b
+paint 8 43 #25383b
+paint 9 43 #25383b
+paint 10 43 #b66c32
+paint 11 43 #b66c32
+paint 12 43 #b66c32
+paint 13 43 #b66c32
+paint 14 43 #b66c32
+paint 15 43 #b66c32
+paint 16 43 #b66c32
+paint 17 43 #b66c32
+paint 18 43 #b66c32
+paint 19 43 #b66c32
+paint 20 43 #b66c32
+paint 21 43 #b66c32
+paint 22 43 #25383b
+paint 23 43 #25383b
+paint 8 44 #25383b
+paint 9 44 #25383b
+paint 10 44 #25383b
+paint 11 44 #b66c32
+paint 12 44 #b66c32
+paint 13 44 #b66c32
+paint 14 44 #b66c32
+paint 15 44 #b66c32
+paint 16 44 #b66c32
+paint 17 44 #b66c32
+paint 18 44 #b66c32
+paint 19 44 #b66c32
+paint 20 44 #b66c32
+paint 21 44 #b66c32
+paint 22 44 #25383b
+paint 23 44 #25383b
+paint 9 45 #25383b
+paint 10 45 #25383b
+paint 11 45 #b66c32
+paint 12 45 #b66c32
+paint 13 45 #b66c32
+paint 14 45 #b66c32
+paint 15 45 #b66c32
+paint 16 45 #b66c32
+paint 17 45 #b66c32
+paint 18 45 #b66c32
+paint 19 45 #b66c32
+paint 20 45 #b66c32
+paint 21 45 #b66c32
+paint 22 45 #25383b
+paint 23 45 #25383b
+paint 9 46 #25383b
+paint 10 46 #25383b
+paint 11 46 #25383b
+paint 12 46 #b66c32
+paint 13 46 #b66c32
+paint 14 46 #b66c32
+paint 15 46 #b66c32
+paint 16 46 #b66c32
+paint 17 46 #b66c32
+paint 18 46 #b66c32
+paint 19 46 #b66c32
+paint 20 46 #b66c32
+paint 21 46 #b66c32
+paint 22 46 #25383b
+paint 23 46 #25383b
+paint 9 47 #25383b
+paint 10 47 #25383b
+paint 11 47 #25383b
+paint 12 47 #b66c32
+paint 13 47 #b66c32
+paint 14 47 #b66c32
+paint 15 47 #b66c32
+paint 16 47 #b66c32
+paint 17 47 #b66c32
+paint 18 47 #b66c32
+paint 19 47 #b66c32
+paint 20 47 #b66c32
+paint 21 47 #25383b
+paint 22 47 #25383b
+paint 23 47 #25383b
+paint 10 48 #25383b
+paint 11 48 #25383b
+paint 12 48 #25383b
+paint 13 48 #b66c32
+paint 14 48 #b66c32
+paint 15 48 #b66c32
+paint 16 48 #b66c32
+paint 17 48 #b66c32
+paint 18 48 #b66c32
+paint 19 48 #b66c32
+paint 20 48 #b66c32
+paint 21 48 #25383b
+paint 22 48 #25383b
+paint 10 49 #25383b
+paint 11 49 #25383b
+paint 12 49 #25383b
+paint 13 49 #b66c32
+paint 14 49 #b66c32
+paint 15 49 #b66c32
+paint 16 49 #b66c32
+paint 17 49 #b66c32
+paint 18 49 #b66c32
+paint 19 49 #b66c32
+paint 20 49 #25383b
+paint 21 49 #25383b
+paint 22 49 #25383b
+paint 11 50 #25383b
+paint 12 50 #25383b
+paint 13 50 #25383b
+paint 14 50 #b66c32
+paint 15 50 #b66c32
+paint 16 50 #b66c32
+paint 17 50 #b66c32
+paint 18 50 #b66c32
+paint 19 50 #b66c32
+paint 20 50 #25383b
+paint 21 50 #25383b
+paint 11 51 #25383b
+paint 12 51 #25383b
+paint 13 51 #25383b
+paint 14 51 #25383b
+paint 15 51 #25383b
+paint 16 51 #25383b
+paint 17 51 #25383b
+paint 18 51 #25383b
+paint 19 51 #25383b
+paint 20 51 #25383b
+paint 21 51 #25383b
+paint 12 52 #25383b
+paint 13 52 #25383b
+paint 14 52 #25383b
+paint 15 52 #25383b
+paint 16 52 #25383b
+paint 17 52 #25383b
+paint 20 52 #25383b
+paint 12 53 #25383b
+paint 13 53 #25383b
+paint 14 53 #25383b
+paint 15 53 #25383b
+paint 16 53 #25383b
+paint 17 53 #25383b
+paint 20 53 #25383b
+part crank
+rect steel 97 64 2 1
+rect steel 97 65 1 1
+rect brass 98 65 1 1
+rect brass 97 66 2 1
+rect steel 97 67 1 1
+rect brass 98 67 3 1
+rect steel 101 67 2 1
+rect iron 106 67 1 1
+rect steel 98 68 1 1
+rect brass 99 68 1 1
+rect steel 100 68 4 1
+rect iron 104 68 7 1
+rect steel 98 69 6 1
+rect iron 104 69 2 1
+rect steel 106 69 1 1
+rect iron 107 69 5 1
+rect steel 99 70 11 1
+rect iron 110 70 3 1
+rect iron 99 71 1 1
+rect steel 100 71 11 1
+rect iron 111 71 3 1
+rect iron 98 72 2 1
+rect steel 100 72 12 1
+rect iron 112 72 3 1
+rect iron 98 73 2 1
+rect steel 100 73 13 1
+rect iron 113 73 2 1
+rect iron 98 74 2 1
+rect steel 100 74 6 1
+rect brass 106 74 1 1
+rect steel 107 74 6 1
+rect iron 113 74 2 1
+rect iron 98 75 2 1
+rect steel 100 75 5 1
+rect brass 105 75 3 1
+rect steel 108 75 5 1
+rect iron 113 75 2 1
+rect iron 97 76 2 1
+rect steel 99 76 5 1
+rect brass 104 76 5 1
+rect steel 109 76 5 1
+rect iron 114 76 2 1
+rect iron 98 77 2 1
+rect steel 100 77 5 1
+rect brass 105 77 3 1
+rect steel 108 77 1 1
+rect iron 109 77 3 1
+rect steel 112 77 1 1
+rect iron 113 77 2 1
+rect iron 98 78 2 1
+rect steel 100 78 6 1
+rect brass 106 78 1 1
+rect steel 107 78 1 1
+rect iron 108 78 7 1
+rect iron 98 79 2 1
+rect steel 100 79 7 1
+rect iron 107 79 9 1
+rect iron 98 80 3 1
+rect steel 101 80 5 1
+rect iron 106 80 12 1
+rect iron 99 81 3 1
+rect steel 102 81 3 1
+rect iron 105 81 15 1
+rect iron 100 82 3 1
+rect steel 103 82 1 1
+rect iron 104 82 16 1
+rect iron 101 83 19 1
+rect iron 102 84 18 1
+rect iron 106 85 14 1
+rect iron 106 86 14 1
+rect iron 106 87 12 1
+rect iron 108 88 8 1
+rect iron 110 89 4 1
+paint 97 64 #90a8a0
+paint 98 64 #90a8a0
+paint 97 65 #90a8a0
+paint 98 65 #e5ba63
+paint 97 66 #e5ba63
+paint 98 66 #e5ba63
+paint 97 67 #90a8a0
+paint 98 67 #e5ba63
+paint 99 67 #e5ba63
+paint 100 67 #e5ba63
+paint 101 67 #90a8a0
+paint 102 67 #90a8a0
+paint 106 67 #25383b
+paint 98 68 #90a8a0
+paint 99 68 #e5ba63
+paint 100 68 #90a8a0
+paint 101 68 #90a8a0
+paint 102 68 #90a8a0
+paint 103 68 #90a8a0
+paint 104 68 #25383b
+paint 105 68 #25383b
+paint 106 68 #25383b
+paint 107 68 #25383b
+paint 108 68 #25383b
+paint 109 68 #25383b
+paint 110 68 #25383b
+paint 98 69 #90a8a0
+paint 99 69 #90a8a0
+paint 100 69 #90a8a0
+paint 101 69 #90a8a0
+paint 102 69 #90a8a0
+paint 103 69 #90a8a0
+paint 104 69 #25383b
+paint 105 69 #25383b
+paint 106 69 #3d7373
+paint 107 69 #25383b
+paint 108 69 #25383b
+paint 109 69 #25383b
+paint 110 69 #25383b
+paint 111 69 #25383b
+paint 99 70 #90a8a0
+paint 100 70 #90a8a0
+paint 101 70 #90a8a0
+paint 102 70 #90a8a0
+paint 103 70 #90a8a0
+paint 104 70 #90a8a0
+paint 105 70 #3d7373
+paint 106 70 #3d7373
+paint 107 70 #3d7373
+paint 108 70 #3d7373
+paint 109 70 #3d7373
+paint 110 70 #25383b
+paint 111 70 #25383b
+paint 112 70 #25383b
+paint 99 71 #25383b
+paint 100 71 #90a8a0
+paint 101 71 #90a8a0
+paint 102 71 #90a8a0
+paint 103 71 #90a8a0
+paint 104 71 #90a8a0
+paint 105 71 #90a8a0
+paint 106 71 #3d7373
+paint 107 71 #3d7373
+paint 108 71 #3d7373
+paint 109 71 #3d7373
+paint 110 71 #3d7373
+paint 111 71 #25383b
+paint 112 71 #25383b
+paint 113 71 #25383b
+paint 98 72 #25383b
+paint 99 72 #25383b
+paint 100 72 #90a8a0
+paint 101 72 #90a8a0
+paint 102 72 #90a8a0
+paint 103 72 #90a8a0
+paint 104 72 #90a8a0
+paint 105 72 #90a8a0
+paint 106 72 #90a8a0
+paint 107 72 #3d7373
+paint 108 72 #3d7373
+paint 109 72 #3d7373
+paint 110 72 #3d7373
+paint 111 72 #3d7373
+paint 112 72 #25383b
+paint 113 72 #25383b
+paint 114 72 #25383b
+paint 98 73 #25383b
+paint 99 73 #25383b
+paint 100 73 #3d7373
+paint 101 73 #90a8a0
+paint 102 73 #90a8a0
+paint 103 73 #90a8a0
+paint 104 73 #90a8a0
+paint 105 73 #90a8a0
+paint 106 73 #90a8a0
+paint 107 73 #3d7373
+paint 108 73 #3d7373
+paint 109 73 #3d7373
+paint 110 73 #3d7373
+paint 111 73 #3d7373
+paint 112 73 #3d7373
+paint 113 73 #25383b
+paint 114 73 #25383b
+paint 98 74 #25383b
+paint 99 74 #25383b
+paint 100 74 #3d7373
+paint 101 74 #3d7373
+paint 102 74 #90a8a0
+paint 103 74 #90a8a0
+paint 104 74 #90a8a0
+paint 105 74 #90a8a0
+paint 106 74 #e5ba63
+paint 107 74 #90a8a0
+paint 108 74 #3d7373
+paint 109 74 #3d7373
+paint 110 74 #3d7373
+paint 111 74 #3d7373
+paint 112 74 #3d7373
+paint 113 74 #25383b
+paint 114 74 #25383b
+paint 98 75 #25383b
+paint 99 75 #25383b
+paint 100 75 #3d7373
+paint 101 75 #3d7373
+paint 102 75 #3d7373
+paint 103 75 #90a8a0
+paint 104 75 #90a8a0
+paint 105 75 #e5ba63
+paint 106 75 #e5ba63
+paint 107 75 #e5ba63
+paint 108 75 #3d7373
+paint 109 75 #3d7373
+paint 110 75 #3d7373
+paint 111 75 #3d7373
+paint 112 75 #3d7373
+paint 113 75 #25383b
+paint 114 75 #25383b
+paint 97 76 #25383b
+paint 98 76 #25383b
+paint 99 76 #3d7373
+paint 100 76 #3d7373
+paint 101 76 #3d7373
+paint 102 76 #3d7373
+paint 103 76 #90a8a0
+paint 104 76 #e5ba63
+paint 105 76 #e5ba63
+paint 106 76 #e5ba63
+paint 107 76 #e5ba63
+paint 108 76 #e5ba63
+paint 109 76 #3d7373
+paint 110 76 #3d7373
+paint 111 76 #3d7373
+paint 112 76 #3d7373
+paint 113 76 #3d7373
+paint 114 76 #25383b
+paint 115 76 #25383b
+paint 98 77 #25383b
+paint 99 77 #25383b
+paint 100 77 #3d7373
+paint 101 77 #3d7373
+paint 102 77 #3d7373
+paint 103 77 #3d7373
+paint 104 77 #90a8a0
+paint 105 77 #e5ba63
+paint 106 77 #e5ba63
+paint 107 77 #e5ba63
+paint 108 77 #3d7373
+paint 109 77 #25383b
+paint 110 77 #25383b
+paint 111 77 #25383b
+paint 112 77 #3d7373
+paint 113 77 #25383b
+paint 114 77 #25383b
+paint 98 78 #25383b
+paint 99 78 #25383b
+paint 100 78 #3d7373
+paint 101 78 #3d7373
+paint 102 78 #3d7373
+paint 103 78 #3d7373
+paint 104 78 #3d7373
+paint 105 78 #3d7373
+paint 106 78 #e5ba63
+paint 107 78 #3d7373
+paint 108 78 #25383b
+paint 109 78 #25383b
+paint 110 78 #25383b
+paint 111 78 #25383b
+paint 112 78 #25383b
+paint 113 78 #25383b
+paint 114 78 #25383b
+paint 98 79 #25383b
+paint 99 79 #25383b
+paint 100 79 #3d7373
+paint 101 79 #3d7373
+paint 102 79 #3d7373
+paint 103 79 #3d7373
+paint 104 79 #3d7373
+paint 105 79 #3d7373
+paint 106 79 #3d7373
+paint 107 79 #25383b
+paint 108 79 #25383b
+paint 109 79 #25383b
+paint 110 79 #25383b
+paint 111 79 #25383b
+paint 112 79 #25383b
+paint 113 79 #25383b
+paint 114 79 #25383b
+paint 115 79 #25383b
+paint 98 80 #25383b
+paint 99 80 #25383b
+paint 100 80 #25383b
+paint 101 80 #3d7373
+paint 102 80 #3d7373
+paint 103 80 #3d7373
+paint 104 80 #3d7373
+paint 105 80 #3d7373
+paint 106 80 #25383b
+paint 107 80 #25383b
+paint 108 80 #25383b
+paint 109 80 #25383b
+paint 110 80 #25383b
+paint 111 80 #25383b
+paint 112 80 #25383b
+paint 113 80 #25383b
+paint 114 80 #25383b
+paint 115 80 #25383b
+paint 116 80 #25383b
+paint 117 80 #25383b
+paint 99 81 #25383b
+paint 100 81 #25383b
+paint 101 81 #25383b
+paint 102 81 #3d7373
+paint 103 81 #3d7373
+paint 104 81 #3d7373
+paint 105 81 #25383b
+paint 106 81 #25383b
+paint 107 81 #25383b
+paint 108 81 #25383b
+paint 109 81 #25383b
+paint 110 81 #25383b
+paint 111 81 #25383b
+paint 112 81 #b66c32
+paint 113 81 #b66c32
+paint 114 81 #25383b
+paint 115 81 #25383b
+paint 116 81 #25383b
+paint 117 81 #25383b
+paint 118 81 #25383b
+paint 119 81 #25383b
+paint 100 82 #25383b
+paint 101 82 #25383b
+paint 102 82 #25383b
+paint 103 82 #3d7373
+paint 104 82 #25383b
+paint 105 82 #25383b
+paint 106 82 #25383b
+paint 107 82 #25383b
+paint 108 82 #25383b
+paint 109 82 #25383b
+paint 110 82 #25383b
+paint 111 82 #b66c32
+paint 112 82 #b66c32
+paint 113 82 #b66c32
+paint 114 82 #b66c32
+paint 115 82 #b66c32
+paint 116 82 #25383b
+paint 117 82 #25383b
+paint 118 82 #25383b
+paint 119 82 #25383b
+paint 101 83 #25383b
+paint 102 83 #25383b
+paint 103 83 #25383b
+paint 104 83 #25383b
+paint 105 83 #25383b
+paint 106 83 #25383b
+paint 107 83 #25383b
+paint 108 83 #25383b
+paint 109 83 #25383b
+paint 110 83 #b66c32
+paint 111 83 #b66c32
+paint 112 83 #b66c32
+paint 113 83 #b66c32
+paint 114 83 #b66c32
+paint 115 83 #b66c32
+paint 116 83 #b66c32
+paint 117 83 #b66c32
+paint 118 83 #25383b
+paint 119 83 #25383b
+paint 102 84 #25383b
+paint 103 84 #25383b
+paint 104 84 #25383b
+paint 105 84 #25383b
+paint 106 84 #25383b
+paint 107 84 #25383b
+paint 108 84 #25383b
+paint 109 84 #25383b
+paint 110 84 #b66c32
+paint 111 84 #b66c32
+paint 112 84 #b66c32
+paint 113 84 #b66c32
+paint 114 84 #b66c32
+paint 115 84 #b66c32
+paint 116 84 #b66c32
+paint 117 84 #b66c32
+paint 118 84 #25383b
+paint 119 84 #25383b
+paint 106 85 #25383b
+paint 107 85 #25383b
+paint 108 85 #25383b
+paint 109 85 #b66c32
+paint 110 85 #b66c32
+paint 111 85 #b66c32
+paint 112 85 #b66c32
+paint 113 85 #b66c32
+paint 114 85 #b66c32
+paint 115 85 #b66c32
+paint 116 85 #b66c32
+paint 117 85 #b66c32
+paint 118 85 #25383b
+paint 119 85 #25383b
+paint 106 86 #25383b
+paint 107 86 #25383b
+paint 108 86 #b66c32
+paint 109 86 #b66c32
+paint 110 86 #b66c32
+paint 111 86 #b66c32
+paint 112 86 #b66c32
+paint 113 86 #b66c32
+paint 114 86 #b66c32
+paint 115 86 #b66c32
+paint 116 86 #b66c32
+paint 117 86 #b66c32
+paint 118 86 #25383b
+paint 119 86 #25383b
+paint 106 87 #25383b
+paint 107 87 #25383b
+paint 108 87 #25383b
+paint 109 87 #25383b
+paint 110 87 #b66c32
+paint 111 87 #b66c32
+paint 112 87 #b66c32
+paint 113 87 #b66c32
+paint 114 87 #b66c32
+paint 115 87 #25383b
+paint 116 87 #25383b
+paint 117 87 #25383b
+paint 108 88 #25383b
+paint 109 88 #25383b
+paint 110 88 #25383b
+paint 111 88 #25383b
+paint 112 88 #25383b
+paint 113 88 #25383b
+paint 114 88 #25383b
+paint 115 88 #25383b
+paint 110 89 #25383b
+paint 111 89 #25383b
+paint 112 89 #25383b
+paint 113 89 #25383b
+part pitman
+rect iron 110 33 1 1
+rect iron 109 34 1 1
+rect brass 110 34 1 1
+rect iron 111 34 1 1
+rect iron 108 35 1 1
+rect brass 109 35 3 1
+rect iron 112 35 1 1
+rect iron 109 36 1 1
+rect brass 110 36 1 1
+rect iron 111 36 1 1
+rect steel 108 37 2 1
+rect iron 110 37 1 1
+rect steel 111 37 1 1
+rect steel 108 38 4 1
+rect steel 108 39 3 1
+rect steel 107 40 4 1
+rect steel 107 41 4 1
+rect steel 107 42 3 1
+rect steel 106 43 4 1
+rect steel 106 44 4 1
+rect steel 106 45 3 1
+rect steel 105 46 4 1
+rect steel 105 47 4 1
+rect steel 105 48 3 1
+rect steel 104 49 4 1
+rect steel 104 50 4 1
+rect steel 103 51 4 1
+rect steel 103 52 4 1
+rect steel 103 53 3 1
+rect steel 102 54 4 1
+rect steel 102 55 4 1
+rect steel 102 56 3 1
+rect steel 101 57 4 1
+rect steel 101 58 4 1
+rect steel 101 59 3 1
+rect steel 100 60 4 1
+rect steel 100 61 4 1
+rect steel 100 62 3 1
+rect steel 99 63 4 1
+rect steel 99 64 4 1
+rect steel 99 65 3 1
+rect steel 99 66 3 1
+paint 110 33 #25383b
+paint 109 34 #25383b
+paint 110 34 #e5ba63
+paint 111 34 #25383b
+paint 108 35 #25383b
+paint 109 35 #e5ba63
+paint 110 35 #e5ba63
+paint 111 35 #e5ba63
+paint 112 35 #25383b
+paint 109 36 #25383b
+paint 110 36 #e5ba63
+paint 111 36 #25383b
+paint 108 37 #25383b
+paint 109 37 #25383b
+paint 110 37 #25383b
+paint 111 37 #25383b
+paint 108 38 #25383b
+paint 109 38 #b3baba
+paint 110 38 #25383b
+paint 111 38 #25383b
+paint 108 39 #25383b
+paint 109 39 #b3baba
+paint 110 39 #25383b
+paint 107 40 #25383b
+paint 108 40 #25383b
+paint 109 40 #b3baba
+paint 110 40 #25383b
+paint 107 41 #25383b
+paint 108 41 #b3baba
+paint 109 41 #25383b
+paint 110 41 #25383b
+paint 107 42 #25383b
+paint 108 42 #b3baba
+paint 109 42 #25383b
+paint 106 43 #25383b
+paint 107 43 #25383b
+paint 108 43 #b3baba
+paint 109 43 #25383b
+paint 106 44 #25383b
+paint 107 44 #b3baba
+paint 108 44 #25383b
+paint 109 44 #25383b
+paint 106 45 #25383b
+paint 107 45 #b3baba
+paint 108 45 #25383b
+paint 105 46 #25383b
+paint 106 46 #25383b
+paint 107 46 #b3baba
+paint 108 46 #25383b
+paint 105 47 #25383b
+paint 106 47 #b3baba
+paint 107 47 #25383b
+paint 108 47 #25383b
+paint 105 48 #25383b
+paint 106 48 #b3baba
+paint 107 48 #25383b
+paint 104 49 #25383b
+paint 105 49 #25383b
+paint 106 49 #b3baba
+paint 107 49 #25383b
+paint 104 50 #25383b
+paint 105 50 #b3baba
+paint 106 50 #25383b
+paint 107 50 #25383b
+paint 103 51 #25383b
+paint 104 51 #25383b
+paint 105 51 #b3baba
+paint 106 51 #25383b
+paint 103 52 #25383b
+paint 104 52 #b3baba
+paint 105 52 #25383b
+paint 106 52 #25383b
+paint 103 53 #25383b
+paint 104 53 #b3baba
+paint 105 53 #25383b
+paint 102 54 #25383b
+paint 103 54 #25383b
+paint 104 54 #b3baba
+paint 105 54 #25383b
+paint 102 55 #25383b
+paint 103 55 #b3baba
+paint 104 55 #25383b
+paint 105 55 #25383b
+paint 102 56 #25383b
+paint 103 56 #b3baba
+paint 104 56 #25383b
+paint 101 57 #25383b
+paint 102 57 #25383b
+paint 103 57 #b3baba
+paint 104 57 #25383b
+paint 101 58 #25383b
+paint 102 58 #b3baba
+paint 103 58 #25383b
+paint 104 58 #25383b
+paint 101 59 #25383b
+paint 102 59 #b3baba
+paint 103 59 #25383b
+paint 100 60 #25383b
+paint 101 60 #25383b
+paint 102 60 #b3baba
+paint 103 60 #25383b
+paint 100 61 #25383b
+paint 101 61 #b3baba
+paint 102 61 #25383b
+paint 103 61 #25383b
+paint 100 62 #25383b
+paint 101 62 #b3baba
+paint 102 62 #25383b
+paint 99 63 #25383b
+paint 100 63 #25383b
+paint 101 63 #b3baba
+paint 102 63 #25383b
+paint 99 64 #25383b
+paint 100 64 #b3baba
+paint 101 64 #25383b
+paint 102 64 #25383b
+paint 99 65 #25383b
+paint 100 65 #b3baba
+paint 101 65 #25383b
+paint 99 66 #25383b
+paint 100 66 #25383b
+paint 101 66 #25383b
+part polished_rod
+rect steel 20 65 2 1
+rect steel 20 66 2 1
+rect brass 19 67 4 1
+rect brass 19 68 4 1
+rect brass 19 69 4 1
+rect steel 20 70 2 1
+rect steel 20 71 2 1
+rect steel 20 72 2 1
+rect steel 20 73 2 1
+rect steel 20 74 2 1
+rect steel 20 75 2 1
+rect steel 20 76 2 1
+rect steel 20 77 2 1
+rect steel 20 78 2 1
+rect steel 20 79 2 1
+rect steel 20 80 2 1
+rect steel 20 81 2 1
+rect steel 20 82 2 1
+rect steel 20 83 2 1
+rect steel 20 84 2 1
+rect steel 20 85 2 1
+rect steel 20 86 2 1
+rect steel 20 87 2 1
+rect steel 20 88 2 1
+rect steel 20 89 2 1
+rect steel 20 90 2 1
+rect steel 20 91 2 1
+rect steel 20 92 2 1
+rect steel 20 93 2 1
+rect steel 20 94 2 1
+rect steel 20 95 2 1
+rect steel 20 96 2 1
+rect steel 20 97 2 1
+rect steel 20 98 2 1
+rect steel 20 99 2 1
+paint 20 65 #c6d1d1
+paint 21 65 #c6d1d1
+paint 20 66 #c6d1d1
+paint 21 66 #c6d1d1
+paint 19 67 #e5ba63
+paint 20 67 #e5ba63
+paint 21 67 #e5ba63
+paint 22 67 #e5ba63
+paint 19 68 #e5ba63
+paint 20 68 #e5ba63
+paint 21 68 #e5ba63
+paint 22 68 #e5ba63
+paint 19 69 #e5ba63
+paint 20 69 #e5ba63
+paint 21 69 #e5ba63
+paint 22 69 #e5ba63
+paint 20 70 #c6d1d1
+paint 21 70 #c6d1d1
+paint 20 71 #c6d1d1
+paint 21 71 #c6d1d1
+paint 20 72 #c6d1d1
+paint 21 72 #c6d1d1
+paint 20 73 #c6d1d1
+paint 21 73 #c6d1d1
+paint 20 74 #c6d1d1
+paint 21 74 #c6d1d1
+paint 20 75 #c6d1d1
+paint 21 75 #c6d1d1
+paint 20 76 #c6d1d1
+paint 21 76 #c6d1d1
+paint 20 77 #c6d1d1
+paint 21 77 #c6d1d1
+paint 20 78 #c6d1d1
+paint 21 78 #c6d1d1
+paint 20 79 #c6d1d1
+paint 21 79 #c6d1d1
+paint 20 80 #c6d1d1
+paint 21 80 #c6d1d1
+paint 20 81 #c6d1d1
+paint 21 81 #c6d1d1
+paint 20 82 #c6d1d1
+paint 21 82 #c6d1d1
+paint 20 83 #c6d1d1
+paint 21 83 #c6d1d1
+paint 20 84 #c6d1d1
+paint 21 84 #c6d1d1
+paint 20 85 #c6d1d1
+paint 21 85 #c6d1d1
+paint 20 86 #c6d1d1
+paint 21 86 #c6d1d1
+paint 20 87 #c6d1d1
+paint 21 87 #c6d1d1
+paint 20 88 #c6d1d1
+paint 21 88 #c6d1d1
+paint 20 89 #c6d1d1
+paint 21 89 #c6d1d1
+paint 20 90 #c6d1d1
+paint 21 90 #c6d1d1
+paint 20 91 #c6d1d1
+paint 21 91 #c6d1d1
+paint 20 92 #c6d1d1
+paint 21 92 #c6d1d1
+paint 20 93 #c6d1d1
+paint 21 93 #c6d1d1
+paint 20 94 #c6d1d1
+paint 21 94 #c6d1d1
+paint 20 95 #c6d1d1
+paint 21 95 #c6d1d1
+paint 20 96 #c6d1d1
+paint 21 96 #c6d1d1
+paint 20 97 #c6d1d1
+paint 21 97 #c6d1d1
+paint 20 98 #c6d1d1
+paint 21 98 #c6d1d1
+paint 20 99 #c6d1d1
+paint 21 99 #c6d1d1
+part bridle
+rect steel 18 52 2 1
+rect steel 18 53 2 1
+rect steel 18 54 2 1
+rect steel 18 55 3 1
+rect steel 19 56 2 1
+rect steel 19 57 2 1
+rect steel 19 58 2 1
+rect steel 19 59 2 1
+rect steel 19 60 2 1
+rect steel 19 61 3 1
+rect steel 20 62 2 1
+rect steel 20 63 2 1
+rect steel 20 64 2 1
+paint 18 52 #b7b8a8
+paint 19 52 #b7b8a8
+paint 18 53 #b7b8a8
+paint 19 53 #b7b8a8
+paint 18 54 #b7b8a8
+paint 19 54 #b7b8a8
+paint 18 55 #b7b8a8
+paint 19 55 #b7b8a8
+paint 20 55 #b7b8a8
+paint 19 56 #b7b8a8
+paint 20 56 #b7b8a8
+paint 19 57 #b7b8a8
+paint 20 57 #b7b8a8
+paint 19 58 #b7b8a8
+paint 20 58 #b7b8a8
+paint 19 59 #b7b8a8
+paint 20 59 #b7b8a8
+paint 19 60 #b7b8a8
+paint 20 60 #b7b8a8
+paint 19 61 #b7b8a8
+paint 20 61 #b7b8a8
+paint 21 61 #b7b8a8
+paint 20 62 #b7b8a8
+paint 21 62 #b7b8a8
+paint 20 63 #b7b8a8
+paint 21 63 #b7b8a8
+paint 20 64 #b7b8a8
+paint 21 64 #b7b8a8
+part control_cabinet
+rect iron 76 88 11 1
+rect iron 76 89 1 1
+rect steel 77 89 9 1
+rect iron 86 89 1 1
+rect iron 76 90 1 1
+rect steel 77 90 1 1
+rect glass 78 90 7 1
+rect steel 85 90 1 1
+rect iron 86 90 1 1
+rect iron 76 91 1 1
+rect steel 77 91 1 1
+rect glass 78 91 7 1
+rect steel 85 91 1 1
+rect iron 86 91 1 1
+rect iron 76 92 1 1
+rect steel 77 92 1 1
+rect glass 78 92 7 1
+rect steel 85 92 1 1
+rect iron 86 92 1 1
+rect iron 76 93 1 1
+rect steel 77 93 1 1
+rect glass 78 93 7 1
+rect steel 85 93 1 1
+rect iron 86 93 1 1
+rect iron 76 94 1 1
+rect steel 77 94 9 1
+rect iron 86 94 1 1
+rect iron 76 95 1 1
+rect steel 77 95 9 1
+rect iron 86 95 1 1
+rect iron 76 96 1 1
+rect steel 77 96 2 1
+rect lamp_glass 79 96 1 1
+rect steel 80 96 3 1
+rect plastic 83 96 1 1
+rect steel 84 96 2 1
+rect iron 86 96 1 1
+rect iron 76 97 1 1
+rect steel 77 97 9 1
+rect iron 86 97 1 1
+rect iron 76 98 1 1
+rect steel 77 98 3 1
+rect brass 80 98 3 1
+rect steel 83 98 3 1
+rect iron 86 98 1 1
+rect iron 76 99 1 1
+rect steel 77 99 9 1
+rect iron 86 99 1 1
+rect iron 76 100 11 1
+rect iron 76 101 11 1
+paint 76 88 #25383b
+paint 77 88 #25383b
+paint 78 88 #25383b
+paint 79 88 #25383b
+paint 80 88 #25383b
+paint 81 88 #25383b
+paint 82 88 #25383b
+paint 83 88 #25383b
+paint 84 88 #25383b
+paint 85 88 #25383b
+paint 86 88 #25383b
+paint 76 89 #25383b
+paint 77 89 #647b77
+paint 78 89 #647b77
+paint 79 89 #647b77
+paint 80 89 #647b77
+paint 81 89 #647b77
+paint 82 89 #647b77
+paint 83 89 #647b77
+paint 84 89 #647b77
+paint 85 89 #647b77
+paint 86 89 #25383b
+paint 76 90 #25383b
+paint 77 90 #647b77
+paint 78 90 #1c3034
+paint 79 90 #1c3034
+paint 80 90 #1c3034
+paint 81 90 #1c3034
+paint 82 90 #1c3034
+paint 83 90 #1c3034
+paint 84 90 #1c3034
+paint 85 90 #647b77
+paint 86 90 #25383b
+paint 76 91 #25383b
+paint 77 91 #647b77
+paint 78 91 #1c3034
+paint 79 91 #1c3034
+paint 80 91 #1c3034
+paint 81 91 #1c3034
+paint 82 91 #1c3034
+paint 83 91 #1c3034
+paint 84 91 #1c3034
+paint 85 91 #647b77
+paint 86 91 #25383b
+paint 76 92 #25383b
+paint 77 92 #647b77
+paint 78 92 #1c3034
+paint 79 92 #1c3034
+paint 80 92 #1c3034
+paint 81 92 #1c3034
+paint 82 92 #1c3034
+paint 83 92 #1c3034
+paint 84 92 #1c3034
+paint 85 92 #647b77
+paint 86 92 #25383b
+paint 76 93 #25383b
+paint 77 93 #647b77
+paint 78 93 #1c3034
+paint 79 93 #1c3034
+paint 80 93 #1c3034
+paint 81 93 #1c3034
+paint 82 93 #1c3034
+paint 83 93 #1c3034
+paint 84 93 #1c3034
+paint 85 93 #647b77
+paint 86 93 #25383b
+paint 76 94 #25383b
+paint 77 94 #647b77
+paint 78 94 #647b77
+paint 79 94 #647b77
+paint 80 94 #647b77
+paint 81 94 #647b77
+paint 82 94 #647b77
+paint 83 94 #647b77
+paint 84 94 #647b77
+paint 85 94 #647b77
+paint 86 94 #25383b
+paint 76 95 #25383b
+paint 77 95 #647b77
+paint 78 95 #647b77
+paint 79 95 #647b77
+paint 80 95 #647b77
+paint 81 95 #647b77
+paint 82 95 #647b77
+paint 83 95 #647b77
+paint 84 95 #647b77
+paint 85 95 #647b77
+paint 86 95 #25383b
+paint 76 96 #25383b
+paint 77 96 #647b77
+paint 78 96 #647b77
+paint 79 96 #a1de8b
+paint 80 96 #647b77
+paint 81 96 #647b77
+paint 82 96 #647b77
+paint 83 96 #d4553c
+paint 84 96 #647b77
+paint 85 96 #647b77
+paint 86 96 #25383b
+paint 76 97 #25383b
+paint 77 97 #647b77
+paint 78 97 #647b77
+paint 79 97 #647b77
+paint 80 97 #647b77
+paint 81 97 #647b77
+paint 82 97 #647b77
+paint 83 97 #647b77
+paint 84 97 #647b77
+paint 85 97 #647b77
+paint 86 97 #25383b
+paint 76 98 #25383b
+paint 77 98 #647b77
+paint 78 98 #647b77
+paint 79 98 #647b77
+paint 80 98 #e5ba63
+paint 81 98 #e5ba63
+paint 82 98 #e5ba63
+paint 83 98 #647b77
+paint 84 98 #647b77
+paint 85 98 #647b77
+paint 86 98 #25383b
+paint 76 99 #25383b
+paint 77 99 #647b77
+paint 78 99 #647b77
+paint 79 99 #647b77
+paint 80 99 #647b77
+paint 81 99 #647b77
+paint 82 99 #647b77
+paint 83 99 #647b77
+paint 84 99 #647b77
+paint 85 99 #647b77
+paint 86 99 #25383b
+paint 76 100 #25383b
+paint 77 100 #25383b
+paint 78 100 #25383b
+paint 79 100 #25383b
+paint 80 100 #25383b
+paint 81 100 #25383b
+paint 82 100 #25383b
+paint 83 100 #25383b
+paint 84 100 #25383b
+paint 85 100 #25383b
+paint 86 100 #25383b
+paint 76 101 #25383b
+paint 77 101 #25383b
+paint 78 101 #25383b
+paint 79 101 #25383b
+paint 80 101 #25383b
+paint 81 101 #25383b
+paint 82 101 #25383b
+paint 83 101 #25383b
+paint 84 101 #25383b
+paint 85 101 #25383b
+paint 86 101 #25383b
+weld control_cabinet base 81 101 70
+joint hinge beam base at 61 33
+joint hinge crank base at 106 76 motor 0.22 strength 800
+joint hinge pitman crank at 99.5 66.5
+joint hinge pitman beam at 110.5 33.5
+joint hinge bridle beam at 19 52
+joint hinge bridle polished_rod at 21 65
+joint hinge base ground at 12 108
+joint hinge base ground at 116 108

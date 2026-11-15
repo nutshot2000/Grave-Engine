@@ -1,0 +1,217 @@
+{
+  "name": "detailed_supply_crate",
+  "width": 40,
+  "height": 32,
+  "depth": 0.15,
+  "pivot": [
+    20,
+    31
+  ],
+  "styles": {
+    "wood_outline": {
+      "material": "wood",
+      "paint": "#493326"
+    },
+    "wood_body": {
+      "material": "wood",
+      "paint": "#97663e"
+    },
+    "wood_light": {
+      "material": "wood",
+      "paint": "#ba8753"
+    },
+    "label_red": {
+      "material": "wood",
+      "paint": "#a83d35"
+    },
+    "ink": {
+      "material": "wood",
+      "paint": "#211e20"
+    },
+    "steel": {
+      "material": "steel",
+      "paint": "#82918d"
+    },
+    "rivet": {
+      "material": "brass",
+      "paint": "#d3ad63"
+    }
+  },
+  "parts": [
+    {
+      "name": "wooden_box",
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            5,
+            8
+          ],
+          "size": [
+            30,
+            20
+          ],
+          "style": "wood_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            7,
+            9
+          ],
+          "size": [
+            26,
+            18
+          ],
+          "style": "wood_body"
+        },
+        {
+          "op": "line",
+          "from": [
+            7,
+            12
+          ],
+          "to": [
+            32,
+            12
+          ],
+          "style": "wood_light"
+        },
+        {
+          "op": "line",
+          "from": [
+            7,
+            22
+          ],
+          "to": [
+            32,
+            22
+          ],
+          "style": "wood_light"
+        },
+        {
+          "op": "rect",
+          "at": [
+            10,
+            13
+          ],
+          "size": [
+            20,
+            9
+          ],
+          "style": "label_red"
+        },
+        {
+          "op": "text",
+          "at": [
+            11,
+            15
+          ],
+          "text": "TOOLS",
+          "style": "ink"
+        },
+        {
+          "op": "rivets",
+          "from": [
+            6,
+            10
+          ],
+          "to": [
+            33,
+            10
+          ],
+          "count": 4,
+          "style": "rivet"
+        },
+        {
+          "op": "rivets",
+          "from": [
+            6,
+            25
+          ],
+          "to": [
+            33,
+            25
+          ],
+          "count": 4,
+          "style": "rivet"
+        }
+      ]
+    },
+    {
+      "name": "lid",
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            4,
+            4
+          ],
+          "size": [
+            32,
+            4
+          ],
+          "style": "wood_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            5,
+            4
+          ],
+          "size": [
+            30,
+            1
+          ],
+          "style": "wood_light"
+        },
+        {
+          "op": "rect",
+          "at": [
+            5,
+            6
+          ],
+          "size": [
+            30,
+            1
+          ],
+          "style": "wood_body"
+        }
+      ]
+    },
+    {
+      "name": "steel_foot",
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            3,
+            28
+          ],
+          "size": [
+            34,
+            3
+          ],
+          "style": "steel"
+        },
+        {
+          "op": "rivets",
+          "from": [
+            5,
+            29
+          ],
+          "to": [
+            34,
+            29
+          ],
+          "count": 5,
+          "style": "rivet"
+        }
+      ]
+    }
+  ],
+  "welds": [
+    "wooden_box lid 20 8 20",
+    "wooden_box steel_foot 20 28 40"
+  ]
+}

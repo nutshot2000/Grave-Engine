@@ -85,6 +85,7 @@ use std::path::Path;
 
 /// Everything a scene file describes.
 pub struct Loaded {
+    pub pumps: Vec<crate::pump::Pump>,
     /// Index, name, complete plane and whether it inherits fixed front terrain.
     pub layers: Vec<(usize,String,Loaded,bool)>,
     pub world: World,
@@ -148,6 +149,10 @@ impl Loaded {
                 sim.instances.insert(id, inst);
             }
             ids.push(id);
+        }
+        for mut p in self.pumps {
+            if let Some(id)=ids.get(p.drive as usize-1).copied().flatten() {p.drive=id;if p.bind(&sim.physics) {sim.pumps.push(p);}}
+            else {problems.push("pump drive is missing".into());}
         }
         for j in self.joints {
             let id_of = |e: End| match e {
@@ -340,6 +345,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     let mut outside_temperature=None;
     let mut actors: Vec<crate::physics::ActorSpec> = Vec::new();
     let mut player_zoom = 0.0f32;
+    let mut pumps=Vec::new();
     let mut template_cache: HashMap<String, crate::template::Template> = HashMap::new();
     let mut heated: Vec<(usize, f32)> = Vec::new();
     let mut world: Option<World> = None;
@@ -925,6 +931,29 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 }
                 None => err("use `follow NAME [zoom Z]` with a named object".into()),
             },
+            "pump" => {
+                let parse=(|| -> Result<crate::pump::Pump,String> {
+                    let key=|k:&str| words.iter().position(|w|*w==k).ok_or_else(||format!("pump needs {k}"));
+                    let number=|i:usize| words.get(i).and_then(|v|v.parse::<f32>().ok()).filter(|v|v.is_finite()).ok_or("pump needs finite numbers".to_string());
+                    let liquid=words.get(1).and_then(|v|mats.id(v)).filter(|id|mats.get(*id).state==crate::material::State::Liquid).ok_or("pump needs a liquid material")?;
+                    let drive=words.get(key("drive")?+1).and_then(|v|names.get(&v.to_lowercase())).copied().ok_or("pump needs an existing named drive body")? as u64+1;
+                    let at=key("at")?;let anchor=(number(at+1)?,number(at+2)?);
+                    let rect=|name:&str| -> Result<(usize,usize,usize,usize),String> {
+                        let at=key(name)?;let v=[number(at+1)?,number(at+2)?,number(at+3)?,number(at+4)?];
+                        let world=world.as_ref().ok_or("pump needs a sized world")?;
+                        if v.iter().any(|n|*n<0.||n.fract()!=0.) || v[2]<1. || v[3]<1. || v[2]*v[3]>4096. || v[0]+v[2]>world.w as f32 || v[1]+v[3]>world.h as f32 {return Err("pump port must be a rectangle inside the world, at most 4096 cells".into());}
+                        Ok((v[0]as usize,v[1]as usize,v[2]as usize,v[3]as usize))
+                    };
+                    let intake=rect("intake")?;let outlet=rect("outlet")?;let rate=number(key("rate")?+1)?;
+                    if !(0.01..=64.).contains(&rate) {return Err("pump rate needs 0.01..64 cells per stroke cell".into());}
+                    if intake.0<outlet.0+outlet.2 && outlet.0<intake.0+intake.2 && intake.1<outlet.1+outlet.3 && outlet.1<intake.1+intake.3 {return Err("pump ports must not overlap".into());}
+                    let credit=match words.iter().position(|w|*w=="credit") {Some(i)=>number(i+1)?,None=>0.};
+                    if credit<0. || credit>rate*20. {return Err("pump credit is outside its stroke capacity".into());}
+                    let moved=match words.iter().position(|w|*w=="delivered") {Some(i)=>words.get(i+1).and_then(|v|v.parse::<u64>().ok()).ok_or("pump delivered needs a nonnegative integer")?,None=>0};
+                    Ok(crate::pump::Pump{liquid,drive,anchor,intake,outlet,rate,credit,moved,last_y:None})
+                })();
+                match parse {Ok(p)=>pumps.push(p),Err(e)=>err(e)}
+            }
             "hinge" | "wheel" | "weld" | "rope" => {
                 use crate::physics::{JointKind, Motor};
                 let end = |w: Option<&&str>| -> Result<End, String> {
@@ -1109,7 +1138,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
+    Loaded { pumps, outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1285,6 +1314,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
         _ => None,
     }));
     named.extend(snap.lighting.lights.iter().filter_map(|l| l.on));
+    named.extend(snap.pumps.iter().map(|p|p.drive));
     let name_line = |n: usize| if named.contains(&(n as u64 + 1)) { format!("name obj{}\n", n + 1) } else { String::new() };
     for (n, b) in snap.bodies.iter().enumerate() {
         if let Some(Some(inst)) = snap.instances.get(n) {
@@ -1418,6 +1448,13 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             }
         }
     }
+    for p in &snap.pumps {
+        if let Some(b)=snap.bodies.get(p.drive as usize-1) {
+            let at=(b.x+p.anchor.0*b.angle.cos()-p.anchor.1*b.angle.sin(),b.y+p.anchor.0*b.angle.sin()+p.anchor.1*b.angle.cos());
+            let (ix,iy,iw,ih)=p.intake;let(ox,oy,ow,oh)=p.outlet;
+            out.push_str(&format!("pump {} drive obj{} at {} {} intake {ix} {iy} {iw} {ih} outlet {ox} {oy} {ow} {oh} rate {} credit {} delivered {}\n",mats.get(p.liquid).name,p.drive,at.0,at.1,p.rate,p.credit,p.moved));
+        }
+    }
     for (i,layer) in snap.layers.iter().enumerate() {
         let name=snap.layer_names.get(i).map(String::as_str).unwrap_or("interior");
         out.push_str(&format!("\nplane {} {}\n{}endplane\n",i+1,name,save(layer,mats)));
@@ -1429,6 +1466,8 @@ fn merge_plane(layers: &mut Vec<(usize,String,Loaded,bool)>, index: usize, name:
     if let Some((_,_,target,_))=layers.iter_mut().find(|(z,_,_,_)|*z==index) {
         let offset=target.bodies.len();
         for j in &mut child.joints {if let End::Object(n)=&mut j.a {*n+=offset;} if let End::Object(n)=&mut j.b {*n+=offset;}}
+        for p in &mut child.pumps {p.drive+=offset as u64;}
+        target.pumps.extend(child.pumps);
         target.bodies.extend(child.bodies);target.instances.extend(child.instances);target.joints.extend(child.joints);target.problems.extend(child.problems);
     } else {layers.push((index,name,child,inherit));layers.sort_by_key(|(z,_,_,_)|*z);}
 }

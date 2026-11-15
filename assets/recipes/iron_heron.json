@@ -1,0 +1,925 @@
+{
+  "name": "iron_heron_pumpjack",
+  "width": 128,
+  "height": 112,
+  "depth": 0.12,
+  "pivot": [
+    64,
+    111
+  ],
+  "styles": {
+    "concrete_757c77": {
+      "material": "concrete",
+      "paint": "#757c77"
+    },
+    "concrete_a5aa99": {
+      "material": "concrete",
+      "paint": "#a5aa99"
+    },
+    "iron_outline": {
+      "material": "iron",
+      "paint": "#25383b"
+    },
+    "steel_outline": {
+      "material": "steel",
+      "paint": "#25383b"
+    },
+    "steel_body": {
+      "material": "steel",
+      "paint": "#3d7373"
+    },
+    "steel_edge": {
+      "material": "steel",
+      "paint": "#90a8a0"
+    },
+    "brass_gold": {
+      "material": "brass",
+      "paint": "#e5ba63"
+    },
+    "air_000000": {
+      "material": "air",
+      "paint": "#000000"
+    },
+    "steel_gold": {
+      "material": "steel",
+      "paint": "#e5ba63"
+    },
+    "steel_rust": {
+      "material": "steel",
+      "paint": "#b66c32"
+    },
+    "iron_rust": {
+      "material": "iron",
+      "paint": "#b66c32"
+    },
+    "steel_b3baba": {
+      "material": "steel",
+      "paint": "#b3baba"
+    },
+    "steel_c6d1d1": {
+      "material": "steel",
+      "paint": "#c6d1d1"
+    },
+    "steel_b7b8a8": {
+      "material": "steel",
+      "paint": "#b7b8a8"
+    },
+    "steel_647b77": {
+      "material": "steel",
+      "paint": "#647b77"
+    },
+    "glass_1c3034": {
+      "material": "glass",
+      "paint": "#1c3034"
+    },
+    "lamp_glass_a1de8b": {
+      "material": "lamp_glass",
+      "paint": "#a1de8b"
+    },
+    "plastic_d4553c": {
+      "material": "plastic",
+      "paint": "#d4553c"
+    }
+  },
+  "parts": [
+    {
+      "name": "base",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            4,
+            105
+          ],
+          "size": [
+            120,
+            7
+          ],
+          "style": "concrete_757c77"
+        },
+        {
+          "op": "rect",
+          "at": [
+            7,
+            105
+          ],
+          "size": [
+            114,
+            1
+          ],
+          "style": "concrete_a5aa99"
+        },
+        {
+          "op": "rect",
+          "at": [
+            8,
+            102
+          ],
+          "size": [
+            112,
+            3
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "line",
+          "from": [
+            43,
+            102
+          ],
+          "to": [
+            61,
+            34
+          ],
+          "width": 4,
+          "style": "steel_outline"
+        },
+        {
+          "op": "line",
+          "from": [
+            43,
+            102
+          ],
+          "to": [
+            61,
+            34
+          ],
+          "width": 2,
+          "style": "steel_body"
+        },
+        {
+          "op": "line",
+          "from": [
+            80,
+            102
+          ],
+          "to": [
+            61,
+            34
+          ],
+          "width": 4,
+          "style": "steel_outline"
+        },
+        {
+          "op": "line",
+          "from": [
+            80,
+            102
+          ],
+          "to": [
+            61,
+            34
+          ],
+          "width": 2,
+          "style": "steel_body"
+        },
+        {
+          "op": "line",
+          "from": [
+            48,
+            82
+          ],
+          "to": [
+            73,
+            64
+          ],
+          "width": 2,
+          "style": "steel_edge"
+        },
+        {
+          "op": "line",
+          "from": [
+            74,
+            82
+          ],
+          "to": [
+            52,
+            64
+          ],
+          "width": 2,
+          "style": "steel_edge"
+        },
+        {
+          "op": "line",
+          "from": [
+            46,
+            94
+          ],
+          "to": [
+            77,
+            94
+          ],
+          "width": 2,
+          "style": "steel_edge"
+        },
+        {
+          "op": "rect",
+          "at": [
+            56,
+            32
+          ],
+          "size": [
+            11,
+            8
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "circle",
+          "at": [
+            61,
+            34
+          ],
+          "radius": 3,
+          "style": "brass_gold"
+        },
+        {
+          "op": "rect",
+          "at": [
+            96,
+            94
+          ],
+          "size": [
+            25,
+            8
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            98,
+            95
+          ],
+          "size": [
+            21,
+            6
+          ],
+          "style": "steel_body"
+        },
+        {
+          "op": "rect",
+          "at": [
+            99,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            102,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            105,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            108,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            111,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            114,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            117,
+            96
+          ],
+          "size": [
+            1,
+            5
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            94,
+            99
+          ],
+          "size": [
+            29,
+            3
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "circle",
+          "at": [
+            11,
+            103
+          ],
+          "radius": 1,
+          "style": "brass_gold"
+        },
+        {
+          "op": "circle",
+          "at": [
+            39,
+            103
+          ],
+          "radius": 1,
+          "style": "brass_gold"
+        },
+        {
+          "op": "circle",
+          "at": [
+            83,
+            103
+          ],
+          "radius": 1,
+          "style": "brass_gold"
+        },
+        {
+          "op": "circle",
+          "at": [
+            117,
+            103
+          ],
+          "radius": 1,
+          "style": "brass_gold"
+        },
+        {
+          "op": "rect",
+          "at": [
+            17,
+            81
+          ],
+          "size": [
+            2,
+            23
+          ],
+          "style": "steel_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            24,
+            81
+          ],
+          "size": [
+            2,
+            23
+          ],
+          "style": "steel_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            15,
+            100
+          ],
+          "size": [
+            14,
+            4
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            19,
+            100
+          ],
+          "size": [
+            5,
+            4
+          ],
+          "style": "air_000000"
+        }
+      ]
+    },
+    {
+      "name": "beam",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            18,
+            30
+          ],
+          "size": [
+            93,
+            6
+          ],
+          "style": "steel_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            19,
+            30
+          ],
+          "size": [
+            91,
+            1
+          ],
+          "style": "steel_edge"
+        },
+        {
+          "op": "rect",
+          "at": [
+            19,
+            32
+          ],
+          "size": [
+            91,
+            2
+          ],
+          "style": "steel_body"
+        },
+        {
+          "op": "rect",
+          "at": [
+            50,
+            24
+          ],
+          "size": [
+            38,
+            7
+          ],
+          "style": "steel_outline"
+        },
+        {
+          "op": "poly",
+          "points": [
+            [
+              20,
+              15
+            ],
+            [
+              12,
+              15
+            ],
+            [
+              6,
+              22
+            ],
+            [
+              6,
+              40
+            ],
+            [
+              12,
+              54
+            ],
+            [
+              20,
+              54
+            ],
+            [
+              24,
+              45
+            ],
+            [
+              24,
+              25
+            ]
+          ],
+          "style": "steel_outline"
+        },
+        {
+          "op": "poly",
+          "points": [
+            [
+              19,
+              17
+            ],
+            [
+              13,
+              17
+            ],
+            [
+              8,
+              23
+            ],
+            [
+              8,
+              39
+            ],
+            [
+              14,
+              51
+            ],
+            [
+              19,
+              51
+            ],
+            [
+              22,
+              44
+            ],
+            [
+              22,
+              26
+            ]
+          ],
+          "style": "steel_rust"
+        },
+        {
+          "op": "line",
+          "from": [
+            8,
+            23
+          ],
+          "to": [
+            8,
+            37
+          ],
+          "width": 1,
+          "style": "steel_gold"
+        },
+        {
+          "op": "circle",
+          "at": [
+            20,
+            32
+          ],
+          "radius": 2,
+          "style": "brass_gold"
+        },
+        {
+          "op": "text",
+          "at": [
+            59,
+            25
+          ],
+          "text": "HERON",
+          "style": "steel_gold"
+        },
+        {
+          "op": "rivets",
+          "from": [
+            28,
+            33
+          ],
+          "to": [
+            98,
+            33
+          ],
+          "count": 8,
+          "style": "brass_gold"
+        }
+      ]
+    },
+    {
+      "name": "crank",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "circle",
+          "at": [
+            106,
+            76
+          ],
+          "radius": 9,
+          "style": "iron_outline"
+        },
+        {
+          "op": "circle",
+          "at": [
+            106,
+            76
+          ],
+          "radius": 7,
+          "style": "steel_body"
+        },
+        {
+          "op": "line",
+          "from": [
+            106,
+            76
+          ],
+          "to": [
+            99,
+            66
+          ],
+          "width": 4,
+          "style": "steel_edge"
+        },
+        {
+          "op": "poly",
+          "points": [
+            [
+              110,
+              76
+            ],
+            [
+              120,
+              81
+            ],
+            [
+              120,
+              86
+            ],
+            [
+              112,
+              90
+            ],
+            [
+              106,
+              87
+            ],
+            [
+              104,
+              82
+            ]
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "poly",
+          "points": [
+            [
+              112,
+              80
+            ],
+            [
+              118,
+              83
+            ],
+            [
+              118,
+              86
+            ],
+            [
+              112,
+              88
+            ],
+            [
+              108,
+              86
+            ]
+          ],
+          "style": "iron_rust"
+        },
+        {
+          "op": "circle",
+          "at": [
+            106,
+            76
+          ],
+          "radius": 2,
+          "style": "brass_gold"
+        },
+        {
+          "op": "circle",
+          "at": [
+            99,
+            66
+          ],
+          "radius": 2,
+          "style": "brass_gold"
+        }
+      ]
+    },
+    {
+      "name": "pitman",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "line",
+          "from": [
+            100,
+            65
+          ],
+          "to": [
+            110,
+            36
+          ],
+          "width": 3,
+          "style": "steel_outline"
+        },
+        {
+          "op": "line",
+          "from": [
+            100,
+            65
+          ],
+          "to": [
+            110,
+            36
+          ],
+          "width": 1,
+          "style": "steel_b3baba"
+        },
+        {
+          "op": "circle",
+          "at": [
+            110,
+            35
+          ],
+          "radius": 2,
+          "style": "iron_outline"
+        },
+        {
+          "op": "circle",
+          "at": [
+            110,
+            35
+          ],
+          "radius": 1,
+          "style": "brass_gold"
+        }
+      ]
+    },
+    {
+      "name": "polished_rod",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            20,
+            65
+          ],
+          "size": [
+            2,
+            35
+          ],
+          "style": "steel_c6d1d1"
+        },
+        {
+          "op": "rect",
+          "at": [
+            19,
+            67
+          ],
+          "size": [
+            4,
+            3
+          ],
+          "style": "brass_gold"
+        }
+      ]
+    },
+    {
+      "name": "bridle",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "line",
+          "from": [
+            19,
+            53
+          ],
+          "to": [
+            21,
+            64
+          ],
+          "width": 2,
+          "style": "steel_b7b8a8"
+        }
+      ]
+    },
+    {
+      "name": "control_cabinet",
+      "replace_overlap": true,
+      "shapes": [
+        {
+          "op": "rect",
+          "at": [
+            76,
+            88
+          ],
+          "size": [
+            11,
+            14
+          ],
+          "style": "iron_outline"
+        },
+        {
+          "op": "rect",
+          "at": [
+            77,
+            89
+          ],
+          "size": [
+            9,
+            11
+          ],
+          "style": "steel_647b77"
+        },
+        {
+          "op": "rect",
+          "at": [
+            78,
+            90
+          ],
+          "size": [
+            7,
+            4
+          ],
+          "style": "glass_1c3034"
+        },
+        {
+          "op": "pixel",
+          "at": [
+            79,
+            96
+          ],
+          "style": "lamp_glass_a1de8b"
+        },
+        {
+          "op": "pixel",
+          "at": [
+            83,
+            96
+          ],
+          "style": "plastic_d4553c"
+        },
+        {
+          "op": "rect",
+          "at": [
+            80,
+            98
+          ],
+          "size": [
+            3,
+            1
+          ],
+          "style": "brass_gold"
+        }
+      ]
+    }
+  ],
+  "joints": [
+    "hinge beam base at 61 33",
+    "hinge crank base at 106 76 motor 0.22 strength 800",
+    "hinge pitman crank at 99.5 66.5",
+    "hinge pitman beam at 110.5 33.5",
+    "hinge bridle beam at 19 52",
+    "hinge bridle polished_rod at 21 65",
+    "hinge base ground at 12 108",
+    "hinge base ground at 116 108"
+  ],
+  "welds": [
+    "control_cabinet base 81 101 70"
+  ],
+  "keepouts": [
+    {
+      "name": "crank_and_counterweight_sweep",
+      "center": [
+        106,
+        76
+      ],
+      "radius": 18,
+      "margin": 1,
+      "against": [
+        "control_cabinet"
+      ]
+    }
+  ]
+}

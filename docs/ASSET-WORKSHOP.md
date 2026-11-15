@@ -54,6 +54,10 @@ Part names and weld references persist in the asset file. The scene editor place
 
 ## Text format for AI tools
 
+For detailed props and machines, use the [AI asset builder](AI-ASSET-BUILDER.md).
+It compiles compact JSON shapes, materials, palettes, lettering and connections
+into this native format, then `asset-doctor` validates and simulates a copy.
+
 A concise asset can use named shape commands; saving in the workshop emits an equivalent material legend and exact grid for each part. Names must be unique within the asset and use letters/numbers/`-`/`_`.
 
 ```text

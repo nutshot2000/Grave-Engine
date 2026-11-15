@@ -14,6 +14,7 @@ cargo run --release
 ```
 
 - Start in **Assets**: drag reusable props and buildings into the level. Use **Materials** to paint; left-click paints, right-click erases and the mouse wheel changes brush size.
+- **AI asset builder:** shared recipes draw detailed material parts, colours, lettering and moving machinery; native checks catch geometry errors and jammed mechanisms. See [the guide](docs/AI-ASSET-BUILDER.md).
 - **Build, Events, Lights and Tests** provide a building designer, event zones, coloured lighting and repeatable destruction tests. See the [Editor Studio guide](docs/EDITOR-STUDIO.md).
 - **Play / Pause** (Space), **Step**, and **Reset** (R) back to how things were when you pressed Play.
 - **Heat view** (H) shows temperature: blue is cold, red, yellow and white are hot.
