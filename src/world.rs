@@ -14,6 +14,7 @@
 use crate::material::{AIR, MatId, Materials, State};
 
 pub mod coating;
+mod changes;
 mod movement;
 
 pub const BURNING: u8 = 1;
@@ -428,11 +429,6 @@ impl World {
         x ^= x << 5;
         self.rng = x;
         x
-    }
-
-    #[inline]
-    fn chance(&mut self, p: f32) -> bool {
-        p >= 1.0 || (self.rand() >> 8) as f32 * (1.0 / 16_777_216.0) < p
     }
 
     /// Put a fresh cell of `id` at its normal starting temperature.
@@ -963,187 +959,6 @@ impl World {
     }
 
     // ------------------------------------------------------------- changes --
-
-    fn neighbours(&self, i: usize) -> [Option<usize>; 4] {
-        let (x, y, w, h) = (i % self.w, i / self.w, self.w, self.h);
-        [
-            (y > 0).then(|| i - w),
-            (y + 1 < h).then(|| i + w),
-            (x > 0).then(|| i - 1),
-            (x + 1 < w).then(|| i + 1),
-        ]
-    }
-
-    fn changes(&mut self, mats: &Materials) {
-        let ml = &mats.list;
-        let w = self.w;
-        for b in 0..self.bw * self.bh {
-            if !self.active[b] {
-                continue;
-            }
-            let (x0, x1, y0, y1) = self.block_cells(b);
-            self.slow[b] = false; // (cells set it again if something is still waiting)
-            for y in y0..y1 {
-                for x in x0..x1 {
-                    self.change(mats, ml, y * w + x);
-                }
-            }
-        }
-    }
-
-    /// Temperature changes, running out, explosions, fire and reactions for
-    /// one cell.
-    fn change(&mut self, mats: &Materials, ml: &[crate::material::Material], i: usize) {
-        {
-            let id = self.mat[i];
-            let m = &ml[id as usize];
-            let t = self.temp[i];
-
-            // Temperature thresholds: melt / boil when hot, freeze / condense when cold.
-            let mut changed = None;
-            if let Some(c) = m.melts.filter(|c| t >= c.at) {
-                // Fluffy stuff (snow) is mostly air: most of it just vanishes.
-                changed = Some(if m.melt_yield < 1.0 && !self.chance(m.melt_yield) { AIR } else { c.into });
-            } else if let Some(c) = m.boils.filter(|c| t >= c.at) {
-                changed = Some(c.into);
-            } else if let Some(c) = m.freezes.filter(|c| t <= c.at) {
-                changed = Some(c.into);
-            } else if let Some(c) = m.condenses.filter(|c| t <= c.at) {
-                changed = Some(c.into);
-            }
-            if let Some(into) = changed {
-                self.become_(mats, i, into);
-                return;
-            }
-
-            // Short-lived things (fire, smoke) run out.
-            if m.lifetime.is_some() {
-                self.wake_at(i);
-                if self.life[i] <= 1 {
-                    let into = if self.chance(m.decays_into_chance) { m.decays_into } else { AIR };
-                    self.become_(mats, i, into);
-                    return;
-                }
-                self.life[i] -= 1;
-            }
-
-            // Explosives go off as soon as they're hot enough. They carry their
-            // own oxygen, so they don't need air (buried gunpowder still blows).
-            if m.explosion_size > 0.0
-                && let Some(ignite) = m.catches_fire_at
-                    && (t >= ignite || self.flags[i] & BURNING != 0) {
-                        self.blasts.push(Blast {
-                            x: (i % self.w) as f32 + 0.5,
-                            y: (i / self.w) as f32 + 0.5,
-                            size: m.explosion_size,
-                            power: m.explosion_power,
-                            fire: m.gives_off,
-                        });
-                        let (into, bt) = (m.burns_into, m.burn_temperature);
-                        self.become_(mats, i, into);
-                        self.temp[i] = self.temp[i].max(bt);
-                        return;
-                    }
-
-            // Burning.
-            if let Some(ignite) = m.catches_fire_at {
-                let burning = self.flags[i] & BURNING != 0;
-                if burning || t >= ignite {
-                    self.wake_at(i);
-                    // Fire needs something to feed it (air).
-                    let mut air = [0usize; 4];
-                    let mut n_air = 0;
-                    let mut doused = false;
-                    let mut n_gas = 0;
-                    for j in self.neighbours(i).into_iter().flatten() {
-                        let nm = &ml[self.mat[j] as usize];
-                        if nm.feeds_fire {
-                            // Remember open gas cells first: flames only puff into those.
-                            if nm.state == State::Gas {
-                                air.copy_within(0..n_air, 1);
-                                air[0] = j;
-                                n_gas += 1;
-                            } else {
-                                air[n_air] = j;
-                            }
-                            n_air += 1;
-                        }
-                        doused |= nm.puts_out_fire;
-                    }
-                    if (n_air == 0 && !self.depth_air[i]) || doused {
-                        self.flags[i] &= !BURNING; // smothered or doused
-                    } else if !burning {
-                        self.flags[i] |= BURNING;
-                        let jitter = 0.7 + (self.rand() % 600) as f32 / 1000.0;
-                        self.burn[i] = ((m.burns_for as f32 * jitter) as u16).max(1);
-                    } else {
-                        if let Some(puff) = m.gives_off
-                            && n_gas > 0 && self.chance(m.gives_off_chance) {
-                                let j = air[self.rand() as usize % n_gas];
-                                let bt = m.burn_temperature;
-                                self.become_(mats, j, puff);
-                                self.temp[j] = self.temp[j].max(bt);
-                                self.shade[j] = self.rand() as u8;
-                            }
-                        // Embers: now and then a glowing bit flies up and away.
-                        if let Some(spark) = m.sparks
-                            && n_gas > 0 && self.chance(m.sparks_chance) {
-                                let j = air[self.rand() as usize % n_gas];
-                                let vx = ((self.rand() % 1000) as f32 / 1000.0 - 0.5) * 0.9;
-                                let vy = -(0.35 + (self.rand() % 1000) as f32 / 1000.0 * 0.8);
-                                self.spawn_flyer(mats, spark, (j % self.w) as f32 + 0.5, (j / self.w) as f32 + 0.5, vx, vy);
-                            }
-                        if self.burn[i] <= 1 {
-                            let into = if self.chance(m.burns_into_chance) { m.burns_into } else { AIR };
-                            self.become_(mats, i, into);
-                            return;
-                        }
-                        self.burn[i] -= 1;
-                    }
-                }
-            }
-
-            // Reactions with one random neighbour.
-            if !m.reactions.is_empty() {
-                let dir = self.rand() as usize % 4;
-                if let Some(j) = self.neighbours(i)[dir] {
-                    let other = self.mat[j];
-                    if let Some(r) = m.reactions.iter().find(|r| r.with == other && r.chance >= SLOW_CHANCE) {
-                        // Something that could react soon stays awake.
-                        self.wake_at(i);
-                        let (me, it, p) = (r.me_into, r.other_into, r.chance);
-                        if self.chance(p) {
-                            // Products start at their own normal temperature.
-                            self.become_(mats, i, me);
-                            self.temp[i] = ml[me as usize].temperature;
-                            self.become_(mats, j, it);
-                            self.temp[j] = ml[it as usize].temperature;
-                        }
-                    }
-                }
-            }
-            // Slow reactions (drying mud...): the block is visited every
-            // SLOW_EVERY frames; each neighbour is tried with the chance
-            // scaled up to match what every-frame trying would give.
-            if m.reactions.iter().any(|r| r.chance < SLOW_CHANCE) {
-                let block = (i / self.w / BLOCK) * self.bw + (i % self.w) / BLOCK;
-                let turn = self.frame % SLOW_EVERY == block as u32 % SLOW_EVERY;
-                for j in self.neighbours(i).into_iter().flatten() {
-                    let other = self.mat[j];
-                    let Some(r) = m.reactions.iter().find(|r| r.with == other && r.chance < SLOW_CHANCE) else { continue };
-                    self.slow[block] = true;
-                    let (me, it, p) = (r.me_into, r.other_into, r.chance);
-                    if turn && self.chance((p * SLOW_EVERY as f32 / 4.0).min(1.0)) {
-                        self.become_(mats, i, me);
-                        self.temp[i] = ml[me as usize].temperature;
-                        self.become_(mats, j, it);
-                        self.temp[j] = ml[it as usize].temperature;
-                        break;
-                    }
-                }
-            }
-        }
-    }
 
     // ------------------------------------------------------------ movement --
 

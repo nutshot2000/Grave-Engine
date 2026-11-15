@@ -83,24 +83,38 @@ fn a_big_world_loads_without_crawling() {
     }
 }
 
-/// Sand pouring, water spreading and smoke rising over a big area come out
-/// exactly the same on one core as shared between all of them.
+/// Sand pouring, water spreading, smoke rising, fire, blasts, sparks and
+/// reactions over a big area come out exactly the same on one core as
+/// shared between all of them.
 #[test]
-fn sand_and_water_move_the_same_on_one_core_or_many() {
+fn the_world_comes_out_the_same_on_one_core_or_many() {
     let m = mats();
-    let text = "size 1600 400\nseed 9\nfill air\nrect stone 0 360 1600 40\nrect sand 100 50 300 120\nrect water 700 100 400 150\nrect gravel 1300 20 60 200\nrect stone 600 200 20 160\nheat circle 1450 340 6 900\nrect wood 1440 340 20 20\n";
+    let text = [
+        "size 1600 400", "seed 9", "fill air", "rect stone 0 360 1600 40",
+        "rect sand 100 50 300 120", "rect water 700 100 400 150", "rect gravel 1300 20 60 200", "rect stone 600 200 20 160",
+        "rect wood 1440 340 20 20", "heat circle 1450 340 6 900",
+        "rect gunpowder 450 340 30 20", "heat circle 460 345 3 900",
+        "rect wood 400 300 30 60", "heat circle 410 310 4 800",
+        "rect mud 1200 330 80 30", "rect lava 1520 300 40 20", "rect water 1560 300 30 30",
+        "rect oil 1000 340 60 4", "heat circle 1010 338 3 600",
+    ]
+    .join("
+");
     let run = |threads: usize| {
         grave_engine::world::set_worker_threads(threads);
-        let mut s = sim(text, &m);
+        let mut s = sim(&text, &m);
         for _ in 0..90 {
             s.step(&m);
         }
         grave_engine::world::set_worker_threads(0);
-        (s.world.mat.clone(), s.world.temp.iter().map(|t| t.to_bits()).collect::<Vec<_>>())
+        let flying: Vec<(u32, u32)> = s.world.flying.iter().map(|f| (f.x.to_bits(), f.y.to_bits())).collect();
+        (s.world.mat.clone(), s.world.temp.iter().map(|t| t.to_bits()).collect::<Vec<_>>(), flying)
     };
     let one = run(1);
     let many = run(0);
     let differ = one.0.iter().zip(&many.0).filter(|(a, b)| a != b).count();
     assert_eq!(differ, 0, "{differ} cells ended up different");
     assert!(one.1 == many.1, "temperatures differ");
+    assert!(one.2 == many.2, "flying cells differ");
+    assert!(!one.2.is_empty(), "the test should throw sparks and debris");
 }

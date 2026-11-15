@@ -13,7 +13,7 @@
 use super::*;
 
 /// Patch size: two sleeping blocks across.
-const PATCH: usize = 2 * BLOCK;
+pub(super) const PATCH: usize = 2 * BLOCK;
 /// The farthest a cell can reach in one frame (cells). Must stay under
 /// `PATCH / 2` so neighbouring same-colour patches never meet.
 const REACH: i32 = 17;
@@ -330,7 +330,7 @@ impl Mover<'_> {
 }
 
 /// A patch's dice: from this frame's roll and where the patch is.
-fn patch_seed(base: u32, px: usize, py: usize) -> u32 {
+pub(super) fn patch_seed(base: u32, px: usize, py: usize) -> u32 {
     let mut x = base ^ (px as u32).wrapping_mul(0x9E37_79B9) ^ (py as u32).wrapping_mul(0x85EB_CA6B);
     x ^= x >> 16;
     x = x.wrapping_mul(0x7FEB_352D);
@@ -341,22 +341,15 @@ fn patch_seed(base: u32, px: usize, py: usize) -> u32 {
 }
 
 impl World {
-    pub(super) fn movement(&mut self, mats: &Materials) {
-        self.update_flow();
-        let fast: Vec<Fast> = mats
-            .list
-            .iter()
-            .map(|m| Fast { state: m.state, density: m.density, flows: m.flows, slides: m.slides })
-            .collect();
-        let base = self.rand();
+    /// The awake patches, in the four checkerboard rounds (lower rows first
+    /// in each round: falling things land in patches already done).
+    pub(super) fn patch_rounds(&self) -> Vec<Vec<(usize, usize)>> {
         let (pw, ph) = (self.w.div_ceil(PATCH), self.h.div_ceil(PATCH));
         let (bw, bh) = (self.bw, self.bh);
         let patch_on = |px: usize, py: usize| {
             (2 * py..(2 * py + 2).min(bh)).any(|by| (2 * px..(2 * px + 2).min(bw)).any(|bx| self.active[by * bw + bx]))
         };
-        // Lower rows first in each round (falling things land in patches
-        // already done, which keeps a pour smooth).
-        let rounds: Vec<Vec<(usize, usize)>> = [(0, 1), (1, 1), (0, 0), (1, 0)]
+        [(0, 1), (1, 1), (0, 0), (1, 0)]
             .iter()
             .map(|&(ox, oy)| {
                 let mut list = Vec::new();
@@ -369,7 +362,19 @@ impl World {
                 }
                 list
             })
+            .collect()
+    }
+
+    pub(super) fn movement(&mut self, mats: &Materials) {
+        self.update_flow();
+        let fast: Vec<Fast> = mats
+            .list
+            .iter()
+            .map(|m| Fast { state: m.state, density: m.density, flows: m.flows, slides: m.slides })
             .collect();
+        let base = self.rand();
+        let bw = self.bw;
+        let rounds = self.patch_rounds();
         let awake_cells: usize = rounds.iter().map(|r| r.len()).sum::<usize>() * PATCH * PATCH;
         let threads = if awake_cells >= PARALLEL_CELLS { worker_threads() } else { 1 };
         let grid = Grid {
