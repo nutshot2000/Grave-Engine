@@ -209,6 +209,10 @@ pub struct Settings {
     /// How often a tile gets a special room (vault, ore ring, flooded room,
     /// lava pit, powder cache), 0..1.
     pub rooms: f32,
+    /// Chance of a large cavern in each map sector (spans several tiles).
+    pub caverns: f32,
+    /// How strongly natural plans favour blind side passages (0..1).
+    pub dead_ends: f32,
 }
 
 impl Settings {
@@ -226,6 +230,8 @@ impl Settings {
             anchored: true,
             back: rock,
             rooms: 0.25,
+            caverns: 0.65,
+            dead_ends: 0.75,
         }
     }
 }
@@ -348,6 +354,7 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
         }
     }
     let mut hand = 0;
+    let caverns = large_caverns(s, (gx, gy, aw, ah));
     for b in layout_range(from, to) {
         let edges: Edges = b.pieces().map(|k| piece_open(s, k, uw, uh));
         // Exact fits first; failing that, a tile with one spare doorway (it
@@ -365,7 +372,8 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
         let inside = |x: i32, y: i32| x >= ax as i32 && y >= ay as i32 && x < (ax + aw) as i32 && y < (ay + ah) as i32 && free(x, y);
         // Landmarks punctuate natural caves rather than repeating in every
         // matching brick. The rest get a fresh seeded layout.
-        if !fits.is_empty() && unit(hash(s.seed, b.u, b.v, 101)) < 0.38 {
+        let natural = caverns.iter().any(|c| c.overlaps(b.u as f32 * t as f32, b.v as f32 * t as f32, pw as f32, ph as f32));
+        if !natural && !fits.is_empty() && unit(hash(s.seed, b.u, b.v, 101)) < 0.38 {
             let tile = fits[hash(s.seed, b.u, b.v, 99) as usize % fits.len()];
             hand += 1;
             for cy in 0..ph {
@@ -387,9 +395,16 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
                 }
             }
         } else {
-            carve(world, mats, b, edges, (px, py), t, s, &inside);
+            if natural {
+                let seed = hash(s.seed, b.u, b.v, b.shape as i32 + 3);
+                let (grid, gw, gh) = organic_grid(b.shape, edges, seed, s.pools, s.dead_ends);
+                draw_cave_blocks(world, mats, &grid, (gw, gh, 16), (px, py), t, seed, s, &inside);
+            } else {
+                carve(world, mats, b, edges, (px, py), t, s, &inside);
+            }
         }
     }
+    carve_large_caverns(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
     // Varied ground: patches of other stone, and ore specks in the walls.
     texture_ground(world, mats, (ax, ay, aw, ah), origin, s, &free);
     // The wall behind the caves.
@@ -421,6 +436,65 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
         }
     }
     hand
+}
+
+/// A cavern in map coordinates, independent of the current streaming window.
+struct LargeCavern { x: f32, y: f32, rx: f32, ry: f32, seed: u32 }
+
+impl LargeCavern {
+    fn overlaps(&self, x: f32, y: f32, w: f32, h: f32) -> bool {
+        x < self.x + self.rx * 1.35 && x + w > self.x - self.rx * 1.35
+            && y < self.y + self.ry * 1.35 && y + h > self.y - self.ry * 1.35
+    }
+}
+
+/// Sparse large-scale rooms break the tile-size ceiling. Include a whole
+/// brick's padding so partial-region generation makes the same tile choices.
+fn large_caverns(s: &Settings, (x, y, w, h): (i64, i64, usize, usize)) -> Vec<LargeCavern> {
+    let t = s.tile.max(8) as i64;
+    let (sw, sh) = (8 * t, 6 * t);
+    let mut result = Vec::new();
+    for sy in (y - 6 * t).div_euclid(sh)..=(y + h as i64 + 6 * t).div_euclid(sh) {
+        for sx in (x - 6 * t).div_euclid(sw)..=(x + w as i64 + 6 * t).div_euclid(sw) {
+            let seed = hash(s.seed, sx as i32, sy as i32, 910);
+            if unit(seed) >= s.caverns { continue; }
+            let r = |k| unit(hash(seed, k, 11, 73));
+            let c = LargeCavern {
+                x: (sx * sw) as f32 + (0.3 + r(1) * 0.4) * sw as f32,
+                y: (sy * sh) as f32 + (0.3 + r(2) * 0.4) * sh as f32,
+                rx: t as f32 * (1.7 + r(3) * 1.1),
+                ry: t as f32 * (0.9 + r(4) * 0.65), seed,
+            };
+            if c.overlaps((x - 2 * t) as f32, (y - 2 * t) as f32, (w as i64 + 4 * t) as f32, (h as i64 + 4 * t) as f32) { result.push(c); }
+        }
+    }
+    result
+}
+
+/// Open huge, slightly uneven chambers across brick boundaries. Owned cells
+/// remain untouched; natural-only bricks around each chamber avoid cut-off
+/// pieces of authored masonry. The final sealed-world rim is applied later.
+fn carve_large_caverns(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, caverns: &[LargeCavern], free: &dyn Fn(i32, i32) -> bool) {
+    for c in caverns {
+        let x0 = ((c.x - c.rx * 1.35 - origin.0 as f32).floor() as i64).max(ax as i64) as usize;
+        let y0 = ((c.y - c.ry * 1.35 - origin.1 as f32).floor() as i64).max(ay as i64) as usize;
+        let x1 = ((c.x + c.rx * 1.35 - origin.0 as f32).ceil() as i64).clamp(0, (ax + aw) as i64) as usize;
+        let y1 = ((c.y + c.ry * 1.35 - origin.1 as f32).ceil() as i64).clamp(0, (ay + ah) as i64) as usize;
+        for y in y0..y1 {
+            for x in x0..x1 {
+                if !free(x as i32, y as i32) { continue; }
+                let (mx, my) = ((origin.0 + x as i64) as f32, (origin.1 + y as i64) as f32);
+                let (mut nx, mut ny) = ((mx - c.x) / c.rx, (my - c.y) / c.ry);
+                let phase = unit(hash(c.seed, 0, 0, 915)) * std::f32::consts::TAU;
+                nx += 0.14 * (ny * 5.0 + phase).sin();
+                ny += 0.12 * (nx * 6.0 - phase).sin();
+                let q = nx * nx + ny * ny;
+                let scale = s.tile.max(8) as f32 * 0.35;
+                let edge = 1.0 + (noise(c.seed, mx / scale, my / scale) - 0.5) * 0.5;
+                if q < edge { world.set(mats, x, y, AIR); }
+            }
+        }
+    }
 }
 
 /// Blocks across one tile unit in the built-in tiles (each block is
@@ -455,7 +529,7 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
     let seed = hash(s.seed, b.u, b.v, b.shape as i32 + 3);
     // Keep occasional built rooms among much more varied natural layouts.
     if hash(seed, 0, 0, 811) % 5 != 0 {
-        let (grid, gw, gh) = organic_grid(b.shape, edges, seed, s.pools);
+        let (grid, gw, gh) = organic_grid(b.shape, edges, seed, s.pools, s.dead_ends);
         draw_cave_blocks(world, mats, &grid, (gw, gh, 16), at, t, seed, s, inside);
         return;
     }
@@ -676,7 +750,7 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
 /// Distinct natural plans on a finer grid: meanders, caverns, branching
 /// trees, pillar loops, chamber chains and narrow fractured shafts. All
 /// required doors join the plan; extra branches stop inside the brick.
-fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block>, i32, i32) {
+fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32, dead_ends: f32) -> (Vec<Block>, i32, i32) {
     let (w, h) = match shape { Shape::Horizontal => (32, 16), Shape::Vertical => (16, 32) };
     let mut grid = vec![Block::Ground; (w * h) as usize];
     if !edges.iter().any(|&e| e) { return (grid, w, h); }
@@ -687,10 +761,11 @@ fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block
     // A spine crosses the whole brick rather than one room per square half.
     // Ring plans leave a substantial central pillar and offer two routes.
     if style == 3 {
-        let (cx, cy) = (w as f32 / 2.0, h as f32 / 2.0);
+        let (cx, cy) = (w as f32 / 2.0 - 0.5 + rnd(), h as f32 / 2.0 - 0.5 + rnd());
+        let (rx, ry) = (w as f32 / 2.0 - 5.0 + rnd() * 1.5, h as f32 / 2.0 - 5.0 + rnd() * 1.5);
         for i in 0..8 {
             let angle = i as f32 * std::f32::consts::TAU / 8.0;
-            nodes.push((cx + angle.cos() * (cx - 4.5), cy + angle.sin() * (cy - 4.5)));
+            nodes.push((cx + angle.cos() * rx, cy + angle.sin() * ry));
         }
     } else {
         let count = 3 + (rnd() * 4.0) as usize;
@@ -711,15 +786,6 @@ fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block
             let (rx, ry) = if style == 1 { (5.0 + rnd() * 4.0, 4.0 + rnd() * 2.5) } else { (1.6 + rnd() * 2.0, 1.4 + rnd() * 1.6) };
             dig_ellipse(&mut grid, (w, h), (x, y), (rx, ry));
         }
-    }
-    // Multiple offshoots begin at different places along the plan. A capped
-    // tip can widen into a pocket, making exploration more than crossroads.
-    let branches = if style == 0 || style == 5 { 1 + (rnd() * 2.0) as usize } else { 2 + (rnd() * 4.0) as usize };
-    for _ in 0..branches {
-        let start = nodes[(rnd() * nodes.len() as f32) as usize % nodes.len()];
-        let tip = (3.0 + rnd() * (w - 6) as f32, 3.0 + rnd() * (h - 6) as f32);
-        dig_route(&mut grid, (w, h), start, tip, 0.85 + rnd() * 0.35, style == 5);
-        if rnd() < 0.35 { dig_ellipse(&mut grid, (w, h), tip, (1.5 + rnd(), 1.4 + rnd())); }
     }
     let ports: [(i32, i32, i32, i32); 6] = match shape {
         Shape::Horizontal => [(8, 0, 0, 1), (24, 0, 0, 1), (31, 8, -1, 0), (24, 15, 0, -1), (8, 15, 0, -1), (0, 8, 1, 0)],
@@ -742,6 +808,7 @@ fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block
             }
         }
     }
+    add_blind_branches(&mut grid, (w, h), seed, dead_ends);
     // Small water pockets only where the plan already has a supported floor.
     // Doorway collars are excluded so pools cannot seal a required entrance.
     if rnd() < pools {
@@ -752,6 +819,42 @@ fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block
         }
     }
     (grid, w, h)
+}
+
+/// Accept side passages only when their far end stays clear of the existing
+/// network. Random offshoots that rejoin another tunnel are loops, not dead
+/// ends; the clearance test gives these branches a single mouth and blind tip.
+fn add_blind_branches(grid: &mut Vec<Block>, (w, h): (i32, i32), seed: u32, amount: f32) -> usize {
+    let target = (amount.clamp(0.0, 1.0) * 5.0).round() as usize;
+    let mut made = 0;
+    for attempt in 0..160 {
+        if made >= target { break; }
+        let r = |k| unit(hash(seed, attempt, k, 921));
+        let start = (3 + (r(1) * (w - 6) as f32) as i32, 3 + (r(2) * (h - 6) as f32) as i32);
+        if grid[(start.1 * w + start.0) as usize] != Block::Open { continue; }
+        let angle = r(3) * std::f32::consts::TAU;
+        let length = 4.0 + r(4) * 6.0;
+        let tip = (start.0 as f32 + angle.cos() * length, start.1 as f32 + angle.sin() * length);
+        if tip.0 < 3.0 || tip.1 < 3.0 || tip.0 > (w - 4) as f32 || tip.1 > (h - 4) as f32 { continue; }
+        let mut trial = grid.clone();
+        dig_route(&mut trial, (w, h), (start.0 as f32, start.1 as f32), tip, 1.0, false);
+        dig_ellipse(&mut trial, (w, h), tip, (1.4, 1.4));
+        let mut added = 0;
+        let mut clear = true;
+        for y in 2..h - 2 {
+            for x in 2..w - 2 {
+                let i = (y * w + x) as usize;
+                if trial[i] == grid[i] { continue; }
+                added += 1;
+                if (x - start.0).pow(2) + (y - start.1).pow(2) <= 12 { continue; }
+                for dy in -1..=1 { for dx in -1..=1 {
+                    if grid[((y + dy) * w + x + dx) as usize] == Block::Open { clear = false; }
+                } }
+            }
+        }
+        if clear && added >= 8 { *grid = trial; made += 1; }
+    }
+    made
 }
 
 /// Elliptical brush, confined to the interior so closed tile edges stay shut.
@@ -824,12 +927,47 @@ mod cave_shape_tests {
     use super::*;
 
     #[test]
+    fn blind_branches_grow_into_rock_and_can_be_disabled() {
+        let mut grid = vec![Block::Ground; 48 * 32];
+        for y in 14..=16 { for x in 3..45 { grid[y * 48 + x] = Block::Open; } }
+        let before = grid.clone();
+        assert_eq!(add_blind_branches(&mut grid, (48, 32), 42, 0.0), 0);
+        assert!(grid == before);
+        assert!(add_blind_branches(&mut grid, (48, 32), 42, 1.0) >= 3);
+        assert!(grid.iter().zip(before).filter(|(a, b)| **a != *b).count() >= 24);
+    }
+
+    #[test]
+    fn large_caverns_span_tiles_and_preserve_owned_cells() {
+        let mats = Materials::load_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/materials"));
+        let settings = Settings { tile: 40, caverns: 1.0, seed: 9, ..Settings::new(&mats) };
+        let caverns = large_caverns(&settings, (0, 0, 960, 640));
+        let c = caverns.iter().find(|c| c.x > c.rx && c.y > c.ry && c.x + c.rx < 960.0 && c.y + c.ry < 640.0).unwrap();
+        assert!(c.rx * 2.0 > settings.tile as f32 * 3.0);
+        let mut world = World::new(960, 640);
+        let (cx, cy) = (c.x as usize, c.y as usize);
+        let i = world.idx(cx, cy);
+        let wood = mats.id("wood").unwrap();
+        world.set(&mats, cx, cy, wood);
+        world.flags[i] |= crate::world::OWNED;
+        generate(&mut world, &mats, (0, 0, 960, 640), &settings, &[]);
+        assert_eq!(world.mat[i], wood);
+        for y in (c.y - c.ry * 0.3) as usize..(c.y + c.ry * 0.3) as usize {
+            for x in (c.x - c.rx * 0.45) as usize..(c.x + c.rx * 0.45) as usize {
+                if (x, y) != (cx, cy) { assert_eq!(world.mat[world.idx(x, y)], AIR, "large cavern core must be open at {x},{y}"); }
+            }
+        }
+        let off = Settings { caverns: 0.0, ..settings };
+        assert!(large_caverns(&off, (0, 0, 960, 640)).is_empty());
+    }
+
+    #[test]
     fn organic_plans_connect_every_required_door_and_keep_closed_edges_solid() {
         for shape in [Shape::Horizontal, Shape::Vertical] {
             for mask in 1u32..64 {
                 for seed in [7, 31, 77] {
                     let edges = std::array::from_fn(|i| mask & (1 << i) != 0);
-                    let (grid, w, h) = organic_grid(shape, edges, seed, 0.0);
+                    let (grid, w, h) = organic_grid(shape, edges, seed, 0.0, 0.75);
                     let mut seen = vec![false; grid.len()];
                     let first = grid.iter().position(|b| *b == Block::Open).unwrap();
                     let mut stack = vec![first];
@@ -859,7 +997,7 @@ mod cave_shape_tests {
         let mut counts = Vec::new();
         let mut shapes = std::collections::BTreeSet::new();
         for seed in 0..128 {
-            let (grid, _, _) = organic_grid(Shape::Horizontal, [true; 6], seed, 0.0);
+            let (grid, _, _) = organic_grid(Shape::Horizontal, [true; 6], seed, 0.0, 0.75);
             counts.push(grid.iter().filter(|b| **b == Block::Open).count());
             shapes.insert(grid.iter().map(|b| *b == Block::Open).collect::<Vec<_>>());
         }

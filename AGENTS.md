@@ -403,3 +403,12 @@ chamber chains, fractured shafts). One fifth keep the older rooms.
 `draw_cave_blocks` handles both grid resolutions. New plans must keep the
 protected outer rim and write only the six declared doorway collars;
 `cave_shape_tests` checks all door masks and plan variety.
+
+Huge caverns are a separate map-coordinate pass (`large_caverns` and
+`carve_large_caverns`) across multiple bricks. Candidate lists include
+whole-brick padding: keep this or partial-region generation may choose
+different authored tiles. Their conservative bounds select natural-only
+bricks. `Settings::caverns` and `dead_ends` are exposed as editor sliders
+and scene/endless keys `caverns` / `deadends` (0..1). `add_blind_branches`
+rejects a passage that reconnects away from its mouth. Owned cells remain
+excluded from all cave passes.

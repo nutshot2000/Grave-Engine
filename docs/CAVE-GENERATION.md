@@ -47,3 +47,29 @@ Tests exercise both orientations, all 63 nonempty door combinations and
 three seeds, plus 128 plans with identical entrances to guard shape and
 open-space variety. Endless-region equivalence is checked after the
 plans are sampled into actual world cells.
+
+## Huge caverns and blind passages
+
+**Generate caves** now has **Huge caverns** and **Dead ends** sliders. The
+first controls how often map sectors contain a large irregular chamber,
+roughly 3.4 to 5.6 tile units across before wall variation. These rooms
+cross tile boundaries; smaller tunnel layouts continue around them.
+Authored structures are kept out of the area around a huge chamber so
+its walls do not cut through half a vault. Existing owned objects and
+characters remain untouched. The sealed outer world rim is retained.
+
+The **Dead ends** slider requests extra blind side passages in natural
+plans. Candidates that join another tunnel away from their mouth are
+rejected. Crowded bricks may have less room for these branches; raising
+the slider requests more attempts without guaranteeing a fixed count.
+
+Scene equivalents (also accepted by `endless`): `caverns 0.65 deadends 0.75`.
+Both range from zero to one. Zero disables the corresponding extra pass;
+it does not remove dead ends already present in a base or authored tile.
+Cavern placement and contours use map coordinates so a large room can
+cross streaming regions without seams. Reset old endless runs to replace
+saved terrain; use Reroll for a different distribution of chambers.
+
+Tests cover large open cores, owned-cell preservation, blind-branch growth,
+scene controls, sealed borders, and region equivalence at negative map
+coordinates and non-aligned tile sizes.

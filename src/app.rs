@@ -114,7 +114,7 @@ struct Sandbox {
     snapshot: Snapshot,
     ran_since_snapshot: bool,
     /// Edit > Generate caves: tile size, seed, how open, how many pools.
-    cave_gen: (usize, u32, f32, f32),
+    cave_gen: (usize, u32, f32, f32, f32, f32),
     /// Generate caves with the hand-made tiles in tiles/caves.
     cave_tiles: bool,
     playing: bool,
@@ -419,7 +419,7 @@ impl Sandbox {
             join_first: None,
             rewind_pos: None,
             ran_since_snapshot: false,
-            cave_gen: (64, 1, 0.6, 0.2),
+            cave_gen: (64, 1, 0.6, 0.2, 0.65, 0.75),
             cave_tiles: true,
             endless: None,
             endless_reset_origin: (0, 0),
@@ -886,7 +886,7 @@ impl Sandbox {
         ui.set_min_width(280.0);
         ui.label(RichText::new("Caves from herringbone tiles").strong());
         ui.label(RichText::new("Replaces the ground everywhere (objects and characters stay). Undo brings it back.").small());
-        let (mut tile, mut seed, mut open, mut pools) = self.cave_gen;
+        let (mut tile, mut seed, mut open, mut pools, mut caverns, mut dead_ends) = self.cave_gen;
         egui::Grid::new("gen").num_columns(2).show(ui, |ui| {
             ui.label("Tile size").on_hover_text("How big each tile is, in cells: bigger = bigger caves");
             ui.add(egui::DragValue::new(&mut tile).range(16..=200).suffix(" cells"));
@@ -896,6 +896,12 @@ impl Sandbox {
             ui.end_row();
             ui.label("Openness").on_hover_text("How many tile edges have a passage through them");
             ui.add(egui::Slider::new(&mut open, 0.2..=0.95).show_value(false));
+            ui.end_row();
+            ui.label("Huge caverns").on_hover_text("Occasional open chambers spanning several tiles; zero turns them off");
+            ui.add(egui::Slider::new(&mut caverns, 0.0..=1.0).show_value(false));
+            ui.end_row();
+            ui.label("Dead ends").on_hover_text("More blind side passages with rock beyond their tips");
+            ui.add(egui::Slider::new(&mut dead_ends, 0.0..=1.0).show_value(false));
             ui.end_row();
             ui.label("Pools").on_hover_text("How often a cavern has water in it");
             ui.add(egui::Slider::new(&mut pools, 0.0..=1.0).show_value(false));
@@ -910,9 +916,9 @@ impl Sandbox {
                 go = true;
             }
         });
-        self.cave_gen = (tile, seed, open, pools);
+        self.cave_gen = (tile, seed, open, pools, caverns, dead_ends);
         if go {
-            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, ..grave_engine::levelgen::Settings::new(&self.mats) };
+            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, caverns, dead_ends, ..grave_engine::levelgen::Settings::new(&self.mats) };
             let tiles = if self.cave_tiles { grave_engine::levelgen::Tile::load_dir(Path::new("tiles/caves"), &self.mats).0 } else { Vec::new() };
             self.change("generate caves", |app| {
                 let (w, h) = (app.sim.world.w, app.sim.world.h);

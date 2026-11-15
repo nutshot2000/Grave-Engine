@@ -189,7 +189,21 @@ fn the_cave_set_shows_up_in_a_level() {
     let m = mats();
     let (tiles, _) = Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/caves"), &m);
     let mut s = Sim::empty(1536, 768, &m);
-    let used = levelgen::generate(&mut s.world, &m, (0, 0, 1536, 768), &Settings { seed: 4, ..Settings::new(&m) }, &tiles);
+    // Measure landmark selection alone: huge caverns deliberately reserve
+    // their surrounding bricks for natural terrain, reducing landmarks.
+    let used = levelgen::generate(&mut s.world, &m, (0, 0, 1536, 768), &Settings { seed: 4, caverns: 0.0, ..Settings::new(&m) }, &tiles);
     let bricks = levelgen::layout(24, 12).len();
     assert!(used * 12 > bricks && used * 2 < bricks, "landmarks should punctuate the natural caves: {used} of {bricks}");
+}
+
+#[test]
+fn large_caverns_and_deadends_are_scene_controls() {
+    let m = mats();
+    let a = sim(&m, "size 640 480\ngenerate 0 0 640 480 seed 9 caverns 0 deadends 0\n");
+    let b = sim(&m, "size 640 480\ngenerate 0 0 640 480 seed 9 caverns 1 deadends 1\n");
+    assert_ne!(a.world.mat, b.world.mat);
+    assert!(b.world.mat.iter().filter(|&&v| v == 0).count() > a.world.mat.iter().filter(|&&v| v == 0).count());
+    let (settings, _, _) = grave_engine::endless::parse("endless caverns 0.8 deadends 0.9", &m, None).unwrap();
+    assert_eq!(settings.caverns, 0.8);
+    assert_eq!(settings.dead_ends, 0.9);
 }
