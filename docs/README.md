@@ -27,6 +27,8 @@ The games and labs open from the [`Play`](../Play) folder.
 
 ## Games and levels (they show what the engine can do, and what it needs next)
 
+- [Cave generation](CAVE-GENERATION.md): varied natural passages, landmark rooms, rock textures and endless-map checks.
+
 - Stunt Yard: [Wreck Run](WRECK-RUN.md) and [what it taught the engine](STUNT-YARD-FEEDBACK.md).
 - Dust Hawk (2.5D overhead): [the game](DUST-HAWK.md), [the flight and destruction lab](FLIGHT-LAB.md), [engine feedback](OVERHEAD-FEEDBACK.md).
 - Voidrunner (space shooter): [the game](VOIDRUNNER.md) and [engine improvements it exposed](VOIDRUNNER-ENGINE-IMPROVEMENTS.md).

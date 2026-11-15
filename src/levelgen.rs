@@ -363,7 +363,9 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
         let (px, py) = ((b.u as i64 * ti - origin.0) as i32, (b.v as i64 * ti - origin.1) as i32);
         let (pw, ph) = (bw as usize * t, bh as usize * t);
         let inside = |x: i32, y: i32| x >= ax as i32 && y >= ay as i32 && x < (ax + aw) as i32 && y < (ay + ah) as i32 && free(x, y);
-        if !fits.is_empty() {
+        // Landmarks punctuate natural caves rather than repeating in every
+        // matching brick. The rest get a fresh seeded layout.
+        if !fits.is_empty() && unit(hash(s.seed, b.u, b.v, 101)) < 0.38 {
             let tile = fits[hash(s.seed, b.u, b.v, 99) as usize % fits.len()];
             hand += 1;
             for cy in 0..ph {
@@ -372,7 +374,10 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
                     if !inside(x, y) {
                         continue;
                     }
-                    let c = tile.cells[(cy * tile.h / ph) * tile.w + cx * tile.w / pw];
+                    let (sx, sy) = cave_sample(cx, cy, pw, ph, tile.w, tile.h, hash(s.seed, b.u, b.v, 102));
+                    let original = tile.cells[(cy * tile.h / ph) * tile.w + cx * tile.w / pw];
+                    let sampled = natural_sample(&tile.cells, tile.w, tile.h, sx, sy, None, Some(GROUND));
+                    let c = keep_feature(original, sampled, None, Some(GROUND));
                     let m = match c {
                         Some(GROUND) => s.rock,
                         Some(m) => m,
@@ -500,7 +505,7 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
     // Rooms at the hubs, and maybe a special room in one of them.
     let mut rooms: [Option<(i32, i32, i32, i32)>; 2] = [None, None];
     for h in 0..2 {
-        if used[h] && rnd() < 0.8 {
+        if used[h] && rnd() < 0.55 {
             let (rw, rh) = (2 + (rnd() * 5.0) as i32, 2 + (rnd() * 4.0) as i32);
             let (hx, hy) = halves[h];
             let x0 = (hubs[h].0 - rw / 2).clamp(hx + 1, hx + g - 1 - rw);
@@ -605,12 +610,12 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
     }
     // Dead-end branches.
     for h in 0..2 {
-        if used[h] && rnd() < 0.55 {
+        if used[h] && rnd() < 0.9 {
             let (dx, dy) = [(1, 0), (-1, 0), (0, 1), (0, -1)][(rnd() * 4.0) as usize % 4];
             let len = 2 + (rnd() * 3.0) as i32;
             let (hx, hy) = halves[h];
             let end = ((hubs[h].0 + dx * len).clamp(hx + 1, hx + g - 2), (hubs[h].1 + dy * len).clamp(hy + 1, hy + g - 2));
-            corridor(&mut grid, hubs[h], end, 2, 0.5);
+            corridor(&mut grid, hubs[h], end, 1, rnd());
         }
     }
     // What fills the special room (after the corridors, so they're its doors).
@@ -658,15 +663,20 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
         }
     }
 
-    // Draw it: each block is a square of cells.
-    let px = (t as i32 / g).max(1);
+    // Draw rounded natural walls at cell resolution, retaining built details.
+    let (pw, ph) = (gw as usize * t / g as usize, gh as usize * t / g as usize);
     let (brick, stone, wood, lava, powder) = (pick(mats, "brick", s.rock), pick(mats, "stone", s.rock), pick(mats, "wood", s.rock), pick(mats, "lava", AIR), pick(mats, "gunpowder", s.rock));
     let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
-    for by in 0..gh {
-        for bx in 0..gw {
-            let block = grid[(by * gw + bx) as usize];
+    for cy in 0..ph {
+        for cx in 0..pw {
+            let (x, y) = (at.0 + cx as i32, at.1 + cy as i32);
+            if !inside(x, y) { continue; }
+            let (sx, sy) = cave_sample(cx, cy, pw, ph, gw as usize, gh as usize, seed);
+            let original = grid[(cy * gh as usize / ph) * gw as usize + cx * gw as usize / pw];
+            let sampled = natural_sample(&grid, gw as usize, gh as usize, sx, sy, Block::Open, Block::Ground);
+            let block = keep_feature(original, sampled, Block::Open, Block::Ground);
             let mat = match block {
-                Block::Ground => continue,
+                Block::Ground => s.rock,
                 Block::Open => AIR,
                 Block::Brick => brick,
                 Block::Stone => stone,
@@ -674,21 +684,75 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
                 Block::Lava => lava,
                 Block::Powder => powder,
                 Block::Wood => wood,
-                Block::Ore => ores[(hash(seed, bx, by, 5) % 3) as usize],
+                Block::Ore => ores[(hash(seed, sx as i32, sy as i32, 5) % 3) as usize],
             };
-            // Liquids and powder only fill the lower half of their block (room to splash).
             let liquid = matches!(block, Block::Water | Block::Lava | Block::Powder);
-            for cy in 0..px {
-                for cx in 0..px {
-                    let (x, y) = (at.0 + bx * px + cx, at.1 + by * px + cy);
-                    if inside(x, y) {
-                        let m = if liquid && cy < px / 2 { AIR } else { mat };
-                        world.set(mats, x as usize, y as usize, m);
-                    }
-                }
-            }
+            let fy = (cy as f32 + 0.5) * gh as f32 / ph as f32;
+            let mat = if liquid && fy.fract() < 0.5 { AIR } else { mat };
+            world.set(mats, x as usize, y as usize, mat);
         }
     }
+}
+
+/// Built features neither bend nor get copied into the surrounding rock.
+fn keep_feature<T: Copy + PartialEq>(original: T, sampled: T, air: T, ground: T) -> T {
+    if (original != air && original != ground) || (sampled != air && sampled != ground) { original } else { sampled }
+}
+
+#[cfg(test)]
+mod cave_shape_tests {
+    use super::*;
+
+    #[test]
+    fn natural_corners_round_but_a_narrow_passage_stays_open() {
+        let mut grid = vec![1; 25];
+        for y in 1..4 { for x in 1..4 { grid[y * 5 + x] = 0; } }
+        assert_eq!(natural_sample(&grid, 5, 5, 1.1, 1.1, 0, 1), 1);
+        assert_eq!(natural_sample(&grid, 5, 5, 1.5, 1.5, 0, 1), 0);
+        let mut shaft = vec![1; 25];
+        for y in 0..5 { shaft[y * 5 + 2] = 0; }
+        for y in 0..50 {
+            assert_eq!(natural_sample(&shaft, 5, 5, 2.5, y as f32 / 10.0, 0, 1), 0);
+        }
+    }
+
+    #[test]
+    fn built_features_are_neither_moved_nor_duplicated() {
+        assert_eq!(keep_feature(2, 0, 0, 1), 2);
+        assert_eq!(keep_feature(0, 2, 0, 1), 0);
+        assert_eq!(keep_feature(1, 0, 0, 1), 0);
+        for x in 0..128 {
+            let (sx, sy) = cave_sample(x, 0, 128, 64, 16, 8, 42);
+            assert_eq!(sx, (x as f32 + 0.5) / 8.0);
+            assert_eq!(sy, 0.0625);
+        }
+    }
+}
+
+/// Bend natural interiors while keeping the shared doorway collars exact.
+/// Brick-local coordinates keep streamed strips identical to whole maps.
+fn cave_sample(x: usize, y: usize, w: usize, h: usize, gw: usize, gh: usize, seed: u32) -> (f32, f32) {
+    let (u, v) = ((x as f32 + 0.5) * gw as f32 / w as f32, (y as f32 + 0.5) * gh as f32 / h as f32);
+    let edge = u.min(v).min(gw as f32 - u).min(gh as f32 - v);
+    let fade = ((edge - 1.0) / 1.5).clamp(0.0, 1.0);
+    let dx = (noise(seed ^ 0x8123, u * 0.45, v * 0.45) - 0.5) * 1.5 * fade;
+    let dy = (noise(seed ^ 0x3917, u * 0.45, v * 0.45) - 0.5) * 1.5 * fade;
+    ((u + dx).clamp(0.0, gw as f32 - 0.001), (v + dy).clamp(0.0, gh as f32 - 0.001))
+}
+
+/// Round natural corners; masonry, timber and pools keep their authored edges.
+fn natural_sample<T: Copy + PartialEq>(grid: &[T], w: usize, h: usize, x: f32, y: f32, air: T, ground: T) -> T {
+    let nearest = grid[y as usize * w + x as usize];
+    if x < 1.0 || y < 1.0 || x >= w as f32 - 1.0 || y >= h as f32 - 1.0 { return nearest; }
+    let (fx, fy) = (x - 0.5, y - 0.5);
+    let (ix, iy) = (fx.floor() as usize, fy.floor() as usize);
+    let samples = [grid[iy * w + ix], grid[iy * w + ix + 1], grid[(iy + 1) * w + ix], grid[(iy + 1) * w + ix + 1]];
+    if samples.iter().any(|&m| m != air && m != ground) { return nearest; }
+    let a = samples.map(|m| if m == ground { 1.0 } else { 0.0 });
+    let (tx, ty) = (fx.fract(), fy.fract());
+    let top = a[0] * (1.0 - tx) + a[1] * tx;
+    let bottom = a[2] * (1.0 - tx) + a[3] * tx;
+    if top * (1.0 - ty) + bottom * ty >= 0.5 { ground } else { air }
 }
 
 /// Smooth noise 0..1 (for patches of different stone).
@@ -708,7 +772,7 @@ fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usiz
     let (ax, ay, aw, ah) = area;
     // Map position of a world cell (patches and ore follow the map).
     let map = |x: usize, y: usize| ((origin.0 + x as i64) as i32, (origin.1 + y as i64) as i32);
-    let (stone, sand) = (pick(mats, "stone", s.rock), pick(mats, "sandstone", s.rock));
+    let (stone, sand) = (pick(mats, "shale", s.rock), pick(mats, "sandstone", s.rock));
     let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
     let scale = (s.tile as f32 * 1.5).max(10.0);
     for y in ay..ay + ah {

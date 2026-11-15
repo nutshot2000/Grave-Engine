@@ -191,5 +191,5 @@ fn the_cave_set_shows_up_in_a_level() {
     let mut s = Sim::empty(1536, 768, &m);
     let used = levelgen::generate(&mut s.world, &m, (0, 0, 1536, 768), &Settings { seed: 4, ..Settings::new(&m) }, &tiles);
     let bricks = levelgen::layout(24, 12).len();
-    assert!(used * 5 > bricks, "hand-made tiles should be a good share of the level: {used} of {bricks}");
+    assert!(used * 12 > bricks && used * 2 < bricks, "landmarks should punctuate the natural caves: {used} of {bricks}");
 }

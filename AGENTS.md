@@ -387,3 +387,12 @@ Known limits:
 Roadmap (see the end of `README.md`): game layer (enemies, triggers,
 scripting), endless worlds in the games (Stunt Yard etc.), projectiles and a top-down mode (shooter test), more sounds
 (sliding and scraping, flowing water, engines), an agent command channel for the open editor, level-design guard rails.
+
+### Cave shape and texture update
+
+See `docs/CAVE-GENERATION.md`. Natural tile interiors are warped and rounded
+with doorway collars kept exact; built features retain their original cells.
+Only 38% of eligible bricks use authored landmarks; other bricks get seeded
+layouts, with fewer hub rooms and more narrow branches. `rock` now uses an
+original procedural texture, and generated stone patches use `shale`.
+`tools/make_cave_textures.py` reproduces the two seamless textures.

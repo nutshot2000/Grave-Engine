@@ -1,0 +1,15 @@
+# Shale: layered cave rock with an original procedural texture.
+about = Layered shale. Hard; cracks into gravel.
+state = solid
+density = 2650
+color = #63676a
+color_variation = 0.05
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1150
+melts_into = lava
+strength = 25
+toughness = 5500
+breaks_into = gravel
+friction = 0.85
+texture = textures/cave_shale.png     # original procedural fractured rock (see textures/CREDITS.md)

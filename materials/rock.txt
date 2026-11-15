@@ -1,5 +1,4 @@
-# Rock: natural boulder rock (the rock models came from the Godot
-# dayz-clone project; tile by piiixl). Behaves like stone.
+# Rock: natural boulder rock with an original procedural fractured texture.
 about = Natural rock. Hard; cracks into gravel.
 state = solid
 density = 2650
@@ -13,4 +12,4 @@ strength = 25
 toughness = 5500
 breaks_into = gravel
 friction = 0.85
-texture = textures/rock.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+texture = textures/cave_rock.png     # original procedural fractured rock (see textures/CREDITS.md)

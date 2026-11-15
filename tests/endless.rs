@@ -32,6 +32,24 @@ fn the_map_is_the_same_however_it_is_cut_up() {
     assert_eq!(differ, 0, "{differ} cells differ between whole and region-by-region");
 }
 
+/// Authored landmarks and rounded terrain also agree across arbitrary cuts.
+#[test]
+fn rounded_tiles_match_across_negative_map_coordinates_and_partial_bricks() {
+    let m = mats();
+    let (tiles, problems) = levelgen::Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/caves"), &m);
+    assert!(problems.is_empty());
+    let settings = Settings { tile: 47, open_sides: true, seed: 21, ..Settings::new(&m) };
+    let origin = (-173, -91);
+    let mut whole = World::new(384, 256);
+    levelgen::generate_at(&mut whole, &m, (0, 0, 384, 256), origin, &settings, &tiles);
+    let mut parts = World::new(384, 256);
+    for ry in 0..2 { for rx in 0..3 {
+        levelgen::generate_at(&mut parts, &m, (rx * 128, ry * 128, 128, 128), origin, &settings, &tiles);
+    } }
+    assert_eq!(whole.mat, parts.mat, "rounding and landmarks must not depend on region boundaries");
+    assert_eq!(whole.back, parts.back);
+}
+
 fn endless_sim(m: &Materials) -> (Sim, Endless) {
     let text = "size 768 768\nfill air\nendless seed 9 pools 0\n";
     let (sim, problems) = scene::load(text, m, None).into_sim(m);
