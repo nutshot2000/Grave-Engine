@@ -266,6 +266,9 @@ fn now_secs() -> u64 {
 
 /// The activity log, kept on disk so it survives updates (newest last, at most 200).
 fn load_activity() -> Vec<Activity> {
+    if cfg!(test) {
+        return Vec::new();
+    }
     std::fs::read_to_string(ACTIVITY_FILE)
         .unwrap_or_default()
         .lines()
@@ -1343,6 +1346,9 @@ impl Sandbox {
         if self.activity.len() > 200 {
             self.activity.remove(0);
         }
+        if cfg!(test) {
+            return;
+        }
         let _ = std::fs::create_dir_all("live");
         let body: String = self
             .activity
@@ -1763,6 +1769,10 @@ impl Sandbox {
     /// With follow off (or while you're playing, dragging or writing a note)
     /// it's offered instead: "Go there".
     fn follow_files(&mut self) {
+        // (Tests must not react to what an AI happens to be doing in this folder.)
+        if cfg!(test) {
+            return;
+        }
         if self.watch_check.elapsed().as_secs_f32() < 0.5 {
             return;
         }
