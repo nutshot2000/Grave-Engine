@@ -364,8 +364,9 @@ The repo is public. Keep the owner's name, home folder and email out of it: use 
 Known limits:
 - Wood grain always runs the same way (even along horizontal beams).
 - Re-rendered character frames need an editor restart (looks are cached).
-- All characters follow the same controls (no enemies yet); the camera
-  stays locked on the player while playing.
+- Actors follow global controls unless ActorSpec.control_override or
+  Physics::set_actor_controls assigns an independent controller. Games own AI
+  navigation; the editor camera still follows the player while playing.
 
 Roadmap (see the end of `README.md`): game layer (enemies, triggers,
 scripting), big worlds (chunked, multithreaded), coatings (wet/oily

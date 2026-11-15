@@ -23,6 +23,7 @@
 //!
 //! Sources:
 //! - `key NAME`: a keyboard key (egui names: `A`, `Space`, `ArrowUp`, `Enter`, `Num1`...).
+//!   `key Shift` (also `modifier Shift`) binds the held Shift modifier.
 //! - `keys POS NEG`: two keys as one axis (+1 / -1).
 //! - `mouse Primary|Secondary|Middle`: a mouse button.
 //! - `pad BUTTON`: a controller button, 0..1 (triggers are analogue).
@@ -45,6 +46,7 @@ use std::path::Path;
 /// Where an action's value comes from.
 #[derive(Clone, Debug, PartialEq)]
 enum Source {
+    Shift,
     Key(egui::Key),
     Keys(egui::Key, egui::Key),
     Mouse(egui::PointerButton),
@@ -163,6 +165,7 @@ impl Input {
             for part in rest.split(',') {
                 let w: Vec<_> = part.split_whitespace().collect();
                 let s = match w.as_slice() {
+                    ["key" | "modifier", "Shift"] => Source::Shift,
                     ["key", k] => Source::Key(key(k).map_err(err)?),
                     ["keys", p, m] => Source::Keys(key(p).map_err(err)?, key(m).map_err(err)?),
                     ["mouse", b] => Source::Mouse(mouse(b).map_err(err)?),
@@ -228,7 +231,7 @@ impl Input {
                 .collect(),
         });
         let pad = self.poll_controller();
-        self.update_from(&keys, &pad);
+        self.update_from_with_modifiers(&keys, &pad, ctx.input(|i| i.modifiers));
     }
 
     fn poll_controller(&mut self) -> PadState {
@@ -258,6 +261,11 @@ impl Input {
     /// Work out every action from given keyboard/mouse and controller states
     /// (`update` does this with the real ones; tests and replays can feed their own).
     pub fn update_from(&mut self, keys: &KeyState, pad: &PadState) {
+        self.update_from_with_modifiers(keys,pad,egui::Modifiers::default());
+    }
+
+    /// Read synthetic input including modifier keys, such as Shift to roll/run.
+    pub fn update_from_with_modifiers(&mut self, keys: &KeyState, pad: &PadState, modifiers: egui::Modifiers) {
         self.before = std::mem::take(&mut self.now);
         let dz = self.dead_zone.clamp(0.0, 0.95);
         let held = |k: &egui::Key| keys.keys.contains(k) as u8 as f32;
@@ -266,6 +274,7 @@ impl Input {
             let mut best = 0.0f32;
             for s in sources {
                 let v = match s {
+                    Source::Shift => modifiers.shift as u8 as f32,
                     Source::Key(k) => held(k),
                     Source::Keys(p, m) => held(p) - held(m),
                     Source::Mouse(b) => keys.mouse.contains(b) as u8 as f32,
@@ -315,6 +324,17 @@ impl Input {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shift_is_a_named_held_action_with_a_single_press_edge() {
+        let mut i=Input::parse("roll = key Shift, pad B").unwrap();
+        let k=KeyState::default();let p=PadState::default();
+        i.update_from_with_modifiers(&k,&p,egui::Modifiers{shift:true,..Default::default()});
+        assert!(i.pressed("roll"));
+        i.update_from_with_modifiers(&k,&p,egui::Modifiers{shift:true,..Default::default()});
+        assert!(i.down("roll")&&!i.pressed("roll"));
+        i.update_from(&k,&p);assert!(i.released("roll"));
+    }
 
     const GAME: &str = "throttle = key W, pad RT\nlean = keys D A, stick LeftX, pads Right Left\nclimb = stick LeftY-\nfire = mouse Primary, pad A\n";
 

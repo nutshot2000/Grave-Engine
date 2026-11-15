@@ -60,6 +60,10 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    /// None follows global input; Some gives an independent controller or AI.
+    pub control_override: Option<Controls>,
+    /// Games can keep dead actors dead until a checkpoint is restored.
+    pub respawn: bool,
     pub mobility: Option<MobilitySettings>,
     pub posture: Posture,
     /// Optional reusable ledge traversal and its rewindable runtime state.
@@ -99,6 +103,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            control_override: None, respawn: true,
             mobility: None, posture: Posture::default(),
             climb: None, ledge: None, up_held: false, grab_cooldown: 0, jump_buffer: 0,
             animation: None,
@@ -313,9 +318,34 @@ impl Physics {
         self.actors.len()
     }
 
-    /// What the player is pressing (all actors follow it, for now).
+    /// Global input for actors without an independent control override.
     pub fn set_controls(&mut self, c: Controls) {
         self.controls = c;
+    }
+
+    /// Set independent input, or restore the global controller with None.
+    pub fn set_actor_controls(&mut self, index: usize, controls: Option<Controls>) -> bool {
+        let Some(a) = self.actors.get_mut(index) else { return false; };
+        a.spec.control_override = controls;
+        true
+    }
+
+    /// Queue game damage through the same health/death path as physical impacts.
+    pub fn damage_actor(&mut self, index: usize, amount: f32, cause: &'static str) -> bool {
+        if !amount.is_finite() || amount <= 0.0 { return false; }
+        let Some(a) = self.actors.get_mut(index) else { return false; };
+        a.pending += amount;
+        a.pending_cause = Some(cause);
+        true
+    }
+
+    /// Restore health on a living actor without reviving a corpse.
+    pub fn heal_actor(&mut self, index: usize, amount: f32) -> bool {
+        if !amount.is_finite() || amount <= 0.0 { return false; }
+        let Some(a) = self.actors.get_mut(index) else { return false; };
+        if a.spec.dead_for != 0 { return false; }
+        a.spec.health = (a.spec.health + amount).min(MAX_HEALTH);
+        true
     }
 
     pub fn controls(&self) -> Controls {
@@ -485,8 +515,8 @@ impl Physics {
             return;
         }
         let blasts = merge_blasts(blasts);
-        let controls = self.controls;
         for a in self.actors.iter_mut() {
+            let controls = a.spec.control_override.unwrap_or(self.controls);
             let rb = &self.set[a.handle];
             let pos = rb.translation();
             let (cx, cy) = (pos.x / CELL, pos.y / CELL);
@@ -566,7 +596,7 @@ impl Physics {
             let rb = &mut self.set[a.handle];
             if a.spec.dead_for > 0 {
                 a.spec.dead_for += 1;
-                if a.spec.dead_for >= RESPAWN_FRAMES {
+                if a.spec.respawn && a.spec.dead_for >= RESPAWN_FRAMES {
                     if a.spec.ledge.is_some() { ledge::release(a, rb); }
                     let (sx, sy) = a.spec.spawn;
                     rb.set_translation(Vector::new(sx * CELL, sy * CELL), true);
@@ -746,7 +776,7 @@ impl Physics {
             }
             a.pending = 0.0;
             a.pending_cause = None;
-            Self::advance_animation(a, &self.set, self.controls);
+            Self::advance_animation(a, &self.set, a.spec.control_override.unwrap_or(self.controls));
             Self::stamp_actor(a, &self.set, world, mats);
         }
     }
