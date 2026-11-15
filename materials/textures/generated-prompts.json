@@ -1,0 +1,142 @@
+[
+  {
+    "file": "aluminium.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Light silvery aluminium, satin brushed fine grain and gentle broad scuffing, no bolts or panel grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "ash.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Soft powdery cool grey ash with subtle charcoal flecks and delicate clumped grain, muted low contrast. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "bounce_pad.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Readable muted magenta-purple elastic synthetic rubber with soft fine stippling, subtle compressed striation, no symbols no chevrons or stripes. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "brass.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Warm muted golden brass satin metal, fine scratches and slight tarnish, no bricks plates bolts or grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "brick.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Old muted rusty red clay bricks, uneven handmade brick lengths with narrow dark mortar, worn granular faces, understated contrast, no shiny bevels. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "cave_rock.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Natural neutral warm grey cavern rock, broad irregular fractured faces, quiet sediment variation, subtle fine hairline cracks, no bricks paving or regular polygons. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "cave_shale.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square game material texture for Grave Engine, side-view pixel art, natural SHALE rock. Neutral desaturated medium-dark charcoal GREY with a faint warm olive undertone, extremely low chroma. Absolutely no blue, cyan, turquoise or water-like colour. Thin irregular sediment layers and softly broken natural grey stone faces, subdued mineral grain. Premium hand-painted pixel art, clear restrained marks, medium-low contrast. Flat orthographic material surface filling image; all four edges seamless; uniform diffuse lighting. Intended to downsample to128x128 pixels, one pixel per cell. No bricks masonry paving grid objects borders text vignette shadows or perspective. Single material square image, not an atlas."
+  },
+  {
+    "file": "ceramic.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Glazed muted pale blue-grey ceramic surface with subtle fine crazing and slight mottling, no tile grid joints or grout. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "cloth.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Muted earthy beige woven cloth, restrained fine woven threads and soft tonal mottling, no folds objects or large checkerboard. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "cobblestone.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Rough irregular grey cobbles packed together in uneven sizes, dark narrow joints, worn matte faces, no orderly brick courses. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "concrete.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Muted cool grey concrete, softly mottled cement and sparse small aggregate, no blocks joints or brick pattern. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "copper.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Muted warm reddish copper, fine satin scratches, sparse brown tarnish with very small restrained blue-green traces, no plates bolts grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "dirt.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Rich dark earthy brown compact soil, small organic clumps and fine grain, occasional tiny dark inclusions, no stones larger than small specks. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "glass.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Subtle desaturated pale cyan glass material field, fine hairline refractive streaks and quiet tinted variation, opaque artwork (engine controls transparency), no panes frames or grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "gravel.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Small irregular grey shale pebbles, varied angular sizes, restrained shading with no strong outlines, no masonry. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "ice.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Translucent-looking cool blue ice as an opaque material surface, subtle branching white hairline fractures, deep pale cyan variation, no cubes or tiles. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "iron.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Dark charcoal iron, broad subdued worn brushed finish with fine scratches and small oxidation mottles, no plates rivets bolts or grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "lava.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Rich dark red basalt lava with orange incandescent branching fissures and muted amber interiors, restrained yellow highlights, no white, organically tileable. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "mud.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Dark wet chocolate brown mud, compact soft clods with restrained darker damp patches, soft fine texture, no shiny large puddles. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "rubber.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Very dark charcoal rubber, fine matte stipple and gentle wear scratches, no tyre treads objects stripes or grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "sand.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Warm muted pale ochre fine sand, delicate fine granular texture and faint wind ripple variation, no bricks or paving. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "sandstone.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Create one seamless square tileable game material texture of natural sandstone for Grave Engine, a side-view pixel-art cave simulation, one texture pixel eventually equals 10cm cell. Close orthographic flat surface filling entire image. Beautiful subdued warm ochre sandstone with irregular sediment strata, softly eroded broad rock faces, fine mineral grain, occasional hairline cracks. Hand-painted pixel art, crisp controlled marks, limited muted palette tan/umber, medium-low contrast. Absolutely NO bricks, masonry blocks, mortar, paving, straight grid, objects, perspective, edge borders, labels, text, vignette, cast shadows or directional lighting. All four edges tile seamlessly. Readable at 64x64 pixels. This is material artwork, not a scene. Square output."
+  },
+  {
+    "file": "snow.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Soft near-white snow with subtle cold blue-grey crystalline granules, low contrast broad drift mottling, no heavy blue outlines or repeated stars. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "steel.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Cool grey steel, clean satin brushed finish with fine horizontal machining grain and restrained scuffing, no plates bolts or grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "stone.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Natural cool grey limestone, irregular mineral faces and subtle fine fractures, never masonry or bricks. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "weathered_wood.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Dark desaturated warm brown weathered timber, vertical flowing grain, subtle long fibrous cracks and worn knots, no planks or joins. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "wet_sand.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Damp dark warm umber sand, fine compact grain and soft subdued damp mottling, no bricks or tiles. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  },
+  {
+    "file": "wood.png",
+    "tool": "built-in image_gen",
+    "prompt": "Use case: stylized-concept. Asset type: one seamless square material texture for Grave Engine, a side-view pixel-art simulation. Subject: Natural dark honey brown timber grain running vertically, irregular long fibres and subtle knots, no planks boards joins or brick grid. Cohesive premium hand-painted pixel art with crisp intentional small marks and medium-low contrast. Material surface fills every pixel, flat orthographic, uniform neutral lighting, designed to downsample to 128 by 128 with fine detail readable at 1 pixel per 10cm cell. Subtle natural palette variation with a strong material identity, not noisy static. All four edges must tile seamlessly. No scene, objects, borders, labels, text, watermarks, perspective, vignette, cast shadows or dramatic directional lighting. Square image. Create only this single material, not an atlas."
+  }
+]

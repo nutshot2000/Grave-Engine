@@ -849,6 +849,9 @@ fn main() {
             rgba.push(255);
         }
     }
+    // Preserve the shared artwork when regenerating this example town.
+    // The old procedural swatch is only a fallback for an incomplete checkout.
+    if !Path::new("materials/textures/weathered_wood.png").exists() {
     headless::write_png(
         Path::new("materials/textures/weathered_wood.png"),
         16,
@@ -857,6 +860,7 @@ fn main() {
         1,
     )
     .unwrap();
+    }
     let m = Materials::load_dir("materials");
     assert!(m.problems.is_empty(), "{:?}", m.problems);
     for kind in ["ranch", "store", "saloon", "sheriff"] {

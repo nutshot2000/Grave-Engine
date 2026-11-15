@@ -12,4 +12,4 @@ heat_capacity = 1.5
 toughness = 20000
 friction = 0.6
 launch = 15
-texture = textures/bounce_pad.png
+texture = textures/bounce_pad.png  # generated artwork; see textures/CREDITS.md

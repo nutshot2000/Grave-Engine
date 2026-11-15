@@ -14,5 +14,5 @@ strength = 15
 toughness = 300                  # brittle: shatters easily
 friction = 0.08                  # slippery: rubber gets a little grip, most things slide
 bounciness = 0.1
-texture = textures/ice.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+texture = textures/ice.png  # generated artwork; see textures/CREDITS.md
 lets_light_through = 0.75   # lets light through, a little blue

@@ -16,9 +16,10 @@ Timber, masonry, ore and liquids retain their authored positions.
 also contains patches of `shale` and sandstone. The same rock texture is
 used dimmed on back walls, keeping the empty passages readable. These are
 real materials, so digging, heating and breaking still work as usual.
-Regenerate the two original seamless rock textures with
-`tools/make_cave_textures.py` (Python with Pillow). No source photographs or
-third-party texture packs are used by this script.
+The active material artwork is a new generated set; see
+`materials/textures/CREDITS.md` and `generated-prompts.json` there.
+`tools/import_material_textures.py` packages source images as compact tiles.
+The old procedural cave experiment now writes only to `shots/`.
 
 The structure still uses the engine's herringbone edge layout. It does not
 guarantee that every cavity is reachable or that every route can be walked
@@ -73,3 +74,30 @@ saved terrain; use Reroll for a different distribution of chambers.
 Tests cover large open cores, owned-cell preservation, blind-branch growth,
 scene controls, sealed borders, and region equivalence at negative map
 coordinates and non-aligned tile sizes.
+
+## Cavern interiors
+
+Large chambers contain ceiling-rooted tapered stalactites, broad blunt floor
+pillars, and ledges projecting from both walls. Their attachment points come
+from the actual irregular chamber outline. These are ordinary anchored rock
+cells: they can be heated, dug out and destroyed. An open band through the
+middle prevents the formations from sealing the main chamber route. This
+is a geometry safeguard, not a guarantee that every cavern is walkable.
+Their plans use map coordinates, including when a formation crosses an
+endless-region boundary.
+
+The full set of 28 material textures has also been replaced. The tan brick-
+looking patches were sandstone's old texture, not the cave shape generator.
+Natural sandstone now has sediment layers; actual brick keeps a deliberate
+masonry pattern. Preview all new surfaces in `docs/material-textures.png`.
+
+## Soft geological contacts
+
+Rock, shale, stone and sandstone opt into `texture_blend = 5`, a narrow
+visual transition where two compatible solid materials meet. The artwork
+is feathered with slight irregularity at the contact; the actual material
+IDs, collision, heat and reactions are unchanged. Texture blending stops
+at air or liquid and skips painted or owned cells. Built materials stay
+crisp unless they explicitly opt in. The material inspector's **Texture
+join** setting adjusts the width from zero to eight cells. Heat view stays
+unblended, and windowed/cropped renders use the same world-space result.

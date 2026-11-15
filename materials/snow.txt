@@ -16,4 +16,4 @@ friction = 0.35                  # snow surface: some grip
 rolling_resistance = 0.5
 clump = 2
 wind_effect = 0.2              # drifts down gently, never streams sideways
-texture = textures/snow.png
+texture = textures/snow.png  # generated artwork; see textures/CREDITS.md

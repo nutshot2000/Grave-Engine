@@ -12,4 +12,4 @@ strength = 25
 toughness = 5000
 breaks_into = gravel
 friction = 0.85
-texture = textures/cobblestone.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+texture = textures/cobblestone.png  # generated artwork; see textures/CREDITS.md

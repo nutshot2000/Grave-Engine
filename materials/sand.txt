@@ -10,6 +10,6 @@ melts_at = 1700
 melts_into = molten_glass
 strength = 1
 friction = 0.7
-texture = textures/sand.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+texture = textures/sand.png  # generated artwork; see textures/CREDITS.md
 reaction = water -> wet_sand + air, chance 0.3       # soaks up water
 rolling_resistance = 0.6           # slows rolling wheels (per second)

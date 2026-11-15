@@ -14,4 +14,4 @@ strength = 200
 toughness = 40000
 friction = 0.45
 metal = yes
-texture = textures/steel.png     # the iron tile, recoloured
+texture = textures/steel.png  # generated artwork; see textures/CREDITS.md

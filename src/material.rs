@@ -67,6 +67,9 @@ pub struct Material {
     pub color: [u8; 3],
     /// How much each cell's colour varies (0 = flat, 0.3 = very speckled).
     pub color_variation: f32,
+    /// Width in cells of visual texture transitions to other opted-in solids.
+    /// Zero keeps a crisp material boundary. This never changes simulation.
+    pub texture_blend: f32,
     /// How much it lights up its surroundings (0..1).
     pub glow: f32,
     /// Temperature a freshly painted cell starts at.
@@ -245,6 +248,7 @@ impl Material {
             density: 1000.0,
             color: [255, 0, 255],
             color_variation: 0.06,
+            texture_blend: 0.0,
             glow: 0.0,
             temperature: 20.0,
             conducts_heat: 0.2,
@@ -729,6 +733,7 @@ fn apply(
         "density" => m.density = num(v)?.max(0.001),
         "color" | "colour" => m.color = parse_color(v)?,
         "color_variation" | "colour_variation" => m.color_variation = num(v)?.clamp(0.0, 1.0),
+        "texture_blend" => m.texture_blend = num(v)?.clamp(0.0, 8.0),
         "glow" => m.glow = num(v)?.clamp(0.0, 1.0),
         "temperature" | "starts_at" => m.temperature = num(v)?,
         "conducts_heat" => m.conducts_heat = num(v)?.clamp(0.0, 1.0),

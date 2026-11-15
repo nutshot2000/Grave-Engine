@@ -15,4 +15,4 @@ friction = 0.5                   # slippery
 rolling_resistance = 1.8         # bogs wheels down worst of all
 clump = 4
 reaction = air -> dirt + air, chance 0.0002
-texture = textures/mud.png
+texture = textures/mud.png  # generated artwork; see textures/CREDITS.md

@@ -13,7 +13,7 @@ strength = 20
 toughness = 60                   # shatters at a knock (a bike going through it)
 friction = 0.25
 bounciness = 0.05
-texture = textures/glass.png
+texture = textures/glass.png  # generated artwork; see textures/CREDITS.md
 lets_light_through = 0.9   # clear: light shines through
 
 # An electric bulb glows without heating or emitting fire.

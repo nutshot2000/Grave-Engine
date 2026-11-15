@@ -19,5 +19,5 @@ friction = 0.6
 bounciness = 0.1
 sparks = ember                   # throws glowing embers while it burns
 sparks_chance = 0.0001
-texture = textures/weathered_wood.png
+texture = textures/weathered_wood.png  # generated artwork; see textures/CREDITS.md
 softens_at = 500                # heated construction timber loses strength gradually

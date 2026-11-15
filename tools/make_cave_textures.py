@@ -1,4 +1,4 @@
-"""Original seamless cave rock textures: broad strata, fractured faces and quiet grain.
+"""Legacy procedural cave texture experiment (not the active artwork): broad strata, fractured faces and quiet grain.
 Run from any folder; no source photographs or third-party textures are used.
 """
 from pathlib import Path

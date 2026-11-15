@@ -12,4 +12,5 @@ strength = 25
 toughness = 5500
 breaks_into = gravel
 friction = 0.85
-texture = textures/cave_rock.png     # original procedural fractured rock (see textures/CREDITS.md)
+texture = textures/cave_rock.png  # generated artwork; see textures/CREDITS.md
+texture_blend = 5

@@ -18,6 +18,6 @@ friction = 1.2                   # very grippy
 bounciness = 0.45                # bouncy
 toughness = 8000                 # takes a real beating (tyres don't chip from driving)
 strength = 20
-texture = textures/rubber.png
+texture = textures/rubber.png  # generated artwork; see textures/CREDITS.md
 sparks = ember
 sparks_chance = 0.0003

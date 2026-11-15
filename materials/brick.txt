@@ -13,4 +13,4 @@ strength = 30
 toughness = 3500
 breaks_into = gravel
 friction = 0.8
-texture = textures/brick.png          # pixel-art tile by piiixl (see textures/CREDITS.md)
+texture = textures/brick.png  # generated artwork; see textures/CREDITS.md

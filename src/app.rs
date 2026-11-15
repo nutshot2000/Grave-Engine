@@ -1253,6 +1253,7 @@ impl Sandbox {
                     }
                 });
                 num(ui, "color_variation", "Speckle", "How much each cell's shade varies", cur.color_variation, def.color_variation, 0.0..=1.0, false);
+                num(ui, "texture_blend", "Texture join", "Soften joins with other materials that also enable this, in cells; visual only", cur.texture_blend, def.texture_blend, 0.0..=8.0, false);
                 num(ui, "glow", "Glow", "How much light it gives off", cur.glow, def.glow, 0.0..=2.0, false);
 
                 ui.heading("Weight and movement");

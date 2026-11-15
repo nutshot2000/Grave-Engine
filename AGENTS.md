@@ -395,7 +395,8 @@ with doorway collars kept exact; built features retain their original cells.
 Only 38% of eligible bricks use authored landmarks; other bricks get seeded
 layouts, with fewer hub rooms and more narrow branches. `rock` now uses an
 original procedural texture, and generated stone patches use `shale`.
-`tools/make_cave_textures.py` reproduces the two seamless textures.
+`tools/make_cave_textures.py` now writes only legacy experiments to `shots/`;
+the active textures are generated artwork (see materials/textures/CREDITS.md).
 
 Natural built-in caves now mostly use `organic_grid`: six plan families on
 16 blocks per unit (meanders, caverns, branching trees, pillar loops,
@@ -412,3 +413,21 @@ bricks. `Settings::caverns` and `dead_ends` are exposed as editor sliders
 and scene/endless keys `caverns` / `deadends` (0..1). `add_blind_branches`
 rejects a passage that reconnects away from its mouth. Owned cells remain
 excluded from all cave passes.
+
+Cavern interiors: `LargeCavern::contains` defines the raw outline;
+`cavern_rocks` samples it for actual roof/floor/wall attachments and plans
+stalactites, floor pillars and ledges. Keep the open central travel band
+and map-coordinate evaluation. All features are real anchored ground.
+The 28 active texture surfaces are original generated artwork; prompts are
+in `materials/textures/generated-prompts.json`, preview in
+`docs/material-textures.png`, packaging in `tools/import_material_textures.py`.
+Do not regenerate the old tiny swatches over the active set. Copper Creek
+only writes its old wood fallback if the shared texture is missing.
+
+Geological texture joins: `Material::texture_blend` (0..8 cells, default 0),
+parsed and exposed in the material inspector. Rock/shale/stone/sandstone opt
+in at 5. `render.rs` feathers only between opted-in solid scenery, stopping
+at air/liquid and excluding paint/owned cells; heat view bypasses it.
+`tests/texture_blending.rs` checks locality, unchanged material IDs, crisp
+boundaries/objects, gaps and pixel-identical cropped output. No simulation
+layer or material mixing is involved.

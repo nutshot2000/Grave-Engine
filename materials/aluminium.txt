@@ -14,4 +14,4 @@ strength = 80
 toughness = 10000
 friction = 0.4
 metal = yes
-texture = textures/aluminium.png # the iron tile, recoloured
+texture = textures/aluminium.png  # generated artwork; see textures/CREDITS.md

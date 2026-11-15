@@ -294,6 +294,40 @@ impl Renderer {
                 }
                 None => c3(m.color),
             };
+            // Geological contacts feather their artwork across a few cells.
+            // Both materials opt in; air, liquids, paint and owned objects
+            // remain crisp. Sampling stops at air, never across a cave gap.
+            if !view.heat && m.texture_blend > 0.0 && m.state == State::Solid && !world.is_owned(i) && world.paint[i] == 0 {
+                let (x, y) = (i % world.w, i / world.w);
+                let radius = m.texture_blend;
+                let mut mixed = [0.0; 3];
+                let mut weight = 0.0f32;
+                let jitter = (hash((x as u32 / 2).wrapping_mul(7919) ^ (y as u32 / 2).wrapping_mul(31337)) as f32 / u32::MAX as f32 - 0.5) * 0.12;
+                for (dx, dy) in [(-1isize, 0isize), (1, 0), (0, -1), (0, 1)] {
+                    for distance in 1..=radius.ceil() as usize {
+                        let (nx, ny) = (x as isize + dx * distance as isize, y as isize + dy * distance as isize);
+                        if nx < 0 || ny < 0 || nx >= world.w as isize || ny >= world.h as isize { break; }
+                        let ni = ny as usize * world.w + nx as usize;
+                        if world.mat[ni] == world.mat[i] { continue; }
+                        let other = mats.get(world.mat[ni]);
+                        if other.texture_blend > 0.0 && other.state == State::Solid && !world.is_owned(ni) && world.paint[ni] == 0 {
+                            let w = (0.5 * (1.0 - distance as f32 / (radius.min(other.texture_blend) + 1.0)) + jitter).clamp(0.0, 0.48);
+                            let rgb = match &pics[world.mat[ni] as usize] {
+                                Some(p) => {
+                                    let t = world.tex[i];
+                                    let o = (((t >> 8) as usize % p.h) * p.w + (t & 0xff) as usize % p.w) * 4;
+                                    [p.rgba[o] as f32, p.rgba[o + 1] as f32, p.rgba[o + 2] as f32]
+                                }
+                                None => c3(other.color),
+                            };
+                            for c in 0..3 { mixed[c] += rgb[c] * w; }
+                            weight += w;
+                        }
+                        break;
+                    }
+                }
+                if weight > 0.0 { col = lerp3(col, mixed.map(|v| v / weight), weight.min(0.48)); }
+            }
             if let Some(rgb) = crate::asset::paint_rgb(world.paint[i]) {
                 let grain = ((col[0] + col[1] + col[2]) / (m.color.iter().map(|v| *v as f32).sum::<f32>().max(1.))).clamp(0.65, 1.35);
                 col = rgb.map(|v| v as f32 * grain);
