@@ -246,6 +246,8 @@ const RESUME_SCENE: &str = "GRAVE_RESUME_SCENE_PATH";
 const RESUME_NOTES: &str = "GRAVE_RESUME_NOTES_SCENE";
 const RESUME_CAM: &str = "GRAVE_RESUME_CAMERA";
 const RESUME_WINDOW: &str = "GRAVE_RESUME_WINDOW";
+/// Where Reset goes back to (the scene before it was played), kept across an update.
+const RESUME_RESET: &str = "GRAVE_RESUME_RESET";
 
 /// One thing that happened with the AI: when (seconds since 1970), what, and
 /// the file it was about (to jump back to it).
@@ -472,6 +474,11 @@ impl Sandbox {
         }) {
             app.cam = Some(c);
         }
+        if let Some(text) = std::env::var_os(RESUME_RESET).and_then(|p| std::fs::read_to_string(p).ok()) {
+            let (reset, _) = scene::load(&text, &app.mats, Path::new(&app.scene_path).parent()).into_sim(&app.mats);
+            let mut reset = reset;
+            app.snapshot = reset.snapshot();
+        }
         if std::env::var_os(RESUME_SCENE).is_some() {
             // What the AI said the update was (`update TEXT` in live/agent.txt).
             let what = std::fs::read_to_string("live/agent.txt")
@@ -501,8 +508,15 @@ impl Sandbox {
             self.original_exe = None;
             return;
         }
+        // Also the point Reset goes back to: the scene before it was played,
+        // not the state it happened to be in when the update came.
+        let reset = dir.parent().unwrap_or(&dir).join("editor-reset.txt");
+        let reset_ok = std::fs::write(&reset, scene::save(&self.snapshot, &self.mats)).is_ok();
         let mut cmd = std::process::Command::new(&exe);
         cmd.arg(&resume).env_remove(ORIGINAL_EXE).env(RESUME_SCENE, &self.scene_path).env(RESUME_NOTES, &self.notes_scene);
+        if reset_ok {
+            cmd.env(RESUME_RESET, &reset);
+        }
         if let Some(dir) = &self.mats.dir {
             cmd.arg("--materials").arg(dir);
         }
