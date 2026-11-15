@@ -82,3 +82,25 @@ fn a_big_world_loads_without_crawling() {
         assert!(ms < 60.0, "{ms:.1} ms per frame for the first second");
     }
 }
+
+/// Sand pouring, water spreading and smoke rising over a big area come out
+/// exactly the same on one core as shared between all of them.
+#[test]
+fn sand_and_water_move_the_same_on_one_core_or_many() {
+    let m = mats();
+    let text = "size 1600 400\nseed 9\nfill air\nrect stone 0 360 1600 40\nrect sand 100 50 300 120\nrect water 700 100 400 150\nrect gravel 1300 20 60 200\nrect stone 600 200 20 160\nheat circle 1450 340 6 900\nrect wood 1440 340 20 20\n";
+    let run = |threads: usize| {
+        grave_engine::world::set_worker_threads(threads);
+        let mut s = sim(text, &m);
+        for _ in 0..90 {
+            s.step(&m);
+        }
+        grave_engine::world::set_worker_threads(0);
+        (s.world.mat.clone(), s.world.temp.iter().map(|t| t.to_bits()).collect::<Vec<_>>())
+    };
+    let one = run(1);
+    let many = run(0);
+    let differ = one.0.iter().zip(&many.0).filter(|(a, b)| a != b).count();
+    assert_eq!(differ, 0, "{differ} cells ended up different");
+    assert!(one.1 == many.1, "temperatures differ");
+}

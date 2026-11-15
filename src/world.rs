@@ -14,6 +14,7 @@
 use crate::material::{AIR, MatId, Materials, State};
 
 pub mod coating;
+mod movement;
 
 pub const BURNING: u8 = 1;
 /// This cell belongs to a rigid object (see `physics.rs`). The cell simulation
@@ -195,10 +196,21 @@ const CALM_FRAMES: u8 = 17;
 /// Smaller ones aren't worth waking the other cores for.
 const PARALLEL_CELLS: usize = 256 * 1024;
 
-/// How many cores to share big jobs between.
+/// How many cores to share big jobs between (`set_worker_threads` can cap it).
 fn worker_threads() -> usize {
     static N: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *N.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get()).clamp(1, 16))
+    let all = *N.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get()).clamp(1, 16));
+    match CAP.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => all,
+        cap => cap.min(all),
+    }
+}
+static CAP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Use at most this many cores for the cell grid (0 = all of them). The
+/// result is the same either way; this is for comparing and testing.
+pub fn set_worker_threads(n: usize) {
+    CAP.store(n, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Run each job (one band of the world each) on its own core, or right here
@@ -220,6 +232,7 @@ const SLOW_CHANCE: f32 = 0.02;
 const SLOW_EVERY: u32 = 16;
 
 /// Per-material numbers the hot loops need, gathered once per frame.
+#[derive(Clone, Copy)]
 struct Fast {
     state: State,
     density: f32,
@@ -1176,72 +1189,6 @@ impl World {
         (top.0 + (bot.0 - top.0) * ty, top.1 + (bot.1 - top.1) * ty)
     }
 
-    fn movement(&mut self, mats: &Materials) {
-        self.update_flow();
-        let fast: Vec<Fast> = mats
-            .list
-            .iter()
-            .map(|m| Fast { state: m.state, density: m.density, flows: m.flows, slides: m.slides })
-            .collect();
-        let (w, h) = (self.w as i32, self.h as i32);
-        let frame = self.frame;
-        // Bottom to top, so falling things only move once. Alternate the
-        // sideways direction so nothing drifts one way.
-        for y in (0..h).rev() {
-            let left_to_right = self.rand() & 1 == 0;
-            let row_blocks = (y as usize / BLOCK) * self.bw;
-            let mut xi = 0;
-            while xi < w {
-                let x = if left_to_right { xi } else { w - 1 - xi };
-                if !self.active[row_blocks + x as usize / BLOCK] {
-                    // Jump to the next block in this direction.
-                    let bx = x as usize / BLOCK;
-                    let edge = if left_to_right { ((bx + 1) * BLOCK) as i32 } else { w - (bx * BLOCK) as i32 };
-                    xi = edge.max(xi + 1);
-                    continue;
-                }
-                xi += 1;
-                let i = (y * w + x) as usize;
-                if self.moved[i] == frame || self.flags[i] & OWNED != 0 {
-                    continue;
-                }
-                let f = &fast[self.mat[i] as usize];
-                match f.state {
-                    State::Solid => {}
-                    State::Powder => self.move_powder(&fast, x, y),
-                    State::Liquid => self.move_liquid(&fast, x, y, f.flows as i32),
-                    State::Gas => self.move_gas(&fast, x, y, f.flows as i32),
-                }
-            }
-        }
-    }
-
-    /// How heavy a cell is right now. Gases get lighter as they heat up.
-    #[inline]
-    fn weight(&self, fast: &[Fast], i: usize) -> f32 {
-        let f = &fast[self.mat[i] as usize];
-        if f.state == State::Gas {
-            f.density * 293.0 / (self.temp[i] + 273.0).max(1.0)
-        } else {
-            f.density
-        }
-    }
-
-    /// Can the cell at `i` (with weight `wi`) sink into `j`?
-    #[inline]
-    fn can_sink(&self, fast: &[Fast], wi: f32, j: usize) -> bool {
-        let s = fast[self.mat[j] as usize].state;
-        (s == State::Gas || s == State::Liquid) && self.flags[j] & OWNED == 0 && self.weight(fast, j) < wi
-    }
-
-    /// Can a gas at `i` (weight `wi`) rise into `j`? Needs a clear difference
-    /// so still air doesn't shimmer.
-    #[inline]
-    fn can_rise(&self, fast: &[Fast], wi: f32, j: usize) -> bool {
-        let s = fast[self.mat[j] as usize].state;
-        (s == State::Gas || s == State::Liquid) && self.flags[j] & OWNED == 0 && wi < self.weight(fast, j) * 0.97
-    }
-
     fn swap(&mut self, a: usize, b: usize) {
         // Swapping two identical cells (air with air) changes nothing.
         if self.mat[a] != self.mat[b] || (self.temp[a] - self.temp[b]).abs() > 0.05 {
@@ -1258,158 +1205,5 @@ impl World {
         self.tex.swap(a, b);
         self.moved[a] = self.frame;
         self.moved[b] = self.frame;
-    }
-
-    fn try_sink(&mut self, fast: &[Fast], i: usize, wi: f32, x: i32, y: i32) -> bool {
-        if !self.in_bounds(x, y) {
-            return false;
-        }
-        let j = y as usize * self.w + x as usize;
-        if self.can_sink(fast, wi, j) {
-            self.swap(i, j);
-            return true;
-        }
-        false
-    }
-
-    fn move_powder(&mut self, fast: &[Fast], x: i32, y: i32) {
-        let i = y as usize * self.w + x as usize;
-        let wi = self.weight(fast, i);
-        if self.try_sink(fast, i, wi, x, y + 1) {
-            return;
-        }
-        // Sliding down the side of the pile (damp, sticky powders rarely do).
-        let slides = fast[self.mat[i] as usize].slides;
-        if slides < 1.0 && !self.chance(slides) {
-            return;
-        }
-        let d = if self.rand() & 1 == 0 { 1 } else { -1 };
-        if self.try_sink(fast, i, wi, x + d, y + 1) {
-            return;
-        }
-        self.try_sink(fast, i, wi, x - d, y + 1);
-    }
-
-    fn move_liquid(&mut self, fast: &[Fast], x: i32, y: i32, flows: i32) {
-        let i = y as usize * self.w + x as usize;
-        let wi = self.weight(fast, i);
-        if self.try_sink(fast, i, wi, x, y + 1) {
-            return;
-        }
-        let d = if self.rand() & 1 == 0 { 1 } else { -1 };
-        if self.try_sink(fast, i, wi, x + d, y + 1) || self.try_sink(fast, i, wi, x - d, y + 1) {
-            return;
-        }
-        // Spread sideways: slide as far as `flows` cells into lighter stuff.
-        for dir in [d, -d] {
-            let mut best = None;
-            for step in 1..=flows {
-                let nx = x + dir * step;
-                if !self.in_bounds(nx, y) {
-                    break;
-                }
-                let j = y as usize * self.w + nx as usize;
-                if !self.can_sink(fast, wi, j) {
-                    break;
-                }
-                best = Some(j);
-                // Stop early if we can fall from here.
-                if self.in_bounds(nx, y + 1) && self.can_sink(fast, wi, j + self.w) {
-                    break;
-                }
-            }
-            if let Some(j) = best {
-                self.swap(i, j);
-                return;
-            }
-        }
-    }
-
-    /// Can a gas be pushed into `j` by the air currents? (Swaps with other gases.)
-    #[inline]
-    fn can_drift(&self, fast: &[Fast], i: usize, j: usize) -> bool {
-        fast[self.mat[j] as usize].state == State::Gas && self.flags[j] & OWNED == 0 && self.mat[j] != self.mat[i]
-    }
-
-    fn move_gas(&mut self, fast: &[Fast], x: i32, y: i32, flows: i32) {
-        let i = y as usize * self.w + x as usize;
-        // Smoke, steam and flames get carried around by the air currents.
-        // (Plain air moving through plain air would change nothing.)
-        if self.mat[i] != AIR {
-            let (u, v) = self.flow_at(x, y);
-            if self.chance(u.abs().min(0.9)) {
-                let dir = if u > 0.0 { 1 } else { -1 };
-                // Blown into something solid? The air goes up and over it.
-                for (dx, dy) in [(dir, 0), (dir, -1), (0, -1)] {
-                    let (nx, ny) = (x + dx, y + dy);
-                    if self.in_bounds(nx, ny) {
-                        let j = ny as usize * self.w + nx as usize;
-                        if self.can_drift(fast, i, j) {
-                            self.swap(i, j);
-                            return;
-                        }
-                        if fast[self.mat[j] as usize].state == State::Gas {
-                            break; // open air, just the same gas: nothing to do
-                        }
-                    }
-                }
-            }
-            if self.chance(v.abs().min(0.9)) {
-                let ny = y + if v > 0.0 { 1 } else { -1 };
-                if self.in_bounds(x, ny) {
-                    let j = ny as usize * self.w + x as usize;
-                    if self.can_drift(fast, i, j) {
-                        self.swap(i, j);
-                        return;
-                    }
-                }
-            }
-        }
-        let wi = self.weight(fast, i);
-        // Still air with nowhere to rise to (the usual case: millions of sky
-        // cells) has nothing to do: skip the dice. Same outcome, much faster.
-        if self.mat[i] == AIR {
-            let open = [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0)].iter().any(|&(dx, dy)| {
-                let (nx, ny) = (x + dx, y + dy);
-                self.in_bounds(nx, ny) && self.can_rise(fast, wi, ny as usize * self.w + nx as usize)
-            });
-            if !open {
-                return;
-            }
-        }
-        // Rising isn't perfectly steady, so plumes break up.
-        if self.rand().is_multiple_of(8) {
-            return;
-        }
-        let d = if self.rand() & 1 == 0 { 1 } else { -1 };
-        for (dx, dy) in [(0, -1), (d, -1), (-d, -1)] {
-            let (nx, ny) = (x + dx, y + dy);
-            if self.in_bounds(nx, ny) {
-                let j = ny as usize * self.w + nx as usize;
-                if self.can_rise(fast, wi, j) {
-                    self.swap(i, j);
-                    return;
-                }
-            }
-        }
-        // Drift sideways under ceilings, a little at random.
-        if flows > 0 && !self.rand().is_multiple_of(3) {
-            let reach = 1 + (self.rand() as i32).rem_euclid(flows);
-            let mut best = None;
-            for step in 1..=reach {
-                let nx = x + d * step;
-                if !self.in_bounds(nx, y) {
-                    break;
-                }
-                let j = y as usize * self.w + nx as usize;
-                if !self.can_rise(fast, wi, j) {
-                    break;
-                }
-                best = Some(j);
-            }
-            if let Some(j) = best {
-                self.swap(i, j);
-            }
-        }
     }
 }
