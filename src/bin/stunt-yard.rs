@@ -21,7 +21,7 @@ struct Part { id:u64, name:String }
 
 // Fuses, checkpoints and their messages are engine triggers in the scene
 // (`trigger ... by frame : ...`); the game reacts to `sim.events`.
-struct Game { ai_wait:u32, level:usize, checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, upside_down:u32, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: Vec<bool>, cam_x:f32, cam_y:f32, cam_width:f32, input:Option<grave_engine::input::Input> }
+struct Game { ai_wait:u32, level:usize, checkpoint:f32, surface:String, parts:Vec<Part>, crashed:bool, upside_down:u32, sim: Sim, mats: Materials, renderer: Renderer, texture: Option<egui::TextureHandle>, rider: Option<egui::TextureHandle>, clock: f64, last: Instant, frame: u32, state: String, started: bool, best: u32, score: u32, gates: Vec<bool>, cam_x:f32, cam_y:f32, cam_width:f32, input:Option<grave_engine::input::Input>, sound:grave_engine::sound::Player }
 /// Default controls, built in; assets/input/stunt-yard.input is read at start-up,
 /// so editing it changes the controls (keyboard or game controller) without rebuilding.
 const STUNT_YARD_INPUT:&str=include_str!("../../assets/input/stunt-yard.input");
@@ -45,7 +45,7 @@ impl Game {
   }).collect();
   assert!(parts.iter().any(|p|p.name=="frame"),"missing bike frame");
   let start=sim.physics.spec_of(&sim.world,sim.follow.unwrap_or(1)).map_or((110.,100.),|b|(b.x,b.y-80.));
-  Self {ai_wait:0,level,checkpoint:0.,surface:String::new(),parts,crashed:false,upside_down:0,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE  (1 / 2: pick a course)".into(),started:false,best:0,score:0,gates:vec![false;lv.stages.len()],cam_x:start.0,cam_y:start.1,cam_width:220.,input:None}
+  Self {ai_wait:0,level,checkpoint:0.,surface:String::new(),parts,crashed:false,upside_down:0,sim,mats,renderer:Renderer::default(),texture:None,rider:None,clock:0.,last:Instant::now(),frame:0,state:"Ready on set — press SPACE  (1 / 2: pick a course)".into(),started:false,best:0,score:0,gates:vec![false;lv.stages.len()],cam_x:start.0,cam_y:start.1,cam_width:220.,input:None,sound:grave_engine::sound::Player::new()}
  }
  fn lv(&self)->Level {LEVELS[self.level]}
  /// Where the finish line is (for the progress bar): the level's, or its
@@ -232,6 +232,10 @@ impl eframe::App for Game {
   let cx=self.cam_x+shake.0;let y0=self.cam_y+shake.1;
   // Weather falls around what the camera sees.
   self.sim.weather_view=Some((cx-vw/2.-30.,y0-10.,cx+vw/2.+30.,y0+vh));
+  // Sound from the materials (see sound.rs): crashes clang, gravel crunches.
+  let running=self.started && ctx.input(|i|i.focused);
+  let speed=if running {self.sim.camera.time_scale()} else {0.};
+  self.sound.listen(&mut self.sim,&self.mats,(cx-vw/2.,y0,cx+vw/2.,y0+vh),speed);
   // Draw only what the camera sees (plus a margin): the real material cells,
   // for intact parts and wreckage alike.
   // (A steady size from frame to frame, so the picture buffer is reused.)

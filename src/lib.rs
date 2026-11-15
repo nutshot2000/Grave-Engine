@@ -15,6 +15,7 @@ pub mod look;
 pub mod notes;
 pub mod physics;
 pub mod sim;
+pub mod sound;
 pub mod template;
 pub mod trigger;
 pub mod weather;

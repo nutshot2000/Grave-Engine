@@ -59,6 +59,8 @@ pub struct Material {
     pub about: String,
     /// Which group the editor lists it under (`category = Metals`); empty = worked out.
     pub category: String,
+    /// How it sounds (`sound = metal`, see sound.rs); empty = worked out.
+    pub sound: String,
     pub state: State,
     /// kg per cubic metre. Heavier things sink below lighter ones.
     pub density: f32,
@@ -230,6 +232,7 @@ impl Material {
             name: name.to_string(),
             about: String::new(),
             category: String::new(),
+            sound: String::new(),
             state: State::Solid,
             density: 1000.0,
             color: [255, 0, 255],
@@ -737,6 +740,12 @@ fn apply(
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
         "melt_yield" => m.melt_yield = num(v)?.clamp(0.0, 1.0),
         "category" => m.category = v.trim().to_string(),
+        "sound" => {
+            if crate::sound::Voice::parse(v).is_none() {
+                return Err(format!("`sound` is one of metal, wood, stone, glass, soft, earth, liquid, none (not `{}`)", v.trim()));
+            }
+            m.sound = v.trim().to_lowercase()
+        }
         "wind_effect" => m.wind_effect = num(v)?.clamp(0.0, 1.0),
         "softens_at" => m.softens_at = opt_num(v)?,
         "lets_light_through" | "transparency" => m.lets_light_through = opt_num(v)?.map(|t| t.clamp(0.0, 1.0)),

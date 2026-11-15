@@ -234,6 +234,12 @@ impl Sim {
         if !inherited_air && self.layers.is_empty() {self.world.depth_air.fill(false);}
         {let _p=crate::profile::scope("sim.depth_planes"); self.step_layers(mats);}
         {let _p=crate::profile::scope("sim.cells"); self.world.step(mats);}
+        // Sound: this frame's explosions (before other planes' echoes join in).
+        for n in 0..self.world.blasts.len() {
+            let b = self.world.blasts[n];
+            let loud = (0.45 + b.size / 40.0 + (b.power / 20000.0).min(0.3)).min(1.0);
+            self.world.sound(crate::sound::Sound { kind: crate::sound::Kind::Blast, x: b.x, y: b.y, mat: crate::material::AIR, other: crate::material::AIR, loud, size: b.size });
+        }
         if inherited_air || !self.layers.is_empty() {
             // Depth planes: share this plane's blasts, feel the others' (see echo_blasts).
             self.world.blast_echo_out = self.world.blasts.clone();
@@ -391,6 +397,7 @@ impl Sim {
     pub fn restore(snap: &Snapshot, mats: &Materials) -> Self {
         let mut world = snap.world.clone();
         world.wake_all(); // restored: look at everything again
+        world.sounds.clear(); // (and nothing left to hear from before)
         let mut sim = Sim { pumps: Vec::new(), physics: Physics::new(world.w, world.h), world, layers: Vec::new(), layer_names: Vec::new(), instances: HashMap::new(), follow: None, zoom: snap.zoom, triggers: Vec::new(), events: Vec::new(), checkpoint: snap.checkpoint, camera: Default::default(), lighting: Default::default(), backdrop: snap.backdrop.clone(), weather: snap.weather.clone(), weather_run: Default::default(), weather_view: None, seen: Default::default() };
         sim.layers = snap.layers.iter().map(|s| Sim::restore(s,mats)).collect();
         sim.layer_names = snap.layer_names.clone();

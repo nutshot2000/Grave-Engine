@@ -162,6 +162,8 @@ struct Sandbox {
     /// What the AI has done lately (the 🤖 Activity panel), and whether it's showing.
     activity: Vec<Activity>,
     show_activity: bool,
+    /// Sound from the materials (see sound.rs): the 🔊 button mutes it.
+    sound: grave_engine::sound::Player,
     /// Areas of the scene that just changed on disk (cells: x0, y0, x1, y1),
     /// outlined for a few seconds so you can see what's new.
     highlights: Vec<(usize, usize, usize, usize)>,
@@ -212,6 +214,22 @@ struct NoteDraft {
     text: String,
     editing: Option<usize>,
     focused: bool,
+}
+
+/// The editor's sound player, at the volume it had before an update restarted it.
+fn editor_sound() -> grave_engine::sound::Player {
+    if cfg!(test) {
+        return grave_engine::sound::Player::silent();
+    }
+    let mut p = grave_engine::sound::Player::new();
+    if let Ok(v) = std::env::var("GRAVE_SOUND") {
+        let mut w = v.split_whitespace();
+        if let Some(vol) = w.next().and_then(|n| n.parse::<f32>().ok()) {
+            p.volume = vol.clamp(0.0, 1.0);
+        }
+        p.muted = w.next() == Some("1");
+    }
+    p
 }
 
 /// How the File menu groups the scenes.
@@ -426,6 +444,7 @@ impl Sandbox {
             follow_pending: None,
             activity: load_activity(),
             show_activity: false,
+            sound: editor_sound(),
             highlights: Vec::new(),
             highlight_since: Instant::now(),
             window_at: None,
@@ -548,6 +567,7 @@ impl Sandbox {
             cmd.env(RESUME_WINDOW, w.map(|v| v.to_string()).join(","));
         }
         cmd.env("GRAVE_FOLLOW_AI", if self.follow_ai { "1" } else { "0" });
+        cmd.env("GRAVE_SOUND", format!("{} {}", self.sound.volume, u8::from(self.sound.muted)));
         match cmd.spawn() {
             Ok(_) => std::process::exit(0),
             Err(e) => {
@@ -2139,6 +2159,14 @@ impl Sandbox {
                 ui.checkbox(&mut self.show_activity, "🤖 AI activity panel");
                 ui.separator();
                 ui.horizontal(|ui| {
+                    let mut on = !self.sound.muted;
+                    if ui.checkbox(&mut on, "🔊 Sound").changed() {
+                        self.sound.muted = !on;
+                    }
+                    ui.add(egui::Slider::new(&mut self.sound.volume, 0.0..=1.0).show_value(false)).on_hover_text("Volume");
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
                     ui.checkbox(&mut self.studio.snap, "Snap to grid");
                     ui.add(egui::DragValue::new(&mut self.studio.grid).range(1.0..=20.).suffix(" cells"));
                 });
@@ -2208,6 +2236,16 @@ impl Sandbox {
                 if follow { self.start_following(); } else { self.sim.follow = None; }
             }
             ui.toggle_value(&mut self.view.heat, "🌡 Heat").on_hover_text("Show temperatures as colours (H)");
+            let mut on = !self.sound.muted;
+            let label = if on { "🔊 Sound" } else { "🔇 Sound" };
+            if ui
+                .toggle_value(&mut on, label)
+                .on_hover_text("Sound made by the materials themselves: metal rings, wood knocks, glass chimes, stone thuds, water splashes, fire crackles, blasts boom.
+Click to mute. The volume is in the View menu.")
+                .changed()
+            {
+                self.sound.muted = !on;
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let name = Path::new(&self.scene_path).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                 ui.label(RichText::new(name).strong()).on_hover_text(format!("The open scene: {}", self.scene_path));
@@ -3696,6 +3734,11 @@ impl eframe::App for Sandbox {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::from_rgb(10, 10, 14)))
             .show(ui, |ui| {if self.studio.tab==Tab::Tests {self.studio_test_canvas(ui,dt);} else {self.canvas(ui);}});
+        // Hear what just happened, around what's on screen (paused = quiet).
+        if let Some((x0, y0, x1, y1)) = self.sim.weather_view {
+            let speed = if self.playing && self.studio.tab != Tab::Tests { self.speed * self.sim.camera.time_scale() } else { 0.0 };
+            self.sound.listen(&mut self.sim, &self.mats, (x0 + 25.0, y0, x1 - 25.0, y1), speed);
+        }
         self.note_window(&ctx);
         self.material_settings_window(&ctx);
         self.animation_window(&ctx, dt as f32);

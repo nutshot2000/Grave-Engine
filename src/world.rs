@@ -137,6 +137,8 @@ pub struct World {
     pub blast_echo_in: Vec<Blast>,
     /// Cells flying through the air.
     pub flying: Vec<Flyer>,
+    /// What was heard since the game last listened (see sound.rs; drain it).
+    pub sounds: Vec<crate::sound::Sound>,
     /// Steady wind blowing gases sideways, in metres per second (+ = right).
     pub wind: f32,
     /// How swirly the air is (0 = still, 1 = normal, 3 = stormy).
@@ -210,6 +212,7 @@ impl World {
             blast_echo_out: Vec::new(),
             blast_echo_in: Vec::new(),
             flying: Vec::new(),
+            sounds: Vec::new(),
             wind: 0.0,
             turbulence: 1.0,
             flow: Vec::new(),
@@ -668,6 +671,11 @@ impl World {
     fn land(&mut self, mats: &Materials, f: Flyer) {
         if f.y < 0.0 {
             return;
+        }
+        // Sound: a fast landing is heard (spray, debris, hail).
+        let speed = f.vx.hypot(f.vy);
+        if speed > 0.45 {
+            self.sound(crate::sound::Sound { kind: crate::sound::Kind::Land, x: f.x, y: f.y, mat: f.mat, other: f.mat, loud: ((speed - 0.45) / 2.5).min(1.0) * 0.7, size: 1.0 });
         }
         let x0 = (f.x as usize).min(self.w - 1);
         let y0 = (f.y as usize).min(self.h - 1);

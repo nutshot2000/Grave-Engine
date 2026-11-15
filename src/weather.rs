@@ -519,6 +519,7 @@ fn strike(world: &mut World, mats: &Materials, run: &mut WeatherRun, camera: &mu
     }
     run.bolt_frames = 16;
     run.flash = 1.0;
+    world.sound(crate::sound::Sound { kind: crate::sound::Kind::Thunder, x, y, mat: crate::material::AIR, other: crate::material::AIR, loud: 1.0, size: 6.0 });
     camera.shake(5.0);
     let (cx, cy) = (x as i32, y as i32);
     // Sand fused to glass where it struck.

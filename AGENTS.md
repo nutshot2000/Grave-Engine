@@ -123,6 +123,7 @@ Top level: `src/` (engine, editor in `app.rs`, games in `bin/`), `materials/`, `
 | `src/pump.rs` | Stroke-driven liquid transfer: a body attachment's upward travel moves existing cells from an intake rectangle to a free outlet. Finite supply, preserved material state, dry/blocked protection and snapshot/save support. Scene `pump LIQUID drive NAME at X Y intake X Y W H outlet X Y W H rate N`. Iron Heron example: docs/IRON-HERON.md |
 | `src/physics.rs` loads | Liquid resting on an object weighs it down where it rests (`loads`; not powders yet). Buoyancy needs water both sides, or water + a wall. Scene loading lifts objects out of scenery (an asset's parts together) and reports lifts over 2 cells as a scene problem. Example: Millbrook waterwheel (docs/MILLBROOK.md) |
 | `src/input.rs` | **Controls for every game**: keyboard, mouse and game controllers (gamepads/joysticks, via gilrs) as named actions from a plain-text `.input` file (`assets/input/GAME.input`, embedded with `include_str!` as the default and re-read at start-up so players can remap). `Input::load_or`, then each frame `update(ctx)` and `pressed/down/released/value/axis("name")`. `update_from` feeds fake states for tests. Dust Hawk, Stunt Yard and the editor's Play mode (`assets/input/editor.input`) use it |
+| `src/sound.rs`, `src/sound/play.rs` | **Sound from materials**, no sound files. The simulation notes cues on `World::sounds` (`Kind::Hit` from physics contacts whose push *jumps* (resting weight stays quiet), `Break` when objects split or scenery collapses, `Blast` per explosion, `Thunder` per lightning strike, `Land` for fast flying cells), each with the material, loudness 0..1 and size. Each material has a `Voice` (metal, wood, stone, glass, soft, earth, liquid, none: `sound =` in its file, else worked out by `voice()`). `sound::Player` turns cues into synthesised sound (modal sines for metal/wood/glass, filtered noise for stone/earth, bubbles for liquids, sub-bass + roar for blasts; bigger rings lower; slow motion drops the pitch) plus one endless stream for fire crackle (burning cells on screen), rain, hail and wind. Games call `player.listen(&mut sim, &mats, view, speed)` once a frame after stepping (speed 0 = paused: quiet); it always drains the cues. The editor (🔊 toolbar button, volume in View) and Stunt Yard use it; `GRAVE_NO_SOUND=1` or `Player::silent()` for tests. Tests: `tests/sound.rs` |
 | `src/camera.rs` | `Effects` (`Sim::camera`: slow motion, zoom, focus, shake, timed in sim frames so replays match; `time_scale()` scales how many steps games run per second) and `Camera` (smooth follow with look-ahead, applies effects). Editor and Stunt Yard both use them |
 | `src/bin/stunt-yard.rs` | **Stunt Yard**, the stunt-bike game built on the engine (`Play/Stunt-Yard.cmd`). Courses are `LEVELS` (scene file + title; Wreck Run also has built-in stages/signs/finish; newer levels use triggers incl. `finish`). Trials controls (W/S/A/D). The bike's parts are found from the followed frame. `ai_controls` + `--verify-ai --level=N [--from=X] [--every=N]` = an automatic rider for checking levels (prints where it gets stuck). The editor shows a **🎮 Play as game** button for scenes listed in `game_level` (src/app.rs): add new courses there too. Courses from `tools/make_stunt_course.py` (Wreck Run) and `tools/make_mountain_run.py` (Mountain Run); docs in `docs/` |
 | `src/physics/actor.rs` | characters (the player): movement, swimming, breathing, health, death, animation choice, body cells |
@@ -186,6 +187,7 @@ Key ideas:
 - **Snapshots** (`Sim::snapshot` / `Sim::restore`) carry the world (without
   owned cells), objects, template links, joints (by object index + 1, 0 =
   ground), camera follow, characters. Used by Reset, undo, rewind and save.
+- **Sound never feeds back**: cues are only read by the player, so `Physics::heard` may be a `HashMap`. Add new kinds of sound as cues where the thing happens (`world.sound(Sound {..})`), not by polling state in the player.
 - Object ids restart in each restored physics world; `Physics::run_id()`
   tells worlds apart (notes use it to re-attach).
 
@@ -371,5 +373,5 @@ Known limits:
 
 Roadmap (see the end of `README.md`): game layer (enemies, triggers,
 scripting), big worlds (chunked, multithreaded), coatings (wet/oily
-surfaces), projectiles and a top-down mode (shooter test), material sounds,
-an agent command channel for the open editor, level-design guard rails.
+surfaces), projectiles and a top-down mode (shooter test), more sounds
+(sliding and scraping, flowing water, engines), an agent command channel for the open editor, level-design guard rails.

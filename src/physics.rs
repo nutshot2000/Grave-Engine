@@ -90,6 +90,8 @@ const MOTOR_RESPONSE: f32 = 10.0;
 const SMOOTHING: f32 = 0.9;
 /// Contacts softer than this (kN) are never checked for damage.
 const MIN_DAMAGE_KN: f32 = 50.0;
+/// The softest contact that can make a noise (kN): a pebble landing.
+const SOUND_MIN_KN: f32 = 0.6;
 /// At most this many hard contacts crack things per frame.
 const MAX_HITS_PER_TICK: usize = 24;
 /// New pieces ignore hits for this many frames while they settle.
@@ -304,6 +306,9 @@ pub struct Physics {
     /// Scenery changed since the last strength check.
     strength_dirty: bool,
     tick: u32,
+    /// Sound: how hard each touching pair pushed last update, and when it
+    /// last made a noise (a new hit is a jump in force, not a resting weight).
+    heard: HashMap<(u64, u64), (f32, u32)>,
     cw: usize,
     ch: usize,
     w: usize,
@@ -386,6 +391,7 @@ impl Physics {
             upright: Default::default(),
             bend_hits: Vec::new(),
             bent: HashMap::new(),
+            heard: HashMap::new(),
             run_id: NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             controls: Controls::default(),
             set,
@@ -691,7 +697,14 @@ impl Physics {
                 self.build_colliders(&mut b, mats);
                 keep.push(b);
             } else {
-                new_specs.extend(self.split(&b, &pieces));
+                let parts = self.split(&b, &pieces);
+                // Something big enough to hear came off.
+                if parts.iter().filter(|p| p.cell_count() >= 4).count() >= 2 {
+                    for p in parts.iter().take(1) {
+                        Self::hear_break(world, p, 0.6);
+                    }
+                }
+                new_specs.extend(parts);
                 self.set.remove(
                     b.handle,
                     &mut self.islands,
@@ -708,7 +721,11 @@ impl Physics {
 
         drop(phase);let phase=crate::profile::scope("physics.terrain");
         // 2. Scenery that lost its support breaks loose.
-        new_specs.extend(self.collapse(world, mats));
+        let fallen = self.collapse(world, mats);
+        for spec in &fallen {
+            Self::hear_break(world, spec, 0.5);
+        }
+        new_specs.extend(fallen);
 
         // 3. Terrain colliders for whatever changed.
         self.update_terrain(world, mats);
@@ -851,6 +868,10 @@ impl Physics {
         drop(phase);let _phase=crate::profile::scope("physics.damage");
         // 6. Damage: hard hits, heavy loads and explosions.
         let mut pieces = self.impacts(world, mats);
+        // Sound: a hard hit knocked pieces off (glass shattering, a crate splintering).
+        if let Some(big) = pieces.iter().max_by_key(|p| p.cell_count()) {
+            Self::hear_break(world, big, 0.7);
+        }
         pieces.extend(self.explosions(world, mats));
         for spec in pieces {
             self.add_raw(world, mats, spec);
@@ -886,6 +907,7 @@ impl Physics {
         let mut hits: Vec<Hit> = Vec::new();
         let index: HashMap<RigidBodyHandle, usize> =
             self.bodies.iter().enumerate().map(|(n, b)| (b.handle, n)).collect();
+        let mut heard: Vec<(f32, Option<RigidBodyHandle>, Option<RigidBodyHandle>, (f32, f32))> = Vec::new();
         for pair in self.narrow.contact_pairs() {
             if !pair.has_any_active_contact() {
                 continue;
@@ -920,11 +942,17 @@ impl Physics {
                 }
             }
             let force = impulse / DT / 1000.0;
+            if force >= SOUND_MIN_KN && !patch.is_empty() {
+                let n = patch.len() as f32;
+                let mid = patch.iter().fold((0.0, 0.0), |a, p| (a.0 + p.0 / n, a.1 + p.1 / n));
+                heard.push((force, b1, b2, mid));
+            }
             if force >= MIN_DAMAGE_KN / 4.0 && !patch.is_empty() {
                 let len = push.0.hypot(push.1).max(1e-6);
                 hits.push((force, patch, b1, b2, (push.0 / len * force, push.1 / len * force)));
             }
         }
+        self.hear_hits(world, mats, heard, &index);
         if hits.is_empty() {
             return Vec::new();
         }
@@ -2400,6 +2428,97 @@ impl Physics {
             self.impulse_joints.remove(j.handle, false);
         }
         self.joints = keep;
+    }
+
+    /// Sound (sound.rs): touching pairs whose push jumped this update are
+    /// hits. A weight resting or a wheel rolling steadily stays quiet.
+    fn hear_hits(&mut self, world: &mut World, mats: &Materials, heard: Vec<(f32, Option<RigidBodyHandle>, Option<RigidBodyHandle>, (f32, f32))>, index: &HashMap<RigidBodyHandle, usize>) {
+        let key = |h: Option<RigidBodyHandle>| h.map(|h| { let (i, g) = h.0.into_raw_parts(); ((g as u64) << 32 | i as u64) + 1 }).unwrap_or(0);
+        let tick = self.tick;
+        // Sum each touching pair, then compare with last time.
+        let mut pairs: HashMap<(u64, u64), (f32, Option<RigidBodyHandle>, Option<RigidBodyHandle>, (f32, f32))> = HashMap::new();
+        for (force, b1, b2, mid) in heard {
+            let (k1, k2) = (key(b1), key(b2));
+            let e = pairs.entry((k1.min(k2), k1.max(k2))).or_insert((0.0, b1, b2, mid));
+            e.0 += force;
+        }
+        let mut now = HashMap::with_capacity(pairs.len());
+        let mut sounds = Vec::new();
+        for (k, (force, b1, b2, mid)) in pairs {
+            let (before, mut last) = self.heard.get(&k).copied().unwrap_or((0.0, 0));
+            if force > before * 1.7 + SOUND_MIN_KN && tick.wrapping_sub(last) > 5 {
+                sounds.push((force - before, b1, b2, mid));
+                last = tick;
+            }
+            now.insert(k, (force, last));
+        }
+        self.heard = now;
+        sounds.sort_by(|a, b| b.0.total_cmp(&a.0));
+        for (force, b1, b2, mid) in sounds.into_iter().take(8) {
+            let side = |h: Option<RigidBodyHandle>| -> Option<(MatId, f32)> {
+                match h.and_then(|h| index.get(&h)) {
+                    Some(&n) => Some(Self::main_mat(&self.bodies[n])),
+                    None => Self::scenery_mat(world, mats, mid),
+                }
+            };
+            let (Some((m1, s1)), Some((m2, s2))) = (side(b1), side(b2)) else { continue };
+            // The lighter thing makes the sound; the other colours it.
+            let (mat, other, size) = if s1 <= s2 { (m1, m2, s1) } else { (m2, m1, s2) };
+            let loud = ((force / SOUND_MIN_KN).log10() / 4.2).clamp(0.05, 1.0);
+            world.sound(crate::sound::Sound { kind: crate::sound::Kind::Hit, x: mid.0, y: mid.1, mat, other, loud, size });
+        }
+    }
+
+    /// An object's most common material, and how many cells it has.
+    fn main_mat(b: &Body) -> (MatId, f32) {
+        let mut count: Vec<(MatId, u32)> = Vec::new();
+        let mut total = 0.0;
+        for c in b.cells.iter().flatten() {
+            total += 1.0;
+            match count.iter_mut().find(|e| e.0 == c.mat) {
+                Some(e) => e.1 += 1,
+                None => count.push((c.mat, 1)),
+            }
+        }
+        (count.iter().max_by_key(|e| e.1).map(|e| e.0).unwrap_or(crate::material::AIR), total)
+    }
+
+    /// The fixed scenery nearest a point (what the ground there is made of).
+    fn scenery_mat(world: &World, mats: &Materials, at: (f32, f32)) -> Option<(MatId, f32)> {
+        let (cx, cy) = (at.0 as i32, at.1 as i32);
+        for r in 0..=3i32 {
+            for dy in -r..=r {
+                for dx in -r..=r {
+                    if dx.abs().max(dy.abs()) != r {
+                        continue;
+                    }
+                    let (x, y) = (cx + dx, cy + dy);
+                    if x < 0 || y < 0 || x as usize >= world.w || y as usize >= world.h {
+                        continue;
+                    }
+                    let i = world.idx(x as usize, y as usize);
+                    if !world.is_owned(i) && mats.get(world.mat[i]).state != State::Gas {
+                        return Some((world.mat[i], 1.0e6));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Sound: something broke off or fell (a crack, sized by the piece).
+    fn hear_break(world: &mut World, spec: &BodySpec, loud: f32) {
+        let mut count: Vec<(MatId, u32)> = Vec::new();
+        for c in spec.cells.iter().flatten() {
+            match count.iter_mut().find(|e| e.0 == c.mat) {
+                Some(e) => e.1 += 1,
+                None => count.push((c.mat, 1)),
+            }
+        }
+        let size = count.iter().map(|e| e.1).sum::<u32>() as f32;
+        let Some(&(mat, _)) = count.iter().max_by_key(|e| e.1) else { return };
+        let loud = loud * (0.4 + 0.6 * (size / 300.0).min(1.0));
+        world.sound(crate::sound::Sound { kind: crate::sound::Kind::Break, x: spec.x, y: spec.y, mat, other: mat, loud, size });
     }
 
     /// Objects that lost cells (burned, chipped, broke) in the last update.
