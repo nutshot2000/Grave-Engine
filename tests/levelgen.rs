@@ -207,3 +207,21 @@ fn large_caverns_and_deadends_are_scene_controls() {
     assert_eq!(settings.caverns, 0.8);
     assert_eq!(settings.dead_ends, 0.9);
 }
+
+#[test]
+fn cave_fixtures_are_seeded_editable_cells_and_can_be_disabled() {
+    let m = mats();
+    let mut on = sim(&m, "size 960 640\ngenerate 0 0 960 640 seed 9 caverns 1 crystals 1 torches 1\n");
+    let off = sim(&m, "size 960 640\ngenerate 0 0 960 640 seed 9 caverns 1 crystals 0 torches 0\n");
+    let crystals = [m.id("crystal_cyan").unwrap(), m.id("crystal_violet").unwrap()];
+    let torch = m.id("torch_glow").unwrap();
+    assert!(on.world.mat.iter().any(|id| crystals.contains(id)));
+    assert!(on.world.mat.contains(&torch));
+    assert!(!off.world.mat.iter().any(|id| crystals.contains(id) || *id == torch));
+    let text = scene::save(&on.snapshot(), &m);
+    let restored = sim(&m, &text);
+    assert_eq!(restored.world.mat, on.world.mat);
+    assert_eq!(restored.world.paint, on.world.paint);
+    let (settings, _, _) = grave_engine::endless::parse("endless crystals 0.8 torches 0.1", &m, None).unwrap();
+    assert_eq!(settings.crystals, 0.8); assert_eq!(settings.torches, 0.1);
+}

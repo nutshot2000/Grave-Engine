@@ -232,3 +232,35 @@ fn a_trigger_turns_dusk_into_night_sky_tint_and_all() {
     let text = scene::save(&s2.snapshot(), &m);
     assert!(text.contains("sky #000010 #101830"), "{text}");
 }
+
+#[test]
+fn material_light_tracks_connected_cells_and_survives_scene_save() {
+    let m = mats();
+    let mut s = sim(&m, "size 160 100\nfill air\nrect stone 0 75 160 25\nrect crystal_cyan 40 62 5 12\nlighting 0.15\n");
+    let lamps = grave_engine::light::material_lamps(&s.world, &m, (0, 0, 160, 100));
+    assert_eq!(lamps.len(), 1, "one cluster should give one lamp, not 60");
+    assert_eq!(lamps[0].color, m.get(m.id("crystal_cyan").unwrap()).color);
+    let lit = picture(&m, &s);
+    assert!(bright(&lit, &s, 55, 75) > bright(&lit, &s, 145, 75));
+    let text = scene::save(&s.snapshot(), &m);
+    let again = sim(&m, &text);
+    assert_eq!(grave_engine::light::material_lamps(&again.world, &m, (0, 0, 160, 100)).len(), 1);
+    for y in 62..74 { for x in 40..45 { s.world.set(&m, x, y, 0); } }
+    assert!(grave_engine::light::material_lamps(&s.world, &m, (0, 0, 160, 100)).is_empty(), "erased crystal must not leave a ghost lamp");
+}
+
+#[test]
+fn cropped_material_light_matches_full_view_and_torches_flicker() {
+    let m = mats();
+    let mut s = sim(&m, "size 180 100\nfill air\nrect stone 0 80 180 20\nrect torch_glow 43 65 3 6\nrect crystal_violet 110 66 4 12\nlighting 0.2\n");
+    let full = picture(&m, &s);
+    let mut r = Renderer::default(); r.light(&s);
+    let crop = r.draw_window(&s.world, &m, View::default(), (50, 40, 80, 45));
+    for y in 0..45 { for x in 0..80 {
+        assert_eq!(&crop[(y * 80 + x) * 4..(y * 80 + x) * 4 + 4], &full[((y + 40) * 180 + x + 50) * 4..((y + 40) * 180 + x + 50) * 4 + 4]);
+    } }
+    let first = grave_engine::light::material_lamps(&s.world, &m, (0, 0, 180, 100));
+    s.world.frame += 16;
+    let later = grave_engine::light::material_lamps(&s.world, &m, (0, 0, 180, 100));
+    assert_ne!(first[0].strength, later[0].strength);
+}

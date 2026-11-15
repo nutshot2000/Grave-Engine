@@ -409,6 +409,8 @@ pub fn parse(line: &str, mats: &Materials, base: Option<&Path>) -> Result<(Setti
             "rooms" => s.rooms = number()?.clamp(0.0, 1.0),
             "caverns" => s.caverns = number()?.clamp(0.0, 1.0),
             "deadends" => s.dead_ends = number()?.clamp(0.0, 1.0),
+            "crystals" => s.crystals = number()?.clamp(0.0, 1.0),
+            "torches" => s.torches = number()?.clamp(0.0, 1.0),
             "rock" => s.rock = mats.id(val).ok_or_else(|| format!("no material called `{val}`"))?,
             "tiles" => {
                 let dir = base.map(|b| b.join(val)).filter(|p| p.is_dir()).unwrap_or_else(|| PathBuf::from(val));
@@ -418,7 +420,7 @@ pub fn parse(line: &str, mats: &Materials, base: Option<&Path>) -> Result<(Setti
                 }
                 tiles = t;
             }
-            _ => return Err(format!("`endless` doesn't know `{key}` (seed, tile, region, open, pools, rooms, caverns, deadends, rock, tiles)")),
+            _ => return Err(format!("`endless` doesn't know `{key}` (seed, tile, region, open, pools, rooms, caverns, deadends, crystals, torches, rock, tiles)")),
         }
         k += 2;
     }

@@ -115,6 +115,8 @@ struct Sandbox {
     ran_since_snapshot: bool,
     /// Edit > Generate caves: tile size, seed, how open, how many pools.
     cave_gen: (usize, u32, f32, f32, f32, f32),
+    /// Crystal/torch density and cave ambient light.
+    cave_atmosphere: (f32, f32, f32),
     /// Generate caves with the hand-made tiles in tiles/caves.
     cave_tiles: bool,
     playing: bool,
@@ -420,6 +422,7 @@ impl Sandbox {
             rewind_pos: None,
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2, 0.65, 0.75),
+            cave_atmosphere: (0.7, 0.3, 0.32),
             cave_tiles: true,
             endless: None,
             endless_reset_origin: (0, 0),
@@ -887,6 +890,7 @@ impl Sandbox {
         ui.label(RichText::new("Caves from herringbone tiles").strong());
         ui.label(RichText::new("Replaces the ground everywhere (objects and characters stay). Undo brings it back.").small());
         let (mut tile, mut seed, mut open, mut pools, mut caverns, mut dead_ends) = self.cave_gen;
+        let (mut crystals, mut torches, mut cave_light) = self.cave_atmosphere;
         egui::Grid::new("gen").num_columns(2).show(ui, |ui| {
             ui.label("Tile size").on_hover_text("How big each tile is, in cells: bigger = bigger caves");
             ui.add(egui::DragValue::new(&mut tile).range(16..=200).suffix(" cells"));
@@ -903,6 +907,15 @@ impl Sandbox {
             ui.label("Dead ends").on_hover_text("More blind side passages with rock beyond their tips");
             ui.add(egui::Slider::new(&mut dead_ends, 0.0..=1.0).show_value(false));
             ui.end_row();
+            ui.label("Crystals").on_hover_text("Glowing cyan/violet clusters around the large caverns");
+            ui.add(egui::Slider::new(&mut crystals, 0.0..=1.0).show_value(false));
+            ui.end_row();
+            ui.label("Torches").on_hover_text("Occasional warm, cool-to-touch decorative torch lights");
+            ui.add(egui::Slider::new(&mut torches, 0.0..=1.0).show_value(false));
+            ui.end_row();
+            ui.label("Cave brightness").on_hover_text("Ambient light between glowing sources; 1 is fully lit");
+            ui.add(egui::Slider::new(&mut cave_light, 0.08..=1.0));
+            ui.end_row();
             ui.label("Pools").on_hover_text("How often a cavern has water in it");
             ui.add(egui::Slider::new(&mut pools, 0.0..=1.0).show_value(false));
             ui.end_row();
@@ -917,13 +930,17 @@ impl Sandbox {
             }
         });
         self.cave_gen = (tile, seed, open, pools, caverns, dead_ends);
+        self.cave_atmosphere = (crystals, torches, cave_light);
         if go {
-            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, caverns, dead_ends, ..grave_engine::levelgen::Settings::new(&self.mats) };
+            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, caverns, dead_ends, crystals, torches, ..grave_engine::levelgen::Settings::new(&self.mats) };
             let tiles = if self.cave_tiles { grave_engine::levelgen::Tile::load_dir(Path::new("tiles/caves"), &self.mats).0 } else { Vec::new() };
             self.change("generate caves", |app| {
                 let (w, h) = (app.sim.world.w, app.sim.world.h);
                 grave_engine::levelgen::generate(&mut app.sim.world, &app.mats, (0, 0, w, h), &set, &tiles);
                 app.sim.world.wake_all();
+                app.sim.lighting.ambient = cave_light;
+                app.sim.lighting.ambient_color = [200, 214, 240];
+                app.sim.lighting.fade = None;
             });
             self.playing = false;
             self.ran_since_snapshot = false;
@@ -1255,6 +1272,9 @@ impl Sandbox {
                 num(ui, "color_variation", "Speckle", "How much each cell's shade varies", cur.color_variation, def.color_variation, 0.0..=1.0, false);
                 num(ui, "texture_blend", "Texture join", "Soften joins with other materials that also enable this, in cells; visual only", cur.texture_blend, def.texture_blend, 0.0..=8.0, false);
                 num(ui, "glow", "Glow", "How much light it gives off", cur.glow, def.glow, 0.0..=2.0, false);
+                num(ui, "light_radius", "Light reach (cells)", "Radius of shadow-casting light from each connected material patch", cur.light_radius, def.light_radius, 0.0..=240.0, false);
+                num(ui, "light_strength", "Light brightness", "Brightness of each material light; uses its surface colour", cur.light_strength, def.light_strength, 0.0..=5.0, false);
+                num(ui, "light_flicker", "Light flicker", "Steady at zero; torch-like at higher values", cur.light_flicker, def.light_flicker, 0.0..=1.0, false);
 
                 ui.heading("Weight and movement");
                 num(ui, "density", "Weight (kg/m³)", "Heavier things sink below lighter ones. Water is 1000", cur.density, def.density, 1.0..=20000.0, true);

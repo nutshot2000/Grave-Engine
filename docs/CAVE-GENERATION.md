@@ -101,3 +101,33 @@ at air or liquid and skips painted or owned cells. Built materials stay
 crisp unless they explicitly opt in. The material inspector's **Texture
 join** setting adjusts the width from zero to eight cells. Heat view stays
 unblended, and windowed/cropped renders use the same world-space result.
+
+## Cave atmosphere: crystals and torches
+
+Generate caves includes **Crystals**, **Torches** and **Cave brightness**.
+The first two control seeded fixture density around the large chambers.
+Scene and endless lines accept `crystals 0.7 torches 0.3`; zero disables
+new placements. Ambient brightness is ordinary scene lighting: for example
+`lighting 0.32 #c8d6f0`. The generator's brightness control changes this as
+part of its undoable operation. After generation, the **Lights** panel edits
+the ambient light and its tint without regenerating the ground.
+
+Clusters are real editable cells of `crystal_cyan` / `crystal_violet`, with
+painted facets. Torches are wood stems with `torch_glow` tips. Paint, cut,
+copy or erase these like any scenery; save/undo/Reset retain them. Right-click
+the emitting material to edit **Light reach**, **Light brightness**, **Light
+flicker** and its colour. **Glow** controls the bright core. Material colour
+controls emitted light; regenerating updates the painted crystal facets.
+The torch tips are cool decorative emitters, not a fire/fuel simulation.
+
+The engine's material keys `light_radius`, `light_strength`, `light_flicker`
+work on any material. Each connected patch becomes one shadow-casting lamp,
+rebuilt from the cells at render time. Destroying the source removes its
+light; there are no invisible leftover lamp records. Material emitters are
+edited through their cells/settings rather than the free-lamp list. Ordinary
+manually placed lamps still work alongside them.
+
+Fixture plans use map coordinates and are clipped on output. Endless saves
+carry the material cells and paint, so lighting returns with the region.
+Tests cover connected-source grouping, erasure, scene save/load, cropped
+rendering, deterministic flicker, density controls and region equivalence.

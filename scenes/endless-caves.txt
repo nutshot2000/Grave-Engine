@@ -10,3 +10,11 @@ rect air 600 470 90 60                     # a start chamber...
 rect rock 600 530 90 10                    # ...with a floor
 anchor 600 530 90 10
 player 640 530
+
+# Atmospheric cave light; edit in the Lights panel.
+lighting 0.32 #c8d6f0
+sun off
+# A welcoming torch in the starting chamber (paint/cut like any material).
+rect wood 677 518 2 12
+rect torch_glow 676 513 4 5
+anchor 676 513 4 17

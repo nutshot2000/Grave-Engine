@@ -1,0 +1,17 @@
+# Cave crystal: emission comes from real editable cells.
+about = Violet glowing cave crystal. Brittle; lights its surroundings.
+color = #b58ae8
+state = solid
+density = 2500
+conducts_heat = 0.2
+heat_capacity = 0.8
+strength = 24
+toughness = 900
+breaks_into = glass
+friction = 0.6
+lets_light_through = 0.95
+glow = 0.65
+light_radius = 95
+light_strength = 1.5
+light_flicker = 0.04
+texture = textures/glass.png

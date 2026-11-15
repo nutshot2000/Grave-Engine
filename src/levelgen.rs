@@ -213,6 +213,9 @@ pub struct Settings {
     pub caverns: f32,
     /// How strongly natural plans favour blind side passages (0..1).
     pub dead_ends: f32,
+    /// Frequency of crystal clusters and torches around large chambers.
+    pub crystals: f32,
+    pub torches: f32,
 }
 
 impl Settings {
@@ -232,6 +235,8 @@ impl Settings {
             rooms: 0.25,
             caverns: 0.65,
             dead_ends: 0.75,
+            crystals: 0.7,
+            torches: 0.3,
         }
     }
 }
@@ -425,6 +430,7 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
             }
         }
     }
+    cave_fixtures(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
     if s.anchored {
         for y in ay..ay + ah {
             for x in ax..ax + aw {
@@ -559,6 +565,61 @@ fn carve_large_caverns(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (u
                 if c.contains(mx, my, s.tile) {
                     let rock = rocks.iter().any(|r| r.contains(mx, my));
                     world.set(mats, x, y, if rock { s.rock } else { AIR });
+                }
+            }
+        }
+    }
+}
+
+/// Seeded editable material fixtures. Plans come from the full map-space
+/// chamber geometry, so a cluster split between streamed regions still joins.
+fn cave_fixtures(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, caverns: &[LargeCavern], free: &dyn Fn(i32, i32) -> bool) {
+    let (ax, ay, aw, ah) = area;
+    let cyan = mats.id("crystal_cyan");
+    let violet = mats.id("crystal_violet");
+    let flame = mats.id("torch_glow");
+    let wood = mats.id("wood").unwrap_or(s.rock);
+    for c in caverns {
+        let rocks = cavern_rocks(c, s.tile);
+        let open = |x: i32, y: i32| c.contains(x as f32, y as f32, s.tile) && !rocks.iter().any(|r| r.contains(x as f32, y as f32));
+        for site in 0..7 {
+            let r = |k| unit(hash(c.seed, site, k, 960));
+            let torch = site == 3 || site == 6;
+            if r(0) > if torch { s.torches } else { s.crystals } { continue; }
+            let Some(mat) = (if torch { flame } else if r(1) < 0.55 { cyan } else { violet }) else { continue; };
+            let x = (c.x + (-0.65 + site as f32 / 6.0 * 1.3 + (r(2) - 0.5) * 0.1) * c.rx).round() as i32;
+            let hanging = !torch && site % 3 == 1;
+            let direction = if hanging { -1 } else { 1 };
+            let mut base = c.y.round() as i32;
+            if !open(x, base) { continue; }
+            for _ in 0..(c.ry * 1.5) as usize {
+                if !open(x, base + direction) { break; }
+                base += direction;
+            }
+            if (base as f32 - c.y).abs() < 24.0 { continue; }
+            let mut put = |mx: i32, my: i32, id: MatId, color: Option<[u8; 3]>| {
+                let (wx, wy) = (mx as i64 - origin.0, my as i64 - origin.1);
+                if wx < ax as i64 || wy < ay as i64 || wx >= (ax + aw) as i64 || wy >= (ay + ah) as i64 { return; }
+                if !s.open_sides && (wx < ax as i64 + 2 || wy < ay as i64 + 2 || wx + 2 >= (ax + aw) as i64 || wy + 2 >= (ay + ah) as i64) { return; }
+                if !free(wx as i32, wy as i32) || !open(mx, my) { return; }
+                world.set(mats, wx as usize, wy as usize, id);
+                if let Some(color) = color { let i = world.idx(wx as usize, wy as usize); world.paint[i] = crate::asset::pack_paint(color); }
+            };
+            if torch {
+                for dy in 0..8 { for dx in -1..=0 { put(x + dx, base - dy, wood, None); } }
+                for dy in 0..6 { for dx in -2i32..=2 {
+                    if dx.abs() <= (5 - dy) / 2 { put(x + dx, base - 8 - dy, mat, Some(if dx == 0 { [255, 207, 90] } else { [255, 126, 40] })); }
+                } }
+            } else {
+                let color = mats.get(mat).color;
+                for spike in -1i32..=1 {
+                    let height = 6 + (r(4 + spike) * 7.0) as i32;
+                    for dy in 0..height { for dx in -2i32..=2 {
+                        if dx.abs() <= ((height - dy) as f32 / height as f32 * 2.5) as i32 {
+                            let shade = if dx <= 0 { 1.1 } else { 0.68 };
+                            put(x + spike * 3 + dx, base - direction * dy, mat, Some(color.map(|v| (v as f32 * shade).min(255.0) as u8)));
+                        }
+                    } }
                 }
             }
         }

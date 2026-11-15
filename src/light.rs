@@ -231,6 +231,51 @@ impl Lighting {
     }
 }
 
+/// Connected emissive material patches act as lamps. They are reconstructed
+/// from real cells, so painting, digging, undo and streaming need no separate
+/// lamp records. Each patch contributes one lamp rather than one per pixel.
+pub fn material_lamps(world: &World, mats: &Materials, win: (usize, usize, usize, usize)) -> Vec<Placed> {
+    let reach = mats.list.iter().map(|m| m.light_radius).fold(0.0f32, f32::max).ceil() as usize;
+    if reach == 0 { return Vec::new(); }
+    let (x0, y0, w, h) = crate::render::grow(world, win, reach + 8);
+    let mut seen = std::collections::HashSet::new();
+    let mut lamps = Vec::new();
+    for y in y0..y0 + h { for x in x0..x0 + w {
+        let first = world.idx(x, y);
+        let id = world.mat[first];
+        let m = mats.get(id);
+        if m.light_radius <= 0.0 || m.light_strength <= 0.0 || !seen.insert(first) { continue; }
+        let mut stack = vec![first];
+        let mut cells = Vec::new();
+        let (mut sx, mut sy) = (0u64, 0u64);
+        while let Some(i) = stack.pop() {
+            cells.push(i);
+            let (x, y) = (i % world.w, i / world.w);
+            sx += x as u64; sy += y as u64;
+            for (ok, j) in [(x > 0, i.wrapping_sub(1)), (x + 1 < world.w, i + 1), (y > 0, i.wrapping_sub(world.w)), (y + 1 < world.h, i + world.w)] {
+                if ok && world.mat[j] == id && seen.insert(j) { stack.push(j); }
+            }
+        }
+        let (cx, cy) = (sx as f32 / cells.len() as f32, sy as f32 / cells.len() as f32);
+        // Pick the exposed emitting cell nearest the centroid. Stable tie
+        // breaks make the same cluster render identically in cropped views.
+        let distance = |i: usize| ((i % world.w) as f32 - cx).powi(2) + ((i / world.w) as f32 - cy).powi(2);
+        let source = cells.iter().copied().filter(|&i| world.exposed(mats, i))
+            .min_by(|&a, &b| distance(a).total_cmp(&distance(b)).then(a.cmp(&b)))
+            .unwrap_or_else(|| *cells.iter().min().unwrap());
+        let (x, y) = ((source % world.w) as f32 + 0.5, (source / world.w) as f32 + 0.5);
+        let mut strength = m.light_strength;
+        if m.light_flicker > 0.0 {
+            let t = world.frame / 4;
+            let f = |k| hash(k ^ source as u32) as f32 / u32::MAX as f32;
+            let k = (world.frame % 4) as f32 / 4.0;
+            strength *= 1.0 - m.light_flicker * (f(t) * (1.0 - k) + f(t + 1) * k);
+        }
+        lamps.push(Placed { shadows: true, x, y, radius: m.light_radius, strength, color: m.color, cone: None });
+    } }
+    lamps
+}
+
 /// How far above the window sun shadows are worked out (rows): things
 /// higher than this don't shade it.
 const MAX_SHADOW_ROWS: usize = 360;

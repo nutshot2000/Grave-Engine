@@ -431,3 +431,15 @@ at air/liquid and excluding paint/owned cells; heat view bypasses it.
 `tests/texture_blending.rs` checks locality, unchanged material IDs, crisp
 boundaries/objects, gaps and pixel-identical cropped output. No simulation
 layer or material mixing is involved.
+
+Cave atmosphere: `Settings::crystals` / `torches` (0..1, also scene/endless
+keys). `cave_fixtures` creates editable painted crystal cells and wood/torch
+cells around map-space caverns. Generator UI includes fixture densities and
+ambient brightness; the latter uses normal undoable `Sim::lighting`.
+`Material::light_radius` / `light_strength` / `light_flicker` are generic
+material lamps, editable in the material inspector. `light::material_lamps`
+groups connected patches, chooses a stable exposed source, and the renderer
+adds them to normal shadow-casting lamps. No new World layer or persistent
+light entity is needed; digging, save/load and endless cell streaming carry
+the source automatically. Torch tips are cool decorative emitters. Docs:
+`docs/CAVE-GENERATION.md`, `materials/README.md`; tests in lighting/levelgen.

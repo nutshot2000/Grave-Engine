@@ -513,7 +513,9 @@ impl Renderer {
             blur(&mut self.light, &mut self.scratch, ew, eh, 5);
             blur(&mut self.light, &mut self.scratch, ew, eh, 5);
         }
-        let lit = !view.heat && !(self.lighting.is_plain() && self.lamps.is_empty());
+        let mut lamps = self.lamps.clone();
+        if !view.heat { lamps.extend(crate::light::material_lamps(world, mats, e)); }
+        let lit = !view.heat && !(self.lighting.is_plain() && lamps.is_empty());
         // In the dark, glow also reaches far: a wide, soft spread of it,
         // stronger the darker the scene.
         let dark = if lit { (1.0 - self.lighting.ambient).clamp(0.0, 1.0) } else { 0.0 };
@@ -525,7 +527,7 @@ impl Renderer {
         }
         drop(phase);let phase=crate::profile::scope("render.lamps");
         if lit {
-            crate::light::illuminate(world, mats, &self.lighting, &self.lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
+            crate::light::illuminate(world, mats, &self.lighting, &lamps, e, &mut self.illum, &mut self.sun_scratch, &mut self.lamp_only);
         }
         let sun_full = self.lighting.sun.map_or([0.0; 3], |s| [s.color[0] as f32 / 255.0 * s.strength, s.color[1] as f32 / 255.0 * s.strength, s.color[2] as f32 / 255.0 * s.strength]);
         drop(phase);let phase=crate::profile::scope("render.backdrop");

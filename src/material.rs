@@ -72,6 +72,10 @@ pub struct Material {
     pub texture_blend: f32,
     /// How much it lights up its surroundings (0..1).
     pub glow: f32,
+    /// Shadow-casting light from connected patches of this material (cells).
+    pub light_radius: f32,
+    pub light_strength: f32,
+    pub light_flicker: f32,
     /// Temperature a freshly painted cell starts at.
     pub temperature: f32,
     /// How easily heat passes through it (0..1).
@@ -250,6 +254,9 @@ impl Material {
             color_variation: 0.06,
             texture_blend: 0.0,
             glow: 0.0,
+            light_radius: 0.0,
+            light_strength: 1.0,
+            light_flicker: 0.0,
             temperature: 20.0,
             conducts_heat: 0.2,
             heat_capacity: 1.0,
@@ -735,6 +742,9 @@ fn apply(
         "color_variation" | "colour_variation" => m.color_variation = num(v)?.clamp(0.0, 1.0),
         "texture_blend" => m.texture_blend = num(v)?.clamp(0.0, 8.0),
         "glow" => m.glow = num(v)?.clamp(0.0, 1.0),
+        "light_radius" => m.light_radius = num(v)?.clamp(0.0, 240.0),
+        "light_strength" => m.light_strength = num(v)?.clamp(0.0, 5.0),
+        "light_flicker" => m.light_flicker = num(v)?.clamp(0.0, 1.0),
         "temperature" | "starts_at" => m.temperature = num(v)?,
         "conducts_heat" => m.conducts_heat = num(v)?.clamp(0.0, 1.0),
         "heat_capacity" => m.heat_capacity = num(v)?.max(0.1),
