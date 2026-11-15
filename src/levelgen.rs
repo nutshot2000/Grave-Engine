@@ -446,6 +446,77 @@ impl LargeCavern {
         x < self.x + self.rx * 1.35 && x + w > self.x - self.rx * 1.35
             && y < self.y + self.ry * 1.35 && y + h > self.y - self.ry * 1.35
     }
+
+    /// The unsculpted chamber outline, evaluated in map coordinates.
+    fn contains(&self, mx: f32, my: f32, tile: usize) -> bool {
+        let (mut nx, mut ny) = ((mx - self.x) / self.rx, (my - self.y) / self.ry);
+        let phase = unit(hash(self.seed, 0, 0, 915)) * std::f32::consts::TAU;
+        nx += 0.14 * (ny * 5.0 + phase).sin();
+        ny += 0.12 * (nx * 6.0 - phase).sin();
+        let scale = tile.max(8) as f32 * 0.35;
+        let edge = 1.0 + (noise(self.seed, mx / scale, my / scale) - 0.5) * 0.5;
+        nx * nx + ny * ny < edge
+    }
+}
+
+/// Rooted cavern formations: a tapered ceiling tooth, a floor pillar or a
+/// wall shelf. Their map-space plans are shared by every streamed region.
+struct CavernRock { x: f32, y: f32, width: f32, height: f32, kind: u32 }
+
+impl CavernRock {
+    fn contains(&self, x: f32, y: f32) -> bool {
+        let (dx, dy) = (x - self.x, y - self.y);
+        match self.kind {
+            // Ceiling teeth taper down from their broad attachment.
+            0 => dy >= 0.0 && dy <= self.height && dx.abs() < self.width * (1.0 - dy / self.height).max(0.05),
+            // Floor pillars taper towards an uneven, blunt top.
+            1 => dy <= 0.0 && dy >= -self.height && dx.abs() < self.width * (1.0 + 0.65 * dy / self.height),
+            // Width is signed: shelves point inwards from either wall.
+            _ => {
+                let along = dx / self.width;
+                (0.0..=1.0).contains(&along) && dy >= 0.0 && dy < self.height * (1.0 - 0.7 * along)
+            }
+        }
+    }
+}
+
+/// Find the real chamber edge at each attachment, rather than leaving
+/// floating formations inside an approximate ellipse. A clear band through
+/// the middle keeps the sculptures from walling off the cavern's main route.
+fn cavern_rocks(c: &LargeCavern, tile: usize) -> Vec<CavernRock> {
+    let r = |k| unit(hash(c.seed, k, 0, 930));
+    let mut rocks = Vec::new();
+    let gap = (tile as f32 * 0.16).max(9.0);
+    let teeth = 4 + (r(80) * 5.0) as i32;
+    for i in 0..teeth {
+        let x = c.x + (-0.75 + i as f32 / (teeth - 1) as f32 * 1.5 + (r(i * 5) - 0.5) * 0.15) * c.rx;
+        let ys: Vec<_> = ((c.y - c.ry * 1.35).floor() as i32..=(c.y + c.ry * 1.35).ceil() as i32)
+            .filter(|&y| c.contains(x, y as f32, tile)).collect();
+        let (Some(&roof), Some(&floor)) = (ys.first(), ys.last()) else { continue; };
+        let length = (c.ry * (0.25 + r(i * 5 + 1) * 0.55)).min(c.y - gap - roof as f32);
+        if length > 3.0 {
+            rocks.push(CavernRock { x, y: roof as f32 - 8.0, width: c.rx * (0.025 + r(i * 5 + 2) * 0.035), height: length + 8.0, kind: 0 });
+        }
+        if i % 2 == 1 && r(i * 5 + 3) > 0.2 {
+            let height = (c.ry * (0.45 + r(i * 5 + 3) * 0.75)).min(floor as f32 - c.y - gap);
+            if height > 3.0 {
+                rocks.push(CavernRock { x, y: floor as f32 + 8.0, width: c.rx * (0.035 + r(i * 5 + 4) * 0.05), height: height + 8.0, kind: 1 });
+            }
+        }
+    }
+    // Two or three ledges on each wall, above/below the open middle route.
+    for side in [-1.0, 1.0] {
+        for i in 0..3 {
+            let y = c.y + [-0.5, 0.3, 0.65][i] * c.ry;
+            let xs: Vec<_> = ((c.x - c.rx * 1.35).floor() as i32..=(c.x + c.rx * 1.35).ceil() as i32)
+                .filter(|&x| c.contains(x as f32, y, tile)).collect();
+            let edge = if side < 0.0 { xs.first() } else { xs.last() };
+            if let Some(&x) = edge {
+                rocks.push(CavernRock { x: x as f32 + side * 8.0, y, width: -side * (c.rx * (0.25 + r(60 + i as i32) * 0.3) + 8.0), height: (tile as f32 * 0.09).max(4.0), kind: 2 });
+            }
+        }
+    }
+    rocks
 }
 
 /// Sparse large-scale rooms break the tile-size ceiling. Include a whole
@@ -476,6 +547,7 @@ fn large_caverns(s: &Settings, (x, y, w, h): (i64, i64, usize, usize)) -> Vec<La
 /// pieces of authored masonry. The final sealed-world rim is applied later.
 fn carve_large_caverns(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, caverns: &[LargeCavern], free: &dyn Fn(i32, i32) -> bool) {
     for c in caverns {
+        let rocks = cavern_rocks(c, s.tile);
         let x0 = ((c.x - c.rx * 1.35 - origin.0 as f32).floor() as i64).max(ax as i64) as usize;
         let y0 = ((c.y - c.ry * 1.35 - origin.1 as f32).floor() as i64).max(ay as i64) as usize;
         let x1 = ((c.x + c.rx * 1.35 - origin.0 as f32).ceil() as i64).clamp(0, (ax + aw) as i64) as usize;
@@ -484,14 +556,10 @@ fn carve_large_caverns(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (u
             for x in x0..x1 {
                 if !free(x as i32, y as i32) { continue; }
                 let (mx, my) = ((origin.0 + x as i64) as f32, (origin.1 + y as i64) as f32);
-                let (mut nx, mut ny) = ((mx - c.x) / c.rx, (my - c.y) / c.ry);
-                let phase = unit(hash(c.seed, 0, 0, 915)) * std::f32::consts::TAU;
-                nx += 0.14 * (ny * 5.0 + phase).sin();
-                ny += 0.12 * (nx * 6.0 - phase).sin();
-                let q = nx * nx + ny * ny;
-                let scale = s.tile.max(8) as f32 * 0.35;
-                let edge = 1.0 + (noise(c.seed, mx / scale, my / scale) - 0.5) * 0.5;
-                if q < edge { world.set(mats, x, y, AIR); }
+                if c.contains(mx, my, s.tile) {
+                    let rock = rocks.iter().any(|r| r.contains(mx, my));
+                    world.set(mats, x, y, if rock { s.rock } else { AIR });
+                }
             }
         }
     }
@@ -952,13 +1020,49 @@ mod cave_shape_tests {
         world.flags[i] |= crate::world::OWNED;
         generate(&mut world, &mats, (0, 0, 960, 640), &settings, &[]);
         assert_eq!(world.mat[i], wood);
-        for y in (c.y - c.ry * 0.3) as usize..(c.y + c.ry * 0.3) as usize {
+        // Formations may fill the old core, but the central travel band stays
+        // open between the floor pillars and ceiling teeth.
+        for y in (c.y - 4.0) as usize..(c.y + 4.0) as usize {
             for x in (c.x - c.rx * 0.45) as usize..(c.x + c.rx * 0.45) as usize {
                 if (x, y) != (cx, cy) { assert_eq!(world.mat[world.idx(x, y)], AIR, "large cavern core must be open at {x},{y}"); }
             }
         }
         let off = Settings { caverns: 0.0, ..settings };
         assert!(large_caverns(&off, (0, 0, 960, 640)).is_empty());
+    }
+
+    #[test]
+    fn large_caverns_have_rooted_formations_and_an_open_middle_route() {
+        let mats = Materials::load_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/materials"));
+        let settings = Settings::new(&mats);
+        let cavern = LargeCavern { x: 240.0, y: 160.0, rx: 150.0, ry: 85.0, seed: 39 };
+        let rocks = cavern_rocks(&cavern, settings.tile);
+        for kind in 0..3 { assert!(rocks.iter().any(|r| r.kind == kind), "missing formation type {kind}"); }
+        let mut world = World::new(480, 320);
+        for y in 0..320 { for x in 0..480 { world.set(&mats, x, y, settings.rock); } }
+        carve_large_caverns(&mut world, &mats, (0, 0, 480, 320), (0, 0), &settings, &[cavern], &|_, _| true);
+        let cavern = LargeCavern { x: 240.0, y: 160.0, rx: 150.0, ry: 85.0, seed: 39 };
+        let mut solid_inside = 0;
+        for y in 40..280 { for x in 40..440 {
+            if cavern.contains(x as f32, y as f32, settings.tile) {
+                if world.mat[world.idx(x, y)] == settings.rock { solid_inside += 1; }
+                if (y as i32 - 160).abs() < 8 && (x as i32 - 240).abs() < 60 {
+                    assert_eq!(world.mat[world.idx(x, y)], AIR, "formations blocked the travel band");
+                }
+            }
+        } }
+        assert!(solid_inside > 500, "cavern must contain real rock ledges, teeth and pillars");
+        // Each formation's centreline continues through to the outer wall.
+        for r in rocks.iter().filter(|r| r.kind < 2) {
+            let sign = if r.kind == 0 { 1.0 } else { -1.0 };
+            // The final sub-cell tip may rasterise to no pixel. Check the
+            // substantial rooted shaft, rather than rounding that tiny tip.
+            for n in 0..(r.height * 0.75) as i32 {
+                let x = r.x.round() as usize;
+                let y = (r.y + sign * n as f32).round() as usize;
+                assert_ne!(world.mat[world.idx(x, y)], AIR, "floating or broken formation");
+            }
+        }
     }
 
     #[test]

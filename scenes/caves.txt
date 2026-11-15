@@ -1,5 +1,5 @@
 # Caves: a level made by the herringbone tile generator (src/levelgen.rs),
-# Huge caverns, narrow tunnels and blind side passages: docs/CAVE-GENERATION.md.
+# Sculpted caverns, rock ledges, stalactites and new material artwork: docs/CAVE-GENERATION.md.
 # the method Noita uses. Change the seed for a different cave system, or
 # use Edit > Generate caves in the editor (Reroll for new ones). Halls,
 # vaults, bridges, shafts and wells are hand-made tiles from tiles/caves
