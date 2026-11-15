@@ -23,6 +23,7 @@ pub mod material;
 pub mod render;
 pub mod scene;
 pub mod levelgen;
+pub mod endless;
 pub mod world;
 
 pub use material::{MatId, Material, Materials, State};

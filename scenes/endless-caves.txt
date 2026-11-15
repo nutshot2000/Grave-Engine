@@ -1,0 +1,12 @@
+# Endless caves: an endless cave map that streams as you explore, like Noita
+# (src/endless.rs). Press Play and keep walking: near an edge the world
+# scrolls, saving what's behind you and making (or loading back) what's ahead.
+# Change the seed for a different map. Walk with A/D, jump with W.
+size 1280 1024
+seed 3
+fill air
+endless seed 33 tiles tiles/caves
+rect air 600 470 90 60                     # a start chamber...
+rect rock 600 530 90 10                    # ...with a floor
+anchor 600 530 90 10
+player 640 530

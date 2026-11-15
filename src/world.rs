@@ -294,6 +294,64 @@ impl World {
         world
     }
 
+    /// Slide everything by (dx, dy) cells (endless maps scroll this way):
+    /// the cell at (x, y) moves to (x + dx, y + dy). What slides off the edge
+    /// is gone (save it first); the gap left behind is empty air. Flying
+    /// cells move too. The world counts as a new one afterwards (`id`), so
+    /// anything worked out from the old picture is redone.
+    pub fn shift(&mut self, dx: i32, dy: i32) {
+        let (w, h) = (self.w, self.h);
+        fn slide<T: Copy>(v: &mut [T], w: usize, h: usize, dx: i32, dy: i32, fill: T) {
+            let mut out = vec![fill; v.len()];
+            for y in 0..h as i32 {
+                let ny = y + dy;
+                if ny < 0 || ny >= h as i32 {
+                    continue;
+                }
+                let (x0, x1) = (0.max(-dx), (w as i32).min(w as i32 - dx));
+                if x0 >= x1 {
+                    continue;
+                }
+                let src = y as usize * w;
+                let dst = ny as usize * w;
+                out[dst + (x0 + dx) as usize..dst + (x1 + dx) as usize].copy_from_slice(&v[src + x0 as usize..src + x1 as usize]);
+            }
+            v.copy_from_slice(&out);
+        }
+        slide(&mut self.mat, w, h, dx, dy, AIR);
+        slide(&mut self.temp, w, h, dx, dy, self.ambient);
+        slide(&mut self.life, w, h, dx, dy, 0);
+        slide(&mut self.burn, w, h, dx, dy, 0);
+        slide(&mut self.flags, w, h, dx, dy, 0);
+        slide(&mut self.depth_air, w, h, dx, dy, false);
+        slide(&mut self.shade, w, h, dx, dy, 0);
+        slide(&mut self.paint, w, h, dx, dy, 0);
+        slide(&mut self.coat, w, h, dx, dy, AIR);
+        slide(&mut self.coat_until, w, h, dx, dy, 0);
+        slide(&mut self.back, w, h, dx, dy, AIR);
+        slide(&mut self.tex, w, h, dx, dy, 0);
+        self.moved.fill(0);
+        // The gap: fresh shades and texture places.
+        for i in 0..w * h {
+            if self.mat[i] == AIR && self.tex[i] == 0 {
+                self.tex[i] = pack_tex(i % w, i / w);
+                self.shade[i] = self.rand() as u8;
+            }
+        }
+        for f in self.flying.iter_mut() {
+            f.x += dx as f32;
+            f.y += dy as f32;
+        }
+        let (fw, fh) = (w as f32, h as f32);
+        self.flying.retain(|f| f.x >= 0.0 && f.x < fw && f.y < fh);
+        self.blasts.clear();
+        self.blast_echo_in.clear();
+        self.blast_echo_out.clear();
+        self.sounds.clear();
+        self.id = NEXT_WORLD.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.wake_all();
+    }
+
     /// Something happened at cell `i`: wake its block.
     #[inline]
     pub fn wake_at(&mut self, i: usize) {

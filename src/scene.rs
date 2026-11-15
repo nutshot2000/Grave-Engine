@@ -19,6 +19,8 @@
 //! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
+//! endless seed 21 tiles tiles/caves         # an endless cave map that streams as you explore
+//!   (endless.rs; also tile 64, region 256, open, pools, rooms, rock)
 //! generate 0 0 800 400 tile 64 seed 7       # caves from herringbone tiles (levelgen.rs); also
 //!   rock MAT, open 0.6 (passages), pools 0.2, pool water, rooms 0.25 (special rooms),
 //!   back MAT|none (wall behind), tiles DIR (hand-made), sides open,
@@ -723,6 +725,16 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     (Err(e), _) | (_, Err(e)) => err(e),
                 }
             }
+            "endless" => match crate::endless::parse(line, mats, base) {
+                // The starting window of an endless map (the editor or game
+                // keeps it streaming: see endless.rs).
+                Ok((set, tiles, _)) => {
+                    let w = ensure(&mut world, mats);
+                    let (ww, wh) = (w.w, w.h);
+                    crate::levelgen::generate_at(w, mats, (0, 0, ww, wh), (0, 0), &set, &tiles);
+                }
+                Err(e) => err(e),
+            },
             "generate" => match nums(1, 4) {
                 Ok(v) => {
                     let mut set = crate::levelgen::Settings::new(mats);

@@ -261,15 +261,21 @@ impl Brick {
 /// The herringbone bricks covering a box `uw` x `uh` units (from 0,0).
 /// Staircases: horizontal at (k + 4m, k), vertical at (k + 4m, k + 1).
 pub fn layout(uw: i32, uh: i32) -> Vec<Brick> {
+    layout_range((0, 0), (uw, uh))
+}
+
+/// The bricks touching units `from` (inclusive) to `to` (exclusive),
+/// anywhere on the endless map: the pattern is the same everywhere.
+pub fn layout_range(from: (i32, i32), to: (i32, i32)) -> Vec<Brick> {
     let mut out = Vec::new();
-    for k in -3..=uh + 1 {
-        let m0 = (-3 - k).div_euclid(4) - 1;
-        let m1 = (uw + 1 - k).div_euclid(4) + 1;
+    for k in from.1 - 3..=to.1 + 1 {
+        let m0 = (from.0 - 3 - k).div_euclid(4) - 1;
+        let m1 = (to.0 + 1 - k).div_euclid(4) + 1;
         for m in m0..=m1 {
             let u = k + 4 * m;
             for b in [Brick { shape: Shape::Horizontal, u, v: k }, Brick { shape: Shape::Vertical, u, v: k + 1 }] {
                 let (w, h) = b.size();
-                if b.u < uw && b.v < uh && b.u + w > 0 && b.v + h > 0 {
+                if b.u < to.0 && b.v < to.1 && b.u + w > from.0 && b.v + h > from.1 {
                     out.push(b);
                 }
             }
@@ -308,13 +314,28 @@ pub fn piece_open(s: &Settings, key: (bool, i32, i32), uw: i32, uh: i32) -> bool
 /// Fill a box of the world with a generated level. Returns how many bricks
 /// used hand-made tiles.
 pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), s: &Settings, tiles: &[Tile]) -> usize {
+    // (The area's corner is the map's 0,0.)
+    generate_at(world, mats, area, (-(area.0 as i64), -(area.1 as i64)), s, tiles)
+}
+
+/// Like `generate`, for part of an endless map: world cell (x, y) is map
+/// cell `origin + (x, y)`. Whatever part is generated, and in whatever
+/// order, the map comes out the same (bricks, doorways, tiles, ore are all
+/// decided by map position). Endless maps use `open_sides`.
+pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, tiles: &[Tile]) -> usize {
     let t = s.tile.max(8);
     let (ax, ay, aw, ah) = area;
     let (aw, ah) = (aw.min(world.w.saturating_sub(ax)), ah.min(world.h.saturating_sub(ay)));
     if aw == 0 || ah == 0 {
         return 0;
     }
+    // The area on the map, and the units it covers. (A sealed area's edges
+    // are units 0 and uw, uh: only for `generate`, whose corner is 0,0.)
+    let (gx, gy) = (origin.0 + ax as i64, origin.1 + ay as i64);
+    let ti = t as i64;
     let (uw, uh) = (aw.div_ceil(t) as i32, ah.div_ceil(t) as i32);
+    let from = (gx.div_euclid(ti) as i32, gy.div_euclid(ti) as i32);
+    let to = ((gx + aw as i64 - 1).div_euclid(ti) as i32 + 1, (gy + ah as i64 - 1).div_euclid(ti) as i32 + 1);
     // Solid ground first, then each brick carves its passages. (Cells of
     // objects and characters are left alone throughout.)
     let owned: Vec<bool> = (ay..ay + ah).flat_map(|y| (ax..ax + aw).map(move |x| (x, y))).map(|(x, y)| world.is_owned(world.idx(x, y))).collect();
@@ -327,7 +348,7 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
         }
     }
     let mut hand = 0;
-    for b in layout(uw, uh) {
+    for b in layout_range(from, to) {
         let edges: Edges = b.pieces().map(|k| piece_open(s, k, uw, uh));
         // Exact fits first; failing that, a tile with one spare doorway (it
         // opens onto solid rock: a small dead-end notch). A tile never blocks
@@ -339,7 +360,7 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
             fits = tiles.iter().filter(|tile| covers(tile) && extra(tile) == 1).collect();
         }
         let (bw, bh) = b.size();
-        let (px, py) = (ax as i32 + b.u * t as i32, ay as i32 + b.v * t as i32);
+        let (px, py) = ((b.u as i64 * ti - origin.0) as i32, (b.v as i64 * ti - origin.1) as i32);
         let (pw, ph) = (bw as usize * t, bh as usize * t);
         let inside = |x: i32, y: i32| x >= ax as i32 && y >= ay as i32 && x < (ax + aw) as i32 && y < (ay + ah) as i32 && free(x, y);
         if !fits.is_empty() {
@@ -365,7 +386,7 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
         }
     }
     // Varied ground: patches of other stone, and ore specks in the walls.
-    texture_ground(world, mats, (ax, ay, aw, ah), s, &free);
+    texture_ground(world, mats, (ax, ay, aw, ah), origin, s, &free);
     // The wall behind the caves.
     for y in ay..ay + ah {
         for x in ax..ax + aw {
@@ -683,8 +704,10 @@ fn noise(seed: u32, x: f32, y: f32) -> f32 {
 
 /// Patches of other stone through the plain ground, and specks of ore in
 /// the walls next to passages (the coloured dots that make a map readable).
-fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), s: &Settings, free: &dyn Fn(i32, i32) -> bool) {
+fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, free: &dyn Fn(i32, i32) -> bool) {
     let (ax, ay, aw, ah) = area;
+    // Map position of a world cell (patches and ore follow the map).
+    let map = |x: usize, y: usize| ((origin.0 + x as i64) as i32, (origin.1 + y as i64) as i32);
     let (stone, sand) = (pick(mats, "stone", s.rock), pick(mats, "sandstone", s.rock));
     let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
     let scale = (s.tile as f32 * 1.5).max(10.0);
@@ -694,35 +717,30 @@ fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usiz
             if world.mat[i] != s.rock || !free(x as i32, y as i32) {
                 continue;
             }
-            let n = noise(s.seed ^ 0x5151, x as f32 / scale, y as f32 / scale) * 0.75 + noise(s.seed ^ 0x7373, x as f32 / (scale * 0.3), y as f32 / (scale * 0.3)) * 0.25;
+            let (mx, my) = map(x, y);
+            let (fx, fy) = (mx as f32, my as f32);
+            let n = noise(s.seed ^ 0x5151, fx / scale, fy / scale) * 0.75 + noise(s.seed ^ 0x7373, fx / (scale * 0.3), fy / (scale * 0.3)) * 0.25;
             let m = if n > 0.66 { stone } else if n < 0.17 { sand } else { s.rock };
             if m != s.rock {
                 world.set(mats, x, y, m);
             }
         }
     }
-    // Ore: small clumps in walls that face a passage.
-    let mut seeds = Vec::new();
-    for y in (ay + 1..ay + ah - 1).step_by(3) {
-        for x in (ax + 1..ax + aw - 1).step_by(3) {
-            let i = world.idx(x, y);
-            if world.mat[i] == AIR || !free(x as i32, y as i32) || unit(hash(s.seed, x as i32, y as i32, 77)) > 0.035 {
+    // Ore: small clumps (a 2x2 in a 3x3 grid square, where the map says
+    // so). Decided cell by cell from the map position alone, so it comes out
+    // the same however the map is cut into regions; clumps show where
+    // passages cut through them.
+    for y in ay..ay + ah {
+        for x in ax..ax + aw {
+            let (mx, my) = map(x, y);
+            let (gx, gy) = (mx.div_euclid(3) * 3, my.div_euclid(3) * 3);
+            if mx - gx > 1 || my - gy > 1 || unit(hash(s.seed, gx, gy, 77)) > 0.012 || !free(x as i32, y as i32) {
                 continue;
             }
-            let near_open = [i - 1, i + 1, i - world.w, i + world.w].iter().any(|&j| world.mat[j] == AIR);
-            if near_open && mats.get(world.mat[i]).state == crate::material::State::Solid {
-                seeds.push((x, y, ores[(hash(s.seed, x as i32, y as i32, 78) % 3) as usize]));
-            }
-        }
-    }
-    for (x, y, ore) in seeds {
-        for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1), (-1, 0)] {
-            let (cx, cy) = (x as i32 + dx, y as i32 + dy);
-            if cx >= ax as i32 && cy >= ay as i32 && cx < (ax + aw) as i32 && cy < (ay + ah) as i32 && free(cx, cy) {
-                let i = world.idx(cx as usize, cy as usize);
-                if world.mat[i] != AIR && mats.get(world.mat[i]).state == crate::material::State::Solid {
-                    world.set(mats, cx as usize, cy as usize, ore);
-                }
+            let i = world.idx(x, y);
+            // (Only in the plain ground, not in a tile's brick or timber.)
+            if world.mat[i] == s.rock || world.mat[i] == stone || world.mat[i] == sand {
+                world.set(mats, x, y, ores[(hash(s.seed, gx, gy, 78) % 3) as usize]);
             }
         }
     }

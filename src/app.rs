@@ -190,6 +190,10 @@ struct Sandbox {
     /// Camera: centre (cells) and zoom (screen pixels per cell). None = show
     /// the whole world.
     cam: Option<(f32, f32, f32)>,
+    /// An endless map streaming as the player explores (endless.rs), and
+    /// where on the map the Reset point is.
+    endless: Option<grave_engine::endless::Endless>,
+    endless_reset_origin: (i64, i64),
     /// Mouse-wheel movement not yet turned into zoom steps.
     zoom_acc: f32,
     /// Sticky notes for the open scene (see notes.rs), and the scene file
@@ -417,6 +421,8 @@ impl Sandbox {
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2),
             cave_tiles: true,
+            endless: None,
+            endless_reset_origin: (0, 0),
             playing: false,
             fling: Vec::new(),
             speed: 1.0,
@@ -503,6 +509,19 @@ impl Sandbox {
         }
         // Restarted into a new build: pick up where we were (the scene as
         // it was, under its own file name, still watched for changes).
+        // Restarted mid endless run: carry on where the map is.
+        if let (Ok(path), Ok(at)) = (std::env::var(RESUME_SCENE), std::env::var("GRAVE_RESUME_ENDLESS")) {
+            let v: Vec<i64> = at.split_whitespace().filter_map(|n| n.parse().ok()).collect();
+            let p = Path::new(&path);
+            let name = p.file_stem().unwrap_or_default().to_string_lossy().to_string();
+            if let (Ok(text), [ox, oy, rx, ry]) = (std::fs::read_to_string(p), v.as_slice()) {
+                app.endless = grave_engine::endless::Endless::from_scene(&text, &app.mats, p.parent(), &name);
+                if let Some(e) = &mut app.endless {
+                    e.resume((*ox, *oy));
+                }
+                app.endless_reset_origin = (*rx, *ry);
+            }
+        }
         if let Ok(path) = std::env::var(RESUME_SCENE) {
             app.scene_path = path;
             app.scene_stamp = stamp(Path::new(&app.scene_path));
@@ -577,6 +596,9 @@ impl Sandbox {
             cmd.env(RESUME_WINDOW, w.map(|v| v.to_string()).join(","));
         }
         cmd.env("GRAVE_FOLLOW_AI", if self.follow_ai { "1" } else { "0" });
+        if let Some(e) = &self.endless {
+            cmd.env("GRAVE_RESUME_ENDLESS", format!("{} {} {} {}", e.origin.0, e.origin.1, self.endless_reset_origin.0, self.endless_reset_origin.1));
+        }
         cmd.env("GRAVE_SOUND", format!("{} {}", self.sound.volume, u8::from(self.sound.muted)));
         match cmd.spawn() {
             Ok(_) => std::process::exit(0),
@@ -1817,6 +1839,12 @@ impl Sandbox {
             Ok(text) => {
                 let (sim, problems) = scene::load(&text, &self.mats, path.parent()).into_sim(&self.mats);
                 self.sim = sim;
+                let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                self.endless = grave_engine::endless::Endless::from_scene(&text, &self.mats, path.parent(), &name);
+                if let Some(e) = &mut self.endless {
+                    e.new_run();
+                }
+                self.endless_reset_origin = (0, 0);
                 self.timeline.clear();
                 self.rewind_pos = None;
                 self.snapshot = self.sim.snapshot();
@@ -2048,6 +2076,7 @@ impl Sandbox {
         self.history.commit(&mut self.sim);
         self.continue_from_here();
         self.snapshot = self.sim.snapshot();
+        self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         self.ran_since_snapshot = false;
         self.playing = true;
         self.sim_clock = 0.0;
@@ -2059,17 +2088,51 @@ impl Sandbox {
         }
         if !self.ran_since_snapshot {
             self.snapshot = self.sim.snapshot();
+            self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         }
         let t = Instant::now();
         self.sim.step(&self.mats);
         self.timeline.record(&mut self.sim);
+        self.stream_endless();
         self.sim_ms = self.sim_ms * 0.9 + t.elapsed().as_secs_f32() * 1000.0 * 0.1;
         self.ran_since_snapshot = true;
+    }
+
+    /// Endless maps: keep the player away from the world's edges by
+    /// scrolling the map (endless.rs). Cameras move with it; undo and
+    /// rewind start again (they'd show the old window).
+    fn stream_endless(&mut self) {
+        let Some(e) = &mut self.endless else { return };
+        let focus = match self.sim.physics.actor_status().first() {
+            Some(a) if !a.dead => (a.x, a.y),
+            _ => match self.sim.follow.and_then(|id| self.sim.physics.pose_of(id)) {
+                Some((x, y, _)) => (x, y),
+                None => return,
+            },
+        };
+        let Some((dx, dy)) = e.update(&mut self.sim, &self.mats, focus) else { return };
+        if let Some(c) = self.cam.as_mut() {
+            c.0 += dx as f32;
+            c.1 += dy as f32;
+        }
+        for p in e.problems.drain(..).collect::<Vec<_>>() {
+            self.say(p);
+        }
+        self.timeline.clear();
+        self.timeline.record(&mut self.sim);
+        self.history = History::new();
+        self.selection = Selection::None;
     }
 
     fn reset(&mut self) {
         let snap = self.snapshot.clone();
         self.change("reset", |app| app.sim = Sim::restore(&snap, &app.mats));
+        // Endless: back to where the run started on the map, all fresh.
+        let origin = self.endless_reset_origin;
+        if let Some(e) = &mut self.endless {
+            e.new_run();
+            e.origin = origin;
+        }
         self.timeline.clear();
         self.rewind_pos = None;
         self.ran_since_snapshot = false;

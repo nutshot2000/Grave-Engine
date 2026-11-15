@@ -35,3 +35,6 @@ __pycache__/
 
 # Notes from AI agents to the live editor
 /live/
+
+# Endless maps: regions saved while exploring (endless.rs)
+saves/
