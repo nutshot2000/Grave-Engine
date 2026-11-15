@@ -214,6 +214,24 @@ struct NoteDraft {
     focused: bool,
 }
 
+/// How the File menu groups the scenes.
+const SCENE_GROUPS: [&str; 4] = ["Games & levels", "Showcases", "Labs & tests", "Other"];
+
+/// Which group a scene file belongs in (by name; new ones land in "Other").
+fn scene_group(path: &Path) -> &'static str {
+    let name = path.file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
+    if has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
+        "Games & levels"
+    } else if has(&["lab", "test", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
+        "Labs & tests"
+    } else if has(&["house", "shop", "lane", "creek", "fire", "beach", "splash", "waterwheel", "millbrook", "heron", "oil", "weather"]) {
+        "Showcases"
+    } else {
+        "Other"
+    }
+}
+
 /// The asset files a scene places (`asset FILE ...`), and when each last changed.
 fn scene_assets(text: &str, scene: &Path) -> Vec<(PathBuf, Option<SystemTime>)> {
     text.lines()
@@ -1706,7 +1724,6 @@ impl Sandbox {
 
     /// Overhead scenes use their own altitude-aware viewport, without replacing
     /// the current side-view scene or any unsaved workshop draft.
-    fn open_flight_lab(&mut self) { self.open_overhead_game("flight-test"); }
     fn open_overhead_game(&mut self, binary: &str) {
         let name = if cfg!(windows) { format!("{binary}.exe") } else { binary.to_string() };
         let sibling = std::env::current_exe().ok().and_then(|p| p.parent().map(|p|p.join(name))).filter(|p|p.exists());
@@ -2092,73 +2109,179 @@ impl Sandbox {
                 }
             });
         }
+        // Row 1: the menu bar. Files, editing, view, how the world looks, tools.
         ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new("GRAVE").size(22.).strong().color(Color32::from_rgb(105,221,204)));
-            ui.label(RichText::new("LEVEL EDITOR").size(11.).weak());ui.separator();
-            ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(240.));
-            let fresh = self.activity.iter().filter(|a| now_secs().saturating_sub(a.at) < 600).count();
-            ui.toggle_value(&mut self.show_activity, if fresh > 0 { format!("🤖 Activity ({fresh})") } else { "🤖 Activity".to_string() })
-                .on_hover_text("What the AI has been doing, with buttons to jump back to each scene or asset");
-            ui.toggle_value(&mut self.follow_ai, "👁 Follow AI").on_hover_text(
-                "On: when an AI agent changes a scene or asset, it opens here so you can watch (Undo goes back).\nOff: work on your own; you'll get a \"Go there\" button instead.",
-            );
-            if ui.button("💾 Save").clicked(){self.save_scene();}
-            if ui.button("📂 Load").clicked(){self.load_scene();}
-            ui.menu_button("Scenes...",|ui|{
-                if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked(){self.open_overhead_game("dust-hawk");ui.close();}
-                if ui.button("Flight & destruction lab (2.5D)").clicked(){self.open_flight_lab();ui.close();}
+            ui.label(RichText::new("GRAVE").size(20.).strong().color(Color32::from_rgb(105, 221, 204)))
+                .on_hover_text("Grave Engine level editor");
+            ui.add_space(4.0);
+            ui.menu_button("📁 File", |ui| self.file_menu(ui)).response.on_hover_text("Open, save and reload scenes");
+            ui.menu_button("✏ Edit", |ui| {
+                if ui.add_enabled(self.history.can_undo(), egui::Button::new("↶ Undo   Ctrl+Z")).clicked() { self.undo(); ui.close(); }
+                if ui.add_enabled(self.history.can_redo(), egui::Button::new("↷ Redo   Ctrl+Y")).clicked() { self.redo(); ui.close(); }
                 ui.separator();
-                let mut files:Vec<_>=std::fs::read_dir("scenes").into_iter().flatten().filter_map(Result::ok).map(|e|e.path()).filter(|p|p.extension().is_some_and(|s|s=="txt")).collect();files.sort();
-                egui::ScrollArea::vertical().max_height(400.).show(ui,|ui|{for f in files {if ui.button(f.file_stem().unwrap().to_string_lossy()).clicked(){self.scene_path=f.display().to_string();self.load_scene();ui.close();}}});
-            });
-            ui.menu_button("Scene",|ui|{if ui.button("Clear").clicked(){let(w,h)=(self.sim.world.w,self.sim.world.h);self.change("clear",|app|app.sim=Sim::empty(w,h,&app.mats));self.playing=false;self.selection=Selection::None;self.timeline.clear();ui.close();}});
-            if ui.button("Asset workshop").clicked(){self.playing=false;self.workshop.open=true;}
-            ui.checkbox(&mut self.studio.inspector_open,"Inspector");
-        });
-        ui.separator();
-        ui.horizontal_wrapped(|ui| {
-            let testing=self.studio.tab==Tab::Tests;
-            let running=if testing {self.studio.test_running} else {self.playing};
-            if ui.add(egui::Button::new(if running {"⏸ Pause"} else {"▶ Play"}).fill(Color32::from_rgb(35,105,94)).min_size(Vec2::new(100.,28.))).clicked(){if testing {self.studio.test_running=!running;} else if running {self.playing=false;} else {self.play();}}
-            if ui.button("Step").clicked(){if testing {if let Some(s)=&mut self.studio.test {s.step(&self.mats);self.studio.test_frame+=1;self.studio.test_running=false;}} else {self.playing=false;self.step_once();}}
-            if ui.button("↺ Reset").clicked(){if testing {self.start_studio_test();self.studio.test_running=false;} else {self.reset();}}
-            if ui.add_enabled(self.history.can_undo(),egui::Button::new("↶ Undo")).clicked(){self.undo();}
-            if ui.add_enabled(self.history.can_redo(),egui::Button::new("↷ Redo")).clicked(){self.redo();}
+                if ui.button("🗑 Clear the scene").on_hover_text("Empty the world (Undo brings it back)").clicked() {
+                    let (w, h) = (self.sim.world.w, self.sim.world.h);
+                    self.change("clear", |app| app.sim = Sim::empty(w, h, &app.mats));
+                    self.playing = false;
+                    self.selection = Selection::None;
+                    self.timeline.clear();
+                    ui.close();
+                }
+            }).response.on_hover_text("Undo, redo, clear");
+            ui.menu_button("👁 View", |ui| {
+                if ui.button("⤢ Fit the whole world").clicked() { self.fit_view(); ui.close(); }
+                let mut follow = self.sim.follow.is_some();
+                if ui.checkbox(&mut follow, "📷 Camera follows the selected object").changed() {
+                    if follow { self.start_following(); } else { self.sim.follow = None; }
+                }
+                ui.checkbox(&mut self.view.heat, "🌡 Heat view (temperatures as colours)");
+                ui.checkbox(&mut self.studio.inspector_open, "🔍 Inspector panel (right)");
+                ui.checkbox(&mut self.show_activity, "🤖 AI activity panel");
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.studio.snap, "Snap to grid");
+                    ui.add(egui::DragValue::new(&mut self.studio.grid).range(1.0..=20.).suffix(" cells"));
+                });
+            }).response.on_hover_text("Camera, heat view, panels, snapping");
             ui.separator();
-            if ui.button("⤢ Fit").clicked(){self.fit_view();}
-            let mut follow=self.sim.follow.is_some();if ui.toggle_value(&mut follow,"📷 Follow").changed(){if follow {self.start_following();} else {self.sim.follow=None;}}
-            ui.toggle_value(&mut self.view.heat,"🌡 Heat view");
-            ui.add_sized([110.,24.],egui::Slider::new(&mut self.speed,0.05..=4.).logarithmic(true).suffix("x").text("Speed"));
-            ui.checkbox(&mut self.studio.snap,"Snap");ui.add(egui::DragValue::new(&mut self.studio.grid).range(1.0..=20.).suffix(" cells"));
+            ui.label(RichText::new("World").weak()).on_hover_text("How the world looks and feels: these settings are saved with the scene");
+            ui.menu_button("🎬 Camera", |ui| self.camera_menu(ui)).response.on_hover_text("Slow motion, zoom, shake, follow smoothing");
+            ui.menu_button("💡 Lighting", |ui| self.look_menu(ui, "lighting", Self::lighting_menu)).response.on_hover_text("Day and night, the sun, lamps");
+            ui.menu_button("🏞 Background", |ui| self.look_menu(ui, "background", Self::background_menu)).response.on_hover_text("Sky colours and the layers of scenery behind the world");
+            ui.menu_button("☁ Weather", |ui| self.look_menu(ui, "weather", Self::weather_menu)).response.on_hover_text("Snow, rain, hail, sandstorms, fog, wind gusts, lightning");
             ui.separator();
-            ui.menu_button("🎬 Camera",|ui|self.camera_menu(ui));
-            ui.menu_button("💡 Lighting",|ui|self.look_menu(ui,"lighting",Self::lighting_menu));
-            ui.menu_button("🏞 Background",|ui|self.look_menu(ui,"background",Self::background_menu));
-            ui.menu_button("☁ Weather",|ui|self.look_menu(ui,"weather",Self::weather_menu));
-            if ui.button("Animations").clicked() {
+            if ui.button("Asset workshop").on_hover_text("Draw props and machines from real materials, with moving parts").clicked() {
+                self.playing = false;
+                self.workshop.open = true;
+            }
+            if ui.button("Animations").on_hover_text("The character's animation states and blends").clicked() {
                 self.animation_editor.select(&self.sim, 0);
                 self.animation_editor.open = true;
             }
-            if let Some(level)=game_level(&self.scene_path) {if ui.button("🎮 Play as game").clicked(){self.play_as_game(level);}}
+            if let Some(level) = game_level(&self.scene_path)
+                && ui.button("🎮 Play as game").on_hover_text("Open this course in its game, with controls and score (plays the saved file)").clicked()
+            {
+                self.play_as_game(level);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.toggle_value(&mut self.follow_ai, "👁 Follow AI").on_hover_text(
+                    "On: when an AI agent changes a scene or asset, it opens here so you can watch (Undo goes back).\nOff: work on your own; you'll get a \"Go there\" button instead.",
+                );
+                let fresh = self.activity.iter().filter(|a| now_secs().saturating_sub(a.at) < 600).count();
+                ui.toggle_value(&mut self.show_activity, if fresh > 0 { format!("🤖 Activity ({fresh})") } else { "🤖 Activity".to_string() })
+                    .on_hover_text("What the AI has been doing, with buttons to jump back to each scene or asset");
+            });
         });
+        ui.separator();
+        // Row 2: the toolbar. Running the scene, undo, speed, camera.
+        ui.horizontal_wrapped(|ui| {
+            let testing = self.studio.tab == Tab::Tests;
+            let running = if testing { self.studio.test_running } else { self.playing };
+            if ui
+                .add(egui::Button::new(RichText::new(if running { "⏸ Pause" } else { "▶ Play" }).strong()).fill(Color32::from_rgb(35, 105, 94)).min_size(Vec2::new(96., 28.)))
+                .on_hover_text("Run the simulation (Space)")
+                .clicked()
+            {
+                if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
+            }
+            if ui.button("⏭ Step").on_hover_text("Advance one frame").clicked() {
+                if testing {
+                    if let Some(s) = &mut self.studio.test { s.step(&self.mats); self.studio.test_frame += 1; self.studio.test_running = false; }
+                } else {
+                    self.playing = false;
+                    self.step_once();
+                }
+            }
+            if ui.button("↺ Reset").on_hover_text("Back to how the scene was before you pressed Play (R)").clicked() {
+                if testing { self.start_studio_test(); self.studio.test_running = false; } else { self.reset(); }
+            }
+            ui.separator();
+            if ui.add_enabled(self.history.can_undo(), egui::Button::new("↶ Undo")).on_hover_text("Undo (Ctrl+Z)").clicked() { self.undo(); }
+            if ui.add_enabled(self.history.can_redo(), egui::Button::new("↷ Redo")).on_hover_text("Redo (Ctrl+Y)").clicked() { self.redo(); }
+            ui.separator();
+            ui.add_sized([120., 24.], egui::Slider::new(&mut self.speed, 0.05..=4.).logarithmic(true).suffix("x"))
+                .on_hover_text("Simulation speed: below 1 is slow motion");
+            ui.separator();
+            if ui.button("⤢ Fit").on_hover_text("Show the whole world").clicked() { self.fit_view(); }
+            let mut follow = self.sim.follow.is_some();
+            if ui.toggle_value(&mut follow, "📷 Follow").on_hover_text("The camera follows the selected object").changed() {
+                if follow { self.start_following(); } else { self.sim.follow = None; }
+            }
+            ui.toggle_value(&mut self.view.heat, "🌡 Heat").on_hover_text("Show temperatures as colours (H)");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let name = Path::new(&self.scene_path).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                ui.label(RichText::new(name).strong()).on_hover_text(format!("The open scene: {}", self.scene_path));
+            });
+        });
+    }
+
+    /// The File menu: the scene's file, save and reload, and every scene to
+    /// open, grouped.
+    fn file_menu(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Scene file").weak());
+        ui.add(egui::TextEdit::singleline(&mut self.scene_path).desired_width(260.)).on_hover_text("Where Save writes (and Reload reads)");
+        if ui.button("💾 Save   Ctrl+S").on_hover_text("Write the scene to its file").clicked() { self.save_scene(); ui.close(); }
+        if ui.button("📂 Reload from file").on_hover_text("Throw away changes and load the file again").clicked() { self.load_scene(); ui.close(); }
+        ui.separator();
+        ui.label(RichText::new("Open a scene").weak());
+        let mut files: Vec<PathBuf> = std::fs::read_dir("scenes")
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|s| s == "txt"))
+            .collect();
+        files.sort();
+        for group in SCENE_GROUPS {
+            ui.menu_button(group, |ui| {
+                if group == "Games & levels" {
+                    if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked() { self.open_overhead_game("dust-hawk"); ui.close(); }
+                    if ui.button("Flight & destruction lab (2.5D)").clicked() { self.open_overhead_game("flight-test"); ui.close(); }
+                    ui.separator();
+                }
+                egui::ScrollArea::vertical().max_height(420.).show(ui, |ui| {
+                    for f in files.iter().filter(|f| scene_group(f) == group) {
+                        let name = f.file_stem().unwrap_or_default().to_string_lossy().replace('-', " ");
+                        if ui.button(name).on_hover_text(f.display().to_string()).clicked() {
+                            self.scene_path = f.display().to_string();
+                            self.load_scene();
+                            ui.close();
+                        }
+                    }
+                });
+            });
+        }
     }
 
     fn palette(&mut self, ui: &mut egui::Ui) {
         self.workspace(ui);
-        ui.add_space(4.0);
-        ui.heading("Tool");
-        ui.horizontal_wrapped(|ui| {
-            for (tool, label, tip) in [
-                (Tool::Select, "👆 Select", "Click or drag a box to select. Drag to move. Handles turn and resize. (V)"),
-                (Tool::Paint, "🖌 Paint", "Paint the chosen material (B)"),
-                (Tool::Erase, "Erase", "Turn things back into air (or right-click)"),
-                (Tool::Heat, "🔥 Heat", "Make things hotter"),
-                (Tool::Cool, "❄ Cool", "Make things colder"),
-                (Tool::Object, "📦 Make object", "Drag a box around something you painted: it becomes a loose object that falls, tumbles and breaks"),
+        ui.add_space(2.0);
+        // Tools: a tidy grid, every one explained on hover.
+        ui.label(RichText::new("TOOLS").small().strong().weak());
+        egui::Grid::new("tool_grid").num_columns(2).spacing(Vec2::new(4.0, 4.0)).show(ui, |ui| {
+            let tools = [
+                (Tool::Select, "👆 Select", "Click or drag a box to select. Drag to move; the handles turn and resize. (V)"),
+                (Tool::Paint, "🖌 Paint", "Paint the chosen material (B). Shift + mouse wheel changes the brush size."),
+                (Tool::Erase, "🧽 Erase", "Turn things back into air (or right-click with any tool)"),
+                (Tool::Heat, "🔥 Heat", "Make things hotter: light fires, melt metal"),
+                (Tool::Cool, "❄ Cool", "Make things colder: freeze water, put out fires"),
+                (Tool::Object, "📦 Make object", "Drag a box round something you painted: it becomes a loose object that falls, tumbles and breaks"),
                 (Tool::Place, "🧩 Place", "Click to place copies of the chosen template"),
-                (Tool::Join, "🔗 Join", "Click two things to join them (empty space = the ground)"),
-            ] {
-                if ui.selectable_value(&mut self.tool, tool, RichText::new(label).size(14.0)).on_hover_text(tip).clicked() {self.studio.placement=None;if tool!=Tool::Select {self.studio.tab=Tab::Materials;}}
+                (Tool::Join, "🔗 Join", "Join two things: hinge, wheel, weld or rope (empty space = the ground)"),
+            ];
+            for (n, (tool, label, tip)) in tools.into_iter().enumerate() {
+                let on = self.tool == tool;
+                let b = egui::Button::new(RichText::new(label).size(14.0)).selected(on).min_size(Vec2::new((ui.available_width() / 2.0 - 4.0).max(100.0), 26.0));
+                if ui.add(b).on_hover_text(tip).clicked() {
+                    self.tool = tool;
+                    self.studio.placement = None;
+                    if tool != Tool::Select {
+                        self.studio.tab = Tab::Materials;
+                    }
+                }
+                if n % 2 == 1 {
+                    ui.end_row();
+                }
             }
         });
         match self.studio.tab {
@@ -2166,103 +2289,139 @@ impl Sandbox {
         }
         if self.tool == Tool::Join {
             ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                for (k, label, tip) in [
-                    (JoinChoice::Hinge, "Hinge", "A pin both turn around: doors, pendulums, seesaws"),
-                    (JoinChoice::Wheel, "Wheel", "An axle with a suspension spring: click the body, then the wheel"),
-                    (JoinChoice::Weld, "Weld", "Glue them rigidly together"),
-                    (JoinChoice::Rope, "Rope", "A rope from the first click to the second"),
-                ] {
-                    ui.selectable_value(&mut self.join_kind, k, label).on_hover_text(tip);
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (k, label, tip) in [
+                        (JoinChoice::Hinge, "Hinge", "A pin both turn around: doors, pendulums, seesaws"),
+                        (JoinChoice::Wheel, "Wheel", "An axle with a suspension spring: click the body, then the wheel"),
+                        (JoinChoice::Weld, "Weld", "Glue them rigidly together"),
+                        (JoinChoice::Rope, "Rope", "A rope from the first click to the second"),
+                    ] {
+                        ui.selectable_value(&mut self.join_kind, k, label).on_hover_text(tip);
+                    }
+                });
+                if matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel) {
+                    ui.checkbox(&mut self.join_motor, "With a motor").on_hover_text("It turns by itself");
+                    if self.join_motor {
+                        ui.add(egui::Slider::new(&mut self.join_speed, -5.0..=5.0).text("turns/s")).on_hover_text("Minus turns the other way");
+                        ui.add(egui::Slider::new(&mut self.join_strength, 0.5..=50.0).logarithmic(true).text("strength")).on_hover_text("How hard it can push, in kN·m");
+                        ui.checkbox(&mut self.join_drive, "Drive with ← → / A D").on_hover_text("Only turns while you hold the keys (vehicles)");
+                    }
                 }
+                ui.label(RichText::new(match self.join_first {
+                    None => "Click the first thing (or empty space for the ground).",
+                    Some(_) => "Now click the second thing.",
+                }).size(13.0).weak());
             });
-            if matches!(self.join_kind, JoinChoice::Hinge | JoinChoice::Wheel) {
-                ui.checkbox(&mut self.join_motor, "With a motor");
-                if self.join_motor {
-                    ui.add(egui::Slider::new(&mut self.join_speed, -5.0..=5.0).text("turns/s"));
-                    ui.add(egui::Slider::new(&mut self.join_strength, 0.5..=50.0).logarithmic(true).text("strength"));
-                    ui.checkbox(&mut self.join_drive, "Drive with ← → / A D");
-                }
-            }
-            ui.label(RichText::new(match self.join_first {
-                None => "Click the first thing (or empty space for the ground).",
-                Some(_) => "Now click the second thing.",
-            }).size(13.0).weak());
         }
         ui.add_space(4.0);
-        ui.label("Brush size (Shift + mouse wheel)");
-        ui.add(egui::Slider::new(&mut self.brush_size, 1..=40));
-        ui.separator();
-        ui.heading("Materials");
-        ui.add(egui::TextEdit::singleline(&mut self.studio.material_filter).hint_text("Find a material"));
-        egui::ScrollArea::vertical().max_height(ui.available_height() - 170.0).show(ui, |ui| {
-            let mut order: Vec<MatId> = (0..self.mats.list.len() as MatId).filter(|&i| i != AIR).collect();
-            order.sort_by(|a, b| self.mats.get(*a).name.cmp(&self.mats.get(*b).name));
-            for id in order {
-                let m = self.mats.get(id);
-                if !m.name.contains(&self.studio.material_filter.to_lowercase()) {continue;}
-                let selected = self.brush_mat == id && self.tool == Tool::Paint;
-                let c = color32(m.color);
-                let text_col = ui.visuals().text_color();
-                let label = RichText::new(m.name.replace('_', " ")).size(14.0).color(text_col);
-                let mut b = egui::Button::new(label).min_size(Vec2::new(ui.available_width(), 25.0));
-                if selected {
-                    b = b.stroke(Stroke::new(3.0, Color32::WHITE));
-                }
-                let mut tip = format!("{} ({})", m.about, m.state);
-                if let Some(t) = m.catches_fire_at {
-                    tip += &format!("\nCatches fire at {t}°C");
-                }
-                if let Some(c) = m.melts {
-                    tip += &format!("\nMelts at {}°C", c.at);
-                }
-                if let Some(c) = m.boils {
-                    tip += &format!("\nBoils at {}°C", c.at);
-                }
-                if let Some(c) = m.freezes {
-                    tip += &format!("\nFreezes at {}°C", c.at);
-                }
-                tip += "\n\nRight-click: its settings (sliders)";
-                let r = ui.add(b).on_hover_text(tip);
-                ui.painter().rect_filled(Rect::from_min_size(r.rect.min+Vec2::new(8.,7.),Vec2::splat(11.)),2.,c);
-                if r.clicked() {
-                    self.brush_mat = id;
-                    self.tool = Tool::Paint;
-                }
-                if r.secondary_clicked() {
-                    self.mat_settings = Some(id);
-                }
-            }
+        ui.horizontal(|ui| {
+            ui.label("Brush").on_hover_text("How big the paint, erase, heat and cool brushes are (Shift + mouse wheel)");
+            ui.add(egui::Slider::new(&mut self.brush_size, 1..=40).suffix(" cells"));
         });
-        if ui.button(format!("⚙ {} settings", self.mats.get(self.brush_mat).name.replace('_', " "))).on_hover_text("Play with this material's settings (or right-click any material)").clicked() {
-            self.mat_settings = Some(self.brush_mat);
-        }
         ui.separator();
-        ui.label(RichText::new("Templates").strong());
-        if self.templates.list.is_empty() {
-            ui.label(RichText::new("None yet: select an object and press Save as template.").size(13.0).weak());
-        }
-        ui.horizontal_wrapped(|ui| {
-            let names: Vec<String> = self.templates.list.iter().map(|t| t.name.clone()).collect();
-            for name in names {
-                let on = self.tool == Tool::Place && self.place_template.as_deref() == Some(name.as_str());
-                if ui.selectable_label(on, name.replace('_', " ")).on_hover_text("Click, then click in the world to place copies").clicked() {
-                    self.place_template = Some(name);
-                    self.tool = Tool::Place;
+        // Materials, grouped. The search box shows every match at once.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("MATERIALS").small().strong().weak());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(format!("⚙ {} settings", self.mats.get(self.brush_mat).name.replace('_', " "))).on_hover_text("Play with this material's settings (or right-click any material)").clicked() {
+                    self.mat_settings = Some(self.brush_mat);
                 }
+            });
+        });
+        ui.add(egui::TextEdit::singleline(&mut self.studio.material_filter).hint_text("🔍 Find a material"));
+        let filter = self.studio.material_filter.to_lowercase();
+        egui::ScrollArea::vertical().id_salt("materials_list").max_height((ui.available_height() - 150.0).max(160.0)).show(ui, |ui| {
+            for group in grave_engine::material::GROUPS.iter().copied().chain(std::iter::once("Other")) {
+                let mut ids: Vec<MatId> = (0..self.mats.list.len() as MatId)
+                    .filter(|&i| i != AIR)
+                    .filter(|&i| {
+                        let g = self.mats.get(i).group();
+                        if group == "Other" { !grave_engine::material::GROUPS.contains(&g) } else { g == group }
+                    })
+                    .filter(|&i| filter.is_empty() || self.mats.get(i).name.contains(&filter))
+                    .collect();
+                if ids.is_empty() {
+                    continue;
+                }
+                ids.sort_by(|a, b| self.mats.get(*a).name.cmp(&self.mats.get(*b).name));
+                let holds_brush = ids.contains(&self.brush_mat);
+                egui::CollapsingHeader::new(RichText::new(format!("{group}  ({})", ids.len())).strong())
+                    .id_salt(("mat_group", group))
+                    .default_open(holds_brush || group == "Earth, sand & snow")
+                    .open(if filter.is_empty() { None } else { Some(true) })
+                    .show(ui, |ui| {
+                        for id in ids {
+                            self.material_button(ui, id);
+                        }
+                    });
             }
         });
         ui.separator();
-        ui.label(RichText::new("Import").strong());
-        ui.label(RichText::new("Drop an image or 3D model onto the world to add it (.png .jpg .glb .obj .fbx .blend).").size(13.0));
-        ui.checkbox(&mut self.drop_static, "Drop as fixed scenery");
-        ui.separator();
-        ui.label(RichText::new("Messages").strong());
-        for (when, msg) in self.messages.iter().rev().take(5) {
-            let age = when.elapsed().as_secs_f32();
-            let alpha = (1.0 - (age - 8.0) / 4.0).clamp(0.35, 1.0);
-            let col = ui.visuals().text_color().gamma_multiply(alpha);
-            ui.label(RichText::new(msg).size(13.0).color(col));
+        egui::CollapsingHeader::new(RichText::new("Templates").strong()).id_salt("templates_section").default_open(false).show(ui, |ui| {
+            if self.templates.list.is_empty() {
+                ui.label(RichText::new("None yet: select an object and press Save as template.").size(13.0).weak());
+            }
+            ui.horizontal_wrapped(|ui| {
+                let names: Vec<String> = self.templates.list.iter().map(|t| t.name.clone()).collect();
+                for name in names {
+                    let on = self.tool == Tool::Place && self.place_template.as_deref() == Some(name.as_str());
+                    if ui.selectable_label(on, name.replace('_', " ")).on_hover_text("Click, then click in the world to place copies").clicked() {
+                        self.place_template = Some(name);
+                        self.tool = Tool::Place;
+                    }
+                }
+            });
+        });
+        egui::CollapsingHeader::new(RichText::new("Import").strong()).id_salt("import_section").default_open(false).show(ui, |ui| {
+            ui.label(RichText::new("Drop an image or 3D model onto the world to add it (.png .jpg .glb .obj .fbx .blend).").size(13.0));
+            ui.checkbox(&mut self.drop_static, "Drop as fixed scenery").on_hover_text("Off: it arrives as a loose object that can fall and break");
+        });
+        egui::CollapsingHeader::new(RichText::new("Messages").strong()).id_salt("messages_section").default_open(true).show(ui, |ui| {
+            for (when, msg) in self.messages.iter().rev().take(5) {
+                let age = when.elapsed().as_secs_f32();
+                let alpha = (1.0 - (age - 8.0) / 4.0).clamp(0.35, 1.0);
+                let col = ui.visuals().text_color().gamma_multiply(alpha);
+                ui.label(RichText::new(msg).size(13.0).color(col));
+            }
+        });
+    }
+
+    /// One material in the list: a colour swatch and its name; hover for what
+    /// it does, click to paint with it, right-click for its settings.
+    fn material_button(&mut self, ui: &mut egui::Ui, id: MatId) {
+        let m = self.mats.get(id);
+        let selected = self.brush_mat == id && self.tool == Tool::Paint;
+        let c = color32(m.color);
+        let text_col = ui.visuals().text_color();
+        let label = RichText::new(m.name.replace('_', " ")).size(14.0).color(text_col);
+        let mut b = egui::Button::new(label).min_size(Vec2::new(ui.available_width(), 24.0));
+        if selected {
+            b = b.stroke(Stroke::new(2.0, Color32::WHITE)).selected(true);
+        }
+        let mut tip = format!("{} ({})", m.about, m.state);
+        if let Some(t) = m.catches_fire_at {
+            tip += &format!("\nCatches fire at {t}°C");
+        }
+        if let Some(c) = m.melts {
+            tip += &format!("\nMelts at {}°C", c.at);
+        }
+        if let Some(c) = m.boils {
+            tip += &format!("\nBoils at {}°C", c.at);
+        }
+        if let Some(c) = m.freezes {
+            tip += &format!("\nFreezes at {}°C", c.at);
+        }
+        tip += "\n\nClick: paint with it.  Right-click: its settings (sliders).";
+        let r = ui.add(b).on_hover_text(tip);
+        ui.painter().rect_filled(Rect::from_min_size(r.rect.min + Vec2::new(8., 6.), Vec2::splat(12.)), 3., c);
+        ui.painter().rect_stroke(Rect::from_min_size(r.rect.min + Vec2::new(8., 6.), Vec2::splat(12.)), 3., Stroke::new(1.0, Color32::from_black_alpha(140)), egui::StrokeKind::Inside);
+        if r.clicked() {
+            self.brush_mat = id;
+            self.tool = Tool::Paint;
+        }
+        if r.secondary_clicked() {
+            self.mat_settings = Some(id);
         }
     }
 
@@ -4048,7 +4207,9 @@ body rect wood 40 60 20 10
     #[test]
     fn right_click_a_material_opens_its_settings() {
         let mut h = editor();
-        // Right-click a material in the list (one near the top, so it's on screen).
+        // Find a material with the search box (it opens its group), then right-click it.
+        h.state_mut().studio.material_filter = "brick".into();
+        h.run_steps(2);
         let b = h.get_all_by_label("brick").next().unwrap().rect().center();
         right_click(&mut h, b);
         h.run_steps(2);
