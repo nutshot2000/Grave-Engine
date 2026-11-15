@@ -113,6 +113,8 @@ struct Sandbox {
     /// How things were when Play was last pressed. Reset goes back here.
     snapshot: Snapshot,
     ran_since_snapshot: bool,
+    /// Edit > Generate caves: tile size, seed, how open, how many pools.
+    cave_gen: (usize, u32, f32, f32),
     playing: bool,
     /// Where the pointer was lately while dragging objects (time, cell), so
     /// letting go mid-swing throws them.
@@ -411,6 +413,7 @@ impl Sandbox {
             join_first: None,
             rewind_pos: None,
             ran_since_snapshot: false,
+            cave_gen: (40, 1, 0.55, 0.25),
             playing: false,
             fling: Vec::new(),
             speed: 1.0,
@@ -853,6 +856,58 @@ impl Sandbox {
     }
 
     /// The ☁ Weather menu: how heavy each kind is, presets, strike now.
+    /// Edit > Generate caves (levelgen.rs): the whole world becomes caves.
+    fn generate_menu(&mut self, ui: &mut egui::Ui) {
+        ui.set_min_width(280.0);
+        ui.label(RichText::new("Caves from herringbone tiles").strong());
+        ui.label(RichText::new("Replaces the ground everywhere (objects and characters stay). Undo brings it back.").small());
+        let (mut tile, mut seed, mut open, mut pools) = self.cave_gen;
+        egui::Grid::new("gen").num_columns(2).show(ui, |ui| {
+            ui.label("Tile size").on_hover_text("How big each tile is, in cells: bigger = bigger caves");
+            ui.add(egui::DragValue::new(&mut tile).range(16..=200).suffix(" cells"));
+            ui.end_row();
+            ui.label("Seed").on_hover_text("The same seed always makes the same caves");
+            ui.add(egui::DragValue::new(&mut seed));
+            ui.end_row();
+            ui.label("Openness").on_hover_text("How many tile edges have a passage through them");
+            ui.add(egui::Slider::new(&mut open, 0.2..=0.95).show_value(false));
+            ui.end_row();
+            ui.label("Pools").on_hover_text("How often a cavern has water in it");
+            ui.add(egui::Slider::new(&mut pools, 0.0..=1.0).show_value(false));
+            ui.end_row();
+        });
+        let mut go = false;
+        ui.horizontal(|ui| {
+            go |= ui.button("Generate").clicked();
+            if ui.button("🎲 Reroll").on_hover_text("New caves with a new seed").clicked() {
+                seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345) % 100_000;
+                go = true;
+            }
+        });
+        self.cave_gen = (tile, seed, open, pools);
+        if go {
+            let set = grave_engine::levelgen::Settings {
+                tile,
+                seed,
+                rock: self.mats.id("rock").unwrap_or(0),
+                open,
+                pools,
+                pool: self.mats.id("water").unwrap_or(0),
+                open_sides: false,
+                anchored: true,
+            };
+            self.change("generate caves", |app| {
+                let (w, h) = (app.sim.world.w, app.sim.world.h);
+                grave_engine::levelgen::generate(&mut app.sim.world, &app.mats, (0, 0, w, h), &set, &[]);
+                app.sim.world.wake_all();
+            });
+            self.playing = false;
+            self.ran_since_snapshot = false;
+            self.timeline.clear();
+            self.say(format!("Generated caves (tile {tile}, seed {seed}). Reroll for different ones."));
+        }
+    }
+
     fn weather_menu(&mut self, ui: &mut egui::Ui) {
         use grave_engine::weather::{Kind, Weather};
         ui.set_min_width(300.0);
@@ -2155,7 +2210,9 @@ impl Sandbox {
                     self.timeline.clear();
                     ui.close();
                 }
-            }).response.on_hover_text("Undo, redo, clear");
+                ui.separator();
+                ui.menu_button("🗺 Generate caves", |ui| self.generate_menu(ui)).response.on_hover_text("Fill the world with caves made from herringbone tiles (like Noita)");
+            }).response.on_hover_text("Undo, redo, clear, generate caves");
             ui.menu_button("👁 View", |ui| {
                 if ui.button("⤢ Fit the whole world").clicked() { self.fit_view(); ui.close(); }
                 let mut follow = self.sim.follow.is_some();

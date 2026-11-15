@@ -19,6 +19,9 @@
 //! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
+//! generate 0 0 800 400 tile 40 seed 7       # caves from herringbone tiles (levelgen.rs); also
+//!   rock MAT, open 0.55 (passages), pools 0.3, pool water, tiles DIR (hand-made), sides open,
+//!   loose (let thin walls collapse; normally the generated rock is anchored)
 //! coat oil 300 200 60 4                    # film the solid ground in this box (wet road, oil slick)
 //! coat water 0 180 400 2 forever           # ...that never dries
 //!
@@ -718,6 +721,57 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     (Err(e), _) | (_, Err(e)) => err(e),
                 }
             }
+            "generate" => match nums(1, 4) {
+                Ok(v) => {
+                    let mut set = crate::levelgen::Settings {
+                        tile: 40,
+                        seed: 1,
+                        rock: mats.id("rock").unwrap_or(AIR),
+                        open: 0.55,
+                        pools: 0.25,
+                        pool: mats.id("water").unwrap_or(AIR),
+                        open_sides: false,
+                        anchored: true,
+                    };
+                    let mut tiles = Vec::new();
+                    let mut k = 5;
+                    while k < words.len() {
+                        let (key, val) = (words[k], words.get(k + 1).copied().unwrap_or(""));
+                        let number = || val.parse::<f32>().map_err(|_| format!("`generate {key}` needs a number"));
+                        let result: Result<(), String> = match key {
+                            "tile" => number().map(|n| set.tile = (n as usize).clamp(8, 400)),
+                            "seed" => number().map(|n| set.seed = n as u32),
+                            "open" => number().map(|n| set.open = n.clamp(0.0, 1.0)),
+                            "pools" => number().map(|n| set.pools = n.clamp(0.0, 1.0)),
+                            "rock" => mat(val).map(|id| set.rock = id),
+                            "pool" => mat(val).map(|id| set.pool = id),
+                            "sides" => {
+                                set.open_sides = val == "open";
+                                Ok(())
+                            }
+                            "loose" => {
+                                set.anchored = false;
+                                k -= 1; // (no value)
+                                Ok(())
+                            }
+                            "tiles" => {
+                                let dir = base.map(|b| b.join(val)).filter(|p| p.is_dir()).unwrap_or_else(|| std::path::PathBuf::from(val));
+                                let (t, problems) = crate::levelgen::Tile::load_dir(&dir, mats);
+                                tiles = t;
+                                problems.into_iter().next().map_or(Ok(()), Err)
+                            }
+                            _ => Err(format!("`generate` doesn't know `{key}` (tile, seed, rock, open, pools, pool, tiles, sides, loose)")),
+                        };
+                        if let Err(e) = result {
+                            err(e);
+                        }
+                        k += 2;
+                    }
+                    let w = ensure(&mut world, mats);
+                    crate::levelgen::generate(w, mats, (v[0] as usize, v[1] as usize, v[2] as usize, v[3] as usize), &set, &tiles);
+                }
+                Err(e) => err(format!("{e} (use `generate X Y W H [tile 40] [seed 7]`)")),
+            },
             "anchor" => match nums(1, 4) {
                 Ok(v) => {
                     let w = ensure(&mut world, mats);

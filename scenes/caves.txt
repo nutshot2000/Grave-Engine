@@ -1,0 +1,13 @@
+# Caves: a level made by the herringbone tile generator (src/levelgen.rs),
+# the method Noita uses. Change the seed for a different cave system, or
+# use Edit > Generate caves in the editor (Reroll for new ones). Bricked
+# halls and climbing shafts are hand-made tiles from tiles/rooms; the rest
+# are built-in cave tiles. Walk with A/D, jump with W.
+size 960 480
+seed 21
+fill air
+generate 0 0 960 480 tile 48 seed 21 tiles tiles/rooms pools 0.3
+rect air 24 392 96 70                      # a start chamber...
+rect rock 24 462 96 8                      # ...with a floor
+anchor 24 462 96 8
+player 60 462

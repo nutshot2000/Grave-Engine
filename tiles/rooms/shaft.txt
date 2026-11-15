@@ -1,0 +1,28 @@
+# A tall shaft with ledges to climb: a tall tile (1 x 2), open top and bottom.
+# Edges, clockwise from the top: top right-upper right-lower bottom left-lower left-upper
+shape v
+edges 1 0 0 1 0 0
+legend # rock
+legend w wood
+rows
+###....###
+###....###
+##......##
+#........#
+#www.....#
+#........#
+#........#
+#.....www#
+#........#
+#........#
+#www.....#
+#........#
+#........#
+#.....www#
+#........#
+#........#
+##......##
+###....###
+###....###
+###....###
+end

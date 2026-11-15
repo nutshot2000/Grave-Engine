@@ -1,0 +1,19 @@
+# A long hall with a brick floor: a wide tile (2 x 1), passages left and right.
+# Edges, clockwise from the top left: top-left top-right right bottom-right bottom-left left
+shape h
+edges 0 0 1 0 0 1
+legend # rock
+legend b brick
+legend ~ water
+rows
+####################
+####################
+###..............###
+##................##
+#..................#
+....................
+....................
+##bbbbb~~~~~~bbbbb##
+###bbbbbbbbbbbbbb###
+####################
+end
