@@ -14,6 +14,8 @@ use crate::world::Blast;
 use std::sync::Arc;
 mod ledge;
 mod posture;
+mod soak;
+pub use soak::Soak;
 pub use posture::{MobilitySettings, Posture};
 pub use ledge::{ClimbSettings, LedgeHold};
 
@@ -96,6 +98,8 @@ pub struct ActorSpec {
     /// How it's drawn: animated pictures (see `look.rs`), or None for the
     /// plain cell figure.
     pub look: Option<Arc<Look>>,
+    /// Soaked in water, oil... (see actor/soak.rs).
+    pub soak: Option<Soak>,
 }
 
 impl ActorSpec {
@@ -119,6 +123,7 @@ impl ActorSpec {
             dead_for: 0,
             facing: 1.0,
             look: None,
+            soak: None,
         }
     }
 
@@ -194,6 +199,8 @@ pub struct ActorStatus {
     pub anim: String,
     pub animation_state: String,
     pub anim_time: f32,
+    /// What it's soaked in (water, oil), how much, and whether it's on fire.
+    pub soak: Option<Soak>,
 }
 
 pub(super) struct Actor {
@@ -323,6 +330,14 @@ impl Physics {
         self.controls = c;
     }
 
+    /// Change an actor's state directly (games: soak it with a thrown
+    /// bucket, heal it...). Returns false if there's no such actor.
+    pub fn edit_actor(&mut self, index: usize, f: impl FnOnce(&mut ActorSpec)) -> bool {
+        let Some(a) = self.actors.get_mut(index) else { return false };
+        f(&mut a.spec);
+        true
+    }
+
     /// Set independent input, or restore the global controller with None.
     pub fn set_actor_controls(&mut self, index: usize, controls: Option<Controls>) -> bool {
         let Some(a) = self.actors.get_mut(index) else { return false; };
@@ -448,6 +463,7 @@ impl Physics {
                     anim: a.spec.animation.as_ref().unwrap().state().clip.clone(),
                     animation_state: a.spec.animation.as_ref().unwrap().state().name.clone(),
                     anim_time: a.spec.animation.as_ref().unwrap().sample_time(|clip| a.spec.look.as_ref().map_or(1.0, |l| l.duration(clip))),
+                    soak: a.spec.soak,
                 }
             })
             .collect()
@@ -605,6 +621,7 @@ impl Physics {
                     a.spec.breath = MAX_BREATH;
                     a.spec.temp = BODY_TEMP;
                     a.temps.fill(BODY_TEMP);
+                    a.spec.soak = None;
                     a.spec.animation.as_mut().unwrap().reset();
                     a.spec.jump_buffer = 0;
                     a.spec.posture = Posture { roll_held: controls.roll, ..Posture::default() };
@@ -633,7 +650,8 @@ impl Physics {
             let body = || a.stamped.iter().map(|&(_, li)| a.temps[li as usize]);
             let too_hot = body().map(|t| (t - HOT).max(0.0)).sum::<f32>() / n;
             let too_cold = body().map(|t| (COLD - t).max(0.0)).sum::<f32>() / n;
-            hurt(too_hot * 3.0 * DT, "burned");
+            // (A wet body is shielded from some of it.)
+            hurt(too_hot * 3.0 * DT * soak::heat_shield(&a.spec, mats), "burned");
             hurt(too_cold * 2.0 * DT, "froze");
             if head_under {
                 a.spec.breath -= DT;
@@ -746,9 +764,16 @@ impl Physics {
     /// After the physics step: hard knocks hurt; death; put the figures
     /// back into the grid.
     pub(super) fn actors_after(&mut self, world: &mut World, mats: &Materials) {
-        for a in self.actors.iter_mut() {
+        for (n, a) in self.actors.iter_mut().enumerate() {
             let v = self.set[a.handle].linvel();
             if a.spec.dead_for == 0 {
+                // Soaked: drying, dripping, burning (actor/soak.rs).
+                let t = self.set[a.handle].translation();
+                let burn = soak::update(a, world, mats, t.x / CELL, t.y / CELL, n);
+                if burn > 0.0 {
+                    a.pending += burn;
+                    a.pending_cause = Some("burned (on fire)");
+                }
                 // Slowing down (or being shoved) hard in one frame: a hard
                 // landing or getting hit by something heavy. Gravity alone
                 // only changes speed by 0.16 m/s a frame.
@@ -856,6 +881,7 @@ impl Physics {
                 a.stamped.push((wi as u32, li as u16));
             }
         }
+        soak::mark_cells(&a.spec, world, mats, &a.stamped);
     }
 }
 

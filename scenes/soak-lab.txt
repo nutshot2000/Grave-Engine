@@ -1,0 +1,15 @@
+# Soak lab: press Play and walk right (D). Wade through the oil and you're
+# covered in it (see the icon over your head and the bar top left). Walk past
+# the fire and you go up in flames: keep going and jump into the water to put
+# yourself out (it washes the oil off too). Water-soaked, heat hurts less.
+# Soaked characters drip: an oily one leaves a trail that can burn.
+size 420 120
+seed 5
+fill air
+rect stone 0 100 420 20                    # the ground
+rect oil 60 100 40 2                       # an oil puddle (a shallow dip)
+rect wood 170 100 10 3                     # a fire pit on the path
+heat circle 175 101 3 650
+rect water 200 100 90 6                    # a pond to jump in
+lighting 0.8
+player 20 100

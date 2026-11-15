@@ -3317,6 +3317,25 @@ Click to mute. The volume is in the View menu.")
     fn draw_characters(&mut self, ui: &egui::Ui, painter: &egui::Painter, origin: Pos2, scale: f32) {
         let body_h = grave_engine::physics::actor_height();
         for a in self.sim.physics.actor_status() {
+            // Soaked (water, oil) or on fire: an icon over the head says so.
+            if let Some(s) = a.soak
+                && !a.dead
+            {
+                let head = origin + Vec2::new(a.x * scale, (a.y - body_h as f32 / 2.0 - 3.5) * scale);
+                let r = (scale * 1.6).clamp(5.0, 11.0);
+                if s.burning {
+                    let f = (self.sim.world.frame / 3 % 2) as u8;
+                    painter.circle_filled(head, r * 1.15, Color32::from_rgb(255, 120 + 60 * f, 20));
+                    painter.text(head, egui::Align2::CENTER_CENTER, "🔥", egui::FontId::proportional(r * 1.6), Color32::from_rgb(255, 240, 200));
+                } else {
+                    let c = self.mats.get(s.liquid).color;
+                    let alpha = (90.0 + 165.0 * s.amount) as u8;
+                    // A drop: a circle with a point on top.
+                    let col = Color32::from_rgba_unmultiplied(c[0].saturating_add(40), c[1].saturating_add(40), c[2].saturating_add(40), alpha);
+                    painter.add(egui::Shape::convex_polygon(vec![head + Vec2::new(0.0, -r * 1.7), head + Vec2::new(r * 0.86, -r * 0.5), head + Vec2::new(-r * 0.86, -r * 0.5)], col, egui::Stroke::NONE));
+                    painter.circle(head, r, col, egui::Stroke::new(1.0, Color32::from_white_alpha(alpha / 2)));
+                }
+            }
             let Some(look) = &a.look else { continue };
             let (frame, label, index) = look.sample(&a.anim, a.anim_time, a.blend.as_ref());
             let key = (look.dir.clone(), label.to_string(), index);
@@ -3342,6 +3361,17 @@ Click to mute. The volume is in the View menu.")
             // Hurt: flash red.
             let tint = if a.hurt_by.is_some() && !a.dead && (self.sim.world.frame / 5).is_multiple_of(2) {
                 Color32::from_rgb(255, 150, 150)
+            } else if let Some(s) = a.soak {
+                // Soaked: tinted towards the liquid and darker; on fire, flickering orange.
+                if s.burning {
+                    let f = (self.sim.world.frame / 3 % 2) as f32;
+                    Color32::from_rgb(255, (170.0 + 40.0 * f) as u8, 110)
+                } else {
+                    let c = self.mats.get(s.liquid).color;
+                    let k = 0.45 * s.amount;
+                    let mix = |v: u8| ((255.0 * (1.0 - k) + v as f32 * k) * (1.0 - 0.2 * s.amount)) as u8;
+                    Color32::from_rgb(mix(c[0]), mix(c[1]), mix(c[2]))
+                }
             } else {
                 Color32::WHITE
             };
@@ -3367,6 +3397,21 @@ Click to mute. The volume is in the View menu.")
         let mut y = 16.0;
         if p.breath < 10.0 {
             bar(y, p.breath / 10.0, Color32::from_rgb(90, 170, 255), "breath");
+            y += 16.0;
+        }
+        // Soaked: what in, how much, and what it means (players need telling).
+        if let Some(s) = p.soak {
+            let m = self.mats.get(s.liquid);
+            let (col, label) = if s.burning {
+                (Color32::from_rgb(255, 140, 30), "ON FIRE! Jump in water".to_string())
+            } else if m.catches_fire_at.is_some() {
+                (Color32::from_rgb(m.color[0].saturating_add(60), m.color[1].saturating_add(50), m.color[2].saturating_add(30)), format!("covered in {}: catches fire easily", m.name))
+            } else if m.puts_out_fire {
+                (Color32::from_rgb(m.color[0].saturating_add(40), m.color[1].saturating_add(60), m.color[2].saturating_add(40)), format!("{}-soaked: heat hurts less", m.name))
+            } else {
+                (Color32::from_rgb(m.color[0], m.color[1], m.color[2]), format!("covered in {}", m.name))
+            };
+            bar(y, s.amount, col, &label);
             y += 16.0;
         }
         let text = if p.dead {
