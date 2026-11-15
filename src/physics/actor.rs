@@ -46,9 +46,20 @@ const SAFE_LANDING: f32 = 9.0;
 /// Frames before a dead actor comes back.
 const RESPAWN_FRAMES: u32 = 120;
 
+/// A controllable jetpack. Speed is metres/second; fuel/capacity are seconds.
+/// An idle pack recharges even in the air, permitting patient exploration;
+/// landing recharges faster. Passive descent limiting prevents fatal drops.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Jetpack { pub speed: f32, pub capacity: f32, pub fuel: f32, pub active: bool }
+impl Default for Jetpack {
+    fn default() -> Self { Self { speed: 6.5, capacity: 6.0, fuel: 6.0, active: false } }
+}
+
 /// What the player is pressing.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Controls {
+    /// Optional jetpack thrust; ignored by actors without a pack.
+    pub thrust: bool,
     pub crouch: bool,
     pub roll: bool,
     /// Release a ledge (S/down in the editor).
@@ -62,6 +73,10 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    /// Optional reusable flight assist; fuel and active state are rewindable.
+    pub jetpack: Option<Jetpack>,
+    /// Radius of a personal warm headlamp (zero = none).
+    pub headlamp: f32,
     /// None follows global input; Some gives an independent controller or AI.
     pub control_override: Option<Controls>,
     /// Games can keep dead actors dead until a checkpoint is restored.
@@ -107,6 +122,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            jetpack: None, headlamp: 0.0,
             control_override: None, respawn: true,
             mobility: None, posture: Posture::default(),
             climb: None, ledge: None, up_held: false, grab_cooldown: 0, jump_buffer: 0,
@@ -174,6 +190,9 @@ impl ActorSpec {
 /// What the HUD needs to show.
 #[derive(Clone, Debug)]
 pub struct ActorStatus {
+    pub jet_fuel: Option<(f32, f32)>,
+    pub boosting: bool,
+    pub headlamp: f32,
     pub crouched: bool,
     pub rolling: bool,
     pub body_height: f32,
@@ -417,6 +436,7 @@ impl Physics {
             ("crouched", a.spec.posture.crouched as u8 as f32),
             ("rolling", (a.spec.posture.roll_left > 0.0) as u8 as f32),
             ("dead", (a.spec.dead_for > 0) as u8 as f32),
+            ("boosting", a.spec.jetpack.is_some_and(|j| j.active) as u8 as f32),
             ("swimming", (a.wet > 0.4) as u8 as f32),
             ("swim_moving", (controls.walk.abs() > 0.1 || controls.jump) as u8 as f32),
             ("hanging", a.spec.ledge.is_some_and(|h| !h.climbing) as u8 as f32),
@@ -457,6 +477,9 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
+                    jet_fuel: a.spec.jetpack.map(|j| (j.fuel, j.capacity)),
+                    boosting: a.spec.jetpack.is_some_and(|j| j.active),
+                    headlamp: a.spec.headlamp,
                     crouched: a.spec.posture.crouched,
                     rolling: a.spec.posture.roll_left > 0.0,
                     body_height: a.spec.posture.height,
@@ -638,6 +661,7 @@ impl Physics {
                     a.spec.temp = BODY_TEMP;
                     a.temps.fill(BODY_TEMP);
                     a.spec.soak = None;
+                    if let Some(j) = a.spec.jetpack.as_mut() { j.fuel = j.capacity; j.active = false; }
                     a.spec.animation.as_mut().unwrap().reset();
                     a.spec.jump_buffer = 0;
                     a.spec.posture = Posture { roll_held: controls.roll, ..Posture::default() };
@@ -696,7 +720,8 @@ impl Physics {
             let pressed = controls.jump && !a.spec.up_held;
             a.spec.jump_buffer = if pressed { if a.spec.posture.height < H as f32 { 12 } else { 6 } } else { a.spec.jump_buffer.saturating_sub(1) };
             posture::update(a, &mut self.set, &mut self.colliders, world, mats, controls, self.ground, wall, knock.length() > 0.1);
-            if a.spec.posture.height >= H as f32 - 0.05 && ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
+            if !(controls.thrust && a.spec.jetpack.is_some()) && a.spec.posture.height >= H as f32 - 0.05 && ledge::update(a, &mut self.set, &self.colliders, world, mats, controls, knock.length() > 0.1, self.ground) { continue; }
+            if controls.thrust && a.spec.jetpack.is_some() && a.spec.ledge.is_some() { ledge::release(a, &mut self.set[a.handle]); }
             a.spec.up_held = controls.jump;
             let rb = &mut self.set[a.handle];
             let v = rb.linvel();
@@ -770,6 +795,19 @@ impl Physics {
                 vy -= GRAVITY * DT * a.wet * (a.liquid_density / body);
                 vx *= 1.0 - 0.04 * a.wet;
                 vy *= 1.0 - 0.06 * a.wet;
+            }
+            if let Some(jet) = a.spec.jetpack.as_mut() {
+                jet.active = controls.thrust && jet.fuel > DT && !buried;
+                if jet.active {
+                    jet.fuel = (jet.fuel - DT).max(0.0);
+                    vy += (-jet.speed - vy).clamp(-32.0 * DT, 32.0 * DT);
+                    vx += (walk * jet.speed - vx).clamp(-22.0 * DT, 22.0 * DT);
+                } else if !controls.thrust || grounded {
+                    jet.fuel = (jet.fuel + DT * if grounded { 2.4 } else { 0.55 }).min(jet.capacity);
+                }
+                // Drag from the pack keeps controlled descents below the
+                // engine's hard-landing threshold without teleporting anyone.
+                vy = vy.min(if controls.drop { 7.0 } else { 2.4 });
             }
             let v = Vector::new(vx, vy) + knock;
             rb.set_linvel(v, true);

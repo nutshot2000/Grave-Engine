@@ -6,3 +6,6 @@ jump   = key W, key ArrowUp, pad A
 drop   = key S, key ArrowDown, pad B
 crouch = key C, pad X
 roll   = key X, pad RB
+
+thrust = key Space, pad RT
+pause = key P, pad Start

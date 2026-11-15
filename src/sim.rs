@@ -332,7 +332,34 @@ impl Sim {
 
     /// Where the lamps are right now (lamps on objects move with them).
     pub fn lamps(&self) -> Vec<crate::light::Placed> {
-        self.lighting.place(self.world.frame, |id| self.physics.pose_of(id))
+        let mut lamps = self.lighting.place(self.world.frame, |id| self.physics.pose_of(id));
+        for a in self.physics.actor_status() {
+            if a.headlamp > 0.0 && !a.dead {
+                lamps.push(crate::light::Placed { shadows: true, x: a.x + a.facing * 4.0, y: a.y - 4.0, radius: a.headlamp, strength: 1.25, color: [235, 241, 220], cone: Some((if a.facing < 0.0 { std::f32::consts::PI } else { 0.0 }, 0.9)) });
+                lamps.push(crate::light::Placed { shadows: true, x: a.x, y: a.y - 3.0, radius: 28.0, strength: 0.5, color: [220, 230, 240], cone: None });
+            }
+        }
+        lamps
+    }
+
+    /// Excavate solid terrain with a tool; owned cells, liquids and material
+    /// stronger than the tool remain. Returns actual removed cells by material
+    /// so games can award mining samples without inventing resources.
+    pub fn dig_circle(&mut self, mats: &Materials, x: f32, y: f32, radius: f32, toughness: f32) -> std::collections::BTreeMap<crate::material::MatId, usize> {
+        let mut removed = std::collections::BTreeMap::new();
+        let radius = radius.clamp(0.0, 12.0);
+        for cy in (y - radius).floor().max(1.0) as usize..=((y + radius).ceil() as usize).min(self.world.h.saturating_sub(2)) {
+            for cx in (x - radius).floor().max(1.0) as usize..=((x + radius).ceil() as usize).min(self.world.w.saturating_sub(2)) {
+                if (cx as f32 - x).powi(2) + (cy as f32 - y).powi(2) > radius * radius { continue; }
+                let i = self.world.idx(cx, cy);
+                let id = self.world.mat[i];
+                let m = mats.get(id);
+                if self.world.is_owned(i) || !matches!(m.state, crate::material::State::Solid | crate::material::State::Powder) || m.toughness.is_some_and(|v| v > toughness) { continue; }
+                *removed.entry(id).or_default() += 1;
+                self.world.make_air(i);
+            }
+        }
+        removed
     }
 
     /// Set off triggers that something has entered.

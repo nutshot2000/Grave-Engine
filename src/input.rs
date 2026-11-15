@@ -74,6 +74,8 @@ pub struct Input {
     actions: BTreeMap<String, Vec<Source>>,
     now: BTreeMap<String, f32>,
     before: BTreeMap<String, f32>,
+    /// Press/release pairs can arrive between two rendered frames.
+    tapped: std::collections::BTreeSet<String>,
     /// Stick values below this count as zero.
     pub dead_zone: f32,
     gilrs: Option<gilrs::Gilrs>,
@@ -184,7 +186,7 @@ impl Input {
                 return Err(err(format!("`{name}` is listed twice")));
             }
         }
-        Ok(Input { actions, now: BTreeMap::new(), before: BTreeMap::new(), dead_zone: 0.18, gilrs: None, pad: None, pad_name: None })
+        Ok(Input { actions, now: BTreeMap::new(), before: BTreeMap::new(), tapped: Default::default(), dead_zone: 0.18, gilrs: None, pad: None, pad_name: None })
     }
 
     /// The player's own file if there is one, otherwise the game's defaults;
@@ -232,6 +234,16 @@ impl Input {
         });
         let pad = self.poll_controller();
         self.update_from_with_modifiers(&keys, &pad, ctx.input(|i| i.modifiers));
+        ctx.input(|i| {
+            if i.modifiers.ctrl || i.modifiers.alt || i.modifiers.command || i.modifiers.mac_cmd { return; }
+            for (name, sources) in &self.actions {
+                if sources.iter().any(|s| match s {
+                    Source::Key(k) => i.events.iter().any(|e| matches!(e, egui::Event::Key { key, pressed: true, repeat: false, .. } if key == k)),
+                    Source::Mouse(b) => i.events.iter().any(|e| matches!(e, egui::Event::PointerButton { button, pressed: true, .. } if button == b)),
+                    _ => false,
+                }) { self.tapped.insert(name.clone()); }
+            }
+        });
     }
 
     fn poll_controller(&mut self) -> PadState {
@@ -266,6 +278,7 @@ impl Input {
 
     /// Read synthetic input including modifier keys, such as Shift to roll/run.
     pub fn update_from_with_modifiers(&mut self, keys: &KeyState, pad: &PadState, modifiers: egui::Modifiers) {
+        self.tapped.clear();
         self.before = std::mem::take(&mut self.now);
         let dz = self.dead_zone.clamp(0.0, 0.95);
         let held = |k: &egui::Key| keys.keys.contains(k) as u8 as f32;
@@ -312,7 +325,7 @@ impl Input {
 
     /// Did it go down this frame?
     pub fn pressed(&self, name: &str) -> bool {
-        self.down(name) && self.before.get(name).is_none_or(|v| v.abs() <= 0.5)
+        self.tapped.contains(name) || (self.down(name) && self.before.get(name).is_none_or(|v| v.abs() <= 0.5))
     }
 
     /// Did it come up this frame?
@@ -324,6 +337,16 @@ impl Input {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_complete_key_tap_between_frames_still_presses_once() {
+        let mut input=Input::parse("start = key Enter, pad A\ndrill = mouse Primary, pad RT").unwrap();
+        let ctx=egui::Context::default();
+        let mut raw=egui::RawInput::default();
+        for pressed in [true,false] {raw.events.push(egui::Event::Key{key:egui::Key::Enter,physical_key:None,pressed,repeat:false,modifiers:egui::Modifiers::default()});}
+        let _=ctx.run_ui(raw,|ui|{input.update(ui.ctx());assert!(input.pressed("start"));assert!(!input.down("start"));});
+        let _=ctx.run_ui(egui::RawInput::default(),|ui|{input.update(ui.ctx());assert!(!input.pressed("start"));});
+    }
 
     #[test]
     fn shift_is_a_named_held_action_with_a_single_press_edge() {

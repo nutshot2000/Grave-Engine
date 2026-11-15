@@ -1008,6 +1008,14 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                                 a.climb = Some(crate::physics::ClimbSettings { seconds, reach });
                             } else { err("climb needs 0.25..8 seconds and reach 1..10 cells".into()); }
                         }
+                        if words.iter().any(|w| *w == "jetpack") {
+                            let mut jet = crate::physics::Jetpack::default();
+                            jet.speed = opt("flight_speed").and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).unwrap_or(jet.speed).clamp(1.0, 15.0);
+                            jet.capacity = opt("jet_capacity").and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).unwrap_or(jet.capacity).clamp(1.0, 30.0);
+                            jet.fuel = opt("jet_fuel").and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).unwrap_or(jet.capacity).clamp(0.0, jet.capacity);
+                            a.jetpack = Some(jet);
+                        }
+                        a.headlamp = opt("headlamp").and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite()).unwrap_or(0.0).clamp(0.0, 240.0);
                         if let Some(name) = opt("look") {
                             match crate::look::find(name, base, crate::physics::actor_height()) {
                                 Ok(l) => a.look = Some(l),
@@ -1636,6 +1644,8 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             line += &format!(" moves crouch_height {} roll_height {} crouch_speed {} roll_speed {} roll_seconds {}", c.crouch_height, c.roll_height, c.crouch_speed, c.roll_speed, c.roll_seconds);
         }
         if let Some(c) = a.climb { line += &format!(" climb {} reach {}", c.seconds, c.reach); }
+        if let Some(j) = a.jetpack { line += &format!(" jetpack flight_speed {} jet_capacity {} jet_fuel {}", j.speed, j.capacity, j.fuel); }
+        if a.headlamp > 0.0 { line += &format!(" headlamp {}", a.headlamp); }
         if snap.follow.is_none() && snap.zoom > 0.0 {
             line += &format!(" zoom {}", snap.zoom);
         }

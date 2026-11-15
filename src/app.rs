@@ -2358,7 +2358,7 @@ impl Sandbox {
             let running = if testing { self.studio.test_running } else { self.playing };
             if ui
                 .add(egui::Button::new(RichText::new(if running { "⏸ Pause" } else { "▶ Play" }).strong()).fill(Color32::from_rgb(35, 105, 94)).min_size(Vec2::new(96., 28.)))
-                .on_hover_text("Run the simulation (Space)")
+                .on_hover_text("Play/Pause: P or controller Start. Space starts play; in explorer scenes, hold Space to fly.")
                 .clicked()
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
@@ -3542,6 +3542,10 @@ Click to mute. The volume is in the View menu.")
             bar(y, p.breath / 10.0, Color32::from_rgb(90, 170, 255), "breath");
             y += 16.0;
         }
+        if let Some((fuel, capacity)) = p.jet_fuel {
+            bar(y, fuel / capacity, Color32::from_rgb(85, 200, 230), "jetpack: Space / RT — release to recharge");
+            y += 16.0;
+        }
         // Soaked: what in, how much, and what it means (players need telling).
         if let Some(s) = p.soak {
             let m = self.mats.get(s.liquid);
@@ -3801,7 +3805,7 @@ Click to mute. The volume is in the View menu.")
             )
         });
         if space && self.studio.tab==Tab::Tests {self.studio.test_running=!self.studio.test_running;}
-        else if space {
+        else if (space && (!self.playing || !self.sim.physics.actor_status().iter().any(|a| a.jet_fuel.is_some()))) || self.input.pressed("pause") {
             if self.playing { self.playing = false } else { self.play() }
         }
         if h {
@@ -3879,13 +3883,13 @@ impl eframe::App for Sandbox {
         for path in dropped {
             self.import_file(&path);
         }
+        self.input.update(&ctx);
         self.shortcuts(&ctx);
 
         // Driving and the player: keyboard or game controller, through the
         // engine's controls (assets/input/editor.input). → / D or the left
         // stick drive motors marked `drive`, or walk the player.
         let typing = ctx.egui_wants_keyboard_input();
-        self.input.update(&ctx);
         let live = !typing && self.playing && !ctx.input(|i| i.modifiers.shift);
         let throttle = if live { self.input.axis("walk") } else { 0.0 };
         let has_player = self.sim.physics.actor_count() > 0;
@@ -3894,7 +3898,7 @@ impl eframe::App for Sandbox {
         let drop = live && self.input.down("drop");
         let crouch = live && self.input.down("crouch");
         let roll = live && self.input.down("roll");
-        self.sim.physics.set_controls(grave_engine::physics::Controls { crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
+        self.sim.physics.set_controls(grave_engine::physics::Controls { thrust: live && self.input.down("thrust"), crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
