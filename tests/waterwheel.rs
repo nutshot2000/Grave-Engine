@@ -50,3 +50,21 @@ fn a_seesaw_tips_towards_the_water() {
     println!("plank angle {:.1}°", a.to_degrees());
     assert!(a > 0.05, "the water's side goes down (clockwise): {:.1}°", a.to_degrees());
 }
+
+#[test]
+fn a_lone_crumb_falls_but_anchored_scenery_stays() {
+    let m = mats();
+    // A single brass pixel in mid-air next to wood that burns away, and an
+    // anchored lone pixel (decoration) that must stay put.
+    let text = "size 80 60\nfill air\nrect stone 0 50 80 10\nrect brass 20 20 1 1\nrect wood 21 20 3 1\nheat rect 21 20 3 1 900\n\
+                rect iron 60 20 1 1\nanchor 60 20 1 1\n";
+    let (mut s, problems) = scene::load(text, &m, None).into_sim(&m);
+    assert!(problems.is_empty(), "{problems:?}");
+    let (brass, iron) = (m.id("brass").unwrap(), m.id("iron").unwrap());
+    for _ in 0..600 {
+        s.step(&m);
+    }
+    let at = |id| (0..s.world.mat.len()).find(|&i| s.world.mat[i] == id).map(|i| i / s.world.w);
+    assert_eq!(at(brass), Some(49), "the bolt fell to the ground");
+    assert_eq!(at(iron), Some(20), "anchored decoration stays");
+}

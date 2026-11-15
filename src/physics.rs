@@ -859,6 +859,11 @@ impl Physics {
         }
         // Metal that was hit hard enough bends (or tears).
         self.bends(world, mats);
+        // Lone crumbs: a single solid scenery cell with nothing solid (and no
+        // object) touching it, such as a bolt left when the wood round it
+        // burned, falls instead of hovering. Anchored cells stay. (Done last,
+        // once every object is back in the grid.)
+        Self::drop_crumbs(world, mats);
     }
 
     /// Which object owns each world cell right now.
@@ -1618,6 +1623,36 @@ impl Physics {
             }
         }
         out
+    }
+
+    /// Throw every lone solid scenery cell in the awake parts of the world
+    /// (no solid cell or object above, below or beside it) so it falls.
+    fn drop_crumbs(world: &mut World, mats: &Materials) {
+        let (w, h) = (world.w, world.h);
+        let mut lone = Vec::new();
+        for b in 0..world.blocks() {
+            if world.block_still(b) {
+                continue;
+            }
+            let (x0, x1, y0, y1) = world.block_cells(b);
+            for y in y0.max(1)..y1.min(h - 1) {
+                for x in x0.max(1)..x1.min(w - 1) {
+                    let i = y * w + x;
+                    if !Self::is_scenery(world, mats, i) || world.flags[i] & crate::world::ANCHORED != 0 {
+                        continue;
+                    }
+                    let held = [i - 1, i + 1, i - w, i + w].iter().any(|&j| {
+                        world.is_owned(j) || !matches!(mats.get(world.mat[j]).state, State::Gas | State::Liquid)
+                    });
+                    if !held {
+                        lone.push((x, y));
+                    }
+                }
+            }
+        }
+        for (x, y) in lone {
+            world.throw(mats, x, y, 0.0, 0.0);
+        }
     }
 
     fn is_scenery(world: &World, mats: &Materials, i: usize) -> bool {
