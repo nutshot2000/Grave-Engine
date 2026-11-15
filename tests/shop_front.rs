@@ -40,7 +40,11 @@ fn shop_front_is_reusable_stands_and_burns() {
     let mut burning = false;
     for frame in 0..480 {
         if frame < 180 && frame % 30 == 0 {
-            s.world.heat_circle(110, 94, 60, 800.);
+            // Keep the heat on the fabric itself, wherever the awning has got to.
+            let at: Vec<usize> = (0..s.world.mat.len()).filter(|&i| s.world.mat[i] == cloth).collect();
+            if let Some(&i) = at.get(at.len() / 2) {
+                s.world.heat_circle((i % s.world.w) as i32, (i / s.world.w) as i32, 30, 800.);
+            }
         }
         s.step(&m);
         burning |= s

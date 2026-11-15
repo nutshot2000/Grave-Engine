@@ -57,6 +57,8 @@ pub struct Change {
 pub struct Material {
     pub name: String,
     pub about: String,
+    /// Which group the editor lists it under (`category = Metals`); empty = worked out.
+    pub category: String,
     pub state: State,
     /// kg per cubic metre. Heavier things sink below lighter ones.
     pub density: f32,
@@ -174,7 +176,33 @@ pub struct Material {
     pub file: Option<PathBuf>,
 }
 
+/// The material groups, in the order the editor shows them.
+pub const GROUPS: [&str; 7] = ["Earth, sand & snow", "Stone & building", "Wood, fabric & plastic", "Metals", "Liquids", "Fire, smoke & gases", "Explosives"];
+
 impl Material {
+    /// Which group the editor lists this material in: its own `category`
+    /// if set, otherwise worked out from what it is.
+    pub fn group(&self) -> &str {
+        if !self.category.is_empty() {
+            return &self.category;
+        }
+        if self.explosion_size > 0.0 {
+            "Explosives"
+        } else if self.state == State::Gas || self.lifetime.is_some() || self.name == "ash" {
+            "Fire, smoke & gases"
+        } else if self.state == State::Liquid {
+            "Liquids"
+        } else if self.metal {
+            "Metals"
+        } else if self.catches_fire_at.is_some() || self.state == State::Solid && self.bounciness > 0.5 {
+            "Wood, fabric & plastic"
+        } else if self.state == State::Powder {
+            "Earth, sand & snow"
+        } else {
+            "Stone & building"
+        }
+    }
+
     /// How strong it still is at this temperature, 1 (full) to 0: falls
     /// from `softens_at` to the melting point.
     pub fn firmness(&self, temp: f32) -> f32 {
@@ -201,6 +229,7 @@ impl Material {
         Material {
             name: name.to_string(),
             about: String::new(),
+            category: String::new(),
             state: State::Solid,
             density: 1000.0,
             color: [255, 0, 255],
@@ -707,6 +736,7 @@ fn apply(
         "rolling_resistance" => m.rolling_resistance = num(v)?.clamp(0.0, 20.0),
         "clump" => m.clump = num(v)?.clamp(1.0, 8.0) as u8,
         "melt_yield" => m.melt_yield = num(v)?.clamp(0.0, 1.0),
+        "category" => m.category = v.trim().to_string(),
         "wind_effect" => m.wind_effect = num(v)?.clamp(0.0, 1.0),
         "softens_at" => m.softens_at = opt_num(v)?,
         "lets_light_through" | "transparency" => m.lets_light_through = opt_num(v)?.map(|t| t.clamp(0.0, 1.0)),

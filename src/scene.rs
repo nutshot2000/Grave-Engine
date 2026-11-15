@@ -436,6 +436,21 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 Ok(v) => ensure(&mut world, mats).wind = v[0].clamp(-50.0, 50.0),
                 Err(e) => err(e),
             },
+            "flying" => {
+                let id = words.get(1).and_then(|n| mats.id(n));
+                match (id, nums(2, 5)) {
+                    (Some(id), Ok(v)) => {
+                        let w = ensure(&mut world, mats);
+                        if w.spawn_flyer(mats, id, v[0], v[1], v[2], v[3])
+                            && let Some(f) = w.flying.last_mut()
+                        {
+                            f.temp = v[4];
+                        }
+                    }
+                    (None, _) => err("`flying` needs a material: `flying sand X Y VX VY TEMP`".into()),
+                    (_, Err(e)) => err(e),
+                }
+            }
             "turbulence" => match nums(1, 1) {
                 Ok(v) => ensure(&mut world, mats).turbulence = v[0].clamp(0.0, 10.0),
                 Err(e) => err(e),
@@ -1278,6 +1293,10 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     if world.turbulence != 1.0 {
         out.push_str(&format!("turbulence {}\n", world.turbulence));
+    }
+    // Things in mid-air when saved (sparks, flakes, splashes) are kept too.
+    for f in &world.flying {
+        out.push_str(&format!("flying {} {:.2} {:.2} {:.3} {:.3} {:.1}\n", mats.get(f.mat).name, f.x, f.y, f.vx, f.vy, f.temp));
     }
     for id in present {
         if id == AIR {

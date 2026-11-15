@@ -193,7 +193,7 @@ impl Viewport {
             let t = dy as f32 / h;
             let wave = noise(seed ^ (dy as u32).wrapping_mul(31337) ^ self.frame / 3) as f32
                 / u32::MAX as f32;
-            let radius = (width * (1. - t).powf(0.7) * (0.7 + 0.35 * (t * 3.14).sin())
+            let radius = (width * (1. - t).powf(0.7) * (0.7 + 0.35 * (t * std::f32::consts::PI).sin())
                 + wave * 0.3)
                 .max(0.3);
             let cx = base[0] + sway * t * t + (wave - 0.5) * 0.7;

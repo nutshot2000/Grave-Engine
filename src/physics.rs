@@ -717,6 +717,7 @@ impl Physics {
         // 3. Floating and drag in liquids, then step the physics.
         let floats: Vec<(RigidBodyHandle, Option<(f32, Vector)>)> =
             self.bodies.iter().map(|b| (b.handle, Self::buoyancy(b, world, mats))).collect();
+        let floating: Vec<bool> = floats.iter().map(|(_, f)| f.is_some()).collect();
         for (h, f) in floats {
             let rb = &mut self.set[h];
             match f {
@@ -736,7 +737,7 @@ impl Physics {
         // a waterwheel's buckets, rain pooling in a boat.
         let loads: Vec<(RigidBodyHandle, Vec<(f32, Vector)>)> =
             // (An object already in water feels it through floating instead.)
-            self.bodies.iter().map(|b| (b.handle, Self::loads(b, world, mats, Self::buoyancy(b, world, mats).is_some()))).collect();
+            self.bodies.iter().zip(&floating).map(|(b, &fl)| (b.handle, Self::loads(b, world, mats, fl))).collect();
         for (h, list) in loads {
             if list.is_empty() {
                 continue;
@@ -863,7 +864,7 @@ impl Physics {
         // object) touching it, such as a bolt left when the wood round it
         // burned, falls instead of hovering. Anchored cells stay. (Done last,
         // once every object is back in the grid.)
-        Self::drop_crumbs(world, mats);
+        Self::drop_crumbs(world, mats, self.tick);
     }
 
     /// Which object owns each world cell right now.
@@ -1627,11 +1628,13 @@ impl Physics {
 
     /// Throw every lone solid scenery cell in the awake parts of the world
     /// (no solid cell or object above, below or beside it) so it falls.
-    fn drop_crumbs(world: &mut World, mats: &Materials) {
+    /// Only a sixteenth of the blocks each frame, in turn: cheap, and a
+    /// crumb still drops within a fraction of a second.
+    fn drop_crumbs(world: &mut World, mats: &Materials, tick: u32) {
         let (w, h) = (world.w, world.h);
         let mut lone = Vec::new();
         for b in 0..world.blocks() {
-            if world.block_still(b) {
+            if (b as u32 + tick) % 16 != 0 || world.block_still(b) {
                 continue;
             }
             let (x0, x1, y0, y1) = world.block_cells(b);
