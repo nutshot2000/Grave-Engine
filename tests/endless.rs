@@ -133,3 +133,72 @@ fn scrolling_is_quick_enough() {
     }
     let _ = std::fs::remove_dir_all(&e.dir);
 }
+
+#[test]
+#[ignore = "timing breakdown: cargo test --release --test endless profile -- --ignored --nocapture"]
+fn profile_scrolling() {
+    let m = mats();
+    let base = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes"));
+    let text = std::fs::read_to_string(base.join("endless-caves.txt")).unwrap();
+    let (mut sim, _) = scene::load(&text, &m, Some(base)).into_sim(&m);
+    let mut e = Endless::from_scene(&text, &m, Some(base), "profile").unwrap();
+    e.dir = dir("profile");
+    e.new_run();
+    for _ in 0..30 {
+        sim.step(&m);
+    }
+    grave_engine::profile::enable(true);
+    for k in 0..4 {
+        // Walk up to the edge like a player: the strip ahead gets made first.
+        let (near, edge) = if k % 2 == 0 { (900.0, 1200.0) } else { (380.0, 80.0) };
+        assert!(e.update(&mut sim, &m, (near, 500.0)).is_none());
+        for _ in 0..30 {
+            sim.step(&m);
+        }
+        e.update(&mut sim, &m, (edge, 500.0)).unwrap();
+        for f in 0..20 {
+            let t = std::time::Instant::now();
+            sim.step(&m);
+            if f < 3 || f == 19 {
+                eprintln!("  frame {f} after scroll {k}: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+    }
+    grave_engine::profile::enable(false);
+    eprintln!("{}", grave_engine::profile::report());
+    let _ = std::fs::remove_dir_all(&e.dir);
+}
+
+/// Sliding the world in place keeps everything running: a thrown crate
+/// keeps its speed, a crate resting on the floor stays resting (the rock
+/// outlines moved with it), the player keeps standing.
+#[test]
+fn a_smooth_scroll_keeps_physics_running() {
+    let m = mats();
+    let text = "size 1024 512\nfill air\nrect stone 0 400 1024 112\nbody rect wood 600 380 12 12\nplayer 700 400\n";
+    let (mut sim, problems) = scene::load(text, &m, None).into_sim(&m);
+    assert!(problems.is_empty(), "{problems:?}");
+    let wood = m.id("wood").unwrap();
+    let spec = grave_engine::physics::BodySpec { vx: 40.0, ..grave_engine::physics::BodySpec::from_mats(6, 6, &vec![Some(wood); 36], &m, 500.0, 200.0) };
+    let thrown = sim.physics.add(&mut sim.world, &m, spec).unwrap();
+    let resting = sim.physics.ids()[0];
+    for _ in 0..90 {
+        sim.step(&m);
+    }
+    let (rx, ry, _) = sim.physics.pose_of(resting).unwrap();
+    let (tx, _, _) = sim.physics.pose_of(thrown).unwrap();
+    sim.shift(-256, 0);
+    let (rx2, ry2, _) = sim.physics.pose_of(resting).unwrap();
+    assert!((rx2 - (rx - 256.0)).abs() < 0.01 && (ry2 - ry).abs() < 0.01, "moved exactly with the world");
+    for _ in 0..120 {
+        sim.step(&m);
+    }
+    let (rx3, ry3, _) = sim.physics.pose_of(resting).unwrap();
+    assert!((rx3 - rx2).abs() < 1.0 && (ry3 - ry2).abs() < 1.0, "the resting crate stayed put: ({rx2}, {ry2}) -> ({rx3}, {ry3})");
+    let (tx2, _, _) = sim.physics.pose_of(thrown).unwrap();
+    assert!(tx2 < tx - 256.0 + 120.0 && tx2 > tx - 256.0 - 5.0, "the thrown crate carried on from where it was: {tx} -> {tx2}");
+    let a = &sim.physics.actor_status()[0];
+    assert!(!a.dead && a.grounded, "the player is still standing");
+    // Stone that slid in from the right is solid ground too.
+    assert_eq!(sim.world.mat[sim.world.idx(100, 450)], m.id("stone").unwrap());
+}

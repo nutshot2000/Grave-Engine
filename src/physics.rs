@@ -73,6 +73,7 @@ impl PhysicsHooks for OneWayPowder {
 }
 
 mod actor;
+mod shift;
 mod bend;
 mod vehicle;
 pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold, MobilitySettings, Posture, Soak};
@@ -260,6 +261,9 @@ struct Chunk {
     colliders: Vec<ColliderHandle>,
     /// Frame when a drying film here next changes the grip (0 = none).
     recheck: u32,
+    /// Came in with an endless-map scroll: traced when there's time (a
+    /// few per frame), it's far from the player.
+    lazy: bool,
 }
 
 pub struct Physics {
@@ -311,6 +315,9 @@ pub struct Physics {
     /// Sound: how hard each touching pair pushed last update, and when it
     /// last made a noise (a new hit is a jump in force, not a resting weight).
     heard: HashMap<(u64, u64), (f32, u32)>,
+    /// Rock outlines switched off by a scroll, removed a few per frame
+    /// (removing hundreds at once is slow).
+    graveyard: Vec<ColliderHandle>,
     cw: usize,
     ch: usize,
     w: usize,
@@ -394,6 +401,7 @@ impl Physics {
             bend_hits: Vec::new(),
             bent: HashMap::new(),
             heard: HashMap::new(),
+            graveyard: Vec::new(),
             run_id: NEXT_RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             controls: Controls::default(),
             set,
@@ -408,7 +416,7 @@ impl Physics {
             ccd: CCDSolver::new(),
             params,
             ground,
-            chunks: (0..cw * ch).map(|_| Chunk { sig: 0, colliders: Vec::new(), recheck: 0 }).collect(),
+            chunks: (0..cw * ch).map(|_| Chunk { sig: 0, colliders: Vec::new(), recheck: 0, lazy: false }).collect(),
             solid_prev: Vec::new(),
             mark: vec![0; w * h],
             epoch: 0,
@@ -1414,8 +1422,21 @@ impl Physics {
 
     fn update_terrain(&mut self, world: &World, mats: &Materials) {
         let mut rebuilt: Vec<(usize, usize)> = Vec::new();
+        // Outlines a scroll switched off: tidy away a few.
+        for _ in 0..64 {
+            let Some(hnd) = self.graveyard.pop() else { break };
+            self.colliders.remove(hnd, &mut self.islands, &mut self.set, &mut self.soft, false);
+        }
+        let mut lazy_budget = 48;
         for cy in 0..self.ch {
             for cx in 0..self.cw {
+                if self.chunks[cy * self.cw + cx].lazy {
+                    if lazy_budget == 0 {
+                        continue;
+                    }
+                    lazy_budget -= 1;
+                    self.chunks[cy * self.cw + cx].lazy = false;
+                }
                 // Nothing changed here for a while (the world's sleeping
                 // blocks are these same 32x32 chunks): the ground is as it was.
                 let due = { let r = self.chunks[cy * self.cw + cx].recheck; r != 0 && world.frame >= r };

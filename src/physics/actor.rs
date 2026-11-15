@@ -321,6 +321,22 @@ impl Physics {
         self.actors.len() - 1
     }
 
+    /// Move every character (dx, dy) cells (see shift.rs); `moved` maps an
+    /// old world cell index to the new one.
+    pub(super) fn shift_actors(&mut self, dx: i32, dy: i32, moved: &dyn Fn(u32) -> Option<u32>) {
+        let delta = Vector::new(dx as f32 * CELL, dy as f32 * CELL);
+        for a in self.actors.iter_mut() {
+            let rb = &mut self.set[a.handle];
+            let t = rb.translation();
+            rb.set_translation(t + delta, true);
+            a.stamped = a.stamped.iter().filter_map(|&(wi, li)| Some((moved(wi)?, li))).collect();
+            a.spec.spawn = (a.spec.spawn.0 + dx as f32, a.spec.spawn.1 + dy as f32);
+            if let Some(hold) = a.spec.ledge.as_mut() {
+                hold.edge = (hold.edge.0 + dx, hold.edge.1 + dy);
+            }
+        }
+    }
+
     pub fn actor_count(&self) -> usize {
         self.actors.len()
     }

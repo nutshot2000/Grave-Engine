@@ -301,40 +301,68 @@ impl World {
     /// anything worked out from the old picture is redone.
     pub fn shift(&mut self, dx: i32, dy: i32) {
         let (w, h) = (self.w, self.h);
+        // In place: rows move as whole slices (memmove), then the gap fills.
         fn slide<T: Copy>(v: &mut [T], w: usize, h: usize, dx: i32, dy: i32, fill: T) {
-            let mut out = vec![fill; v.len()];
-            for y in 0..h as i32 {
-                let ny = y + dy;
-                if ny < 0 || ny >= h as i32 {
-                    continue;
-                }
-                let (x0, x1) = (0.max(-dx), (w as i32).min(w as i32 - dx));
-                if x0 >= x1 {
-                    continue;
-                }
-                let src = y as usize * w;
-                let dst = ny as usize * w;
-                out[dst + (x0 + dx) as usize..dst + (x1 + dx) as usize].copy_from_slice(&v[src + x0 as usize..src + x1 as usize]);
+            let (wi, hi) = (w as i32, h as i32);
+            if dx.abs() >= wi || dy.abs() >= hi {
+                v.fill(fill);
+                return;
             }
-            v.copy_from_slice(&out);
+            // Rows: whole rows move up or down.
+            if dy > 0 {
+                v.copy_within(0..(hi - dy) as usize * w, dy as usize * w);
+                v[..dy as usize * w].fill(fill);
+            } else if dy < 0 {
+                v.copy_within((-dy) as usize * w.., 0);
+                let n = v.len();
+                v[n - (-dy) as usize * w..].fill(fill);
+            }
+            // Across: each row slides sideways.
+            if dx != 0 {
+                let d = dx.unsigned_abs() as usize;
+                for row in v.chunks_mut(w) {
+                    if dx > 0 {
+                        row.copy_within(0..w - d, d);
+                        row[..d].fill(fill);
+                    } else {
+                        row.copy_within(d.., 0);
+                        row[w - d..].fill(fill);
+                    }
+                }
+            }
         }
-        slide(&mut self.mat, w, h, dx, dy, AIR);
-        slide(&mut self.temp, w, h, dx, dy, self.ambient);
-        slide(&mut self.life, w, h, dx, dy, 0);
-        slide(&mut self.burn, w, h, dx, dy, 0);
-        slide(&mut self.flags, w, h, dx, dy, 0);
-        slide(&mut self.depth_air, w, h, dx, dy, false);
-        slide(&mut self.shade, w, h, dx, dy, 0);
-        slide(&mut self.paint, w, h, dx, dy, 0);
-        slide(&mut self.coat, w, h, dx, dy, AIR);
-        slide(&mut self.coat_until, w, h, dx, dy, 0);
-        slide(&mut self.back, w, h, dx, dy, AIR);
-        slide(&mut self.tex, w, h, dx, dy, 0);
+        // (The layers are independent: slide them on several cores.)
+        let ambient = self.ambient;
+        std::thread::scope(|sc| {
+            sc.spawn(|| slide(&mut self.mat, w, h, dx, dy, AIR));
+            sc.spawn(|| slide(&mut self.temp, w, h, dx, dy, ambient));
+            sc.spawn(|| slide(&mut self.paint, w, h, dx, dy, 0));
+            sc.spawn(|| slide(&mut self.coat_until, w, h, dx, dy, 0));
+            sc.spawn(|| {
+                slide(&mut self.life, w, h, dx, dy, 0);
+                slide(&mut self.burn, w, h, dx, dy, 0);
+            });
+            sc.spawn(|| {
+                slide(&mut self.flags, w, h, dx, dy, 0);
+                slide(&mut self.depth_air, w, h, dx, dy, false);
+                slide(&mut self.shade, w, h, dx, dy, 0);
+            });
+            sc.spawn(|| {
+                slide(&mut self.coat, w, h, dx, dy, AIR);
+                slide(&mut self.back, w, h, dx, dy, AIR);
+            });
+            slide(&mut self.tex, w, h, dx, dy, 0);
+        });
         self.moved.fill(0);
-        // The gap: fresh shades and texture places.
-        for i in 0..w * h {
-            if self.mat[i] == AIR && self.tex[i] == 0 {
-                self.tex[i] = pack_tex(i % w, i / w);
+        // The gap (only those rows and columns): fresh shades and texture places.
+        let (wi, hi) = (w as i32, h as i32);
+        let rows = if dy > 0 { 0..dy.min(hi) } else { (hi + dy).max(0)..hi };
+        let cols = if dx > 0 { 0..dx.min(wi) } else { (wi + dx).max(0)..wi };
+        for y in 0..hi {
+            let whole_row = rows.contains(&y);
+            for x in if whole_row { 0..wi } else { cols.clone() } {
+                let i = y as usize * w + x as usize;
+                self.tex[i] = pack_tex(x as usize, y as usize);
                 self.shade[i] = self.rand() as u8;
             }
         }
@@ -349,7 +377,17 @@ impl World {
         self.blast_echo_out.clear();
         self.sounds.clear();
         self.id = NEXT_WORLD.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.wake_all();
+        // Sleeping areas move along (a whole number of blocks) and the gap
+        // wakes; otherwise everything wakes.
+        if dx % BLOCK as i32 == 0 && dy % BLOCK as i32 == 0 {
+            let (bw, bh) = (self.bw, self.bh);
+            let (bx, by) = (dx / BLOCK as i32, dy / BLOCK as i32);
+            slide(&mut self.awake, bw, bh, bx, by, AWAKE_FRAMES);
+            slide(&mut self.slow, bw, bh, bx, by, false);
+            self.plan_blocks();
+        } else {
+            self.wake_all();
+        }
     }
 
     /// Something happened at cell `i`: wake its block.

@@ -12,17 +12,27 @@
 //! it streaming. Every load is a new run: saved regions from an old one are
 //! cleared (`begin`).
 //!
+//! Smooth: the scroll slides everything in place (`Sim::shift`: objects keep
+//! moving, only the new strip's rock outlines are traced), saving runs on a
+//! background thread (with a copy kept in memory for coming straight back),
+//! and the strip ahead is generated on another core before it's needed.
+//!
 //! What streams: cells (with paint, films, the wall behind, anchoring) and
 //! loose objects (crates, debris). Saved regions keep their shapes but not
 //! their heat or fires. Objects tied to something (joints, the camera, a
 //! trigger, a lamp, a pump) aren't saved away: keep them near the player.
 
 use crate::levelgen::{self, Settings, Tile};
-use crate::physics::BodySpec;
-use crate::sim::{Sim, Snapshot};
+use crate::sim::Sim;
 use crate::{Materials, World, scene};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::thread::JoinHandle;
+
+/// Regions left behind that stay ready in memory (a few MB each); older
+/// ones are read back from disk.
+const KEEP: usize = 48;
 
 /// A running endless map.
 pub struct Endless {
@@ -39,13 +49,37 @@ pub struct Endless {
     /// (saved, loaded, generated) regions so far.
     pub stats: (usize, usize, usize),
     pub problems: Vec<String>,
+    /// Saved regions kept in memory too, ready-made (cells and objects), and
+    /// saves still being written to disk in the background.
+    cache: HashMap<(i64, i64), Arc<(World, Vec<crate::physics::BodySpec>)>>,
+    /// Which were kept most recently (only the last `KEEP` stay in memory).
+    cache_order: std::collections::VecDeque<(i64, i64)>,
+    saving: HashMap<(i64, i64), JoinHandle<Result<(), String>>>,
+    /// Regions being generated ahead of time, on another core.
+    ahead: HashMap<(i64, i64), JoinHandle<World>>,
+    /// Shared with the background threads.
+    shared: Option<(Arc<Materials>, Arc<Vec<Tile>>)>,
 }
 
 impl Endless {
     pub fn new(settings: Settings, tiles: Vec<Tile>, region: usize, dir: PathBuf) -> Self {
         let mut settings = settings;
         settings.open_sides = true;
-        Endless { settings, tiles, region: region.clamp(64, 2048), dir, origin: (0, 0), saved: HashSet::new(), stats: (0, 0, 0), problems: Vec::new() }
+        Endless {
+            settings,
+            tiles,
+            region: region.clamp(64, 2048),
+            dir,
+            origin: (0, 0),
+            saved: HashSet::new(),
+            stats: (0, 0, 0),
+            problems: Vec::new(),
+            cache: HashMap::new(),
+            cache_order: std::collections::VecDeque::new(),
+            saving: HashMap::new(),
+            ahead: HashMap::new(),
+            shared: None,
+        }
     }
 
     /// The `endless` line of a scene, if it has one (`base` = the scene's folder).
@@ -63,9 +97,20 @@ impl Endless {
     /// A new run on a world that already shows the map at `origin` (a scene
     /// with an `endless` line has generated it): forget saved regions.
     pub fn new_run(&mut self) {
+        self.settle();
         let _ = std::fs::remove_dir_all(&self.dir);
         self.saved.clear();
+        self.cache.clear();
+        self.cache_order.clear();
+        self.ahead.clear();
         self.stats = (0, 0, 0);
+    }
+
+    /// Wait for background saves to finish (before quitting, say).
+    pub fn settle(&mut self) {
+        for (_, job) in self.saving.drain() {
+            let _ = job.join();
+        }
     }
 
     /// Carry on a run (after the editor restarts into a new build): the
@@ -73,6 +118,9 @@ impl Endless {
     pub fn resume(&mut self, origin: (i64, i64)) {
         self.origin = origin;
         self.saved.clear();
+        self.cache.clear();
+        self.cache_order.clear();
+        self.ahead.clear();
         if let Ok(rd) = std::fs::read_dir(&self.dir) {
             for e in rd.flatten() {
                 let name = e.file_name().to_string_lossy().to_string();
@@ -88,49 +136,60 @@ impl Endless {
     /// Start a new run: forget saved regions and make the whole world from
     /// the map at `origin`.
     pub fn begin(&mut self, sim: &mut Sim, mats: &Materials) {
-        let _ = std::fs::remove_dir_all(&self.dir);
-        self.saved.clear();
-        let mut snap = sim.snapshot();
-        let (rw, rh) = (snap.world.w / self.region, snap.world.h / self.region);
+        self.new_run();
+        let (rw, rh) = (sim.world.w / self.region, sim.world.h / self.region);
         for ry in 0..rh {
             for rx in 0..rw {
-                self.fill(&mut snap, mats, rx, ry);
+                self.fill(sim, mats, rx, ry);
             }
         }
-        *sim = restore_keeping(sim, &snap, mats, (0, 0));
     }
 
     /// Call once a frame with where the player (or camera) is, in world
     /// cells. Near an edge, the world scrolls one region; returns how far
-    /// everything moved (cells), so cameras can move with it.
+    /// everything moved (cells), so cameras can move with it. A little
+    /// further in, the strip ahead starts being made in the background.
     pub fn update(&mut self, sim: &mut Sim, mats: &Materials, focus: (f32, f32)) -> Option<(i32, i32)> {
-        let (w, h) = (sim.world.w as f32, sim.world.h as f32);
-        let r = self.region as f32;
-        // (Scrolling needs room: at least three regions each way.)
-        let (dx, dy) = if w >= 3.0 * r && focus.0 < r {
-            (self.region as i32, 0)
-        } else if w >= 3.0 * r && focus.0 > w - r {
-            (-(self.region as i32), 0)
-        } else if h >= 3.0 * r && focus.1 < r {
-            (0, self.region as i32)
-        } else if h >= 3.0 * r && focus.1 > h - r {
-            (0, -(self.region as i32))
-        } else {
-            return None;
-        };
         if !focus.0.is_finite() || !focus.1.is_finite() {
             return None;
         }
-        self.scroll(sim, mats, dx, dy);
-        Some((dx, dy))
+        let (w, h) = (sim.world.w as f32, sim.world.h as f32);
+        let r = self.region as f32;
+        let (can_x, can_y) = (w >= 3.0 * r, h >= 3.0 * r);
+        let ri = self.region as i32;
+        let near = |d: f32| {
+            if can_x && focus.0 < d {
+                Some((ri, 0))
+            } else if can_x && focus.0 > w - d {
+                Some((-ri, 0))
+            } else if can_y && focus.1 < d {
+                Some((0, ri))
+            } else if can_y && focus.1 > h - d {
+                Some((0, -ri))
+            } else {
+                None
+            }
+        };
+        if let Some((dx, dy)) = near(r) {
+            self.scroll(sim, mats, dx, dy);
+            return Some((dx, dy));
+        }
+        if let Some((dx, dy)) = near(2.0 * r) {
+            self.prepare(sim, mats, dx, dy);
+        }
+        // Tidy finished background saves into the memory copy.
+        let done: Vec<(i64, i64)> = self.saving.iter().filter(|(_, j)| j.is_finished()).map(|(k, _)| *k).collect();
+        for k in done {
+            self.finish_save(k);
+        }
+        None
     }
 
-    /// Scroll the window: everything moves (dx, dy) cells (one region).
-    pub fn scroll(&mut self, sim: &mut Sim, mats: &Materials, dx: i32, dy: i32) {
-        let mut snap = sim.snapshot();
+    /// The world regions that leave and come in when scrolling (dx, dy).
+    fn strips(&self, w: usize, h: usize, dx: i32, dy: i32) -> (Vec<(usize, usize)>, Vec<(usize, usize)>) {
         let r = self.region;
-        let (rw, rh) = (snap.world.w / r, snap.world.h / r);
-        let (leaving, entering): (Vec<(usize, usize)>, Vec<(usize, usize)>) = if dx > 0 {
+        let (rw, rh) = (w / r, h / r);
+        if dx > 0 {
             ((0..rh).map(|y| (rw - 1, y)).collect(), (0..rh).map(|y| (0, y)).collect())
         } else if dx < 0 {
             ((0..rh).map(|y| (0, y)).collect(), (0..rh).map(|y| (rw - 1, y)).collect())
@@ -138,18 +197,63 @@ impl Endless {
             ((0..rw).map(|x| (x, rh - 1)).collect(), (0..rw).map(|x| (x, 0)).collect())
         } else {
             ((0..rw).map(|x| (x, 0)).collect(), (0..rw).map(|x| (x, rh - 1)).collect())
-        };
-        for &(rx, ry) in &leaving {
-            self.save(&mut snap, mats, rx, ry);
         }
-        snap.world.shift(dx, dy);
-        shift_snapshot(&mut snap, dx, dy);
+    }
+
+    fn shared(&mut self, mats: &Materials) -> (Arc<Materials>, Arc<Vec<Tile>>) {
+        let stale = self.shared.as_ref().is_none_or(|(m, t)| m.list.len() != mats.list.len() || t.len() != self.tiles.len());
+        if stale {
+            self.shared = Some((Arc::new(mats.clone()), Arc::new(self.tiles.clone())));
+        }
+        self.shared.clone().unwrap()
+    }
+
+    /// Start making the strip that would come in when scrolling (dx, dy),
+    /// on other cores, so the scroll itself only has to copy it in.
+    fn prepare(&mut self, sim: &Sim, mats: &Materials, dx: i32, dy: i32) {
+        let (_, entering) = self.strips(sim.world.w, sim.world.h, dx, dy);
+        let r = self.region as i64;
+        let (sx, sy) = (-(dx as i64) / r, -(dy as i64) / r);
+        for (rx, ry) in entering {
+            let map = self.map_region(rx, ry);
+            let map = (map.0 + sx, map.1 + sy);
+            if self.saved.contains(&map) || self.ahead.contains_key(&map) {
+                continue;
+            }
+            let (m, tiles) = self.shared(mats);
+            let (settings, size) = (self.settings.clone(), self.region);
+            self.ahead.insert(
+                map,
+                std::thread::spawn(move || {
+                    let mut part = World::new(size, size);
+                    levelgen::generate_at(&mut part, &m, (0, 0, size, size), (map.0 * size as i64, map.1 * size as i64), &settings, &tiles);
+                    part
+                }),
+            );
+        }
+    }
+
+    /// Scroll the window: everything moves (dx, dy) cells (one region).
+    pub fn scroll(&mut self, sim: &mut Sim, mats: &Materials, dx: i32, dy: i32) {
+        let _all = crate::profile::scope("endless.scroll");
+        let (leaving, entering) = self.strips(sim.world.w, sim.world.h, dx, dy);
+        for &(rx, ry) in &leaving {
+            let _p = crate::profile::scope("endless.save");
+            self.save(sim, mats, rx, ry);
+        }
+        {
+            let _p = crate::profile::scope("endless.shift");
+            sim.shift(dx, dy);
+        }
         self.origin.0 -= dx as i64;
         self.origin.1 -= dy as i64;
         for &(rx, ry) in &entering {
-            self.fill(&mut snap, mats, rx, ry);
+            let _p = crate::profile::scope("endless.fill");
+            self.fill(sim, mats, rx, ry);
         }
-        *sim = restore_keeping(sim, &snap, mats, (dx, dy));
+        // What was made ahead for the other way is no use now.
+        let keep: HashSet<(i64, i64)> = entering.iter().map(|&(x, y)| self.map_region(x, y)).collect();
+        self.ahead.retain(|k, _| keep.contains(k));
     }
 
     /// Which map region world region (rx, ry) is.
@@ -158,57 +262,130 @@ impl Endless {
         (self.origin.0.div_euclid(r) + rx as i64, self.origin.1.div_euclid(r) + ry as i64)
     }
 
-    /// Save world region (rx, ry) and the loose objects in it to disk (they
-    /// leave the snapshot).
-    fn save(&mut self, snap: &mut Snapshot, mats: &Materials, rx: usize, ry: usize) {
+    /// Save world region (rx, ry): its loose objects leave the world, and
+    /// its cells and those objects are written out in the background.
+    fn save(&mut self, sim: &mut Sim, mats: &Materials, rx: usize, ry: usize) {
         let r = self.region;
         let (x0, y0) = (rx * r, ry * r);
-        let mut part = World::new(r, r);
-        part.ambient = snap.world.ambient;
-        copy_block(&snap.world, (x0, y0), &mut part, (0, 0), (r, r));
-        let inside = |b: &BodySpec| b.x >= x0 as f32 && b.x < (x0 + r) as f32 && b.y >= y0 as f32 && b.y < (y0 + r) as f32;
-        let mut bodies = take_loose_bodies(snap, inside);
-        for b in bodies.iter_mut() {
-            b.x -= x0 as f32;
-            b.y -= y0 as f32;
+        // Loose objects in the region: nothing refers to them.
+        let mut used: HashSet<u64> = HashSet::new();
+        for j in sim.physics.joints() {
+            used.insert(j.a);
+            used.insert(j.b);
         }
-        let mut sub = Snapshot::of_world(part);
-        sub.instances = vec![None; bodies.len()];
-        sub.bodies = bodies;
-        let file = self.region_file(self.map_region(rx, ry));
-        let result = std::fs::create_dir_all(&self.dir).and_then(|_| std::fs::write(&file, scene::save(&sub, mats)));
-        match result {
-            Ok(()) => {
-                self.saved.insert(self.map_region(rx, ry));
-                self.stats.0 += 1;
+        used.extend(sim.follow);
+        used.extend(sim.physics.upright().into_iter().map(|u| u.0));
+        for t in &sim.triggers {
+            if let crate::trigger::By::Object(id) = t.by {
+                used.insert(id);
             }
-            Err(e) => self.problems.push(format!("couldn't save {}: {e}", file.display())),
+        }
+        used.extend(sim.lighting.lights.iter().filter_map(|l| l.on));
+        used.extend(sim.pumps.iter().map(|p| p.drive));
+        let inside = |x: f32, y: f32| x >= x0 as f32 && x < (x0 + r) as f32 && y >= y0 as f32 && y < (y0 + r) as f32;
+        let mut bodies = Vec::new();
+        for id in sim.physics.ids() {
+            if used.contains(&id) || !sim.physics.pose_of(id).is_some_and(|(x, y, _)| inside(x, y)) {
+                continue;
+            }
+            if let Some(mut b) = sim.physics.remove(&mut sim.world, id) {
+                sim.instances.remove(&id);
+                b.x -= x0 as f32;
+                b.y -= y0 as f32;
+                bodies.push(b);
+            }
+        }
+        let mut part = World::new(r, r);
+        part.ambient = sim.world.ambient;
+        copy_block(&sim.world, (x0, y0), &mut part, (0, 0), (r, r));
+        // (Cells of objects that stay are left out.)
+        for i in 0..part.mat.len() {
+            if part.is_owned(i) {
+                part.mat[i] = crate::material::AIR;
+                part.flags[i] = 0;
+            }
+        }
+        let map = self.map_region(rx, ry);
+        let file = self.region_file(map);
+        let dir = self.dir.clone();
+        let (m, _) = self.shared(mats);
+        let kept = Arc::new((part, bodies));
+        self.cache.insert(map, kept.clone());
+        self.cache_order.retain(|k| *k != map);
+        self.cache_order.push_back(map);
+        while self.cache_order.len() > KEEP {
+            if let Some(old) = self.cache_order.pop_front() {
+                self.cache.remove(&old);
+            }
+        }
+        // An older save of this region still being written: let it finish first.
+        self.finish_save(map);
+        self.saving.insert(
+            map,
+            std::thread::spawn(move || {
+                let (part, bodies) = &*kept;
+                let mut sub = crate::sim::Snapshot::of_world(part.clone());
+                sub.instances = vec![None; bodies.len()];
+                sub.bodies = bodies.clone();
+                let text = scene::save(&sub, &m);
+                std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, text)).map_err(|e| format!("couldn't save {}: {e}", file.display()))
+            }),
+        );
+        self.saved.insert(map);
+        self.stats.0 += 1;
+    }
+
+    /// Wait for a background save to finish (and hear if it failed).
+    fn finish_save(&mut self, map: (i64, i64)) {
+        if let Some(job) = self.saving.remove(&map) {
+            match job.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => self.problems.push(e),
+                Err(_) => self.problems.push("a background save failed".into()),
+            }
         }
     }
 
-    /// Fill world region (rx, ry): from disk if it's been visited this run,
-    /// otherwise freshly generated.
-    fn fill(&mut self, snap: &mut Snapshot, mats: &Materials, rx: usize, ry: usize) {
+    /// Fill world region (rx, ry): from what was saved if it's been visited
+    /// this run, otherwise freshly made (ahead of time if possible).
+    fn fill(&mut self, sim: &mut Sim, mats: &Materials, rx: usize, ry: usize) {
         let r = self.region;
         let (x0, y0) = (rx * r, ry * r);
         let map = self.map_region(rx, ry);
-        if self.saved.contains(&map)
-            && let Ok(text) = std::fs::read_to_string(self.region_file(map))
-        {
-            let (mut part, problems) = scene::load(&text, mats, None).into_sim(mats);
-            self.problems.extend(problems);
-            let psnap = part.snapshot();
-            copy_block(&psnap.world, (0, 0), &mut snap.world, (x0, y0), (r, r));
-            for mut b in psnap.bodies {
-                b.x += x0 as f32;
-                b.y += y0 as f32;
-                snap.bodies.push(b);
-                snap.instances.push(None);
+        if self.saved.contains(&map) {
+            // Ready-made in memory, or read back from disk (after a restart).
+            let kept = self.cache.get(&map).cloned().or_else(|| {
+                self.finish_save(map);
+                let text = std::fs::read_to_string(self.region_file(map)).ok()?;
+                let (mut part, problems) = scene::load(&text, mats, None).into_sim(mats);
+                self.problems.extend(problems);
+                let psnap = part.snapshot();
+                Some(Arc::new((psnap.world, psnap.bodies)))
+            });
+            if let Some(kept) = kept {
+                let (part, bodies) = &*kept;
+                copy_block(part, (0, 0), &mut sim.world, (x0, y0), (r, r));
+                sim.world.wake_box(x0 as i32, y0 as i32, (x0 + r) as i32 - 1, (y0 + r) as i32 - 1);
+                for b in bodies {
+                    let mut b = b.clone();
+                    b.x += x0 as f32;
+                    b.y += y0 as f32;
+                    sim.physics.add(&mut sim.world, mats, b);
+                }
+                self.stats.1 += 1;
+                return;
             }
-            self.stats.1 += 1;
-            return;
         }
-        levelgen::generate_at(&mut snap.world, mats, (x0, y0, r, r), self.origin, &self.settings, &self.tiles);
+        let part = match self.ahead.remove(&map).map(|job| job.join()) {
+            Some(Ok(part)) => part,
+            _ => {
+                let mut part = World::new(r, r);
+                levelgen::generate_at(&mut part, mats, (0, 0, r, r), (map.0 * r as i64, map.1 * r as i64), &self.settings, &self.tiles);
+                part
+            }
+        };
+        copy_block(&part, (0, 0), &mut sim.world, (x0, y0), (r, r));
+        sim.world.wake_box(x0 as i32, y0 as i32, (x0 + r) as i32 - 1, (y0 + r) as i32 - 1);
         self.stats.2 += 1;
     }
 }
@@ -266,116 +443,4 @@ fn copy_block(src: &World, from: (usize, usize), dst: &mut World, to: (usize, us
         dst.coat_until[d0..d0 + n].copy_from_slice(&src.coat_until[s0..s0 + n]);
         dst.back[d0..d0 + n].copy_from_slice(&src.back[s0..s0 + n]);
     }
-}
-
-/// Remove the loose objects (nothing refers to them: no joint, camera,
-/// balance, trigger, lamp or pump) that `pick` chooses, renumbering what
-/// refers to the rest. Returns the removed ones.
-fn take_loose_bodies(snap: &mut Snapshot, pick: impl Fn(&BodySpec) -> bool) -> Vec<BodySpec> {
-    let mut used: HashSet<u64> = HashSet::new();
-    for j in &snap.joints {
-        used.insert(j.a);
-        used.insert(j.b);
-    }
-    used.extend(snap.follow);
-    used.extend(snap.upright.iter().map(|u| u.0));
-    for t in &snap.triggers {
-        if let crate::trigger::By::Object(n) = t.by {
-            used.insert(n);
-        }
-    }
-    used.extend(snap.lighting.lights.iter().filter_map(|l| l.on));
-    used.extend(snap.pumps.iter().map(|p| p.drive));
-    let mut taken = Vec::new();
-    let mut new_number = vec![0u64; snap.bodies.len() + 1];
-    let (mut kept, mut kept_instances) = (Vec::new(), Vec::new());
-    let instances = std::mem::take(&mut snap.instances);
-    for (n, (b, inst)) in std::mem::take(&mut snap.bodies).into_iter().zip(instances.into_iter().chain(std::iter::repeat(None))).enumerate() {
-        if !used.contains(&(n as u64 + 1)) && pick(&b) {
-            taken.push(b);
-        } else {
-            kept.push(b);
-            kept_instances.push(inst);
-            new_number[n + 1] = kept.len() as u64;
-        }
-    }
-    snap.bodies = kept;
-    snap.instances = kept_instances;
-    let renumber = |n: u64| if n == 0 { 0 } else { new_number.get(n as usize).copied().unwrap_or(0) };
-    for j in snap.joints.iter_mut() {
-        j.a = renumber(j.a);
-        j.b = renumber(j.b);
-    }
-    snap.follow = snap.follow.map(renumber);
-    for u in snap.upright.iter_mut() {
-        u.0 = renumber(u.0);
-    }
-    for t in snap.triggers.iter_mut() {
-        if let crate::trigger::By::Object(n) = t.by {
-            t.by = crate::trigger::By::Object(renumber(n));
-        }
-    }
-    for l in snap.lighting.lights.iter_mut() {
-        l.on = l.on.map(renumber);
-    }
-    for p in snap.pumps.iter_mut() {
-        p.drive = renumber(p.drive);
-    }
-    taken
-}
-
-/// Move everything in a snapshot (besides the cells) by (dx, dy) cells.
-fn shift_snapshot(snap: &mut Snapshot, dx: i32, dy: i32) {
-    let (fx, fy) = (dx as f32, dy as f32);
-    for b in snap.bodies.iter_mut() {
-        b.x += fx;
-        b.y += fy;
-    }
-    for j in snap.joints.iter_mut() {
-        // Ends on the ground are in world cells.
-        if j.a == 0 {
-            j.anchor_a = (j.anchor_a.0 + fx, j.anchor_a.1 + fy);
-        }
-        if j.b == 0 {
-            j.anchor_b = (j.anchor_b.0 + fx, j.anchor_b.1 + fy);
-        }
-    }
-    for t in snap.triggers.iter_mut() {
-        t.x += fx;
-        t.y += fy;
-    }
-    if let Some(c) = snap.checkpoint.as_mut() {
-        c.0 += fx;
-        c.1 += fy;
-    }
-    for l in snap.lighting.lights.iter_mut().filter(|l| l.on.is_none()) {
-        l.x += fx;
-        l.y += fy;
-    }
-    let move_box = |b: &mut (usize, usize, usize, usize)| {
-        b.0 = (b.0 as i64 + dx as i64).max(0) as usize;
-        b.1 = (b.1 as i64 + dy as i64).max(0) as usize;
-    };
-    for p in snap.pumps.iter_mut() {
-        move_box(&mut p.intake);
-        move_box(&mut p.outlet);
-    }
-    for a in snap.actors.iter_mut() {
-        a.x += fx;
-        a.y += fy;
-        a.spawn = (a.spawn.0 + fx, a.spawn.1 + fy);
-        if let Some(h) = a.ledge.as_mut() {
-            h.edge = (h.edge.0 + dx, h.edge.1 + dy);
-        }
-    }
-}
-
-/// A new running sim from `snap`, keeping what isn't saved in snapshots
-/// (camera effects, the weather's state) from the old one.
-fn restore_keeping(old: &mut Sim, snap: &Snapshot, mats: &Materials, shift: (i32, i32)) -> Sim {
-    let mut sim = Sim::restore(snap, mats);
-    sim.camera = std::mem::take(&mut old.camera);
-    sim.weather_run = std::mem::take(&mut old.weather_run);
-    sim.weather_view = old.weather_view.map(|(x0, y0, x1, y1)| (x0 + shift.0 as f32, y0 + shift.1 as f32, x1 + shift.0 as f32, y1 + shift.1 as f32));
-    sim
 }

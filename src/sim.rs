@@ -218,6 +218,48 @@ impl Sim {
         Sim::new(world, Vec::new(), mats)
     }
 
+    /// Slide everything (dx, dy) cells, in place, keeping it all running:
+    /// cells, objects, characters, joints to the ground, triggers, lamps,
+    /// pumps, the checkpoint and camera focus. What slides off the edge is
+    /// gone (endless.rs saves it first). Used by endless maps to scroll.
+    pub fn shift(&mut self, dx: i32, dy: i32) {
+        let (fx, fy) = (dx as f32, dy as f32);
+        self.world.shift(dx, dy);
+        self.physics.shift(dx, dy);
+        for t in self.triggers.iter_mut() {
+            t.x += fx;
+            t.y += fy;
+            t.occupied = false;
+        }
+        if let Some(c) = self.checkpoint.as_mut() {
+            c.0 += fx;
+            c.1 += fy;
+        }
+        for l in self.lighting.lights.iter_mut().filter(|l| l.on.is_none()) {
+            l.x += fx;
+            l.y += fy;
+        }
+        let move_box = |b: &mut (usize, usize, usize, usize)| {
+            b.0 = (b.0 as i64 + dx as i64).max(0) as usize;
+            b.1 = (b.1 as i64 + dy as i64).max(0) as usize;
+        };
+        for p in self.pumps.iter_mut() {
+            move_box(&mut p.intake);
+            move_box(&mut p.outlet);
+        }
+        if let Some(f) = self.camera.focus.as_mut()
+            && let crate::camera::Focus::Point(x, y) = &mut f.value
+        {
+            *x += fx;
+            *y += fy;
+        }
+        self.weather_view = self.weather_view.map(|(x0, y0, x1, y1)| (x0 + fx, y0 + fy, x1 + fx, y1 + fy));
+        self.seen = Seen::default();
+        for layer in self.layers.iter_mut() {
+            layer.shift(dx, dy);
+        }
+    }
+
     /// One frame: cells first (heat, fire, flowing), then objects.
     pub fn step(&mut self, mats: &Materials) {
         if self.layers.is_empty() || !crate::layers::parallel_planes() {self.step_depth(mats,false);return;}
