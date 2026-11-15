@@ -177,6 +177,9 @@ pub fn run(o: &Options) -> i32 {
     let objects_at_start = sim.physics.body_count();
     let mut r = Renderer::default();
     let shot_path = o.shot.clone().unwrap_or_else(|| PathBuf::from("shots/out.png"));
+    // GRAVE_PROFILE=1: print where the frame time went (see profile.rs).
+    let profiling = std::env::var_os("GRAVE_PROFILE").is_some();
+    crate::profile::enable(profiling);
     let start = std::time::Instant::now();
     sim.physics.set_throttle(o.throttle);
     sim.physics.set_controls(grave_engine_controls(o.walk, o.jump));
@@ -193,6 +196,10 @@ pub fn run(o: &Options) -> i32 {
             }
     }
     let elapsed = start.elapsed().as_secs_f64();
+    if profiling {
+        crate::profile::enable(false);
+        print!("{}", crate::profile::report());
+    }
     r.light(&sim);
     let specs = sim.physics.export(&mut sim.world);
     let world = &sim.world;

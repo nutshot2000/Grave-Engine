@@ -163,6 +163,9 @@ pub struct World {
     /// Let quiet areas sleep (on by default; off works on everything every
     /// frame, for comparing).
     pub sleeping: bool,
+    /// Everything was just woken (load, reset, undo): after the next frame,
+    /// calm areas go back to sleep soon instead of staying up (`settle_calm`).
+    woke_all: bool,
     bw: usize,
     bh: usize,
     /// A number unique to this world (copies share it), so things worked
@@ -176,6 +179,33 @@ static NEXT_WORLD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::
 const BLOCK: usize = 32;
 /// How long a block stays awake after something happens in it (frames).
 const AWAKE_FRAMES: u8 = 60;
+/// After the whole world is woken, how long calm areas (just air and plain
+/// solid rock, nothing that can move or react) stay up: long enough for
+/// every check that goes round the blocks in turn (physics' 16-frame crumb
+/// sweep) to see them once.
+const CALM_FRAMES: u8 = 17;
+/// Awake areas bigger than this (cells) share heat work between CPU cores.
+/// Smaller ones aren't worth waking the other cores for.
+const PARALLEL_CELLS: usize = 256 * 1024;
+
+/// How many cores to share big jobs between.
+fn worker_threads() -> usize {
+    static N: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *N.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get()).clamp(1, 16))
+}
+
+/// Run each job (one band of the world each) on its own core, or right here
+/// if there's only one. Results come back in band order.
+fn run_bands<R: Send, F: FnOnce() -> R + Send>(jobs: impl Iterator<Item = F>) -> Vec<R> {
+    let jobs: Vec<F> = jobs.collect();
+    if jobs.len() <= 1 {
+        return jobs.into_iter().map(|j| j()).collect();
+    }
+    std::thread::scope(|s| {
+        let running: Vec<_> = jobs.into_iter().map(|j| s.spawn(j)).collect();
+        running.into_iter().map(|r| r.join().unwrap()).collect()
+    })
+}
 /// Reactions with a chance below this per frame are "slow" (mud drying, wet
 /// sand drying): they don't keep an area awake. Instead its block is visited
 /// every `SLOW_EVERY` frames and the chance scaled up to match.
@@ -227,6 +257,7 @@ impl World {
             bw: w.div_ceil(BLOCK),
             bh: h.div_ceil(BLOCK),
             sleeping: true,
+            woke_all: true,
             id: NEXT_WORLD.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         };
         for i in 0..n {
@@ -258,6 +289,34 @@ impl World {
     /// Wake the whole world (after editing it from outside).
     pub fn wake_all(&mut self) {
         self.awake.fill(AWAKE_FRAMES);
+        self.woke_all = true;
+    }
+
+    /// Right after everything was woken: blocks holding nothing that can
+    /// move, react or burn (air, plain solids, no objects) needn't stay up
+    /// the full time. A big world (millions of cells, mostly rock and sky)
+    /// would otherwise crawl for a second or more after loading. Heat that
+    /// is still evening out keeps its block awake by itself (`heat`).
+    fn settle_calm(&mut self, mats: &Materials) {
+        let calm_mat: Vec<bool> = mats.list.iter().enumerate().map(|(n, m)| {
+            n == crate::material::AIR as usize
+                || (m.state == State::Solid && m.reactions.is_empty() && m.lifetime.is_none() && m.stays_at.is_none()
+                    && m.gives_off.is_none() && m.sparks.is_none())
+        }).collect();
+        let w = self.w;
+        for b in 0..self.bw * self.bh {
+            if self.awake[b] <= CALM_FRAMES {
+                continue;
+            }
+            let (x0, x1, y0, y1) = self.block_cells(b);
+            let calm = (y0..y1).all(|y| (x0..x1).all(|x| {
+                let i = y * w + x;
+                self.flags[i] & (OWNED | BURNING) == 0 && calm_mat.get(self.mat[i] as usize).copied().unwrap_or(false)
+            }));
+            if calm {
+                self.awake[b] = CALM_FRAMES;
+            }
+        }
     }
 
     /// How much of the world is being worked on (0..1): the rest is asleep.
@@ -486,11 +545,14 @@ impl World {
     pub fn step(&mut self, mats: &Materials) {
         self.frame = self.frame.wrapping_add(1).max(1);
         self.blasts.clear();
-        self.plan_blocks();
-        self.heat(mats);
-        self.changes(mats);
-        self.movement(mats);
-        self.fly(mats);
+        {let _p=crate::profile::scope("cells.plan"); self.plan_blocks();}
+        {let _p=crate::profile::scope("cells.heat"); self.heat(mats);}
+        {let _p=crate::profile::scope("cells.changes"); self.changes(mats);}
+        {let _p=crate::profile::scope("cells.movement"); self.movement(mats);}
+        {let _p=crate::profile::scope("cells.fly"); self.fly(mats);}
+        if std::mem::take(&mut self.woke_all) && self.sleeping {
+            self.settle_calm(mats);
+        }
         // Blasts wake everything they can reach.
         for k in 0..self.blasts.len() {
             let b = &self.blasts[k];
@@ -721,112 +783,157 @@ impl World {
     // ---------------------------------------------------------------- heat --
 
     fn heat(&mut self, mats: &Materials) {
-        let (w, h) = (self.w, self.h);
+        let (w, h, bw, bh) = (self.w, self.h, self.bw, self.bh);
         let ml = &mats.list;
-        let blocks = self.bw * self.bh;
         // Use the same heat flux on both sides of every active edge. Limiting
         // each receiver independently creates/destroys heat when capacities
         // differ. Substeps instead keep the explicit four-neighbour update
         // stable while retaining the material's actual relative heat capacity.
         const RATE: f32 = 0.24;
-        let mut max_ratio = 1.0f32;
-        for b in 0..blocks {
-            if !self.active[b] {
-                continue;
-            }
-            let (x0, x1, y0, y1) = self.block_cells(b);
-            for y in y0..y1 {
-                for x in x0..x1 {
-                    let i = y * w + x;
-                    let m = &ml[self.mat[i] as usize];
-                    self.k[i] = m.conducts_heat;
-                    self.inv_cap[i] = 1.0 / m.heat_capacity;
-                    max_ratio = max_ratio.max(self.k[i] * self.inv_cap[i]);
+        // Big awake areas are shared out between the CPU's cores, a band of
+        // block rows each. Every cell only reads last step's temperatures,
+        // so the answer is exactly the same however it's shared out.
+        let awake_cells = self.active.iter().filter(|a| **a).count() * BLOCK * BLOCK;
+        let threads = if awake_cells >= PARALLEL_CELLS { worker_threads().min(bh) } else { 1 };
+        let band = bh.div_ceil(threads); // block rows per band
+        let chunk = (band * BLOCK * w).max(1); // cells per band (a world can be empty)
+        let active = &self.active;
+        let blocks = move |n: usize| (n * band..((n + 1) * band).min(bh)).flat_map(move |by| (0..bw).map(move |bx| by * bw + bx));
+        let cells = move |b: usize| {
+            let (bx, by) = (b % bw, b / bw);
+            (bx * BLOCK, ((bx + 1) * BLOCK).min(w), by * BLOCK, ((by + 1) * BLOCK).min(h))
+        };
+
+        // What each awake cell conducts and holds.
+        let mat = &self.mat;
+        let max_ratio = run_bands(self.k.chunks_mut(chunk).zip(self.inv_cap.chunks_mut(chunk)).enumerate().map(|(n, (k, cap))| {
+            move || {
+                let base = n * chunk;
+                let mut max_ratio = 1.0f32;
+                for b in blocks(n) {
+                    if !active[b] {
+                        continue;
+                    }
+                    let (x0, x1, y0, y1) = cells(b);
+                    for y in y0..y1 {
+                        for x in x0..x1 {
+                            let i = y * w + x;
+                            let m = &ml[mat[i] as usize];
+                            k[i - base] = m.conducts_heat;
+                            cap[i - base] = 1.0 / m.heat_capacity;
+                            max_ratio = max_ratio.max(k[i - base] * cap[i - base]);
+                        }
+                    }
                 }
+                max_ratio
             }
-        }
+        }))
+        .into_iter()
+        .fold(1.0, f32::max);
         let substeps = max_ratio.ceil() as usize;
         let rate = RATE / substeps as f32;
         for _ in 0..substeps {
-            for b in 0..blocks {
-                if !self.active[b] {
-                    continue;
-                }
-                let (x0, x1, y0, y1) = self.block_cells(b);
-                let left = x0 > 0 && self.active[b - 1];
-                let right = x1 < w && self.active[b + 1];
-                let up = y0 > 0 && self.active[b - self.bw];
-                let down = y1 < h && self.active[b + self.bw];
-                for y in y0..y1 {
-                    for x in x0..x1 {
-                        let i = y * w + x;
-                        let t = self.temp[i];
-                        let ki = self.k[i];
-                        let mut flow = 0.;
-                        let mut edge = |j: usize| {
-                            flow += ki.min(self.k[j]) * (self.temp[j] - t);
-                        };
-                        // Sleeping blocks are insulating for this frame: an edge
-                        // must update both endpoints, or neither, to conserve heat.
-                        if x > x0 || left {
-                            edge(i - 1);
+            let (temp, k, inv_cap) = (&self.temp, &self.k, &self.inv_cap);
+            run_bands(self.new_temp.chunks_mut(chunk).enumerate().map(|(n, out)| {
+                move || {
+                    let base = n * chunk;
+                    for b in blocks(n) {
+                        if !active[b] {
+                            continue;
                         }
-                        if x + 1 < x1 || right {
-                            edge(i + 1);
+                        let (x0, x1, y0, y1) = cells(b);
+                        let left = x0 > 0 && active[b - 1];
+                        let right = x1 < w && active[b + 1];
+                        let up = y0 > 0 && active[b - bw];
+                        let down = y1 < h && active[b + bw];
+                        for y in y0..y1 {
+                            for x in x0..x1 {
+                                let i = y * w + x;
+                                let t = temp[i];
+                                let ki = k[i];
+                                let mut flow = 0.;
+                                let mut edge = |j: usize| {
+                                    flow += ki.min(k[j]) * (temp[j] - t);
+                                };
+                                // Sleeping blocks are insulating for this frame: an edge
+                                // must update both endpoints, or neither, to conserve heat.
+                                if x > x0 || left {
+                                    edge(i - 1);
+                                }
+                                if x + 1 < x1 || right {
+                                    edge(i + 1);
+                                }
+                                if y > y0 || up {
+                                    edge(i - w);
+                                }
+                                if y + 1 < y1 || down {
+                                    edge(i + w);
+                                }
+                                out[i - base] = t + rate * inv_cap[i] * flow;
+                            }
                         }
-                        if y > y0 || up {
-                            edge(i - w);
-                        }
-                        if y + 1 < y1 || down {
-                            edge(i + w);
-                        }
-                        self.new_temp[i] = t + rate * self.inv_cap[i] * flow;
                     }
                 }
-            }
-            for b in 0..blocks {
-                if !self.active[b] {
-                    continue;
+            }));
+            run_bands(self.temp.chunks_mut(chunk).zip(self.new_temp.chunks_mut(chunk)).enumerate().map(|(n, (temp, new))| {
+                move || {
+                    let base = n * chunk;
+                    for b in blocks(n) {
+                        if !active[b] {
+                            continue;
+                        }
+                        let (x0, x1, y0, y1) = cells(b);
+                        for y in y0..y1 {
+                            let r = y * w - base;
+                            temp[r + x0..r + x1].swap_with_slice(&mut new[r + x0..r + x1]);
+                        }
+                    }
                 }
-                let (x0, x1, y0, y1) = self.block_cells(b);
-                for y in y0..y1 {
-                    let r = y * w;
-                    self.temp[r + x0..r + x1].swap_with_slice(&mut self.new_temp[r + x0..r + x1]);
-                }
-            }
+            }));
         }
 
         // Heat sources, burning, and slowly settling back to room temperature.
         // A block whose temperatures are still changing stays awake.
         let ambient = self.ambient;
-        for b in 0..blocks {
-            if !self.active[b] {
-                continue;
-            }
-            let (x0, x1, y0, y1) = self.block_cells(b);
-            let mut busy = false;
-            for y in y0..y1 {
-                for x in x0..x1 {
-                    let i = y * w + x;
-                    let m = &ml[self.mat[i] as usize];
-                    let t = &mut self.temp[i];
-                    if let Some(s) = m.stays_at {
-                        *t = s;
-                    } else if self.flags[i] & BURNING != 0 {
-                        // Burning makes its own heat: it stays at least this hot.
-                        if *t < m.burn_temperature {
-                            *t = m.burn_temperature;
-                        }
-                    } else if m.cools_off > 0.0 {
-                        *t += (ambient - *t) * m.cools_off;
+        let (flags, before) = (&self.flags, &self.new_temp);
+        let busy = run_bands(self.temp.chunks_mut(chunk).enumerate().map(|(n, temp)| {
+            move || {
+                let base = n * chunk;
+                let mut busy_blocks = Vec::new();
+                for b in blocks(n) {
+                    if !active[b] {
+                        continue;
                     }
-                    // (`new_temp` now holds last frame's temperatures.)
-                    busy |= (*t - self.new_temp[i]).abs() * substeps as f32 > 0.02;
+                    let (x0, x1, y0, y1) = cells(b);
+                    let mut busy = false;
+                    for y in y0..y1 {
+                        for x in x0..x1 {
+                            let i = y * w + x;
+                            let m = &ml[mat[i] as usize];
+                            let t = &mut temp[i - base];
+                            if let Some(s) = m.stays_at {
+                                *t = s;
+                            } else if flags[i] & BURNING != 0 {
+                                // Burning makes its own heat: it stays at least this hot.
+                                if *t < m.burn_temperature {
+                                    *t = m.burn_temperature;
+                                }
+                            } else if m.cools_off > 0.0 {
+                                *t += (ambient - *t) * m.cools_off;
+                            }
+                            // (`new_temp` now holds last frame's temperatures.)
+                            busy |= (*t - before[i]).abs() * substeps as f32 > 0.02;
+                        }
+                    }
+                    if busy {
+                        busy_blocks.push(b);
+                    }
                 }
+                busy_blocks
             }
-            if busy {
-                self.awake[b] = AWAKE_FRAMES;
-            }
+        }));
+        for b in busy.into_iter().flatten() {
+            self.awake[b] = AWAKE_FRAMES;
         }
     }
 
@@ -1247,6 +1354,17 @@ impl World {
             }
         }
         let wi = self.weight(fast, i);
+        // Still air with nowhere to rise to (the usual case: millions of sky
+        // cells) has nothing to do: skip the dice. Same outcome, much faster.
+        if self.mat[i] == AIR {
+            let open = [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0)].iter().any(|&(dx, dy)| {
+                let (nx, ny) = (x + dx, y + dy);
+                self.in_bounds(nx, ny) && self.can_rise(fast, wi, ny as usize * self.w + nx as usize)
+            });
+            if !open {
+                return;
+            }
+        }
         // Rising isn't perfectly steady, so plumes break up.
         if self.rand().is_multiple_of(8) {
             return;

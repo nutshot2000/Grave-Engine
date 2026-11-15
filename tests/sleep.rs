@@ -197,11 +197,18 @@ fn slow_drying_lets_an_area_sleep_but_dries_at_the_same_pace() {
     let m = mats();
     let scene_text = "size 1000 120\nfill air\nrect stone 0 110 1000 10\nrect mud 100 90 800 20\n";
     // Wet things drying out no longer keep the world awake...
+    // (Each bit that dries wakes its area for a moment, so how much is awake
+    // at any one frame is down to luck: look at the average. With everything
+    // awake it would be about half.)
     let mut s = sim(&m, scene_text);
-    for _ in 0..300 {
+    let mut awake = 0.0;
+    for f in 0..400 {
         s.step(&m);
+        if f >= 200 {
+            awake += s.world.awake_fraction() / 200.0;
+        }
     }
-    assert!(s.world.awake_fraction() < 0.2, "a pile of drying mud sleeps: {}", s.world.awake_fraction());
+    assert!(awake < 0.3, "a pile of drying mud sleeps: {awake}");
     // ...and mud still dries into dirt about as fast as with everything awake.
     let dirt = |s: &Sim| s.world.mat.iter().filter(|&&c| c == m.id("dirt").unwrap()).count() as f32;
     let (asleep, awake) = both(&m, scene_text, |_| {}, 3000, dirt);
