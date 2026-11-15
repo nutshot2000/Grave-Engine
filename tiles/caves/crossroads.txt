@@ -1,0 +1,15 @@
+# Ways in from every side.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 1 1 1 1 1 1
+legend # ground
+rows
+###...#####...##
+###...#####...##
+##............##
+................
+................
+................
+###...#####...##
+###...#####...##
+end

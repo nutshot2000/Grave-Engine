@@ -1,0 +1,15 @@
+# Rock steps from low left to high right.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 0 1 0 0 1 0
+legend # ground
+rows
+###########...##
+###########...##
+#########.....##
+#######.....####
+#####.....######
+###.....########
+###...##########
+###...##########
+end

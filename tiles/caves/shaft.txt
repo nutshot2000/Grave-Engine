@@ -1,0 +1,24 @@
+# A climbing shaft with wooden ledges.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 1 0 0 1 0 0
+legend # ground
+legend w wood
+rows
+###...##
+###...##
+#ww....#
+#......#
+#....ww#
+#......#
+#ww....#
+#......#
+#....ww#
+#......#
+#ww....#
+#......#
+#....ww#
+#......#
+###...##
+###...##
+end

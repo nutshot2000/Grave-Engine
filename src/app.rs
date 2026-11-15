@@ -115,6 +115,8 @@ struct Sandbox {
     ran_since_snapshot: bool,
     /// Edit > Generate caves: tile size, seed, how open, how many pools.
     cave_gen: (usize, u32, f32, f32),
+    /// Generate caves with the hand-made tiles in tiles/caves.
+    cave_tiles: bool,
     playing: bool,
     /// Where the pointer was lately while dragging objects (time, cell), so
     /// letting go mid-swing throws them.
@@ -414,6 +416,7 @@ impl Sandbox {
             rewind_pos: None,
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2),
+            cave_tiles: true,
             playing: false,
             fling: Vec::new(),
             speed: 1.0,
@@ -876,6 +879,7 @@ impl Sandbox {
             ui.add(egui::Slider::new(&mut pools, 0.0..=1.0).show_value(false));
             ui.end_row();
         });
+        ui.checkbox(&mut self.cave_tiles, "Hand-made tiles (tiles/caves)").on_hover_text("Mix in the hand-drawn tiles: halls, vaults, shafts, bridges, wells...");
         let mut go = false;
         ui.horizontal(|ui| {
             go |= ui.button("Generate").clicked();
@@ -887,9 +891,10 @@ impl Sandbox {
         self.cave_gen = (tile, seed, open, pools);
         if go {
             let set = grave_engine::levelgen::Settings { tile, seed, open, pools, ..grave_engine::levelgen::Settings::new(&self.mats) };
+            let tiles = if self.cave_tiles { grave_engine::levelgen::Tile::load_dir(Path::new("tiles/caves"), &self.mats).0 } else { Vec::new() };
             self.change("generate caves", |app| {
                 let (w, h) = (app.sim.world.w, app.sim.world.h);
-                grave_engine::levelgen::generate(&mut app.sim.world, &app.mats, (0, 0, w, h), &set, &[]);
+                grave_engine::levelgen::generate(&mut app.sim.world, &app.mats, (0, 0, w, h), &set, &tiles);
                 app.sim.world.wake_all();
             });
             self.playing = false;

@@ -1,0 +1,16 @@
+# Water spills in from above and drains away.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 1 0 0 1 0 0
+legend # ground
+legend ~ water
+rows
+###...##########
+###...##########
+###...~~.....###
+###.~~~~......##
+##..~~~.......##
+##.............#
+#######........#
+###########...##
+end

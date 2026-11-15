@@ -1,0 +1,24 @@
+# A zigzag climb with ways off to the sides.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 1 1 0 1 1 0
+legend # ground
+legend w wood
+rows
+###...##
+###...##
+#......#
+#.......
+#.......
+#ww.....
+#....ww#
+#......#
+#ww....#
+#......#
+#....ww#
+.......#
+.......#
+.......#
+###...##
+###...##
+end

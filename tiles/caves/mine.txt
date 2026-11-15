@@ -1,0 +1,17 @@
+# A mine tunnel: timber roof, iron rails.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 0 0 1 0 0 1
+legend # ground
+legend I iron
+legend w wood
+rows
+################
+################
+#wwwwwwwwwwwwww#
+...w...w...w....
+................
+................
+IIIIIIIIIIIIIIII
+################
+end

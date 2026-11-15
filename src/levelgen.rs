@@ -14,7 +14,8 @@
 //! filled with a tile whose edges match:
 //!
 //! - **Hand-made tiles** (a folder of small text drawings, see `Tile::parse`)
-//!   are used wherever one's edges fit, chosen at random among those that do.
+//!   are used wherever one's edges fit, chosen at random among those that do
+//!   (or, if none fits exactly, one with a single spare doorway onto rock).
 //! - Otherwise a **built-in cave tile** is made on the spot: wobbly tunnels
 //!   from each opening to a cavern in the brick's middle (each half of the
 //!   brick is a square; both halves are joined), now and then a pool.
@@ -25,6 +26,9 @@
 use crate::material::{AIR, MatId, Materials};
 use crate::world::World;
 use std::path::Path;
+
+/// In a tile's drawing: the level's own ground material (`legend # ground`).
+pub const GROUND: MatId = MatId::MAX;
 
 /// One brick's shape.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +55,8 @@ pub struct Tile {
     pub h: usize,
     /// Row by row; `None` = leave the fill (air).
     pub cells: Vec<Option<MatId>>,
+    /// Also use it flipped left to right (`mirror no` in the file turns it off).
+    pub mirror: bool,
 }
 
 impl Tile {
@@ -71,6 +77,7 @@ impl Tile {
         let mut legend: Vec<(char, MatId)> = vec![('.', AIR)];
         let mut rows: Vec<Vec<char>> = Vec::new();
         let mut in_rows = false;
+        let mut mirror = true;
         for line in text.lines() {
             if in_rows {
                 if line.trim() == "end" {
@@ -108,10 +115,12 @@ impl Tile {
                     let (Some(c), Some(m)) = (raw.get(1).and_then(|c| c.chars().next()), raw.get(2)) else {
                         return Err(format!("{name}: `legend C material`"));
                     };
-                    let id = mats.id(m).ok_or_else(|| format!("{name}: no material called `{m}`"))?;
+                    // `ground` = whatever the level's rock is.
+                    let id = if *m == "ground" { GROUND } else { mats.id(m).ok_or_else(|| format!("{name}: no material called `{m}`"))? };
                     legend.push((c, id));
                 }
                 Some("rows") => in_rows = true,
+                Some("mirror") => mirror = !matches!(words.get(1).copied(), Some("no") | Some("off")),
                 Some(other) => return Err(format!("{name}: unknown line `{other}`")),
             }
         }
@@ -130,7 +139,23 @@ impl Tile {
                 cells.push((id != AIR).then_some(id));
             }
         }
-        Ok(Tile { name: name.into(), shape, edges, w, h, cells })
+        Ok(Tile { name: name.into(), shape, edges, w, h, cells, mirror })
+    }
+
+    /// The same tile flipped left to right (its edges swap sides).
+    pub fn mirrored(&self) -> Tile {
+        let e = self.edges;
+        let edges = match self.shape {
+            // top-left, top-right, right, bottom-right, bottom-left, left
+            Shape::Horizontal => [e[1], e[0], e[5], e[4], e[3], e[2]],
+            // top, right-upper, right-lower, bottom, left-lower, left-upper
+            Shape::Vertical => [e[0], e[5], e[4], e[3], e[2], e[1]],
+        };
+        let mut cells = self.cells.clone();
+        for y in 0..self.h {
+            cells[y * self.w..(y + 1) * self.w].reverse();
+        }
+        Tile { name: format!("{} (mirrored)", self.name), edges, cells, mirror: false, ..self.clone() }
     }
 
     /// Every `*.txt` tile in a folder (problems are reported, not fatal).
@@ -145,7 +170,12 @@ impl Tile {
         for p in paths {
             let name = p.file_stem().unwrap_or_default().to_string_lossy().to_string();
             match std::fs::read_to_string(&p).map_err(|e| e.to_string()).and_then(|t| Tile::parse(&name, &t, mats)) {
-                Ok(t) => tiles.push(t),
+                Ok(t) => {
+                    if t.mirror {
+                        tiles.push(t.mirrored());
+                    }
+                    tiles.push(t)
+                }
                 Err(e) => problems.push(e),
             }
         }
@@ -299,7 +329,15 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
     let mut hand = 0;
     for b in layout(uw, uh) {
         let edges: Edges = b.pieces().map(|k| piece_open(s, k, uw, uh));
-        let fits: Vec<&Tile> = tiles.iter().filter(|tile| tile.shape == b.shape && tile.edges == edges).collect();
+        // Exact fits first; failing that, a tile with one spare doorway (it
+        // opens onto solid rock: a small dead-end notch). A tile never blocks
+        // a passage the brick needs.
+        let extra = |tile: &Tile| (0..6).filter(|&k| tile.edges[k] && !edges[k]).count();
+        let covers = |tile: &Tile| tile.shape == b.shape && (0..6).all(|k| !edges[k] || tile.edges[k]);
+        let mut fits: Vec<&Tile> = tiles.iter().filter(|tile| covers(tile) && extra(tile) == 0).collect();
+        if fits.is_empty() && edges.iter().any(|e| *e) {
+            fits = tiles.iter().filter(|tile| covers(tile) && extra(tile) == 1).collect();
+        }
         let (bw, bh) = b.size();
         let (px, py) = (ax as i32 + b.u * t as i32, ay as i32 + b.v * t as i32);
         let (pw, ph) = (bw as usize * t, bh as usize * t);
@@ -314,7 +352,12 @@ pub fn generate(world: &mut World, mats: &Materials, area: (usize, usize, usize,
                         continue;
                     }
                     let c = tile.cells[(cy * tile.h / ph) * tile.w + cx * tile.w / pw];
-                    world.set(mats, x as usize, y as usize, c.unwrap_or(AIR));
+                    let m = match c {
+                        Some(GROUND) => s.rock,
+                        Some(m) => m,
+                        None => AIR,
+                    };
+                    world.set(mats, x as usize, y as usize, m);
                 }
             }
         } else {

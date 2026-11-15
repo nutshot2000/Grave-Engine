@@ -1,0 +1,18 @@
+# A storeroom of gunpowder kegs. Mind the fire.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 0 0 1 0 0 0
+legend # ground
+legend p gunpowder
+legend s stone
+legend w wood
+rows
+################
+################
+##ww..........##
+##w.............
+##.pp..w.pp.....
+##.pp.www.pp....
+##ssssssssssssss
+################
+end

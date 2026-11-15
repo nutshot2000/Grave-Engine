@@ -116,7 +116,7 @@ fn hand_made_tiles_are_used_where_they_fit() {
     let m = mats();
     let (tiles, problems) = Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/rooms"), &m);
     assert!(problems.is_empty(), "{problems:?}");
-    assert_eq!(tiles.len(), 2);
+    assert_eq!(tiles.len(), 4, "two tiles, each also mirrored");
     assert!(tiles.iter().any(|t| t.shape == Shape::Horizontal) && tiles.iter().any(|t| t.shape == Shape::Vertical));
     // Lots of bricks, so some will match the sample tiles' edges.
     let mut s = Sim::empty(1200, 600, &m);
@@ -152,4 +152,44 @@ fn the_wall_behind_the_caves_is_saved() {
     assert!(again.world.back == s.world.back);
     let none = sim(&m, "size 100 50\nfill air\ngenerate 0 0 100 50 seed 3 back none\n");
     assert!(none.world.back.iter().all(|&b| b == 0));
+}
+
+/// The hand-made cave set: every tile loads, and its doorways are clear
+/// where its edges say passage and solid where they say wall (so passages
+/// line up with the built-in tiles and each other). Mirrored copies too.
+#[test]
+fn the_cave_tiles_line_up() {
+    let m = mats();
+    let (tiles, problems) = Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/caves"), &m);
+    assert!(problems.is_empty(), "{problems:?}");
+    assert!(tiles.len() >= 40, "the set should have plenty of tiles (with mirrors): {}", tiles.len());
+    for t in &tiles {
+        let (w, h) = if t.shape == Shape::Horizontal { (16, 8) } else { (8, 16) };
+        assert_eq!((t.w, t.h), (w, h), "{} is the wrong size", t.name);
+        // Each edge piece: start, direction along, direction in.
+        let pieces: [((i32, i32), (i32, i32), (i32, i32)); 6] = if t.shape == Shape::Horizontal {
+            [((0, 0), (1, 0), (0, 1)), ((8, 0), (1, 0), (0, 1)), ((15, 0), (0, 1), (-1, 0)), ((8, 7), (1, 0), (0, -1)), ((0, 7), (1, 0), (0, -1)), ((0, 0), (0, 1), (1, 0))]
+        } else {
+            [((0, 0), (1, 0), (0, 1)), ((7, 0), (0, 1), (-1, 0)), ((7, 8), (0, 1), (-1, 0)), ((0, 15), (1, 0), (0, -1)), ((0, 8), (0, 1), (1, 0)), ((0, 0), (0, 1), (1, 0))]
+        };
+        for (k, ((sx, sy), (dx, dy), _)) in pieces.iter().enumerate() {
+            // (The middle two: a mirrored tile's doorway sits one block over,
+            // so neighbours always share at least these.)
+            for a in 3..=4 {
+                let (x, y) = (sx + dx * a, sy + dy * a);
+                let empty = t.cells[(y * w as i32 + x) as usize].is_none();
+                assert_eq!(empty, t.edges[k], "{}: edge {k} at ({x},{y})", t.name);
+            }
+        }
+    }
+}
+
+#[test]
+fn the_cave_set_shows_up_in_a_level() {
+    let m = mats();
+    let (tiles, _) = Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/caves"), &m);
+    let mut s = Sim::empty(1536, 768, &m);
+    let used = levelgen::generate(&mut s.world, &m, (0, 0, 1536, 768), &Settings { seed: 4, ..Settings::new(&m) }, &tiles);
+    let bricks = levelgen::layout(24, 12).len();
+    assert!(used * 5 > bricks, "hand-made tiles should be a good share of the level: {used} of {bricks}");
 }

@@ -1,0 +1,24 @@
+# A tall cavern with stone teeth hanging from the roof.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 1 0 1 0 1 0
+legend # ground
+legend s stone
+rows
+###...##
+##.....#
+#......#
+#..s...#
+#..s..s#
+#.....s#
+#......#
+#......#
+#......#
+#......#
+#......#
+........
+........
+........
+#ssssss#
+########
+end

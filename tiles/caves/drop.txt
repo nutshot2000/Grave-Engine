@@ -1,0 +1,23 @@
+# A drop: in from the side, fall down the shaft.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 0 0 0 1 0 1
+legend # ground
+rows
+########
+########
+##.....#
+.......#
+.......#
+.......#
+####...#
+###....#
+###....#
+##.....#
+##.....#
+#......#
+#......#
+#......#
+###...##
+###...##
+end

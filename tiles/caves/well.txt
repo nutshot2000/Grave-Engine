@@ -1,0 +1,24 @@
+# A deep well, water at the bottom.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 1 0 0 0 0 0
+legend # ground
+legend ~ water
+rows
+###...##
+###...##
+##....##
+##....##
+##....##
+##....##
+##....##
+##....##
+#......#
+#......#
+#~~~~~~#
+#~~~~~~#
+#~~~~~~#
+#~~~~~~#
+#~~~~~~#
+########
+end

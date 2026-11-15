@@ -1,0 +1,16 @@
+# A dead end rich in copper.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 0 0 0 0 0 1
+legend # ground
+legend c copper
+rows
+################
+#####cc#########
+##.....c########
+.........#######
+..........c#####
+...........#####
+############c###
+################
+end

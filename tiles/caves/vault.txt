@@ -1,0 +1,17 @@
+# A brick treasure vault, a dead end.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 0 0 0 0 0 1
+legend # ground
+legend $ brass
+legend b brick
+rows
+################
+##bbbbbbbbbbbb##
+##b..........b##
+.............b##
+.............b##
+......$...$..b##
+##bbbbbbbbbbbb##
+################
+end

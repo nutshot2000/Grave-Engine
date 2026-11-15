@@ -1,0 +1,26 @@
+# A treasure alcove, iron in the walls.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 0 1 0 0 0 0
+legend # ground
+legend $ brass
+legend I iron
+legend s stone
+rows
+########
+########
+###....#
+##......
+#.......
+#..$....
+#ssssss#
+########
+###I####
+########
+#####I##
+########
+##I#####
+########
+########
+########
+end

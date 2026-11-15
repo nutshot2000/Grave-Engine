@@ -1,0 +1,17 @@
+# A stone shrine, reached from above.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape h
+edges 1 1 0 0 0 0
+legend # ground
+legend $ brass
+legend s stone
+rows
+###...#####...##
+###...#####...##
+##s..........s##
+##s..........s##
+##s....$$....s##
+##s...ssss...s##
+##ssssssssssss##
+################
+end

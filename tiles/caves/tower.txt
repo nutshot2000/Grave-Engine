@@ -1,0 +1,25 @@
+# A brick tower: in at the top left, down and out at the bottom right.
+# (Made by tools/make_cave_tiles.py: edit there and run it again.)
+shape v
+edges 0 0 1 0 0 1
+legend # ground
+legend b brick
+legend w wood
+rows
+########
+#bbbbbb#
+#b....b#
+......b#
+......b#
+......b#
+#bbb..b#
+#b....b#
+#bw...b#
+#b....b#
+#b....b#
+#b......
+#b......
+#b......
+#bbbbbb#
+########
+end
