@@ -7,6 +7,12 @@ can both read and change it.
 
 ![A wooden house catching fire from a burning oil puddle](docs/woodfire.png)
 
+## Cave expedition
+
+**DEEPWARD** is a playable cave-exploration prototype: an animated explorer,
+jetpack, headlamp, drilling, crystal samples and a return-to-camp objective.
+Open **Play/Cave-Explorer.cmd**. [Controls and editing guide](docs/DEEPWARD.md).
+
 ## Try it
 
 ```bash

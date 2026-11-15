@@ -443,3 +443,31 @@ adds them to normal shadow-casting lamps. No new World layer or persistent
 light entity is needed; digging, save/load and endless cell streaming carry
 the source automatically. Torch tips are cool decorative emitters. Docs:
 `docs/CAVE-GENERATION.md`, `materials/README.md`; tests in lighting/levelgen.
+
+### DEEPWARD / cave explorer prototype
+
+`Play/Cave-Explorer.cmd` builds `src/bin/cave-explorer.rs`; its mission/save
+rules are in `src/bin/cave-explorer/game.rs`. Scene: `scenes/cave-expedition.txt`;
+tuning: `assets/cave-explorer/game.txt`; controls: `assets/input/cave-explorer.input`.
+Docs: `docs/DEEPWARD.md`. Mine real cyan/violet cells and return to camp.
+Native title/map/pause/save checks and `--verify` cover a complete control-
+driven expedition; keep it a prototype, not a claim of finished balance.
+
+Reusable engine features: `ActorSpec::jetpack: Option<Jetpack>` (rewindable
+fuel), `Controls::thrust`, personal `headlamp`, scene player keys `jetpack`,
+`flight_speed`, `jet_capacity`, `jet_fuel`, `headlamp`; `Sim::dig_circle`
+removes diggable terrain, wakes it and returns per-material counts, without
+removing owned cells/liquids. Tests: `tests/explorer_movement.rs`.
+The editor reads thrust from editor.input; Space flies in an active jetpack
+scene, P/controller Start pauses. Non-explorer Space behavior is preserved.
+`Input::pressed` retains non-repeat key/mouse press events even when released
+before the next frame; held movement remains state-based. Test in input.rs.
+
+Explorer look: original Blender character derived from the editable hero rig,
+with helmet/visor, pack and drill; `tools/make_explorer_in_blender.py` builds
+66 clean PNG frames plus a local ignored .blend. The animation graph supplies
+fly/drill alongside normal locomotion. Strip PNG metadata after Blender
+rendering (the script does this) and never commit local .blend source paths.
+Keep saves under ignored `saves/cave-explorer/`; verify mode must not alter a
+player's save. Save files contain terrain, samples, fuel/position and surveyed
+map; health/breath restore through current scene defaults.

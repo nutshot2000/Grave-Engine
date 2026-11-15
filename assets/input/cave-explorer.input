@@ -1,0 +1,15 @@
+# Keyboard / mouse and controller controls. The right stick aims the drill.
+walk = keys D A, keys ArrowRight ArrowLeft, stick LeftX, pads Right Left
+jump = key W, key ArrowUp, pad A
+thrust = key Space, pad RT
+drop = key S, key ArrowDown, pad B
+crouch = key C, pad X
+roll = key X, pad RB
+drill = mouse Primary, key E, pad LT
+aim_x = keys L J, stick RightX
+aim_y = keys K I, stick RightY
+map = key M, key Tab, pad Back
+pause = key Escape, key P, pad Start
+start = key Enter, pad A
+save = key F5, pad Y
+restart = key R, pad LB

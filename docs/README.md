@@ -27,6 +27,7 @@ The games and labs open from the [`Play`](../Play) folder.
 
 ## Games and levels (they show what the engine can do, and what it needs next)
 
+- [DEEPWARD](DEEPWARD.md): playable cave expedition, explorer, jetpack, drilling, samples, map and saves.
 - [Cave generation](CAVE-GENERATION.md): varied natural passages, landmark rooms, rock textures and endless-map checks.
 
 - Stunt Yard: [Wreck Run](WRECK-RUN.md) and [what it taught the engine](STUNT-YARD-FEEDBACK.md).

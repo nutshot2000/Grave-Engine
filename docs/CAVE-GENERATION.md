@@ -131,3 +131,7 @@ Fixture plans use map coordinates and are clipped on output. Endless saves
 carry the material cells and paint, so lighting returns with the region.
 Tests cover connected-source grouping, erasure, scene save/load, cropped
 rendering, deterministic flicker, density controls and region equivalence.
+
+The caves now have an animated explorer loadout with jetpack and headlamp.
+For the playable collect-and-return game, use `Play/Cave-Explorer.cmd`; see
+[DEEPWARD](DEEPWARD.md). In editor Play mode Space flies and P pauses.

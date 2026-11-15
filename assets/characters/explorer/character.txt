@@ -1,0 +1,13 @@
+# Explorer: original model, tools/make_explorer_in_blender.py
+frame = 192
+figure = 144
+feet = 176
+faces = right
+idle = 8 frames, 8 fps, loop
+walk = 12 frames, 16 fps, loop
+jump = 6 frames, 12 fps
+fall = 8 frames, 10 fps, loop
+swim = 8 frames, 10 fps, loop
+die = 8 frames, 12 fps
+fly = 8 frames, 10 fps, loop
+drill = 8 frames, 14 fps, loop

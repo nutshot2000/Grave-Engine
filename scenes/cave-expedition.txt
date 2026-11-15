@@ -1,0 +1,23 @@
+# DEEPWARD: the first cave expedition. Edit any line or open this scene in the editor.
+size 1280 960
+seed 33
+fill air
+generate 0 0 1280 960 seed 33 tiles tiles/caves caverns 0.9 crystals 0.9 torches 0.45
+lighting 0.36 #c8d6f0
+sun off
+# Lift camp: a sheltered platform and two warm lamps.
+rect air 40 520 160 94
+rect steel 40 614 160 6
+anchor 40 614 160 6
+rect steel 42 535 5 79
+rect steel 42 535 30 5
+anchor 42 535 30 79
+rect lamp_glass 48 540 5 5
+light 55 549 95 strength 1.0 color #ffc780
+rect wood 172 601 2 13
+rect torch_glow 171 596 4 5
+anchor 171 596 4 18
+player 96 614 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 jet_capacity 6 headlamp 125 zoom 4
+# A small first seam beyond camp; the violet samples are deeper in the map.
+rect crystal_cyan 205 582 4 10
+anchor 205 582 4 10
