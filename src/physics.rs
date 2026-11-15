@@ -258,6 +258,8 @@ struct Body {
 struct Chunk {
     sig: u64,
     colliders: Vec<ColliderHandle>,
+    /// Frame when a drying film here next changes the grip (0 = none).
+    recheck: u32,
 }
 
 pub struct Physics {
@@ -406,7 +408,7 @@ impl Physics {
             ccd: CCDSolver::new(),
             params,
             ground,
-            chunks: (0..cw * ch).map(|_| Chunk { sig: 0, colliders: Vec::new() }).collect(),
+            chunks: (0..cw * ch).map(|_| Chunk { sig: 0, colliders: Vec::new(), recheck: 0 }).collect(),
             solid_prev: Vec::new(),
             mark: vec![0; w * h],
             epoch: 0,
@@ -1416,21 +1418,36 @@ impl Physics {
             for cx in 0..self.cw {
                 // Nothing changed here for a while (the world's sleeping
                 // blocks are these same 32x32 chunks): the ground is as it was.
-                if CHUNK == 32 && self.chunks[cy * self.cw + cx].sig != 0 && world.block_still(cy * self.cw + cx) {
+                let due = { let r = self.chunks[cy * self.cw + cx].recheck; r != 0 && world.frame >= r };
+                if CHUNK == 32 && self.chunks[cy * self.cw + cx].sig != 0 && world.block_still(cy * self.cw + cx) && !due {
                     continue;
                 }
                 let (x0, y0) = (cx * CHUNK, cy * CHUNK);
                 let (x1, y1) = ((x0 + CHUNK).min(self.w), (y0 + CHUNK).min(self.h));
-                // Fingerprint of which cells are solid.
+                // Fingerprint of which cells are solid (and how wet: a film
+                // changes the grip). Note when a drying film next does.
                 let mut sig: u64 = 0xcbf2_9ce4_8422_2325;
+                let mut recheck = 0u32;
                 for y in y0..(y1 + 1).min(self.h) {
                     for x in x0..(x1 + 1).min(self.w) {
                         let i = y * self.w + x;
-                        let v = if Self::is_terrain(world, mats, i) { world.mat[i] as u64 + 1 } else { 0 };
+                        let v = if Self::is_terrain(world, mats, i) {
+                            let mut v = world.mat[i] as u64 + 1;
+                            if world.coat[i] != crate::material::AIR {
+                                v |= (world.coat[i] as u64) << 16 | (world.coat_level(mats, i) as u64) << 32;
+                                if let Some(t) = world.coat_changes_at(mats, i) {
+                                    recheck = if recheck == 0 { t } else { recheck.min(t) };
+                                }
+                            }
+                            v
+                        } else {
+                            0
+                        };
                         sig = (sig ^ v).wrapping_mul(0x0100_0000_01b3);
                     }
                 }
                 let k = cy * self.cw + cx;
+                self.chunks[k].recheck = recheck;
                 if self.chunks[k].sig == sig {
                     continue;
                 }
@@ -1440,11 +1457,15 @@ impl Physics {
                 }
                 // Trace the outline of the ground (marching squares between cell
                 // centres), so slopes are smooth and things can slide and roll.
-                let solid = |x: usize, y: usize| -> Option<MatId> {
+                // Each surface piece: its material, and the film on it and how wet.
+                let solid = |x: usize, y: usize| -> Option<(MatId, MatId, u8)> {
                     let i = y * self.w + x;
-                    Self::is_terrain(world, mats, i).then(|| world.mat[i])
+                    Self::is_terrain(world, mats, i).then(|| {
+                        let level = world.coat_level(mats, i);
+                        (world.mat[i], if level > 0 { world.coat[i] } else { crate::material::AIR }, level)
+                    })
                 };
-                let mut by_mat: std::collections::BTreeMap<MatId, Vec<((f32, f32), (f32, f32))>> = Default::default();
+                let mut by_mat: std::collections::BTreeMap<(MatId, MatId, u8), Vec<((f32, f32), (f32, f32))>> = Default::default();
                 for sy in y0..y1.min(self.h - 1) {
                     for sx in x0..x1.min(self.w - 1) {
                         let (a, b, c, d) = (solid(sx, sy), solid(sx + 1, sy), solid(sx + 1, sy + 1), solid(sx, sy + 1));
@@ -1472,8 +1493,9 @@ impl Physics {
                         by_mat.entry(mat).or_default().extend_from_slice(segs);
                     }
                 }
-                for (mat, segs) in by_mat {
+                for ((mat, film, level), segs) in by_mat {
                     let m = mats.get(mat);
+                    let grip = m.friction * World::film_grip(mats, film, level);
                     // Pixel slopes are tiny staircases; straighten them into
                     // proper slopes (within a cell) so things slide and roll.
                     let mut verts = Vec::new();
@@ -1494,7 +1516,7 @@ impl Physics {
                     // the bouncier one does too.
                     let col = ColliderBuilder::polyline(verts, Some(idx))
                         .user_data(if m.state == State::Powder { POWDER_TAG } else { 0 })
-                        .friction(m.friction)
+                        .friction(grip)
                         .restitution(m.bounciness)
                         .friction_combine_rule(CoefficientCombineRule::Min)
                         .restitution_combine_rule(CoefficientCombineRule::Max);

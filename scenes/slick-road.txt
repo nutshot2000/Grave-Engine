@@ -1,0 +1,27 @@
+# Slick road: wet and oily ground (src/world/coating.rs). Press Play.
+# Three identical slopes with a crate on each: dry stone (it stays put),
+# wet stone (it creeps) and an oil slick (it slides away). On the right a
+# puddle of oil spreads its film across the floor, and a campfire sets the
+# slick alight. Water and oil leave a film wherever they run; it dries
+# (water in about 45 s, oil in 15 minutes).
+size 480 160
+seed 3
+fill air
+rect concrete 0 150 480 10                 # the floor
+
+slope stone 10 70 130 128 to 150           # dry
+body rect wood 26 58 12 7
+
+slope stone 150 70 270 128 to 150          # wet
+coat water 150 60 120 60 forever
+body rect wood 166 58 12 7
+
+slope stone 290 70 410 128 to 150          # oily
+coat oil 290 60 120 60 forever
+body rect wood 306 58 12 7
+
+rect oil 425 140 10 10                     # a spill...
+rect stone 418 140 2 10
+rect stone 470 140 2 10
+rect wood 455 146 8 4                      # ...and a fire next to it
+heat circle 459 146 3 650

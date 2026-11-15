@@ -42,6 +42,9 @@ the file and line number.
 | `toughness` | How hard a hit (or how much weight) it takes to crack, in kilonewtons. Wood 1500, stone 5000, iron 30000, ice 300. `none` = never cracks | none |
 | `breaks_into` | What cracked cells turn into (stone cracks into gravel). Without it, cracked bits splinter into small flying pieces | none |
 | `friction` | How grippy it is, 0 to 1. Ice 0.03, wood 0.6, stone 0.8. The slipperier of two surfaces wins | 0.6 |
+| `coats` | liquids: `yes`/`no`, leaves a film on solid ground it touches (default yes unless molten, i.e. starts above 150 °C) |
+| `coat_grip` | liquids: how much grip ground keeps under its film, 0..1 of the dry grip (water 0.7, oil 0.12; default 0.6) |
+| `coat_lasts` | liquids: seconds its film takes to dry (water 45, oil 900; default 60) |
 | `bounciness` | How much things bounce off it, 0 (thud) to 1 (superball). The bouncier of two surfaces wins | 0.05 |
 | `explosion_size` | Explosives: blast radius in cells. Needs `catches_fire_at` (that's when it goes off) | 0 |
 | `explosion_power` | Explosives: how hard the blast hits at its centre, in kilonewtons. Fades with distance; cracks anything whose `toughness` it beats | 0 |

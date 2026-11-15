@@ -19,6 +19,8 @@
 //! curve stone 100 210 140 210 160 170      # a curved surface: x1 y1, bend point, x2 y2
 //! poly brick 10 10 40 10 25 30             # any filled shape: three or more x y points
 //! anchor 1040 160 90 10                    # pin scenery in this box: it never collapses
+//! coat oil 300 200 60 4                    # film the solid ground in this box (wet road, oil slick)
+//! coat water 0 180 400 2 forever           # ...that never dries
 //!
 //! # Lighting (see light.rs): overall light and tint, a sun, lamps
 //! lighting 0.25 #7080c0                  # a blue night (1 = full daylight, the default)
@@ -696,6 +698,26 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     Err(e) => err(e),
                 }
             }
+            "coat" => {
+                let liquid = words.get(1).ok_or_else(|| "use `coat water|oil X Y W H [forever]`".to_string()).and_then(|n| mat(n));
+                match (liquid, nums(2, 4)) {
+                    (Ok(id), Ok(v)) if mats.get(id).state == crate::material::State::Liquid => {
+                        let forever = words.get(6).is_some_and(|f| f.eq_ignore_ascii_case("forever"));
+                        let w = ensure(&mut world, mats);
+                        let (x0, x1, y0, y1) = w.clip(v[0] as i32, (v[0] + v[2]) as i32 - 1, v[1] as i32, (v[1] + v[3]) as i32 - 1);
+                        for y in y0..=y1 {
+                            for x in x0..=x1 {
+                                let i = w.idx(x as usize, y as usize);
+                                if w.exposed(mats, i) {
+                                    w.coat_cell(mats, i, id, forever);
+                                }
+                            }
+                        }
+                    }
+                    (Ok(_), Ok(_)) => err("`coat` needs a liquid (water, oil...)".into()),
+                    (Err(e), _) | (_, Err(e)) => err(e),
+                }
+            }
             "anchor" => match nums(1, 4) {
                 Ok(v) => {
                     let w = ensure(&mut world, mats);
@@ -1348,6 +1370,30 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     if !anchors.is_empty() {
         out.push_str("# Pinned scenery (never collapses)\n");
         out.push_str(&anchors);
+    }
+    // Films on the ground (wet, oily): one line per run in a row.
+    let mut films = String::new();
+    for y in 0..world.h {
+        let mut x = 0;
+        while x < world.w {
+            let film = |x: usize| {
+                let i = world.idx(x, y);
+                (!world.is_owned(i) && world.wetness(mats, i) > 0.0).then(|| (world.coat[i], world.coat_until[i] == crate::world::coating::FOREVER))
+            };
+            if let Some(f) = film(x) {
+                let start = x;
+                while x < world.w && film(x) == Some(f) {
+                    x += 1;
+                }
+                films += &format!("coat {} {start} {y} {} 1{}\n", mats.get(f.0).name, x - start, if f.1 { " forever" } else { "" });
+            } else {
+                x += 1;
+            }
+        }
+    }
+    if !films.is_empty() {
+        out.push_str("# Wet and oily ground\n");
+        out.push_str(&films);
     }
     if !snap.bodies.is_empty() {
         out.push_str("\n# Objects: centre x y, angle in degrees, then their cells\n");

@@ -14,3 +14,5 @@ puts_out_fire = yes
 flows = 8
 strength = 0
 rolling_resistance = 0.3           # slows rolling wheels (per second)
+coat_grip = 0.7                    # a wet road keeps about 70% of its grip
+coat_lasts = 45                    # seconds to dry

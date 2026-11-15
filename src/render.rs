@@ -298,6 +298,31 @@ impl Renderer {
                 let grain = ((col[0] + col[1] + col[2]) / (m.color.iter().map(|v| *v as f32).sum::<f32>().max(1.))).clamp(0.65, 1.35);
                 col = rgb.map(|v| v as f32 * grain);
             }
+            // A film of liquid on the ground: darker, tinted by the liquid,
+            // with a sheen along the top surface (world/coating.rs).
+            if !view.heat && world.coat[i] != crate::material::AIR {
+                let wet = world.wetness(mats, i);
+                if wet > 0.0 && world.exposed(mats, i) {
+                    let liquid = mats.get(world.coat[i]);
+                    let film = c3(liquid.color);
+                    col = lerp3(col, film, 0.45 * wet).map(|v| v * (1.0 - 0.25 * wet));
+                    let above = i >= world.w && mats.get(world.mat[i - world.w]).state == State::Gas;
+                    if above {
+                        // Glints along the top, drifting slowly. Slick films
+                        // (oil) shimmer in rainbow colours.
+                        let x = (i % world.w) as f32;
+                        let glint = (0.5 + 0.5 * (x * 0.37 + world.frame as f32 * 0.02).sin()).powi(3);
+                        let slick = ((0.45 - liquid.coat_grip) / 0.35).clamp(0.0, 1.0);
+                        let hue = x * 0.09 + world.frame as f32 * 0.01;
+                        let rainbow = [0.0f32, 2.09, 4.19].map(|o| 160.0 + 70.0 * (hue + o).sin());
+                        let shine = lerp3([235.0, 240.0, 255.0], rainbow, slick);
+                        col = lerp3(col, shine, (0.15 + 0.55 * glint) * wet);
+                    }
+                }
+            } else if !view.heat && i >= world.w && world.coat[i - world.w] != crate::material::AIR && m.state == State::Solid {
+                // Just under a film: the ground looks soaked.
+                col = col.map(|v| v * (1.0 - 0.18 * world.wetness(mats, i - world.w)));
+            }
             let mut emit = [0.0f32; 3];
 
             if view.heat {

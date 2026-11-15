@@ -162,6 +162,14 @@ pub struct Material {
     pub breaks_into: Option<MatId>,
     /// How grippy it is for objects sliding on it (0 = ice-slick, 1 = rubbery).
     pub friction: f32,
+    /// Liquids: whether it leaves a film on solid ground it touches (wet
+    /// roads, oil slicks). `None` = yes unless it's molten (starts above 150 °C).
+    pub coats: Option<bool>,
+    /// Liquids: how much grip ground keeps under a film of it, as a share
+    /// of its dry grip (water 0.55, oil 0.12).
+    pub coat_grip: f32,
+    /// Liquids: how long its film takes to dry off, in seconds.
+    pub coat_lasts: f32,
     /// How much objects bounce off it (0 = thud, 1 = superball).
     pub bounciness: f32,
     /// Explosives: blast radius in cells when it goes off (0 = not explosive).
@@ -278,6 +286,9 @@ impl Material {
             toughness: None,
             breaks_into: None,
             friction: 0.6,
+            coats: None,
+            coat_grip: 0.6,
+            coat_lasts: 60.0,
             bounciness: 0.05,
             explosion_size: 0.0,
             explosion_power: 0.0,
@@ -286,6 +297,11 @@ impl Material {
             texture: None,
             file: None,
         }
+    }
+
+    /// Does it leave a film on solid ground it touches (see world/coating.rs)?
+    pub fn leaves_film(&self) -> bool {
+        self.state == State::Liquid && self.coats.unwrap_or(self.temperature < 150.0)
     }
 
     fn builtin_air() -> Self {
@@ -770,6 +786,9 @@ fn apply(
         "toughness" => m.toughness = opt_num(v)?.map(|t| t.max(0.0)),
         "breaks_into" => m.breaks_into = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
         "friction" => m.friction = num(v)?.clamp(0.0, 2.0),
+        "coats" => m.coats = Some(yes_no(v)?),
+        "coat_grip" => m.coat_grip = num(v)?.clamp(0.0, 1.0),
+        "coat_lasts" => m.coat_lasts = num(v)?.clamp(0.5, 100000.0),
         "bounciness" => m.bounciness = num(v)?.clamp(0.0, 1.0),
         "explosion_size" => m.explosion_size = num(v)?.clamp(0.0, 64.0),
         "texture" => {

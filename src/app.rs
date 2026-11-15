@@ -518,6 +518,10 @@ impl Sandbox {
             let (reset, _) = scene::load(&text, &app.mats, Path::new(&app.scene_path).parent()).into_sim(&app.mats);
             let mut reset = reset;
             app.snapshot = reset.snapshot();
+            // The scene on screen has been played since that point: pressing
+            // Play mustn't take a new reset point from it (that left Reset
+            // stuck on the end of the run after an update).
+            app.ran_since_snapshot = true;
         }
         if std::env::var_os(RESUME_SCENE).is_some() {
             // What the AI said the update was (`update TEXT` in live/agent.txt).
@@ -1179,6 +1183,10 @@ impl Sandbox {
                 num(ui, "launch", "Bounce pad (m/s)", "Flings anything landing on it upwards this fast (0 = off)", cur.launch, def.launch, 0.0..=40.0, false);
                 if cur.state != State::Gas {
                     num(ui, "rolling_resistance", "Slows wheels", "How much it slows wheels rolling on it, per second (sand 0.6, mud 1.8, hard ground 0)", cur.rolling_resistance, def.rolling_resistance, 0.0..=3.0, false);
+                }
+                if cur.leaves_film() {
+                    num(ui, "coat_grip", "Film grip", "Ground wet with it keeps this share of its grip (water 0.7, oil 0.12)", cur.coat_grip, def.coat_grip, 0.0..=1.0, false);
+                    num(ui, "coat_lasts", "Film dries in (s)", "How long a film of it stays on the ground (water 45, oil 900)", cur.coat_lasts, def.coat_lasts, 1.0..=3600.0, true);
                 }
                 if matches!(cur.state, State::Powder | State::Liquid) || cur.tyres_dig {
                     num(ui, "clump", "Thrown in clumps of", "Tyres throw it in clumps of this many cells (dirt and mud 3-4, sand 1)", cur.clump as f32, def.clump as f32, 1.0..=8.0, false);

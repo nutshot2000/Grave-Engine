@@ -13,6 +13,8 @@
 
 use crate::material::{AIR, MatId, Materials, State};
 
+pub mod coating;
+
 pub const BURNING: u8 = 1;
 /// This cell belongs to a rigid object (see `physics.rs`). The cell simulation
 /// still heats, burns and melts it, but never moves it.
@@ -121,6 +123,11 @@ pub struct World {
     pub shade: Vec<u8>,
     /// Opaque 0xffRRGGBB surface paint; zero means the native material appearance.
     pub paint: Vec<u32>,
+    /// The liquid filming each solid cell's surface (`AIR` = dry; see
+    /// world/coating.rs), and the frame its film is dry by
+    /// (`coating::FOREVER` = never).
+    pub coat: Vec<MatId>,
+    pub coat_until: Vec<u32>,
     /// Where in its material's texture picture each cell is (x in the low
     /// byte, y in the high byte). Scenery uses its world position; objects
     /// use their position within the object, so patterns move with them.
@@ -234,6 +241,8 @@ impl World {
             depth_air: vec![false; n],
             shade: vec![0; n],
             paint: vec![0; n],
+            coat: vec![AIR; n],
+            coat_until: vec![0; n],
             tex: (0..n).map(|i| pack_tex(i % w, i / w)).collect(),
             moved: vec![0; n],
             frame: 1,
@@ -428,6 +437,7 @@ impl World {
         self.wake_at(i);
         self.mat[i] = id;
         self.paint[i] = 0;
+        self.coat[i] = AIR;
         self.flags[i] = 0;
         self.burn[i] = 0;
         self.life[i] = match mats.get(id).lifetime {
@@ -492,6 +502,7 @@ impl World {
         self.wake_at(i);
         self.mat[i] = AIR;
         self.paint[i] = 0;
+        self.coat[i] = AIR;
         self.flags[i] = 0;
         self.life[i] = 0;
         self.burn[i] = 0;
@@ -549,6 +560,7 @@ impl World {
         {let _p=crate::profile::scope("cells.heat"); self.heat(mats);}
         {let _p=crate::profile::scope("cells.changes"); self.changes(mats);}
         {let _p=crate::profile::scope("cells.movement"); self.movement(mats);}
+        {let _p=crate::profile::scope("cells.coatings"); self.coatings(mats);}
         {let _p=crate::profile::scope("cells.fly"); self.fly(mats);}
         if std::mem::take(&mut self.woke_all) && self.sleeping {
             self.settle_calm(mats);
