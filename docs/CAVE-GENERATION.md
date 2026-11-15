@@ -26,3 +26,24 @@ without tools. The reference's top-down dungeon and this engine's side-view
 caves also have different traversal needs. Tests cover the main connected
 network, unchanged doorways, narrow-passage rounding, authored features,
 and identical results when endless regions cut through partial bricks.
+
+## Layout variety
+
+Most built-in bricks now use a finer 16-block grid per tile unit and one
+of six plans: a winding spine, broad joined caverns, a branching tree,
+a loop around a rock pillar, a chain of small chambers, or fractured
+shafts with offset elbows. Passage width, chamber sizes, branch counts
+and internal routes differ between plans. Unlike the original layout,
+they are not all organised around a chamber in each square half.
+
+A fifth of built-in bricks retain the earlier room/shelf/pool layouts,
+and the authored tile landmarks still appear, giving constructed places
+among the natural caves. Required entrances connect inside each natural
+plan; optional branches stop inside its protected outer rim. This does
+not change the existing limits on whole-map reachability or side-view
+player traversal.
+
+Tests exercise both orientations, all 63 nonempty door combinations and
+three seeds, plus 128 plans with identical entrances to guard shape and
+open-space variety. Endless-region equivalence is checked after the
+plans are sampled into actual world cells.

@@ -452,6 +452,13 @@ fn pick(mats: &Materials, name: &str, or: MatId) -> MatId {
 /// each opening to a hub in its half, rooms at the hubs, dead-end branches,
 /// and now and then a special room.
 fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, i32), t: usize, s: &Settings, inside: &dyn Fn(i32, i32) -> bool) {
+    let seed = hash(s.seed, b.u, b.v, b.shape as i32 + 3);
+    // Keep occasional built rooms among much more varied natural layouts.
+    if hash(seed, 0, 0, 811) % 5 != 0 {
+        let (grid, gw, gh) = organic_grid(b.shape, edges, seed, s.pools);
+        draw_cave_blocks(world, mats, &grid, (gw, gh, 16), at, t, seed, s, inside);
+        return;
+    }
     let g = GRID;
     let (gw, gh) = match b.shape {
         Shape::Horizontal => (2 * g, g),
@@ -663,6 +670,119 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
         }
     }
 
+    draw_cave_blocks(world, mats, &grid, (gw, gh, g), at, t, seed, s, inside);
+}
+
+/// Distinct natural plans on a finer grid: meanders, caverns, branching
+/// trees, pillar loops, chamber chains and narrow fractured shafts. All
+/// required doors join the plan; extra branches stop inside the brick.
+fn organic_grid(shape: Shape, edges: Edges, seed: u32, pools: f32) -> (Vec<Block>, i32, i32) {
+    let (w, h) = match shape { Shape::Horizontal => (32, 16), Shape::Vertical => (16, 32) };
+    let mut grid = vec![Block::Ground; (w * h) as usize];
+    if !edges.iter().any(|&e| e) { return (grid, w, h); }
+    let mut roll = 0;
+    let mut rnd = || { roll += 1; unit(hash(seed, roll, 813, 17)) };
+    let style = hash(seed, 0, 0, 812) % 6;
+    let mut nodes = Vec::new();
+    // A spine crosses the whole brick rather than one room per square half.
+    // Ring plans leave a substantial central pillar and offer two routes.
+    if style == 3 {
+        let (cx, cy) = (w as f32 / 2.0, h as f32 / 2.0);
+        for i in 0..8 {
+            let angle = i as f32 * std::f32::consts::TAU / 8.0;
+            nodes.push((cx + angle.cos() * (cx - 4.5), cy + angle.sin() * (cy - 4.5)));
+        }
+    } else {
+        let count = 3 + (rnd() * 4.0) as usize;
+        for i in 0..count {
+            let along = 3.5 + i as f32 / (count - 1) as f32 * ((w.max(h) - 7) as f32);
+            let across = 3.5 + rnd() * 8.0;
+            nodes.push(match shape { Shape::Horizontal => (along, across), Shape::Vertical => (across, along) });
+        }
+    }
+    let width = match style { 0 => 1.1, 1 => 1.8, 2 => 1.0, 3 => 1.3, 4 => 1.0, _ => 0.95 };
+    for i in 1..nodes.len() {
+        let parent = if style == 2 { (rnd() * i as f32) as usize } else { i - 1 };
+        dig_route(&mut grid, (w, h), nodes[parent], nodes[i], width, style == 5);
+    }
+    if style == 3 { dig_route(&mut grid, (w, h), nodes[nodes.len() - 1], nodes[0], width, false); }
+    if style == 1 || style == 4 {
+        for &(x, y) in &nodes {
+            let (rx, ry) = if style == 1 { (5.0 + rnd() * 4.0, 4.0 + rnd() * 2.5) } else { (1.6 + rnd() * 2.0, 1.4 + rnd() * 1.6) };
+            dig_ellipse(&mut grid, (w, h), (x, y), (rx, ry));
+        }
+    }
+    // Multiple offshoots begin at different places along the plan. A capped
+    // tip can widen into a pocket, making exploration more than crossroads.
+    let branches = if style == 0 || style == 5 { 1 + (rnd() * 2.0) as usize } else { 2 + (rnd() * 4.0) as usize };
+    for _ in 0..branches {
+        let start = nodes[(rnd() * nodes.len() as f32) as usize % nodes.len()];
+        let tip = (3.0 + rnd() * (w - 6) as f32, 3.0 + rnd() * (h - 6) as f32);
+        dig_route(&mut grid, (w, h), start, tip, 0.85 + rnd() * 0.35, style == 5);
+        if rnd() < 0.35 { dig_ellipse(&mut grid, (w, h), tip, (1.5 + rnd(), 1.4 + rnd())); }
+    }
+    let ports: [(i32, i32, i32, i32); 6] = match shape {
+        Shape::Horizontal => [(8, 0, 0, 1), (24, 0, 0, 1), (31, 8, -1, 0), (24, 15, 0, -1), (8, 15, 0, -1), (0, 8, 1, 0)],
+        Shape::Vertical => [(8, 0, 0, 1), (15, 8, -1, 0), (15, 24, -1, 0), (8, 31, 0, -1), (0, 24, 1, 0), (0, 8, 1, 0)],
+    };
+    for (k, &(x, y, nx, ny)) in ports.iter().enumerate() {
+        if !edges[k] { continue; }
+        let entry = ((x + nx * 4) as f32, (y + ny * 4) as f32);
+        let near = *nodes.iter().min_by(|a, b| {
+            let d = |p: &(f32, f32)| (p.0 - entry.0).powi(2) + (p.1 - entry.1).powi(2);
+            d(a).total_cmp(&d(b))
+        }).unwrap();
+        dig_route(&mut grid, (w, h), entry, near, width.max(1.25), false);
+        // The same six-cell opening as the original three-block doors.
+        // Write it last, outside the interior-only brush's protected rim.
+        for depth in 0..5 {
+            for offset in -2..=3 {
+                let (px, py) = (x + nx * depth + ny.abs() * offset, y + ny * depth + nx.abs() * offset);
+                grid[(py * w + px) as usize] = Block::Open;
+            }
+        }
+    }
+    // Small water pockets only where the plan already has a supported floor.
+    // Doorway collars are excluded so pools cannot seal a required entrance.
+    if rnd() < pools {
+        let row = h - 4 - (rnd() * (h - 8) as f32) as i32;
+        for x in 3..w - 3 {
+            let i = (row * w + x) as usize;
+            if grid[i] == Block::Open && grid[i + w as usize] == Block::Ground { grid[i] = Block::Water; }
+        }
+    }
+    (grid, w, h)
+}
+
+/// Elliptical brush, confined to the interior so closed tile edges stay shut.
+fn dig_ellipse(grid: &mut [Block], (w, h): (i32, i32), (cx, cy): (f32, f32), (rx, ry): (f32, f32)) {
+    for y in (cy - ry).floor().max(2.0) as i32..=((cy + ry).ceil() as i32).min(h - 3) {
+        for x in (cx - rx).floor().max(2.0) as i32..=((cx + rx).ceil() as i32).min(w - 3) {
+            if ((x as f32 - cx) / rx).powi(2) + ((y as f32 - cy) / ry).powi(2) <= 1.0 {
+                grid[(y * w + x) as usize] = Block::Open;
+            }
+        }
+    }
+}
+
+/// Connected swept brush; fractured shafts bend at an offset elbow.
+fn dig_route(grid: &mut [Block], size: (i32, i32), a: (f32, f32), b: (f32, f32), radius: f32, elbow: bool) {
+    if elbow {
+        let mid = (a.0, b.1);
+        dig_route(grid, size, a, mid, radius, false);
+        dig_route(grid, size, mid, b, radius, false);
+        return;
+    }
+    let steps = ((b.0 - a.0).abs().max((b.1 - a.1).abs()) * 4.0).ceil().max(1.0) as usize;
+    for step in 0..=steps {
+        let t = step as f32 / steps as f32;
+        dig_ellipse(grid, size, (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t), (radius, radius));
+    }
+}
+
+/// Render any coarse cave plan through the same natural-wall sampler.
+fn draw_cave_blocks(world: &mut World, mats: &Materials, grid: &[Block], dimensions: (i32, i32, i32), at: (i32, i32), t: usize, seed: u32, s: &Settings, inside: &dyn Fn(i32, i32) -> bool) {
+    let (gw, gh, g) = dimensions;
     // Draw rounded natural walls at cell resolution, retaining built details.
     let (pw, ph) = (gw as usize * t / g as usize, gh as usize * t / g as usize);
     let (brick, stone, wood, lava, powder) = (pick(mats, "brick", s.rock), pick(mats, "stone", s.rock), pick(mats, "wood", s.rock), pick(mats, "lava", AIR), pick(mats, "gunpowder", s.rock));
@@ -673,7 +793,7 @@ fn carve(world: &mut World, mats: &Materials, b: Brick, edges: Edges, at: (i32, 
             if !inside(x, y) { continue; }
             let (sx, sy) = cave_sample(cx, cy, pw, ph, gw as usize, gh as usize, seed);
             let original = grid[(cy * gh as usize / ph) * gw as usize + cx * gw as usize / pw];
-            let sampled = natural_sample(&grid, gw as usize, gh as usize, sx, sy, Block::Open, Block::Ground);
+            let sampled = natural_sample(grid, gw as usize, gh as usize, sx, sy, Block::Open, Block::Ground);
             let block = keep_feature(original, sampled, Block::Open, Block::Ground);
             let mat = match block {
                 Block::Ground => s.rock,
@@ -702,6 +822,50 @@ fn keep_feature<T: Copy + PartialEq>(original: T, sampled: T, air: T, ground: T)
 #[cfg(test)]
 mod cave_shape_tests {
     use super::*;
+
+    #[test]
+    fn organic_plans_connect_every_required_door_and_keep_closed_edges_solid() {
+        for shape in [Shape::Horizontal, Shape::Vertical] {
+            for mask in 1u32..64 {
+                for seed in [7, 31, 77] {
+                    let edges = std::array::from_fn(|i| mask & (1 << i) != 0);
+                    let (grid, w, h) = organic_grid(shape, edges, seed, 0.0);
+                    let mut seen = vec![false; grid.len()];
+                    let first = grid.iter().position(|b| *b == Block::Open).unwrap();
+                    let mut stack = vec![first];
+                    seen[first] = true;
+                    while let Some(i) = stack.pop() {
+                        let (x, y) = (i % w as usize, i / w as usize);
+                        for (ok, j) in [(x > 0, i.wrapping_sub(1)), (x + 1 < w as usize, i + 1), (y > 0, i.wrapping_sub(w as usize)), (y + 1 < h as usize, i + w as usize)] {
+                            if ok && !seen[j] && grid[j] == Block::Open { seen[j] = true; stack.push(j); }
+                        }
+                    }
+                    assert!(grid.iter().enumerate().all(|(i, b)| *b != Block::Open || seen[i]), "disconnected {shape:?}, mask {mask}, seed {seed}");
+                    // Outer edge centres are controlled only by their door bit.
+                    let ports = match shape {
+                        Shape::Horizontal => [(8, 0), (24, 0), (31, 8), (24, 15), (8, 15), (0, 8)],
+                        Shape::Vertical => [(8, 0), (15, 8), (15, 24), (8, 31), (0, 24), (0, 8)],
+                    };
+                    for (k, (x, y)) in ports.into_iter().enumerate() {
+                        assert_eq!(grid[(y * w + x) as usize] == Block::Open, edges[k]);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn organic_plans_have_a_wide_range_of_open_space_and_distinct_shapes() {
+        let mut counts = Vec::new();
+        let mut shapes = std::collections::BTreeSet::new();
+        for seed in 0..128 {
+            let (grid, _, _) = organic_grid(Shape::Horizontal, [true; 6], seed, 0.0);
+            counts.push(grid.iter().filter(|b| **b == Block::Open).count());
+            shapes.insert(grid.iter().map(|b| *b == Block::Open).collect::<Vec<_>>());
+        }
+        assert!(shapes.len() > 120, "plans should vary even with the same entrances");
+        assert!(counts.iter().max().unwrap() * 10 > counts.iter().min().unwrap() * 15, "tight plans and open caverns should differ substantially: {}..{} open cells", counts.iter().min().unwrap(), counts.iter().max().unwrap());
+    }
 
     #[test]
     fn natural_corners_round_but_a_narrow_passage_stays_open() {

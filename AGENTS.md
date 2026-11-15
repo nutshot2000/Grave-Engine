@@ -396,3 +396,10 @@ Only 38% of eligible bricks use authored landmarks; other bricks get seeded
 layouts, with fewer hub rooms and more narrow branches. `rock` now uses an
 original procedural texture, and generated stone patches use `shale`.
 `tools/make_cave_textures.py` reproduces the two seamless textures.
+
+Natural built-in caves now mostly use `organic_grid`: six plan families on
+16 blocks per unit (meanders, caverns, branching trees, pillar loops,
+chamber chains, fractured shafts). One fifth keep the older rooms.
+`draw_cave_blocks` handles both grid resolutions. New plans must keep the
+protected outer rim and write only the six declared doorway collars;
+`cave_shape_tests` checks all door masks and plan variety.
