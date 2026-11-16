@@ -16,7 +16,7 @@ mod ledge;
 mod posture;
 mod surface;
 mod grapple;
-pub use grapple::Rope;
+pub use grapple::{Rope,grapple_target};
 pub use surface::{SurfaceWalker,advance as surface_advance,rotate as surface_rotate,tangent as surface_tangent};
 mod soak;
 pub use soak::Soak;

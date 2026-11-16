@@ -62,26 +62,10 @@ impl Physics {
         }
         let rb = &self.set[a.handle];
         let from = (rb.translation().x / CELL, rb.translation().y / CELL - 3.);
-        let n = aim.0.hypot(aim.1);
-        if n < 0.01 {
-            return false;
-        }
-        for k in 1..=(r.range * 2.) as usize {
-            let d = k as f32 * 0.5;
-            let p = (from.0 + aim.0 / n * d, from.1 + aim.1 / n * d);
-            if !w.in_bounds(p.0 as i32, p.1 as i32) {
-                break;
-            }
-            let i = w.idx(p.0 as usize, p.1 as usize);
-            if w.is_owned(i) {
-                continue;
-            }
-            let mat = m.get(w.mat[i]);
-            if mat.state == crate::material::State::Solid {
-                r.pins.push(p);
-                r.length = d.max(12.);
-                return true;
-            }
+        if let Some(p) = grapple_target(w, m, from, aim, r.range) {
+            r.pins.push(p);
+            r.length = distance(from, p).max(12.);
+            return true;
         }
         false
     }
@@ -160,4 +144,33 @@ impl Physics {
             }
         }
     }
+}
+
+/// Exact hook ray shared by launch controls and the on-screen hook preview.
+pub fn grapple_target(
+    w: &World,
+    m: &Materials,
+    from: Point,
+    aim: Point,
+    range: f32,
+) -> Option<Point> {
+    let n = aim.0.hypot(aim.1);
+    if n < 0.01 || !n.is_finite() {
+        return None;
+    }
+    for k in 1..=(range.clamp(0., 240.) * 2.) as usize {
+        let d = k as f32 * 0.5;
+        let p = (from.0 + aim.0 / n * d, from.1 + aim.1 / n * d);
+        if !w.in_bounds(p.0 as i32, p.1 as i32) {
+            break;
+        }
+        let i = w.idx(p.0 as usize, p.1 as usize);
+        if w.is_owned(i) {
+            continue;
+        }
+        if m.get(w.mat[i]).state == crate::material::State::Solid {
+            return Some(p);
+        }
+    }
+    None
 }

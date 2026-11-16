@@ -3,4 +3,4 @@ scene scenes/cave-expedition.txt
 home 96 606
 target_cyan 24
 target_violet 24
-view_width 230
+view_width 360

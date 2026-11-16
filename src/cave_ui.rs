@@ -88,6 +88,56 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
         "ON FOOT · W jump / climb".into()
     };
     label(p, left + Vec2::new(14., 83.), traversal, 11., CYAN);
+    if let Some(rope) = &a.rope {
+        let width = (r.width() - 28.).min(440.);
+        let at =
+            r.center_bottom() - Vec2::new(width * 0.5, if r.width() < 1050. { 218. } else { 125. });
+        card(p, Rect::from_min_size(at, Vec2::new(width, 86.)), GOLD);
+        let attached = !rope.pins.is_empty();
+        label(
+            p,
+            at + Vec2::new(14., 10.),
+            if attached {
+                "ROPE ATTACHED — hold to pull yourself up"
+            } else {
+                "ROPE — aim above you at the gold hook target"
+            },
+            14.,
+            GOLD,
+        );
+        label(
+            p,
+            at + Vec2::new(14., 35.),
+            if pad {
+                if attached {
+                    "Hold D-pad UP: pull up   DOWN: lower yourself"
+                } else {
+                    "Click RIGHT STICK once to attach"
+                }
+            } else if attached {
+                "Hold SPACE: pull up   Hold S: lower yourself"
+            } else {
+                "RIGHT CLICK or Q once to attach (no need to hold)"
+            },
+            13.,
+            INK,
+        );
+        label(
+            p,
+            at + Vec2::new(14., 59.),
+            if attached {
+                if pad {
+                    "A/D or left stick: swing · R3 again: release"
+                } else {
+                    "A/D: swing · RIGHT CLICK / Q again: release"
+                }
+            } else {
+                "Then hold SPACE to climb the rope. A/D swings."
+            },
+            12.,
+            MUTED,
+        );
+    }
     if let Some(mission) = &s.mission {
         let at = if compact {
             left + Vec2::new(0., 122.)
@@ -303,6 +353,59 @@ pub fn equipment(
     };
     let pose = tool_pose::pose(&a, aim);
     if let Some(rope) = &a.rope {
+        if rope.pins.is_empty() {
+            let from = tool_pose::shoulder(&a);
+            let hit = crate::physics::grapple_target(&s.world, m, from, aim, rope.range);
+            if let Some(hook) = hit {
+                let actual = point(hook);
+                let clip = p.clip_rect().shrink(24.);
+                let shown = Pos2::new(
+                    actual.x.clamp(clip.left(), clip.right()),
+                    actual.y.clamp(clip.top(), clip.bottom()),
+                );
+                let start = point(from);
+                let length = (shown - start).length();
+                for i in 0..((length / 16.).ceil() as usize).min(80) {
+                    let t = i as f32 * 16. / length.max(1.);
+                    let end = (t + 5. / length.max(1.)).min(1.);
+                    p.line_segment(
+                        [start.lerp(shown, t), start.lerp(shown, end)],
+                        (1., GOLD.gamma_multiply(0.45)),
+                    );
+                }
+                p.circle_filled(shown, 9., Color32::from_black_alpha(220));
+                p.circle_stroke(shown, 7., (2., GOLD));
+                p.line_segment(
+                    [shown - Vec2::new(4., 0.), shown + Vec2::new(4., 0.)],
+                    (1.5, GOLD),
+                );
+                p.line_segment(
+                    [shown - Vec2::new(0., 4.), shown + Vec2::new(0., 4.)],
+                    (1.5, GOLD),
+                );
+                let text = if clip.contains(actual) {
+                    "ROPE HOOK · right click / Q"
+                } else {
+                    "ROPE HOOK OFFSCREEN · aim this way"
+                };
+                p.text(
+                    shown + Vec2::new(0., 15.),
+                    Align2::CENTER_TOP,
+                    text,
+                    FontId::proportional(12.),
+                    GOLD,
+                );
+            } else {
+                let at = point((a.x, a.y - 15.));
+                p.text(
+                    at,
+                    Align2::CENTER_BOTTOM,
+                    "ROPE: no solid rock in this direction / range",
+                    FontId::proportional(12.),
+                    GOLD,
+                );
+            }
+        }
         if let Some(last) = rope.pins.last() {
             let mut path = rope.pins.clone();
             path.push(pose.hand);

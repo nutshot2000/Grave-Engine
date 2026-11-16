@@ -48,7 +48,7 @@ light 270 310 90 strength 0.5 color #b4e978
 light 420 310 90 strength 0.5 color #d1bd8b
 light 570 310 90 strength 0.5 color #ff9d68
 light 720 310 90 strength 0.5 color #8dc9ed
-player 60 220 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 110 zoom 3
+player 60 220 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 110 zoom 1.4
 workshop mechanic 60 212 30
 workshop chemistry 60 212 30
 storage on

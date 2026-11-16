@@ -9,7 +9,7 @@ endless seed 33 tiles tiles/caves
 rect air 600 470 90 60                     # a start chamber...
 rect rock 600 530 90 10                    # ...with a floor
 anchor 600 530 90 10
-player 640 530 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 125 zoom 4
+player 640 530 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 125 zoom 1.4
 
 # Atmospheric cave light; edit in the Lights panel.
 lighting 0.32 #c8d6f0

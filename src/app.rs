@@ -3103,7 +3103,7 @@ Click to mute. The volume is in the View menu.")
         } else if let Some(b) = self.sim.follow.and_then(|id| self.sim.physics.spec_of(&self.sim.world, id)) {
             Some(((b.x, b.y), (b.vx, b.vy)))
         } else if self.playing {
-            self.sim.physics.actor_status().first().map(|p| ((p.x, p.y), (0.0, 0.0)))
+            self.sim.physics.actor_status().first().map(|p| ((p.x, p.y-if p.rope.is_some(){30.}else{0.}), (0.0, 0.0)))
         } else {
             None
         };
@@ -3185,7 +3185,7 @@ Click to mute. The volume is in the View menu.")
                     let under = ((p.x - rect.min.x) / scale, (p.y - rect.min.y) / scale);
                     let off = p - outer.center();
                     self.cam = Some((under.0 - off.x / s1, under.1 - off.y / s1, s1));
-                    if self.sim.follow.is_some() {
+                    if self.sim.follow.is_some() || (self.playing && self.sim.physics.player_count()>0) {
                         self.sim.zoom = s1 / fit;
                     }
                 }
@@ -4049,7 +4049,7 @@ impl eframe::App for Sandbox {
 
         let immersive=self.explorer_play()&&self.sim.physics.player_status().is_some_and(|p|p.rope.is_some());
         if immersive {
-            egui::Panel::top("game_bar").show(ui,|ui|{ui.horizontal(|ui|{ui.strong("D E E P W A R D");ui.separator();ui.small("EDITOR PLAYTEST");if ui.button("Pause & edit [P]").clicked(){self.playing=false;}if ui.button("Reset").clicked(){self.reset();}if ui.button("Inventory [B]").clicked(){self.supply_panel.open=!self.supply_panel.open;}});});
+            egui::Panel::top("game_bar").show(ui,|ui|{ui.horizontal_wrapped(|ui|{ui.strong("D E E P W A R D");ui.separator();ui.small("EDITOR PLAYTEST");if ui.button("Pause & edit [P]").clicked(){self.playing=false;}if ui.button("Reset").clicked(){self.reset();}if ui.button("Inventory [B]").clicked(){self.supply_panel.open=!self.supply_panel.open;}ui.separator();if ui.button("− Zoom out").clicked(){self.sim.zoom=(self.sim.zoom/1.25).max(1.);}if ui.button("+ Zoom in").clicked(){self.sim.zoom=(self.sim.zoom*1.25).min(8.);}ui.small("Mouse wheel also zooms");});});
         } else {
         egui::Panel::top("top").show(ui, |ui| {
             ui.add_space(4.0);
@@ -4738,6 +4738,16 @@ player 50 100
         h.event(key(Key::X, false));
         h.run_steps(2);
         assert!(!h.state().sim.physics.controls().crouch && !h.state().sim.physics.controls().roll);
+    }
+
+    #[test]
+    fn cave_camera_zoom_buttons_and_wheel_persist_while_following_the_player() {
+        let mut h=editor();
+        {let app=h.state_mut();let(s,p)=scene::load("size 400 260\nfill air\nrect bedrock 0 240 400 20\nplayer 100 240 rope zoom 2\n",&app.mats,None).into_sim(&app.mats);assert!(p.is_empty());app.sim=s;app.play();}
+        h.run_steps(5);h.get_by_label("− Zoom out").click();h.run_steps(3);assert!(h.state().sim.zoom<2.);
+        let player=h.state().sim.physics.player_status().unwrap();let pointer=at(&h,player.x,player.y);
+        h.event(Event::PointerMoved(pointer));h.event(Event::MouseWheel{unit:egui::MouseWheelUnit::Point,delta:Vec2::new(0.,-90.),modifiers:Modifiers::NONE,phase:egui::TouchPhase::Move,source:egui::MouseWheelSource::Unknown});h.run_steps(5);
+        let zoom=h.state().sim.zoom;assert!(zoom<1.6,"wheel must change the followed player's zoom: {zoom}");h.run_steps(40);assert!((h.state().sim.zoom-zoom).abs()<0.001,"camera follow must retain wheel zoom");
     }
 
     #[test]

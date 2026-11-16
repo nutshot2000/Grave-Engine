@@ -16,9 +16,11 @@ struct App {
 impl App {
     fn new()->Self{let game=Expedition::new(true);let p=game.player();Self{supplies:Default::default(),game,input:Input::load_or("assets/input/cave-explorer.input",INPUT).expect("controls"),texture:None,sprites:BTreeMap::new(),last:Instant::now(),clock:0.,started:false,paused:false,map:false,view_at:None,last_mouse:None,camera:(p.x,p.y),save_clock:0}}
     fn draw(&mut self,ctx:&egui::Context,ui:&mut egui::Ui){
-        let rect=ui.max_rect();let p=self.game.player();let width=self.game.tuning.view;let scale=rect.width()/width;
+        let rect=ui.max_rect();let p=self.game.player();
+        if !self.supplies.open {let wheel=ctx.input(|i|i.smooth_scroll_delta.y);if wheel.abs()>0.1{self.game.tuning.view=(self.game.tuning.view*(1.12f32).powf(-wheel/60.)).clamp(180.,600.);}}
+        let width=self.game.tuning.view;let scale=rect.width()/width;
         let height=rect.height()/scale;
-        self.camera.0+=(p.x+p.facing*16.-self.camera.0)*0.09;self.camera.1+=(p.y-8.-self.camera.1)*0.08;
+        self.camera.0+=(p.x+p.facing*16.-self.camera.0)*0.09;self.camera.1+=(p.y-if p.rope.is_some(){30.}else{8.}-self.camera.1)*0.08;
         let (w,h)=(self.game.sim.world.w as f32,self.game.sim.world.h as f32);
         let left=(self.camera.0-width/2.).clamp(0.,(w-width).max(0.));let top=(self.camera.1-height/2.).clamp(0.,(h-height).max(0.));
         let win=(left as usize,top as usize,(width.ceil() as usize+1).min(w as usize-left as usize),(height.ceil() as usize+1).min(h as usize-top as usize));

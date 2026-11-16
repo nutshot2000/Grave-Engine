@@ -6,6 +6,13 @@ enough scrap for either a gas collector or a flame projector. Mine the iron
 seam and sandstone nearby to build more equipment. Crystal shelves and an
 oil crawler/fire shellback give you a reason to cross the cavern.
 
+The camera starts pulled back with room above the diver to see rope anchors.
+Use **− Zoom out / + Zoom in** in the editor play bar, or the mouse wheel.
+The separate gold hook target shows the exact anchor a right click will use;
+the cyan circle remains the short-range mining target. An offscreen hook is
+marked at the edge of the view. If there is no rock in range, the view says so.
+The rope help card changes to reel/release instructions once attached.
+
 The existing Mining Trial, expedition and generated cave examples also now
 start with a grappling rope. New expeditions use the rope; old saved runs
 retain their previous equipment until restarted.

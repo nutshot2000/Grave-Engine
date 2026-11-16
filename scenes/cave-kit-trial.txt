@@ -39,7 +39,7 @@ light 75 255 88 strength 1.0 color #ffc88d
 light 274 281 75 strength 0.8 color #ffc88d
 light 483 255 83 strength 0.9 color #ffc88d
 light 310 122 65 strength 0.35 color #6ea5bc
-player 55 280 look cave-diver moves climb 0.65 reach 8 rope rope_range 220 headlamp 115 zoom 4
+player 55 280 look cave-diver moves climb 0.65 reach 8 rope rope_range 220 headlamp 115 zoom 1.4
 mission 55 272 20
 sample crystal_cyan 16 0
 sample crystal_violet 16 0

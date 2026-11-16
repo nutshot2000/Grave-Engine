@@ -20,6 +20,15 @@ fn setup(text: &str) -> (Materials, Sim, Catalog) {
 }
 const ROOM: &str = "size 260 260\nfill air\nrect bedrock 0 0 260 10\nrect bedrock 0 245 260 15\nanchor 0 0 260 260\nplayer 90 170 rope rope_range 220\n";
 #[test]
+fn rope_preview_matches_the_actual_hook_and_reports_out_of_range() {
+    let(m,mut s,_)=setup(ROOM);
+    let a=s.physics.player_status().unwrap();let from=grave_engine::tool_pose::shoulder(&a);
+    let target=grave_engine::physics::grapple_target(&s.world,&m,from,(0.,-1.),220.).unwrap();
+    assert!(grave_engine::physics::grapple_target(&s.world,&m,from,(0.,-1.),20.).is_none());
+    assert!(s.physics.grapple(&s.world,&m,(0.,-1.)));
+    assert_eq!(s.physics.player_status().unwrap().rope.unwrap().pins[0],target);
+}
+#[test]
 fn rope_wraps_around_a_rock_corner_and_unwraps_when_it_has_a_clear_path() {
     let (m, mut s, _) = setup(
         "size 220 240\nfill air\nrect bedrock 0 0 220 10\nrect rock 112 70 8 8\nanchor 0 0 220 240\nplayer 170 174 rope rope_range 220 rope_length 210 rope_path 80,9.5\n",
