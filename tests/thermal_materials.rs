@@ -28,6 +28,22 @@ fn different_capacities_conserve_heat_and_approach_the_weighted_equilibrium() {
     assert!((w.temp[1] - expected).abs() < 0.01);
 }
 #[test]
+fn each_authored_phase_change_produces_its_named_material() {
+    let m = Materials::load_dir("materials");
+    for material in &m.list {
+        for (rule, delta) in [(material.melts, 2.), (material.boils, 2.), (material.freezes, -2.), (material.condenses, -2.)] {
+            let Some(change) = rule.filter(|c| c.at.is_finite()) else { continue };
+            let mut w = World::new(16, 16);
+            w.fill(&m, m.id(&material.name).unwrap());
+            w.ambient = change.at + delta;
+            w.temp.fill(w.ambient);
+            w.step(&m);
+            assert!(w.mat.contains(&change.into), "{} should produce {} at {} °C", material.name, m.get(change.into).name, w.ambient);
+        }
+    }
+}
+
+#[test]
 fn capacities_below_one_really_change_the_heating_rate() {
     let run = |cap| {
         let m = Materials::from_texts(&[("test", &inert(cap))]);

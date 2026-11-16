@@ -650,9 +650,10 @@ fn parse_raw(file_stem: &str, file: Option<PathBuf>, text: &str, problems: &mut 
 }
 
 fn num(v: &str) -> Result<f32, String> {
-    let v = v.trim().trim_end_matches("°c").trim_end_matches('c').trim();
-    v.parse::<f32>()
-        .map_err(|_| format!("`{v}` is not a number"))
+    let v = v.trim();
+    let v = v.strip_suffix(['C', 'c']).map_or(v, |n| n.trim_end_matches('°').trim());
+    v.parse::<f32>().ok().filter(|n| n.is_finite())
+        .ok_or_else(|| format!("`{v}` is not a finite number"))
 }
 
 fn is_none(v: &str) -> bool {

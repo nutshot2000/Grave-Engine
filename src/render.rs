@@ -253,14 +253,15 @@ impl Renderer {
         let (ex0, ey0, ew, eh) = e;
         let at = |j: usize| (ey0 + j / ew) * world.w + ex0 + j % ew;
         // Load any textures not seen yet.
-        let pics: Vec<Option<crate::import::Picture>> = mats
-            .list
-            .iter()
-            .map(|m| {
-                let p = m.texture.as_ref()?;
-                self.textures.entry(p.clone()).or_insert_with(|| crate::import::Picture::open(p).ok()).clone()
-            })
-            .collect();
+        for path in mats.list.iter().filter_map(|m| m.texture.as_ref()) {
+            if !self.textures.contains_key(path) {
+                self.textures.insert(path.clone(), crate::import::Picture::open(path).ok());
+            }
+        }
+        // All textures are loaded now; share their pixel buffers for this draw.
+        let pics: Vec<_> = mats.list.iter().map(|m|
+            m.texture.as_ref().and_then(|path| self.textures.get(path)).and_then(Option::as_ref)
+        ).collect();
         let n = ew * eh;
         self.light.clear();
         self.light.resize(n, [0.0; 3]);

@@ -22,7 +22,11 @@ fn count(s: &Sim, m: &Materials, name: &str) -> usize {
 #[test]
 fn every_material_is_complete() {
     let m = mats();
+    assert!(m.problems.is_empty(), "{:?}", m.problems);
     for mat in &m.list {
+        if let Some(path) = &mat.texture {
+            grave_engine::import::Picture::open(path).unwrap_or_else(|e| panic!("{} texture: {e}", mat.name));
+        }
         if mat.name == "air" {
             continue;
         }
@@ -108,4 +112,19 @@ fn dirt_soaks_up_water_into_mud_and_snow_melts() {
     assert!(count(&s, &m, "snow") < 40, "snow melts on a warm day");
     let (mud, sand) = (m.get(m.id("mud").unwrap()), m.get(m.id("sand").unwrap()));
     assert!(mud.rolling_resistance > sand.rolling_resistance, "mud bogs wheels down more than sand");
+}
+
+#[test]
+fn nonfinite_material_settings_are_reported_before_simulation() {
+    let m = grave_engine::Materials::from_texts(&[("sample", "temperature = NaN\ndensity = inf\nconducts_heat = -inf")]);
+    assert_eq!(m.problems.len(), 3, "{:?}", m.problems);
+    let sample = m.get(m.id("sample").unwrap());
+    assert!(sample.temperature.is_finite() && sample.density.is_finite());
+}
+
+#[test]
+fn authored_temperature_accepts_the_displayed_celsius_unit() {
+    let m = grave_engine::Materials::from_texts(&[("sample", "temperature = -12 °C")]);
+    assert!(m.problems.is_empty(), "{:?}", m.problems);
+    assert_eq!(m.get(m.id("sample").unwrap()).temperature, -12.);
 }
