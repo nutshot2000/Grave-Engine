@@ -14,7 +14,7 @@ the mining tool has a tiny cross and coloured terrain pixels, without a circle. 
 marked at the edge of the view. If there is no rock in range, the view says so.
 The rope help card changes to reel/release instructions once attached.
 
-The existing Mining Trial, expedition and generated cave examples also now
+The expedition and generated cave examples also now
 start with a grappling rope. New expeditions use the rope; old saved runs
 retain their previous equipment until restarted.
 

@@ -1,7 +1,7 @@
 # Cave storage and workshops
 
-The mining trial now tests a small **mine → build → explore** loop.
-Open `Play/Mining-Trial.cmd`, leave **Player tools** on and press **Play**.
+DEEPWARD (`Play/Cave-Explorer.cmd`) has a **mine → build → explore** loop:
+the mechanic and chemistry workshops sit at the lift camp.
 
 [Elemental crawlers](CAVE-CREATURES.md) now guard the richer pockets. They
 can climb onto walls and ceilings, retreat from hazards and release their

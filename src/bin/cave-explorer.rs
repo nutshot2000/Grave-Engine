@@ -108,6 +108,10 @@ impl Drop for App{fn drop(&mut self){if self.started{self.game.save();}}}
 
 fn verify() -> bool {
     let mut game = Expedition::new(false);
+    // The runner only walks and swings near camp: it checks the short loop
+    // (controls, mining, return) with small quotas. The full quotas send a
+    // player out into the cave, which needs a human playtest.
+    if let Some(m) = game.sim.mission.as_mut() { for g in &mut m.goals { g.target = g.target.min(24); } }
     let mut last_x = game.player().x;
     let mut stalled = 0;
     let mut last_hook = -100_i32;

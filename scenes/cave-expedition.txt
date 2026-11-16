@@ -18,14 +18,16 @@ rect wood 172 601 2 13
 rect torch_glow 171 596 4 5
 anchor 171 596 4 18
 player 96 614 look cave-diver moves walk_speed 6.4 roll_speed 7.5 climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 125 zoom 1.4
-# A small first seam beyond camp; the violet samples are deeper in the map.
+# A small first seam beyond camp, to learn drilling on.
 rect crystal_cyan 205 582 4 10
 anchor 205 582 4 10
 
-# Collect both samples, then return to the starting camp.
+# Collect both samples, then return to the starting camp. The cyan patch
+# above camp and the guarded violet gallery are only a start: the rest is
+# out in the cave (cyan up north or down south, violet in the middle).
 mission 96 606 24
-sample crystal_cyan 24 0
-sample crystal_violet 24 0
+sample crystal_cyan 130 0
+sample crystal_violet 120 0
 
 # A mechanic workshop near the starting camp.
 workshop mechanic 120 606 26

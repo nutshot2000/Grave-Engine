@@ -4,8 +4,12 @@ Double-click **Play/Cave-Explorer.cmd**. The title screen resumes the saved
 expedition; press **Enter** (controller A) to start. This is a playable first
 loop built on Grave Engine, not a finished or balanced game.
 
-Recover the cyan and violet sample quotas shown in the HUD, then return to
-the amber lift marker. The signal points to the nearest needed crystal,
+Recover the cyan and violet sample quotas shown in the HUD (130 cyan, 120
+violet), then return to the amber lift marker. The patch above camp, the
+small seam beside it and the guarded violet gallery are only a start: the
+rest is out in the cave, cyan to the north or south, violet in the middle.
+`cargo run --release --example crystal_map -- scenes/cave-expedition.txt 96 606`
+lists every crystal patch and its distance from camp, for placing quotas. The signal points to the nearest needed crystal,
 and switches home once both quotas are met. Hold the drill to mine actual
 material cells; you can bore your own passages through blocked routes.
 Health, swimming, heat, collisions and the material simulation still apply.
@@ -75,7 +79,8 @@ crafting, mission return and reset. Native checks cover the game HUD, mining
 highlight, weapon pose, rope attachment and workshop screen.
 
 Run `target/release/cave-explorer --verify` for a fresh expedition on the
-authored map. The runner walks, jumps, grapples, winds the rope and drills
+authored map, with quotas capped at 24 (the runner only knows the camp area;
+the full route needs a human playtest). The runner walks, jumps, grapples, winds the rope and drills
 using normal game actions. It checks that both quotas reach the lift,
 rejects a finish on the respawn frame, and prints deaths and hook catches.
 The return route crosses the gap at the east edge of the lift platform.
@@ -89,8 +94,7 @@ drill; I/J/K/L or the controller right stick can aim too, with RT drilling.
 Hold right mouse for the rope; scroll changes its length, P pauses, and Reset restores the
 pre-play terrain. The cutter reaches three metres. Highlighted pixels show the
 exposed material under the crosshair. Holding fire with no target shows “No reachable rock”. Mining uses the same focused surface drilling and material hardness rules
-as DEEPWARD, and feeds the scene's crystal mission inventory. See the
-[mining trial](MINING-TRIAL.md) for a small cavern designed to test the feel.
+as DEEPWARD, and feeds the scene's crystal mission inventory.
 
 Pause to select/paint normally, or turn **Player tools** off to use editor
 tools while simulation continues. Clicks outside the canvas do not mine.
@@ -126,8 +130,7 @@ Every drilled terrain cell is stored under its material. Crafting and ammo
 spend the recorded quantities, and spending crystals lowers carried mission
 quotas until you mine replacements. Tool tuning and recipes are in
 `assets/crafting/`; `assets/cave-explorer/game.txt` sets the expedition scene,
-home, targets and view. Use the small Mining Trial for the authored workshop
-progression; generated caves now include mineable iron ore seams.
+home, targets and view. Generated caves include mineable iron ore seams.
 
 ## Elemental cave guards
 

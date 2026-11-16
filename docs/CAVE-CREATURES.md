@@ -1,6 +1,6 @@
 # Cave crawlers and elemental variants
 
-Open **Play/Mining-Trial.cmd** for mine/craft progression, or
+Open **Play/Cave-Explorer.cmd** for mine/craft progression, or
 **Play/Elemental-Creatures.cmd** for a gallery with weapons and generous ammo
 already supplied. Everything runs in editor Play mode. B opens storage,
 F changes tools, aim and hold click/E to use one, and Space flies.
@@ -27,9 +27,7 @@ Reset restores creatures, resources, spills, equipment and ammunition.
 - Heat, acid contact and drowning affect real character bodies. Defeated
   creatures do not respawn until Reset; ceiling creatures drop when killed.
 
-The first cyan and small violet seams in the Mining Trial stay accessible
-before the hard fights. A fire shellback guards the richer lower deposit,
-and an acid skitter crawls around the sealed cache. DEEPWARD's bonus gallery
+(The old Mining Trial scene has been removed.) DEEPWARD's bonus gallery
 also has guards. This is a first balance pass, not a finished enemy roster.
 
 ## Elemental death spills
