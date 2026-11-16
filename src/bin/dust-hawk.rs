@@ -863,7 +863,7 @@ impl eframe::App for App {
                 )
             });
             let input = FlightInput {
-                movement: [(mx + my) * 0.7071, (my - mx) * 0.7071],
+                movement: [(mx + my) * std::f32::consts::FRAC_1_SQRT_2, (my - mx) * std::f32::consts::FRAC_1_SQRT_2],
                 climb,
                 heading: (self.game.aim.y - self.game.craft.at.y)
                     .atan2(self.game.aim.x - self.game.craft.at.x),

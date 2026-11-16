@@ -686,8 +686,8 @@ impl Ambience {
             let pop = self.pop_lo * self.pop.0;
             self.pop.0 *= self.pop.1;
             let s = (roar + pop * self.fire.sqrt()) * 0.6;
-            l += s * (1.0 - self.pan).sqrt() * 0.7071;
-            rr += s * (1.0 + self.pan).sqrt() * 0.7071;
+            l += s * (1.0 - self.pan).sqrt() * std::f32::consts::FRAC_1_SQRT_2;
+            rr += s * (1.0 + self.pan).sqrt() * std::f32::consts::FRAC_1_SQRT_2;
         }
         // Rain: a high hiss (a little different in each ear) and drips.
         if self.rain > 0.001 {

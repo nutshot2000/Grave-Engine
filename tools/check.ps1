@@ -5,10 +5,9 @@
 #   tools\check.ps1            (from the project folder)
 #   tools\check.ps1 -Frames 600
 #
-# Closes the editor first if it's open (it locks the program file).
+# The live editor normally runs from a copy and can stay open.
 param([int]$Frames = 300)
 Set-Location (Join-Path $PSScriptRoot "..")
-Stop-Process -Name grave-engine -ErrorAction SilentlyContinue
 
 Write-Host "== Building"
 cargo build --release
@@ -16,8 +15,9 @@ if ($LASTEXITCODE -ne 0) { Write-Host "BUILD FAILED"; exit 1 }
 
 Write-Host "== Tests"
 $tests = cargo test --release 2>&1 | Out-String
+$testsOk = $LASTEXITCODE -eq 0
+if (-not $testsOk) { Write-Host $tests }
 $tests -split "`n" | Where-Object { $_ -match "^test result|panicked|FAILED" } | ForEach-Object { Write-Host "  $_" }
-$testsOk = -not ($tests -cmatch "test result: FAILED|panicked at")
 
 Write-Host "== Scenes ($Frames frames each)"
 New-Item -ItemType Directory -Force shots\check | Out-Null

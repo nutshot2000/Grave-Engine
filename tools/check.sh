@@ -21,8 +21,13 @@ cargo build --release || { echo "BUILD FAILED (is the editor open? close it and 
 [ -f "$TARGET/release/grave-engine.exe" ] && EXE="$TARGET/release/grave-engine.exe"
 
 echo "== Tests"
-if cargo test --release 2>&1 | tee shots_test.log | grep -E "^test result|panicked|FAILED"; then :; fi
-if grep -qE "test result: FAILED|panicked at" shots_test.log; then TESTS=failed; else TESTS=ok; fi
+if cargo test --release > shots_test.log 2>&1; then
+  TESTS=ok
+  grep -E "^test result" shots_test.log
+else
+  TESTS=failed
+  cat shots_test.log
+fi
 rm -f shots_test.log
 
 echo "== Scenes ($FRAMES frames each)"
