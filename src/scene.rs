@@ -1039,6 +1039,29 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 })();
                 match parsed {Ok(a)=>actors.push(a),Err(e)=>err(e)}
             },
+            // Elemental creatures over the whole level (after `generate`):
+            // `creatures AMOUNT [seed N] [avoid X Y RADIUS]`.
+            "creatures" => {
+                let parsed=(||->Result<Vec<crate::physics::ActorSpec>,String>{
+                    let amount=words.get(1).and_then(|v|v.parse::<f32>().ok()).filter(|v|v.is_finite()).ok_or("use creatures AMOUNT [seed N] [avoid X Y RADIUS]")?;
+                    let opt=|key:&str|words.iter().position(|w|*w==key);
+                    let seed=opt("seed").and_then(|i|words.get(i+1)).and_then(|v|v.parse::<u32>().ok()).unwrap_or(1);
+                    let avoid=match opt("avoid") {Some(i)=>{let v=nums(i+1,3)?;Some((v[0],v[1],v[2]))},None=>None};
+                    let w=ensure(&mut world,mats);
+                    let room=128usize.saturating_sub(actors.iter().filter(|a|a.creature.is_some()).count());
+                    let kinds=crate::creatures::species()?;
+                    let mut made=Vec::new();
+                    for sp in crate::creatures::scatter(w,mats,amount,seed,avoid,room) {
+                        let Some(species)=kinds.iter().find(|k|k.id==sp.species).cloned() else {continue};
+                        let mut c=crate::creatures::Creature::new(species.clone(),(sp.x,sp.feet-species.height*0.5));
+                        if let Some(id)=mats.id(sp.element) {c.element=Some(mats.get(id).name.clone());}
+                        c.burst=sp.burst;
+                        made.push(c.actor(mats,sp.x,sp.feet));
+                    }
+                    Ok(made)
+                })();
+                match parsed {Ok(a)=>actors.extend(a),Err(e)=>err(e)}
+            },
             "player" => {
                 let opt = |key: &str| words.iter().position(|w| w.eq_ignore_ascii_case(key)).and_then(|i| words.get(i + 1));
                 let material = opt("material").map(|s| s.to_string()).unwrap_or_else(|| "flesh".into());

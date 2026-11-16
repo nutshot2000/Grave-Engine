@@ -58,3 +58,6 @@ anchor 333 596 3 18
 light 350 580 70 strength 0.65 color #b7b0dc
 creature skitter 306 614 element oil burst 112
 creature shellback 364 614 element acid burst 96
+
+# Elemental creatures roam the whole cave (none near camp).
+creatures 0.5 seed 33 avoid 220 590 300

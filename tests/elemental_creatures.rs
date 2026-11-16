@@ -185,3 +185,24 @@ fn invalid_elements_are_reported_and_air_cannot_be_a_payload() {
         assert!(!p.is_empty());
     }
 }
+
+/// `creatures AMOUNT` fills a generated level with elemental creatures on
+/// real floors, never inside the safe zone, the same every time.
+#[test]
+fn creatures_line_scatters_elemental_creatures_over_the_level() {
+    let m = grave_engine::Materials::load_dir("materials");
+    let text = "size 1024 640\nfill air\ngenerate 0 0 1024 640 seed 5 tile 140 caverns 1 rooms 0 bend 1\ncreatures 0.6 seed 5 avoid 200 300 150\n";
+    let load = || grave_engine::scene::load(text, &m, None).into_sim(&m);
+    let (s, problems) = load();
+    assert!(problems.is_empty(), "{problems:?}");
+    let bugs: Vec<_> = s.physics.actor_status().into_iter().filter(|a| a.creature.is_some()).collect();
+    assert!(bugs.len() >= 15, "only {} creatures", bugs.len());
+    let elements: std::collections::BTreeSet<_> = bugs.iter().filter_map(|a| a.creature.as_ref()?.element.clone()).collect();
+    assert!(elements.len() >= 3, "a mix of elements: {elements:?}");
+    for a in &bugs {
+        assert!((a.x - 200.0).hypot(a.y - 300.0) > 140.0, "creature inside the safe zone at ({}, {})", a.x, a.y);
+    }
+    let (again, _) = load();
+    let place = |s: &grave_engine::Sim| s.physics.actor_status().iter().map(|a| (a.x as i32, a.y as i32)).collect::<Vec<_>>();
+    assert_eq!(place(&s), place(&again), "same scene, same creatures");
+}

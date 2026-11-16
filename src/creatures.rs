@@ -622,3 +622,76 @@ pub fn draws(actors: &[ActorStatus]) -> Vec<ActorStatus> {
         .cloned()
         .collect()
 }
+
+/// A creature placed by `scatter`: species id, feet position, element, burst.
+pub struct Spawn {
+    pub species: String,
+    pub x: f32,
+    pub feet: f32,
+    pub element: &'static str,
+    pub burst: u16,
+}
+
+/// Elemental creatures scattered over a whole level (`creatures AMOUNT` in a
+/// scene, after the caves are made). Spots are real floors with headroom,
+/// away from `avoid` (x, y, radius: the camp). The element suits the place:
+/// water near pools, oil near gas or oil, lava and fire deep down, and a mix
+/// elsewhere. Seeded, so the same scene always gets the same creatures.
+pub fn scatter(world: &crate::World, mats: &crate::Materials, amount: f32, seed: u32, avoid: Option<(f32, f32, f32)>, max: usize) -> Vec<Spawn> {
+    use crate::material::State;
+    let (w, h) = (world.w as i32, world.h as i32);
+    let mat = |x: i32, y: i32| (x >= 0 && y >= 0 && x < w && y < h).then(|| world.mat[world.idx(x as usize, y as usize)]);
+    let solid = |x: i32, y: i32| mat(x, y).is_some_and(|m| mats.get(m).state == State::Solid);
+    let air = |x: i32, y: i32| mat(x, y) == Some(crate::material::AIR) && !world.is_owned(world.idx(x as usize, y as usize));
+    let roll = |i: i32, j: i32, k: u32| {
+        let mut v = seed ^ 0xc2ea_7u32.wrapping_mul(k + 1) ^ (i as u32).wrapping_mul(0x9E37_79B9) ^ (j as u32).wrapping_mul(0x85EB_CA6B);
+        v ^= v >> 15;
+        v = v.wrapping_mul(0x2C1B_3C6D);
+        v ^= v >> 12;
+        (v & 0xFFFF) as f32 / 65535.0
+    };
+    let (water, gas, oil, lava) = (mats.id("water"), mats.id("volatile_gas"), mats.id("oil"), mats.id("lava"));
+    let spacing = 64;
+    let mut out = Vec::new();
+    for j in 0..h / spacing + 1 {
+        for i in 0..w / spacing + 1 {
+            if out.len() >= max || roll(i, j, 0) > amount.clamp(0.0, 1.0) * 0.7 {
+                continue;
+            }
+            let shell = roll(i, j, 1) < 0.35;
+            let tall = if shell { 18 } else { 12 };
+            // A few tries in this patch: down to a floor (open cell, solid
+            // ground under it) with footing and room to stand.
+            let found = (0..8u32).find_map(|k| {
+                let x = i * spacing + (roll(i, j, 10 + k) * spacing as f32) as i32;
+                let start = j * spacing + (roll(i, j, 20 + k) * spacing as f32) as i32;
+                let y = (start..(start + spacing).min(h - 2)).find(|&y| air(x, y) && solid(x, y + 1))?;
+                if avoid.is_some_and(|(cx, cy, r)| (x as f32 - cx).hypot(y as f32 - cy) < r) {
+                    return None;
+                }
+                let footing = (-2..=2).all(|dx| solid(x + dx, y + 1) || solid(x + dx, y + 2));
+                let room = (-4..=4).all(|dx| (1..tall + 2).all(|dy| air(x + dx, y - dy)));
+                (footing && room).then_some((x, y))
+            });
+            let Some((x, y)) = found else { continue };
+            // What's around decides the element.
+            let near = |m: Option<crate::material::MatId>| {
+                let Some(m) = m else { return 0 };
+                (-28..=28).step_by(2).map(|dy| (-28..=28).step_by(2).filter(|&dx| mat(x + dx, y + dy) == Some(m)).count()).sum::<usize>()
+            };
+            let deep = y as f32 > h as f32 * 0.65;
+            let pick = roll(i, j, 4);
+            let element = if near(water) > 6 {
+                "water"
+            } else if near(gas) + near(oil) > 6 {
+                "oil"
+            } else if near(lava) > 0 || (deep && pick < 0.6) {
+                if pick < 0.3 { "lava" } else { "fire" }
+            } else {
+                ["fire", "oil", "water", "fire", "acid", "oil"][(pick * 6.0) as usize % 6]
+            };
+            out.push(Spawn { species: if shell { "shellback" } else { "skitter" }.into(), x: x as f32, feet: (y + 1) as f32, element, burst: if shell { 110 } else { 80 } });
+        }
+    }
+    out
+}

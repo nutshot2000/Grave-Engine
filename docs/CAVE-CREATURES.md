@@ -72,3 +72,14 @@ artwork and the material body use the same rotated mask.
 
 Current placements are authored in finite trial and expedition scenes.
 Automatic population of newly streamed endless regions is separate work.
+
+## Filling a whole level
+
+`creatures AMOUNT [seed N] [avoid X Y RADIUS]` (after `generate` in a scene)
+scatters elemental skitters and shellbacks over the level: real floors
+with room to stand, none inside the `avoid` circle (the camp). The element
+suits the place: water near flooded dips, oil near gas or oil, lava and
+fire deep down, and a mix of fire, oil, water and some acid elsewhere.
+Seeded, so a scene always gets the same creatures; at most 128 per scene.
+DEEPWARD uses `creatures 0.5 seed 33 avoid 220 590 300` (about 50).
+Endless maps don't scatter creatures yet.
