@@ -257,9 +257,9 @@ const SCENE_GROUPS: [&str; 4] = ["Games & levels", "Showcases", "Labs & tests", 
 fn scene_group(path: &Path) -> &'static str {
     let name = path.file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    if has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
+    if name == "cave-expedition" || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
         "Games & levels"
-    } else if has(&["lab", "test", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
+    } else if has(&["lab", "test", "trial", "elemental-creatures", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
         "Labs & tests"
     } else if has(&["house", "shop", "lane", "creek", "fire", "beach", "splash", "waterwheel", "millbrook", "heron", "oil", "weather"]) {
         "Showcases"
@@ -2487,7 +2487,8 @@ Click to mute. The volume is in the View menu.")
                 }
                 egui::ScrollArea::vertical().max_height(420.).show(ui, |ui| {
                     for f in files.iter().filter(|f| scene_group(f) == group) {
-                        let name = f.file_stem().unwrap_or_default().to_string_lossy().replace('-', " ");
+                        let stem=f.file_stem().unwrap_or_default().to_string_lossy();
+                        let name=if stem=="cave-expedition" {"DEEPWARD — Cave Expedition".to_string()}else{stem.replace('-'," ")};
                         if ui.button(name).on_hover_text(f.display().to_string()).clicked() {
                             self.scene_path = f.display().to_string();
                             self.load_scene();
