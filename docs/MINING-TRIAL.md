@@ -43,4 +43,3 @@ The same drilling rule is used by DEEPWARD and editor Play. The older
 This is a feel test, not finished balance. Useful feedback is whether the
 slow shortcut is tempting, whether the winding route feels preferable, and
 whether chipping rock is satisfying or simply tedious.
-
