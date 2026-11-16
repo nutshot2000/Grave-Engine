@@ -306,7 +306,11 @@ impl Workshop {
             }
             if ui.button("New asset").clicked() {
                 self.remember();
-                self.asset = Asset::blank("new_asset", 48, 40).unwrap();
+                let name = (1..).map(|i| if i == 1 { "new_asset".to_owned() } else { format!("new_asset_{i}") })
+                    .find(|n| !Path::new("assets/workshop").join(format!("{n}.asset")).exists()).unwrap();
+                self.asset = Asset::blank(&name, 48, 40).unwrap();
+                self.disk = None;
+                self.message = "Name your asset and draw on the grid.".into();
                 self.selected = 0;
                 self.changed();
                 self.sync();
@@ -405,7 +409,7 @@ impl Workshop {
                 })
                 .unwrap_or_default();
             files.sort();
-            for path in files {
+            egui::ScrollArea::vertical().max_height(420.).show(ui, |ui| { for path in files {
                 if ui
                     .button(path.file_stem().unwrap().to_string_lossy())
                     .clicked()
@@ -413,7 +417,7 @@ impl Workshop {
                     self.load(&path, mats);
                     ui.close();
                 }
-            }
+            } });
         });
         ui.separator();
         ui.strong("Grid and thickness");
@@ -968,21 +972,20 @@ impl Workshop {
                 let pointer = response
                     .interact_pointer_pos()
                     .or_else(|| response.hover_pos());
-                let cell = pointer
-                    .map(|p| {
+                let to_cell = |p: Pos2| {
                         (
-                            ((p.x - rect.left()) / self.zoom).floor() as i32,
-                            ((p.y - rect.top()) / self.zoom).floor() as i32,
+                            (((p.x - rect.left()) / self.zoom).floor() as i32).clamp(0, self.asset.w as i32 - 1),
+                            (((p.y - rect.top()) / self.zoom).floor() as i32).clamp(0, self.asset.h as i32 - 1),
                         )
-                    })
-                    .map(|(x, y)| {
-                        (
-                            x.clamp(0, self.asset.w as i32 - 1),
-                            y.clamp(0, self.asset.h as i32 - 1),
-                        )
-                    });
-                if response.drag_started() {
-                    if let Some(c) = cell {
+                };
+                let cell = pointer.map(to_cell);
+                let pressed = ui.input(|i| i.events.iter().find_map(|e| match e {
+                    egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. }
+                        if rect.contains(*pos) && ui.clip_rect().contains(*pos) => Some(to_cell(*pos)),
+                    _ => None,
+                }));
+                if response.is_pointer_button_down_on() || response.clicked() || response.dragged() || response.drag_stopped() {
+                    if let Some(c) = pressed {
                         self.remember();
                         self.stroke = Some((c, c));
                     }
@@ -1013,22 +1016,14 @@ impl Workshop {
                         egui::StrokeKind::Inside,
                     );
                 }
-                if response.clicked() {
-                    if let Some(c) = cell {
-                        self.remember();
-                        self.apply(c, c);
-                        finish = true;
-                    }
-                }
                 if response.drag_stopped()
                     || self.stroke.is_some() && !ui.input(|i| i.pointer.primary_down())
                 {
-                    if let Some((a, b)) = self.stroke.take() {
-                        if !matches!(
-                            self.tool,
-                            Tool::Paint(Brush::Pencil) | Tool::Paint(Brush::Erase)
-                        ) {
-                            self.apply(a, b);
+                    if let Some((a, last)) = self.stroke.take() {
+                        let end = cell.unwrap_or(last);
+                        match self.tool {
+                            Tool::Paint(b @ (Brush::Pencil | Brush::Erase)) => self.draw(b, last, end),
+                            _ => self.apply(a, end),
                         }
                         finish = true;
                     }
@@ -1170,7 +1165,11 @@ impl Workshop {
         });
         ui.add(egui::Slider::new(&mut self.impact_speed, 5.0..=120.0).text("Impact m/s"));
         if self.test.is_none() {
+            let message = std::mem::take(&mut self.message);
             self.rebuild_test(mats, false);
+            if self.message.starts_with("Preview ready") || self.asset.parts.iter().all(|p| p.cells.iter().all(|&m| m == AIR)) {
+                self.message = message;
+            }
         }
         if self.running {
             self.clock += (dt.min(0.1)) * 60.;

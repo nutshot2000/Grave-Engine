@@ -444,6 +444,17 @@ light entity is needed; digging, save/load and endless cell streaming carry
 the source automatically. Torch tips are cool decorative emitters. Docs:
 `docs/CAVE-GENERATION.md`, `materials/README.md`; tests in lighting/levelgen.
 
+### Ember Rise, animation doctor, editor tweaks
+
+`Play/Ember-Rise.cmd` opens `scenes/ember-rise.txt`, a one-level burning-tower
+climb built only from scene data (docs `docs/EMBER-RISE.md`).
+`cargo run --bin animation-doctor -- LOOK [--graph FILE] [--script FILE] [--shot PNG]`
+replays an animation graph through the editor's animator headlessly (script
+lines: `set`, `trigger`, `step`, `expect STATE`). The animation editor has
+Save graph, Reload file, "Open saved graph…" (lists `assets/animations/*.graph`)
+and "New graph from clip". Workshop "New asset" picks a free name
+(`new_asset_2`, ...) and single clicks/pencil strokes paint reliably.
+
 ### DEEPWARD / cave explorer prototype
 
 `Play/Cave-Explorer.cmd` builds `src/bin/cave-explorer.rs`; its mission/save

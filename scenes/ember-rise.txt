@@ -1,0 +1,109 @@
+# EMBER RISE — a one-level climb, built only from scene data.
+#
+# Controls: A/D move, W jump. Jump at a wall and hold W to grab its lip,
+# let go and press W again to pull up. S drops. C crouches, X rolls.
+#
+# Docks -> scaffolding -> burning gantry -> cistern -> low beam -> the
+# shaft -> the sealed door -> the roof at dawn.
+size 1040 560
+seed 21
+fill air
+wind -1.5
+turbulence 0.6
+sky #0a1024 #2b3350 stars
+layer city #131b2f depth 0.35 y 470 height 100 windows
+layer mountains #172036 depth 0.15 y 486 height 70
+lighting 0.45 #8fa2d4
+sun 45 0.18 #93a8dc
+weather dust 0.18
+
+# --- 1. The docks: a fire, a harbour to fall into, a barrel below --------
+rect stone 0 500 210 60
+rect water 210 500 60 60
+rect stone 270 500 770 60
+rect concrete 232 490 16 70
+light 60 492 60 strength 1.2 color #ffb060 flicker 0.25
+light 190 492 50 strength 0.9 color #ffc070 flicker 0.2
+asset ../assets/workshop/west_lantern.asset 150 480 as lamp1
+asset ../assets/workshop/explosive_barrel.asset 600 476 as barrel
+
+# --- 2. Scaffolding: three roofs, 2.4 m apart — grab the lip -------------
+rect concrete 300 476 80 24
+rect wood 300 476 80 2
+rect concrete 380 452 90 48
+rect wood 380 452 90 2
+rect concrete 470 428 90 72
+rect wood 470 428 90 2
+
+light 340 470 45 strength 0.7 color #ffa040 flicker 0.15
+
+# --- 3. The gantry: a plank bridge that is already going up --------------
+rect wood 560 428 100 4
+anchor 560 428 100 4
+
+light 515 420 50 strength 0.8 color #ff9040 flicker 0.2
+
+# --- 4. The tower: a sunken cistern, then a beam you must duck under -----
+rect stone 660 428 140 132
+rect water 668 428 72 24
+rect stone 730 440 10 12
+rect stone 752 404 6 24
+rect stone 786 404 6 24
+rect stone 752 404 40 10
+
+light 700 420 45 strength 0.55 color #7fb0d8
+
+# --- 5. The shaft: two columns of ledges above the flooded basin ---------
+rect water 800 500 240 60
+rect concrete 810 416 50 4
+anchor 810 416 50 4
+rect concrete 880 404 50 4
+anchor 880 404 50 4
+rect concrete 810 392 50 4
+anchor 810 392 50 4
+rect concrete 880 380 50 4
+anchor 880 380 50 4
+rect concrete 810 368 50 4
+anchor 810 368 50 4
+rect concrete 880 356 50 4
+anchor 880 356 50 4
+rect concrete 810 344 50 4
+anchor 810 344 50 4
+rect concrete 880 332 50 4
+anchor 880 332 50 4
+rect concrete 810 320 50 4
+anchor 810 320 50 4
+rect concrete 880 308 50 4
+anchor 880 308 50 4
+
+
+# --- 6. The roof ---------------------------------------------------------
+rect stone 930 296 110 264
+light 830 350 60 strength 0.65 color #ffb070 flicker 0.2
+light 900 310 55 strength 0.6 color #ffc070 flicker 0.15
+
+# The sealed door: a brick wall on the roof's edge, with a charge in it.
+rect brick 930 268 8 28
+rect gunpowder 932 284 4 8
+rect iron 985 294 30 2
+rect glass 950 330 8 14
+rect glass 975 330 8 14
+rect glass 1000 330 8 14
+light 970 336 45 strength 0.6 color #ffc070
+
+light 990 288 60 strength 0.5 color #e8f0ff
+
+# --- The player ----------------------------------------------------------
+player 40 500 look explorer zoom 4 climb 2 reach 6
+
+# --- Events --------------------------------------------------------------
+trigger 90 440 60 60 by player : checkpoint 40 496 ; score 100 ; message EMBER RISE — A/D to move, W to jump. Climb to the roof before the tower comes down.
+trigger 300 452 80 24 by player : checkpoint 340 472 ; score 100 ; message SCAFFOLDING — jump at a wall and hold W to grab the lip. Let go, then press W again to pull up.
+trigger 470 400 50 28 by player : checkpoint 515 424 ; score 100 ; message THE GANTRY — cross the planks. They are already warm.
+trigger 600 404 30 26 by player : heat circle 566 430 4 900 ; message THE GANTRY IS ALIGHT BEHIND YOU — RUN.
+trigger 664 400 40 28 by player : checkpoint 670 424 ; score 100 ; message THE CISTERN — hold W to swim out on the far side. Watch your breath.
+trigger 744 408 14 22 by player : message LOW BEAM — C to crouch, X to roll through.
+trigger 810 396 50 20 by player : checkpoint 835 412 ; score 100 ; message THE SHAFT — hop between the ledges. The basin below breaks your fall.
+trigger 810 300 50 22 by player : heat circle 934 288 3 900 ; message THE SEALED DOOR — charge lit on the roof. Stand clear. ; shake 6 ; slowmo 0.4 2
+trigger 880 288 50 20 by player : message ALMOST — the roof is one jump above.
+trigger 960 250 60 46 by player : finish ; score 1000 ; message ROOF REACHED — the helicopter is on its way. ; sky #16223f #d98a55 4 ; lighting 0.9 4 ; weather clear 3

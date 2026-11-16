@@ -42,6 +42,21 @@ impl Default for AnimationEditor {
 }
 
 impl AnimationEditor {
+    fn open_graph(&mut self, path: String) {
+        match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| Graph::parse(&t)) {
+            Ok(graph) => {
+                self.source = graph.to_text();
+                self.preview = Animator::new(Arc::new(graph.clone())).unwrap();
+                self.selected_state = graph.initial.clone();
+                self.events.clear();
+                self.preview_frame = None;
+                self.graph = graph;
+                self.path = path;
+                self.message = format!("Opened {}", self.path);
+            }
+            Err(e) => self.message = format!("Could not open {path}: {e}"),
+        }
+    }
     pub fn select(&mut self, sim: &Sim, actor: usize) {
         let actors = sim.physics.export_actors();
         let Some(a) = actors.get(actor) else {
@@ -100,21 +115,31 @@ impl AnimationEditor {
                 if ui.button("Apply to character").clicked() {
                     match self.validated(look) { Ok(()) if self.actor < actors.len() => apply = Some((self.actor, Arc::new(self.graph.clone()))), Ok(_) => self.message = "No character in scene".into(), Err(e) => self.message = e }
                 }
-                if ui.button("Save graph + apply").clicked() {
+                let save = ui.button("Save graph").clicked();
+                let save_apply = ui.button("Save graph + apply").clicked();
+                if save || save_apply {
                     match self.validated(look) {
                         Ok(()) => match std::fs::write(&self.path, self.graph.to_text()) {
-                            Ok(()) => { self.message = format!("Saved {}", self.path); if self.actor < actors.len() { apply = Some((self.actor, Arc::new(self.graph.clone()))); } },
+                            Ok(()) => { self.message = format!("Saved {}", self.path); if save_apply && self.actor < actors.len() { apply = Some((self.actor, Arc::new(self.graph.clone()))); } },
                             Err(e) => self.message = format!("Could not save: {e}"),
                         }, Err(e) => self.message = e,
                     }
                 }
-                if ui.button("Load graph").clicked() {
-                    match std::fs::read_to_string(&self.path).map_err(|e| e.to_string()).and_then(|t| Graph::parse(&t)) {
-                        Ok(g) => { self.graph = g; self.source = self.graph.to_text(); self.message = "Loaded into draft. Restart preview or apply when ready.".into(); }, Err(e) => self.message = e,
-                    }
+                if ui.button("Reload file").clicked() {
+                    self.open_graph(self.path.clone());
                 }
+                ui.menu_button("Open saved graph…", |ui| {
+                    let mut paths: Vec<_> = std::fs::read_dir("assets/animations").into_iter().flatten().flatten()
+                        .map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "graph")).collect();
+                    paths.sort();
+                    egui::ScrollArea::vertical().max_height(350.).show(ui, |ui| {
+                        for p in paths { if ui.button(p.file_stem().unwrap().to_string_lossy()).clicked() {
+                            self.open_graph(p.to_string_lossy().into_owned()); ui.close();
+                        } }
+                    });
+                });
             });
-            ui.horizontal(|ui| { ui.label("Graph file"); ui.text_edit_singleline(&mut self.path); });
+            ui.horizontal(|ui| { ui.label("Graph file"); ui.add(egui::TextEdit::singleline(&mut self.path).desired_width(f32::INFINITY)); });
             if !self.message.is_empty() { ui.label(&self.message); }
             ui.separator();
             egui::ScrollArea::vertical().max_height(520.0).show(ui, |ui| {
@@ -146,6 +171,23 @@ impl AnimationEditor {
                         if ui.button("Play clip only").clicked() {
                             let mut graph = self.graph.clone(); graph.initial = self.selected_state.clone(); graph.transitions.clear();
                             match Animator::new(Arc::new(graph)) { Ok(a) => { self.preview = a; self.message = "Inspecting one clip. Restart preview restores transitions.".into(); }, Err(e) => self.message = e }
+                        }
+                        if ui.button("New graph from clip").on_hover_text("Start a separate one-state graph from the inspected clip").clicked() {
+                            if let Some(mut state) = self.graph.states.iter().find(|s| s.name == self.selected_state).cloned() {
+                                state.rate = None;
+                                let graph = Graph { initial: state.name.clone(), states: vec![state], parameters: Default::default(),
+                                    triggers: Default::default(), transitions: vec![], blends: vec![] };
+                                if let Ok(preview) = Animator::new(Arc::new(graph.clone())) {
+                                    self.path = (1..).map(|n| format!("assets/animations/clip_study_{n}.graph"))
+                                        .find(|p| !std::path::Path::new(p).exists()).unwrap();
+                                    self.preview = preview;
+                                    self.graph = graph;
+                                    self.source = self.graph.to_text();
+                                    self.events.clear();
+                                    self.preview_frame = None;
+                                    self.message = "New clip graph. Edit the file name above and choose Save graph.".into();
+                                }
+                            }
                         }
                     });
                     if self.running {
