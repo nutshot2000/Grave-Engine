@@ -1,11 +1,11 @@
 # Keyboard / mouse and controller controls. The right stick aims the drill.
 walk = keys D A, keys ArrowRight ArrowLeft, stick LeftX, pads Right Left
 jump = key W, key ArrowUp, pad A
-thrust = key Space, pad RT
-drop = key S, key ArrowDown, pad B
+thrust = key Space, pad A
+drop = key S, key ArrowDown, pad Down
 crouch = key C, pad X
-roll = key X, pad RB
-drill = mouse Primary, key E, pad LT
+roll = key X, pad B
+drill = mouse Primary, key E, pad RT
 aim_x = keys L J, stick RightX
 aim_y = keys K I, stick RightY
 map = key M, key Tab, pad Back
@@ -22,8 +22,8 @@ recipe_prev = key ArrowUp, pad Up
 craft = key Enter, pad Y
 
 # Hold right mouse to attach; release to let go. Wheel winds rope while held.
-grapple = mouse Secondary, key Q, pad RStick
+grapple = mouse Secondary, key Q, pad LT
 reel = keys ArrowUp ArrowDown, pads Up Down
-vent = key V, pad RT
+vent = key V, pad RB
 
 rope_jump = key Space, pad A

@@ -638,9 +638,13 @@ impl Timeline {
 
     /// Call after every simulation step: stores a moment every `every` frames.
     pub fn record(&mut self, sim: &mut Sim) {
+        self.record_at_interval(sim, self.every);
+    }
+
+    pub fn record_at_interval(&mut self, sim: &mut Sim, interval: u32) {
         let force = self.moments.is_empty();
         self.counter += 1;
-        if !force && self.counter < self.every {
+        if !force && self.counter < interval {
             return;
         }
         self.counter = 0;

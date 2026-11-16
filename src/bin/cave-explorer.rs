@@ -11,10 +11,10 @@ struct App {
     supplies:grave_engine::supplies::Panel,
     game:Expedition,input:Input,texture:Option<egui::TextureHandle>,
     sprites:BTreeMap<(String,usize),egui::TextureHandle>,last:Instant,clock:f32,
-    started:bool,paused:bool,map:bool,view_at:Option<(Pos2,f32)>,last_mouse:Option<Pos2>,camera:(f32,f32),save_clock:u32,
+    started:bool,paused:bool,map:bool,view_at:Option<(Pos2,f32)>,last_mouse:Option<Pos2>,mouse_aim:bool,pending_tool_press:bool,camera:(f32,f32),save_clock:u32,
 }
 impl App {
-    fn new()->Self{let game=Expedition::new(true);let p=game.player();Self{supplies:Default::default(),game,input:Input::load_or("assets/input/cave-explorer.input",INPUT).expect("controls"),texture:None,sprites:BTreeMap::new(),last:Instant::now(),clock:0.,started:false,paused:false,map:false,view_at:None,last_mouse:None,camera:(p.x,p.y),save_clock:0}}
+    fn new()->Self{let game=Expedition::new(true);let p=game.player();Self{supplies:Default::default(),game,input:Input::load_or("assets/input/cave-explorer.input",INPUT).expect("controls"),texture:None,sprites:BTreeMap::new(),last:Instant::now(),clock:0.,started:false,paused:false,map:false,view_at:None,last_mouse:None,mouse_aim:true,pending_tool_press:false,camera:(p.x,p.y),save_clock:0}}
     fn draw(&mut self,ctx:&egui::Context,ui:&mut egui::Ui){
         let rect=ui.max_rect();let p=self.game.player();
         if !self.supplies.open {let wheel=ctx.input(|i|i.smooth_scroll_delta.y);if wheel.abs()>0.1&&p.rope.as_ref().is_some_and(|r|!r.pins.is_empty()){self.game.sim.physics.wind_rope(wheel*0.08);}else if wheel.abs()>0.1{self.game.tuning.view=(self.game.tuning.view*(1.12f32).powf(-wheel/60.)).clamp(180.,600.);}}
@@ -29,7 +29,7 @@ impl App {
         let mouse=ctx.input(|i|i.pointer.hover_pos());
         let stick=(self.input.axis("aim_x"),self.input.axis("aim_y"));
         if stick.0.hypot(stick.1)>0.2 {self.game.aim=(stick.0/stick.0.hypot(stick.1),stick.1/stick.0.hypot(stick.1));}
-        else if mouse != self.last_mouse {if let Some(mouse)=mouse.filter(|m|rect.contains(*m)){let shoulder=grave_engine::tool_pose::shoulder(&p);let v=mouse-point(shoulder.0,shoulder.1);if v.length()>10.{self.game.aim=(v.x/v.length(),v.y/v.length());}}}
+        else if self.mouse_aim {if let Some(mouse)=mouse.filter(|m|rect.contains(*m)){let shoulder=grave_engine::tool_pose::shoulder(&p);let v=mouse-point(shoulder.0,shoulder.1);if v.length()>0.5{self.game.aim=(v.x/v.length(),v.y/v.length());}}}
         self.last_mouse=mouse;
         self.game.renderer.light(&self.game.sim);self.game.renderer.set_camera(self.camera.0,self.camera.1);
         let rgba=self.game.renderer.draw_window(&self.game.sim.world,&self.game.mats,View::default(),win);
@@ -81,8 +81,8 @@ impl eframe::App for App{
         let ctx=ui.ctx().clone();
         self.input.update(&ctx);let now=Instant::now();let dt=(now-self.last).as_secs_f32().min(0.1);self.last=now;
         let stick=(self.input.axis("aim_x"),self.input.axis("aim_y"));
-        if stick.0.hypot(stick.1)>0.2 {let n=stick.0.hypot(stick.1);self.game.aim=(stick.0/n,stick.1/n);}
-        else if let (Some(mouse),Some((origin,scale)))=(ctx.input(|i|i.pointer.hover_pos()),self.view_at) {if mouse!=self.last_mouse.unwrap_or(Pos2::ZERO){let shoulder=grave_engine::tool_pose::shoulder(&self.game.player());let d=((mouse.x-origin.x)/scale-shoulder.0,(mouse.y-origin.y)/scale-shoulder.1);let n=d.0.hypot(d.1);if n>0.1 {self.game.aim=(d.0/n,d.1/n);}}}
+        if stick.0.hypot(stick.1)>0.2 {self.mouse_aim=false;let n=stick.0.hypot(stick.1);self.game.aim=(stick.0/n,stick.1/n);}
+        else if let (Some(mouse),Some((origin,scale)))=(ctx.input(|i|i.pointer.hover_pos()),self.view_at) {if Some(mouse)!=self.last_mouse || ctx.input(|i|i.pointer.primary_down()){self.mouse_aim=true;} if self.mouse_aim {let shoulder=grave_engine::tool_pose::shoulder(&self.game.player());let d=((mouse.x-origin.x)/scale-shoulder.0,(mouse.y-origin.y)/scale-shoulder.1);let n=d.0.hypot(d.1);if n>0.1 {self.game.aim=(d.0/n,d.1/n);}}}
         if self.started&&!self.paused&&!self.game.won {self.supplies.input(&self.input,self.game.catalog.recipes.len());if self.input.pressed("tool_next"){self.game.sim.supplies.cycle(&self.game.catalog);}}
         if self.input.pressed("start")&&!self.supplies.open{self.started=true;self.paused=false;}
         if self.input.pressed("pause")&&self.started{self.paused=!self.paused;if self.paused{self.game.save();}}
@@ -93,7 +93,8 @@ impl eframe::App for App{
             self.game.sim.physics.hold_grapple(&self.game.sim.world,&self.game.mats,self.game.aim,self.input.down("grapple"),self.input.pressed("grapple"));
             self.game.sim.physics.reel_rope(self.input.axis("reel"));
             self.game.venting=self.input.down("vent");
-            self.clock=(self.clock+dt).min(0.1);while self.clock>=1./60.{self.clock-=1./60.;let c=Controls{walk:self.input.axis("walk"),jump:self.input.down("jump")||(self.game.player().rope.is_some()&&self.input.down("rope_jump")),thrust:self.input.down("thrust"),drop:self.input.down("drop"),crouch:self.input.down("crouch"),roll:self.input.down("roll")};self.game.step(c,self.input.down("drill"),self.game.aim);self.save_clock+=1;if self.save_clock>=1800||self.game.won{self.game.save();self.save_clock=0;}}}else{self.clock=0.;}
+            self.pending_tool_press |= self.input.pressed("drill");
+            self.clock=(self.clock+dt).min(0.1);while self.clock>=1./60.{self.clock-=1./60.;let c=Controls{walk:self.input.axis("walk"),jump:self.input.down("jump")||(self.game.player().rope.is_some()&&self.input.down("rope_jump")),thrust:self.input.down("thrust"),drop:self.input.down("drop"),crouch:self.input.down("crouch"),roll:self.input.down("roll")};let tapped=std::mem::take(&mut self.pending_tool_press);self.game.step(c,self.input.down("drill")||tapped,self.game.aim);self.save_clock+=1;if self.save_clock>=1800||self.game.won{self.game.save();self.save_clock=0;}}}else{self.clock=0.;self.pending_tool_press=false;}
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui,|ui|self.draw(&ctx,ui));
         if let Some(action)=self.supplies.show(&ctx,&self.game.sim,&self.game.mats,&self.game.catalog) {
             let outcome=match action {grave_engine::supplies::Action::Equip(id)=>if self.game.sim.supplies.equip(&id){Ok(())}else{Err("Tool not built".into())},grave_engine::supplies::Action::Craft(id)=>self.game.sim.craft(&self.game.catalog,&id)};
@@ -129,5 +130,26 @@ fn main()->eframe::Result{
 #[cfg(test)] mod tests{
     use super::*;
     #[test] fn expedition_loads_with_animated_equipment_and_both_sample_types(){let g=Expedition::new(false);let p=g.player();assert!(p.look.as_ref().unwrap().anims.contains_key("swim"));assert!(p.rope.is_some());assert!(p.jet_fuel.is_none());assert!(p.headlamp>0.);assert!(g.signal.is_some());assert!(!g.ready());}
+    #[test]
+    fn walk_from_lift_and_cut_the_first_timber() {
+        let mut g = Expedition::new(false);
+        let start = g.player().x;
+        for _ in 0..27 {
+            g.step(Controls { walk: 1., ..Default::default() }, false, (1., 0.));
+        }
+        assert!(g.player().x - start > 20., "expedition stride from lift");
+        let aim = |g: &Expedition| {
+            let p = grave_engine::tool_pose::shoulder(&g.player());
+            (145.5 - p.0, 608.5 - p.1)
+        };
+        assert_ne!(g.sim.world.frame % 6, 0);
+        g.step(Controls::default(), true, aim(&g));
+        let wood = g.mats.id("wood").unwrap();
+        assert_eq!(g.sim.mining.impact.as_ref().unwrap().material, wood);
+        for _ in 0..100 {
+            g.step(Controls::default(), true, aim(&g));
+        }
+        assert!(g.sim.supplies.count(wood) > 0);
+    }
     #[test] fn game_controls_include_keyboard_and_controller(){let i=Input::parse(INPUT).unwrap();let _=i;}
 }

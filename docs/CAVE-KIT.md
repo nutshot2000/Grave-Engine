@@ -23,13 +23,13 @@ retain their previous equipment until restarted.
 | Move / pump a swing | A/D | Left stick |
 | Jump / grab / climb | Space (W also works) | A |
 | Aim | Mouse / IJKL | Right stick |
-| Rope | Hold right mouse (Q also works); release to let go | Hold right-stick click |
+| Rope | Hold right mouse (Q also works); release to let go | Hold LT |
 | Pull up / lower on rope | Mouse wheel up / down while attached | D-pad up/down |
-| Use equipped tool | Hold left click / E | LT |
+| Use equipped tool | Hold left click / E | RT |
 | Change tool | F | LB |
 | Cargo and workshops | B | Left-stick click |
-| Vent collector tank | V | RT |
-| Crouch / roll | C / X | X / RB |
+| Vent collector tank | V | RB |
+| Crouch / roll | C / X | X / B |
 | Pause and edit | P / top bar | Start |
 
 Aim at solid scenery and **hold right mouse** to attach the rope. Keep holding
@@ -61,9 +61,9 @@ grab/climb and swim clips. Stationary tool aiming selects the up, neutral
 or down weapon pose; movement retains its movement animation.
 
 `hand.sockets` in the local character directory contains an animated hand
-position for each frame. The tool and emitter share that position, including
-mirroring and transition interpolation. A shoulder-to-emitter obstruction
-check prevents an animated hand firing through thin walls. Tools are put
+position for each frame. The visible tool follows the wrist through turns and animation blends.
+The cutter traces from the shoulder through the crosshair, ignoring the miner’s own body cells.
+Sprayers use the animated emitter and check the path from the shoulder for obstructions. Tools are put
 away during ledge traversal and rolling. The engine still uses rendered
 frames of the rig rather than a runtime 3D skeleton.
 
@@ -78,7 +78,7 @@ Craft the **Gas collector & 512-cell tank** at a mechanic workshop. Aim into
 the gas pocket in the right ceiling; break its sandstone seal first. Click
 draws in nearby visible gas. Ordinary air is ignored, walls/liquids block
 suction, and a full tank stops collecting. Different gases keep separate
-exact counts under **[tank]** in Cargo. V/RT vents the first stored gas type
+exact counts under **[tank]** in Cargo. V/RB vents the first stored gas type
 as real simulated cells. A blocked nozzle retains the contents.
 
 At a chemistry workshop, **Condense gas fuel** spends 48 volatile gas cells

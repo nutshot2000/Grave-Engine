@@ -114,6 +114,10 @@ impl Sim {
         else {
             return Default::default();
         };
+        // The crosshair is aimed from the shoulder. Wrist animation only moves the visible tool.
+        if c.tool(&self.supplies.equipped).is_some_and(|t| matches!(t.mode, crate::supplies::Mode::Drill(_))) {
+            return self.use_tool_from(m, c, shoulder(&a), aim, true);
+        }
         let p = pose(&a, aim);
         let s = shoulder(&a);
         let d = (p.origin.0 - s.0, p.origin.1 - s.1);

@@ -61,6 +61,17 @@ pub fn surface(
     aim: (f32, f32),
     reach: f32,
 ) -> Option<usize> {
+    surface_from(w, m, from, aim, reach, None)
+}
+
+type BodyCells<'a> = Option<&'a [(u32, u16)]>;
+
+fn skip_owned(body: BodyCells, i: usize, outside: bool) -> bool {
+    body.map_or(!outside, |cells| cells.iter().any(|&(wi, _)| wi as usize == i))
+}
+
+pub(crate) fn surface_from(w: &World, m: &Materials, from: (f32, f32),
+    aim: (f32, f32), reach: f32, body: BodyCells) -> Option<usize> {
     let n = aim.0.hypot(aim.1);
     if n < 0.01 {
         return None;
@@ -78,7 +89,7 @@ pub fn surface(
         let i = w.idx(x as usize, y as usize);
         // Ignore the user's own body near the origin, never drill through other bodies.
         if w.is_owned(i) {
-            if !outside {
+            if skip_owned(body, i, outside) {
                 continue;
             }
             return None;
@@ -119,9 +130,14 @@ impl Mining {
         aim: (f32, f32),
         tool: Drill,
     ) -> BTreeMap<MatId, usize> {
+        self.strike_from(w, m, from, aim, tool, None)
+    }
+
+    pub(crate) fn strike_from(&mut self, w: &mut World, m: &Materials, from: (f32, f32),
+        aim: (f32, f32), tool: Drill, body: BodyCells) -> BTreeMap<MatId, usize> {
         let mut removed = BTreeMap::new();
         self.prune(w);
-        let Some(hit) = surface(w, m, from, aim, tool.reach) else {
+        let Some(hit) = surface_from(w, m, from, aim, tool.reach, body) else {
             self.impact = None;
             return removed;
         };
@@ -130,7 +146,7 @@ impl Mining {
         let (x, y) = ((hit % w.w) as f32, (hit / w.w) as f32);
         let material = w.mat[hit];
         let blocked = hardness(m.get(material)) > tool.grade;
-        let candidates = candidates(w,m,from,hit,tool);
+        let candidates = candidates_from(w,m,from,hit,tool,body);
         for (i, weight) in candidates {
             let id = w.mat[i];
             let f = self.fractures.entry(i).or_insert(Fracture {
@@ -173,6 +189,9 @@ impl Mining {
 
 /// The exact exposed pixels that the next strike will work. Shared with aiming UI.
 pub fn candidates(w:&World,m:&Materials,from:(f32,f32),hit:usize,tool:Drill)->Vec<(usize,f32)> {
+    candidates_from(w,m,from,hit,tool,None)
+}
+pub(crate) fn candidates_from(w:&World,m:&Materials,from:(f32,f32),hit:usize,tool:Drill,body:BodyCells)->Vec<(usize,f32)> {
     let (x,y)=((hit%w.w) as f32,(hit/w.w) as f32);
         let mut candidates = Vec::new();
         let r = tool.radius.clamp(2.0, 8.0);
@@ -210,7 +229,7 @@ pub fn candidates(w:&World,m:&Materials,from:(f32,f32),hit:usize,tool:Drill)->Ve
                     }
                     last = j;
                     if w.is_owned(j) {
-                        if !outside {
+                        if skip_owned(body, j, outside) {
                             continue;
                         }
                         covered = true;

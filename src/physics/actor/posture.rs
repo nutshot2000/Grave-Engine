@@ -7,12 +7,13 @@ pub struct MobilitySettings {
     /// Cell heights; speeds in m/s and times in seconds.
     pub crouch_height: f32,
     pub roll_height: f32,
+    pub walk_speed: f32,
     pub crouch_speed: f32,
     pub roll_speed: f32,
     pub roll_seconds: f32,
 }
 impl Default for MobilitySettings {
-    fn default() -> Self { Self { crouch_height: 9.0, roll_height: 8.0, crouch_speed: 1.6, roll_speed: 5.5, roll_seconds: 0.76 } }
+    fn default() -> Self { Self { walk_speed: WALK, crouch_height: 9.0, roll_height: 8.0, crouch_speed: 1.6, roll_speed: 5.5, roll_seconds: 0.76 } }
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Posture {

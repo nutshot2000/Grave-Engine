@@ -1048,6 +1048,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                             for (key,value,low,high) in [
                                 ("crouch_height", &mut c.crouch_height,6.0,15.0),
                                 ("roll_height", &mut c.roll_height,6.0,15.0),
+                                ("walk_speed", &mut c.walk_speed, 1.0, 8.0),
                                 ("crouch_speed", &mut c.crouch_speed,0.2,4.0),
                                 ("roll_speed", &mut c.roll_speed,1.0,8.0),
                                 ("roll_seconds", &mut c.roll_seconds,0.2,2.0),
@@ -1725,7 +1726,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             line += &format!(" material {}", mats.get(a.mat).name);
         }
         if let Some(c) = a.mobility {
-            line += &format!(" moves crouch_height {} roll_height {} crouch_speed {} roll_speed {} roll_seconds {}", c.crouch_height, c.roll_height, c.crouch_speed, c.roll_speed, c.roll_seconds);
+            line += &format!(" moves walk_speed {} crouch_height {} roll_height {} crouch_speed {} roll_speed {} roll_seconds {}", c.walk_speed, c.crouch_height, c.roll_height, c.crouch_speed, c.roll_speed, c.roll_seconds);
         }
         if let Some(c) = a.climb { line += &format!(" climb {} reach {}", c.seconds, c.reach); }
         if let Some(r)=&a.rope {line+=&format!(" rope rope_range {} rope_length {} rope_elasticity {}",r.range,r.length,r.elasticity);if !r.pins.is_empty(){line+=" rope_path ";line+=&r.pins.iter().map(|p|format!("{},{}",p.0,p.1)).collect::<Vec<_>>().join(";");}}

@@ -97,7 +97,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             at + Vec2::new(14., 10.),
             if pad {
-                "HOLD R3: rope · Release R3: let go"
+                "HOLD RIGHT MOUSE / LT: rope · release: let go"
             } else {
                 "HOLD RIGHT MOUSE: rope · Release: let go"
             },
@@ -108,7 +108,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             at + Vec2::new(14., 35.),
             if pad {
-                "D-pad up/down: rope length · Left stick: swing"
+                "Wheel / D-pad up/down: pull up or lower"
             } else if rope.pins.is_empty() {
                 "Aim at rock above you. Hold the button to attach."
             } else {
@@ -205,7 +205,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             base + Vec2::new(14., 10.),
             if pad {
-                "EQUIPPED  /  LB change"
+                "EQUIPPED  /  F / LB change"
             } else {
                 "EQUIPPED  /  F change"
             },
@@ -259,7 +259,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             stock + Vec2::new(14., 62.),
             if pad {
-                "L3  Inventory & workshops"
+                "B / L3  Inventory & workshops"
             } else {
                 "B  Inventory & workshops"
             },
@@ -303,7 +303,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
         );
     }
     let help = if pad {
-        "LS Move   A Jump   Hold R3 Rope   LT Tool   LB Equip   L3 Cargo"
+        "A/D / LS Move   SPACE / A Jump   Left mouse / RT Tool   Hold right mouse / LT Rope"
     } else {
         "A/D Move   SPACE Jump   LEFT MOUSE Tool   HOLD RIGHT MOUSE Rope   F Equip   B Cargo   P Pause"
     };
@@ -448,12 +448,14 @@ pub fn equipment(
         None
     };
     let reach = drill.map_or(35., |d| d.reach);
-    let hit = crate::mining::surface(&s.world, m, pose.origin, aim, reach);
+    let origin = if drill.is_some() { tool_pose::shoulder(&a) } else { pose.origin };
+    let body = drill.map(|_| s.physics.player_cells());
+    let hit = crate::mining::surface_from(&s.world, m, origin, aim, reach, body);
     let target = hit
         .map(|i| ((i % s.world.w) as f32 + 0.5, (i / s.world.w) as f32 + 0.5))
         .unwrap_or((
-            pose.origin.0 + pose.aim.0 * reach,
-            pose.origin.1 + pose.aim.1 * reach,
+            origin.0 + pose.aim.0 * reach,
+            origin.1 + pose.aim.1 * reach,
         ));
     let center = point(target);
     let blocked = hit
@@ -465,7 +467,7 @@ pub fn equipment(
         col
     };
     if let Some((i, d)) = hit.zip(drill) {
-        for (j, _) in crate::mining::candidates(&s.world, m, pose.origin, i, d) {
+        for (j, _) in crate::mining::candidates_from(&s.world, m, origin, i, d, body) {
             let at = point(((j % s.world.w) as f32, (j / s.world.w) as f32));
             p.rect_filled(
                 Rect::from_min_size(at, Vec2::splat(scale)),
@@ -481,6 +483,9 @@ pub fn equipment(
             (3., Color32::from_black_alpha(220)),
         );
         p.line_segment([center - dir * 3., center + dir * 3.], (1., target_col));
+    }
+    if active && drill.is_some() && hit.is_none() {
+        p.text(center - Vec2::new(0., 8.), Align2::CENTER_BOTTOM, "No reachable rock", FontId::proportional(12.), INK);
     }
     if let Some((i, _)) = hit.zip(drill).filter(|_| active || blocked) {
         let mat = m.get(s.world.mat[i]);

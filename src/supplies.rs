@@ -315,6 +315,11 @@ impl Sim {
         from: (f32, f32),
         aim: (f32, f32),
     ) -> BTreeMap<MatId, usize> {
+        self.use_tool_from(m, cat, from, aim, false)
+    }
+
+    pub(crate) fn use_tool_from(&mut self, m: &Materials, cat: &Catalog, from: (f32, f32),
+        aim: (f32, f32), from_player: bool) -> BTreeMap<MatId, usize> {
         let empty = BTreeMap::new();
         let Some(t) = cat
             .tool(&self.supplies.equipped)
@@ -346,10 +351,10 @@ impl Sim {
                 if removed>0 {crate::creatures::noise(&mut self.physics,from);}empty
             }
             Mode::Drill(tool) => {
-                if self.world.frame % 6 != 0 {
+                if self.mining.impact.as_ref().is_some_and(|hit| self.world.frame.wrapping_sub(hit.frame) < 6) {
                     return empty;
                 }
-                let removed = self.mining.strike(&mut self.world, m, from, aim, tool);
+                let removed = self.mining.strike_from(&mut self.world, m, from, aim, tool, from_player.then(|| self.physics.player_cells()));
                 if self.mining.impact.as_ref().is_some_and(|hit|hit.frame==self.world.frame) {crate::creatures::noise(&mut self.physics,from);}
                 self.collect_mined(&removed);
                 removed
@@ -478,7 +483,7 @@ impl Panel {
                         let mut ids:Vec<_>=ids.into_iter().filter(|id|s.supplies.count(*id)>0).collect();ids.sort_by_key(|id|&m.get(*id).name);
                         egui::Grid::new("cargo_counts").num_columns(2).spacing([20.,9.]).striped(true).show(ui,|ui|{for id in ids {let mat=m.get(id);let gas=s.supplies.gas.get(&id).copied().unwrap_or(0)>0;ui.colored_label(Color32::from_rgb(mat.color[0].saturating_add(35),mat.color[1].saturating_add(35),mat.color[2].saturating_add(35)),format!("{}{}",mat.name.replace('_'," "),if gas{" [tank]"}else{""}));ui.monospace(s.supplies.count(id).to_string());ui.end_row();}});
                     });
-                    if let Some(t)=cat.tools.iter().find(|t|s.supplies.tools.contains(&t.id)&&matches!(t.mode,Mode::Vacuum{..})){if let Mode::Vacuum{capacity,..}=t.mode {ui.add_space(10.);ui.label(format!("Gas tank  {} / {}",s.supplies.gas_total(),capacity));ui.add(egui::ProgressBar::new(s.supplies.gas_total() as f32/capacity as f32));ui.small("Equip collector: click to draw gas in; V / RT to vent. Chemistry workshops condense fuel gas into oil.");}}
+                    if let Some(t)=cat.tools.iter().find(|t|s.supplies.tools.contains(&t.id)&&matches!(t.mode,Mode::Vacuum{..})){if let Mode::Vacuum{capacity,..}=t.mode {ui.add_space(10.);ui.label(format!("Gas tank  {} / {}",s.supplies.gas_total(),capacity));ui.add(egui::ProgressBar::new(s.supplies.gas_total() as f32/capacity as f32));ui.small("Equip collector: click to draw gas in; V / RB to vent. Chemistry workshops condense fuel gas into oil.");}}
                     let ui=&mut columns[1];ui.heading("Build & refine");ui.small("Choose a recipe · green counts are ready");
                     egui::ScrollArea::vertical().id_salt("workshop_recipes").max_height(355.).show(ui,|ui|{
                         for (i,r) in cat.recipes.iter().enumerate() {

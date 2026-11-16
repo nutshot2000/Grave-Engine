@@ -14,12 +14,12 @@ Health, swimming, heat, collisions and the material simulation still apply.
 | --- | --- | --- |
 | Walk | A / D, arrows | Left stick / d-pad |
 | Jump / grab / climb | Space / W | A |
-| Rope | Hold right mouse; release to let go | Hold right-stick click |
+| Rope | Hold right mouse; release to let go | Hold LT |
 | Pull up / lower | Scroll wheel while attached | D-pad up/down |
-| Fast descent / release ledge | S / Down | B |
-| Crouch / roll | C / X | X / RB |
+| Fast descent / release ledge | S / Down | D-pad down |
+| Crouch / roll | C / X | X / B |
 | Aim drill | Mouse, or I/J/K/L | Right stick |
-| Drill | Hold left click or E | LT |
+| Drill | Hold left click or E | RT |
 | Survey map | M or Tab | Back |
 | Pause (also saves) | Escape or P | Start |
 | Save | F5 | Y |
@@ -46,11 +46,11 @@ and the Lantern Cut editor playtest. The jetpack remains an optional later loado
 ## Everything to edit
 
 - `scenes/cave-expedition.txt`: the level, seed, cave settings, camp, lamps
-  and player loadout. Open it in the editor; normal painting, lights, notes,
+  and player loadout. The player line sets walk and roll speed in metres per second. Open it in the editor; normal painting, lights, notes,
   undo and scene saving work. Start a new expedition to use a changed source
   scene rather than the previous saved terrain.
-- `assets/cave-explorer/game.txt`: objectives, camp location, drill size/reach
-  and camera width. Material quantities are actual mined cells.
+- `assets/cave-explorer/game.txt`: objectives, camp location and camera width.
+- `assets/crafting/cave-tools.txt` sets drill reach, radius, power and grade. Material quantities are actual mined cells.
 - `assets/input/cave-explorer.input`: keyboard and controller remapping.
 - `assets/characters/explorer/`: original animated explorer look and editable
   animation graph. `tools/make_explorer_in_blender.py` rebuilds the helmet,
@@ -80,10 +80,10 @@ human playtesting and balance remain to be done.
 
 Open any scene with a player and press Play. Leave **Player tools** checked
 in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
-drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
+drill; I/J/K/L or the controller right stick can aim too, with RT drilling.
 Hold right mouse for the rope; scroll changes its length, P pauses, and Reset restores the
-pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
-wall does not mine it remotely. Mining uses the same focused surface drilling and material hardness rules
+pre-play terrain. The cutter reaches three metres. Highlighted pixels show the
+exposed material under the crosshair. Holding fire with no target shows “No reachable rock”. Mining uses the same focused surface drilling and material hardness rules
 as DEEPWARD, and feeds the scene's crystal mission inventory. See the
 [mining trial](MINING-TRIAL.md) for a small cavern designed to test the feel.
 

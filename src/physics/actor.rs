@@ -305,6 +305,7 @@ impl Physics {
             let safe = |n: f32, low, high, default| if n.is_finite() { n.clamp(low, high) } else { default };
             c.crouch_height = safe(c.crouch_height, 6.0, 15.0, 9.0);
             c.roll_height = safe(c.roll_height, 6.0, c.crouch_height, 8.0);
+            c.walk_speed = safe(c.walk_speed, 1.0, 8.0, WALK);
             c.crouch_speed = safe(c.crouch_speed, 0.2, WALK, 1.6);
             c.roll_speed = safe(c.roll_speed, 1.0, 8.0, 5.5);
             c.roll_seconds = safe(c.roll_seconds, 0.2, 2.0, 0.76);
@@ -375,6 +376,12 @@ impl Physics {
     }
 
     pub fn player_count(&self)->usize {self.actors.iter().filter(|a|a.spec.creature.is_none()).count()}
+    /// World and mask indices occupied by the player's current animation.
+    pub(crate) fn player_cells(&self) -> &[(u32, u16)] {
+        self.actors.iter().find(|a| a.spec.creature.is_none())
+            .map_or(&[], |a| a.stamped.as_slice())
+    }
+
     pub fn player_status(&self)->Option<ActorStatus> {self.actor_status().into_iter().find(|a|a.creature.is_none())}
 
     pub fn actor_count(&self) -> usize {
@@ -785,8 +792,9 @@ impl Physics {
                 }
             }).count();
             let buried = head_under && !head_wet && above >= 2;
-            let top_speed = if buried { 1.0 } else if swimming { WALK * 0.5 } else if a.spec.posture.crouched { a.spec.mobility.unwrap().crouch_speed } else { WALK };
-            let accel = if a.since_ground == 0 { ACCEL_GROUND } else { ACCEL_AIR } * DT;
+            let top_speed = if buried { 1.0 } else if swimming { WALK * 0.5 } else if a.spec.posture.crouched { a.spec.mobility.unwrap().crouch_speed } else { a.spec.mobility.map_or(WALK, |m| m.walk_speed) };
+            let response = (top_speed / WALK).max(1.0);
+            let accel = response * response * if a.since_ground == 0 { ACCEL_GROUND } else { ACCEL_AIR } * DT;
             let target = walk * top_speed;
             let mut vx = v.x + (target - v.x).clamp(-accel, accel);
             if a.since_ground>0&&a.spec.rope.as_ref().is_some_and(|r|!r.pins.is_empty()) {vx=(v.x+walk*7.*DT).clamp(-12.,12.);}
@@ -795,7 +803,7 @@ impl Physics {
             a.jump_wait = a.jump_wait.saturating_sub(1);
             if controls.jump && buried {
                 vy += (-CLAW_UP - vy).clamp(-15.0 * DT, 15.0 * DT);
-            } else if controls.jump {
+            } else if controls.jump || (!swimming && a.spec.jump_buffer > 0) {
                 if a.since_ground < COYOTE && a.jump_wait == 0 && !swimming && a.spec.posture.height >= H as f32 - 0.05 && a.spec.posture.roll_left == 0.0 && (a.spec.jump_buffer > 0 || powder_ground) {
                     a.spec.jump_buffer = 0;
                     vy = -JUMP;

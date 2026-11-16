@@ -122,6 +122,7 @@ struct Sandbox {
     supply_panel: grave_engine::supplies::Panel,
     player_tools: bool,
     drill_held: bool,
+    pending_tool_press: bool,
     vent_held: bool,
     drill_aim: (f32, f32),
     play_canvas: Option<Rect>,
@@ -434,7 +435,7 @@ impl Sandbox {
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2, 0.65, 0.75),
             cave_atmosphere: (0.7, 0.3, 0.32),
-            player_tools: true, drill_held: false, vent_held:false, drill_aim: (1.0, 0.0), play_canvas: None,
+            player_tools: true, drill_held: false, pending_tool_press: false, vent_held:false, drill_aim: (1.0, 0.0), play_canvas: None,
             cave_tiles: true,
             endless: None,
             endless_reset_origin: (0, 0),
@@ -2151,7 +2152,8 @@ impl Sandbox {
             self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         }
         let t = Instant::now();
-        if self.explorer_play() && self.drill_held {
+        let tapped = std::mem::take(&mut self.pending_tool_press);
+        if self.explorer_play() && (self.drill_held || tapped) {
             if self.sim.physics.player_status().is_some_and(|p| !p.dead) {
                 self.sim.use_player_tool(&self.mats,&self.supply_catalog,self.drill_aim);
             }
@@ -2159,7 +2161,11 @@ impl Sandbox {
         if self.explorer_play()&&self.vent_held {self.sim.vent_gas(&self.mats,&self.supply_catalog,self.drill_aim);}
         self.sim.aim_tool(self.drill_aim,self.explorer_play(),self.drill_held);
         self.sim.step(&self.mats);
-        self.timeline.record(&mut self.sim);
+        // Large expedition snapshots copy the whole map. Keep rewind, sampled twice a second.
+        let cadence = if self.explorer_play() && self.sim.world.mat.len() >= 512 * 512 {
+            self.timeline.every.max(30)
+        } else { self.timeline.every };
+        self.timeline.record_at_interval(&mut self.sim, cadence);
         self.stream_endless();
         self.sim_ms = self.sim_ms * 0.9 + t.elapsed().as_secs_f32() * 1000.0 * 0.1;
         self.ran_since_snapshot = true;
@@ -3168,7 +3174,7 @@ Click to mute. The volume is in the View menu.")
             let (shift, wheel, middle, delta) = ui.input(|i| {
                 (i.modifiers.shift, i.smooth_scroll_delta.y + i.smooth_scroll_delta.x, i.pointer.middle_down(), i.pointer.delta())
             });
-            if shift {
+            if shift && !self.explorer_play() {
                 self.scroll_acc += wheel;
                 while self.scroll_acc.abs() >= 30.0 {
                     let step = self.scroll_acc.signum() as i32;
@@ -4008,7 +4014,7 @@ impl eframe::App for Sandbox {
         // engine's controls (assets/input/editor.input). → / D or the left
         // stick drive motors marked `drive`, or walk the player.
         let typing = ctx.egui_wants_keyboard_input();
-        let live = !typing && !self.supply_panel.open && self.playing && !ctx.input(|i| i.modifiers.shift);
+        let live = !typing && !self.supply_panel.open && self.playing && (self.explorer_play() || !ctx.input(|i| i.modifiers.shift));
         let throttle = if live { self.input.axis("walk") } else { 0.0 };
         let has_player = self.sim.physics.player_count() > 0;
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
@@ -4021,7 +4027,10 @@ impl eframe::App for Sandbox {
         let on_canvas = ctx.input(|i|i.pointer.hover_pos()).is_some_and(|p|self.play_canvas.is_some_and(|r|r.contains(p)));
         self.drill_held = live && self.explorer_play() && on_canvas && (self.input.down("drill") || self.input.pressed("drill"));
 
-        // Resolve this frame's pointer before consuming clicks (including a grapple launch).
+        if !live || !self.explorer_play() { self.pending_tool_press = false; }
+        else if on_canvas && self.input.pressed("drill") { self.pending_tool_press = true; }
+
+        // Resolve this frame before consuming clicks (including a grapple launch).
         if live&&self.explorer_play() {
             let stick=(self.input.axis("aim_x"),self.input.axis("aim_y"));
             if stick.0.hypot(stick.1)>0.2 {let n=stick.0.hypot(stick.1);self.drill_aim=(stick.0/n,stick.1/n);}
