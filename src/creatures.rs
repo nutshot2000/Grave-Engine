@@ -388,7 +388,11 @@ fn route_direction(
 }
 /// One AI tick before normal actor physics. Every motion uses actor controls;
 /// brains cannot teleport, pass through terrain or damage through a wall.
+/// Creatures further than this from the player rest (cells).
+pub const REST_DISTANCE: f32 = 260.0;
+
 pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
+    physics.clear_rest();
     let actors = physics.actor_status();
     let player = actors
         .iter()
@@ -399,6 +403,12 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
             continue;
         };
         if a.dead {
+            continue;
+        }
+        // Far from the player and not stirred up: rest (no thinking or
+        // moving), so the cave around it can sleep. Wakes as you come near.
+        if c.alert == 0 && player.is_some_and(|(_, pl)| (pl.x - a.x).hypot(pl.y - a.y) > REST_DISTANCE) {
+            physics.rest_actor(i);
             continue;
         }
         let p = (a.x, a.y + (16.0 - a.body_height) * 0.5);

@@ -152,10 +152,12 @@ with a margin). Off by default. The cave scenes use
 
 `dangers 0..1` (the **Dangers** slider in Generate caves; scene `generate`
 and `endless` lines) scatters hazards on a map-space lattice: volatile gas
-trapped under ceilings (explodes if fire reaches it; collect it with the
-gas collector), flooded dips in passage floors (swim, and watch your
-breath), and loose gravel inside the rock over passages, behind a thin
-skin (drill into it and it pours down). Lava pits are not used: small
+in sealed pockets inside the rock over passages, behind a thin skin
+(drill in and it bursts out; it explodes if fire reaches it, or collect it
+with the gas collector), flooded basins in passage floors (swim, and watch
+your breath; only real basins, filled to the level that won't spill,
+because water on a slope trickles about for ever and keeps the simulation
+awake), and loose gravel pockets the same way as the gas (it pours down). Lava pits are not used: small
 ones cool into gravel against the cold rock at once. Endless regions get
 identical dangers (`cave_dangers_are_the_same_however_the_map_is_cut_up`).
 DEEPWARD uses `dangers 0.6`.

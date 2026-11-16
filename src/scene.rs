@@ -1056,7 +1056,8 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                         let mut c=crate::creatures::Creature::new(species.clone(),(sp.x,sp.feet-species.height*0.5));
                         if let Some(id)=mats.id(sp.element) {c.element=Some(mats.get(id).name.clone());}
                         c.burst=sp.burst;
-                        made.push(c.actor(mats,sp.x,sp.feet));
+                        let mut a=c.actor(mats,sp.x,sp.feet);a.temp=w.ambient;
+                        made.push(a);
                     }
                     Ok(made)
                 })();

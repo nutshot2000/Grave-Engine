@@ -250,6 +250,9 @@ pub(super) struct Actor {
     head_wet: bool,
     /// Frames since it last stood on something.
     surface_controlled: bool,
+    /// A creature resting far from the player: its body cells are redrawn
+    /// without waking the cave around it (see `creatures::think`).
+    resting: bool,
     since_ground: u32,
     /// How much of it is in liquid (0..1), and the liquid's density.
     wet: f32,
@@ -339,6 +342,7 @@ impl Physics {
             collider,
             stamped: Vec::new(),
             surface_controlled:false,
+            resting:false,
             since_ground: COYOTE,
             wet: 0.0,
             liquid_density: 1000.0,
@@ -395,6 +399,20 @@ impl Physics {
 
     /// Change an actor's state directly (games: soak it with a thrown
     /// bucket, heal it...). Returns false if there's no such actor.
+    /// A resting creature: no movement this frame (see `creatures::think`).
+    pub fn rest_actor(&mut self, index: usize) {
+        if let Some(a) = self.actors.get_mut(index) {
+            a.spec.control_override = Some(Controls::default());
+            a.resting = true;
+        }
+    }
+
+    /// Every creature is awake again until `rest_actor` says otherwise.
+    pub fn clear_rest(&mut self) {
+        for a in self.actors.iter_mut() {
+            a.resting = false;
+        }
+    }
     pub fn edit_actor(&mut self, index: usize, f: impl FnOnce(&mut ActorSpec)) -> bool {
         let Some(a) = self.actors.get_mut(index) else { return false };
         let height=a.spec.posture.height;
@@ -578,7 +596,7 @@ impl Physics {
                 let wi = wi as usize;
                 if world.is_owned(wi) && world.mat[wi] == a.spec.mat {
                     a.temps[li as usize] = world.temp[wi];
-                    world.make_air(wi);
+                    if a.resting { world.make_air_quietly(wi) } else { world.make_air(wi) }
                 }
             }
             // Blood evens the body out a little, and a living body warms or
@@ -590,8 +608,11 @@ impl Physics {
             let n = a.stamped.len() as f32;
             let avg = a.stamped.iter().map(|&(_, li)| a.temps[li as usize]).sum::<f32>() / n;
             let regulate = if a.spec.dead_for == 0 { 0.02 } else { 0.0 };
+            // Cave creatures are cold-blooded: they settle to the air around
+            // them (a warm body would keep the cave around it awake).
+            let normal = if a.spec.creature.is_some() { world.ambient } else { BODY_TEMP };
             for t in a.temps.iter_mut() {
-                *t += (avg - *t) * 0.03 + (BODY_TEMP - *t) * regulate;
+                *t += (avg - *t) * 0.03 + (normal - *t) * regulate;
             }
             a.spec.temp = a.stamped.iter().map(|&(_, li)| a.temps[li as usize]).sum::<f32>() / n;
         }
@@ -974,7 +995,9 @@ impl Physics {
                     }
                     State::Gas => {}
                 }
-                world.wake_at(wi);
+                if !a.resting {
+                    world.wake_at(wi);
+                }
                 world.mat[wi] = a.spec.mat;
                 let li = row * MASK_W + col;
                 world.temp[wi] = a.temps[li];

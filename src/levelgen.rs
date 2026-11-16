@@ -552,10 +552,9 @@ fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usi
 const DANGER_REACH: usize = 34;
 
 /// Cave dangers, scattered on a map-space lattice (`dangers` = how many):
-/// volatile gas trapped under ceilings (explodes with fire, or collect it),
-/// flooded dips (swim; breath runs out), and
-/// loose gravel behind a thin skin of rock over passages (drill into it and
-/// it pours down). Each site reads only the untouched cave around it and
+/// flooded dips (swim; breath runs out), and sealed pockets behind a thin
+/// skin of rock over passages: volatile gas (bursts out when drilled into;
+/// explodes with fire, or collect it) or loose gravel (pours down). Each site reads only the untouched cave around it and
 /// sites are applied in map order, so endless regions agree exactly.
 fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64), (ix, iy, iw, ih): (usize, usize, usize, usize), s: &Settings, mats: &Materials) {
     let (Some(gas), Some(water), Some(gravel)) = (mats.id("volatile_gas"), mats.id("water"), mats.id("gravel")) else { return };
@@ -587,39 +586,59 @@ fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64),
                     cave[ly as usize * w + lx as usize] = m;
                 }
             };
-            if kind < 0.78 {
-                // Gas or water: needs open cave at the site.
+            if kind < 0.45 {
+                // A flooded dip: needs open cave at the site.
                 if get(sx, sy) != Some(AIR) {
                     continue;
                 }
-                if kind < 0.4 {
-                    // Gas gathers under the ceiling above.
-                    let Some(top) = (1..24).map(|d| sy - d).find(|&y| get(sx, y) != Some(AIR)) else { continue };
-                    for dy in 0..6i64 {
-                        for dx in -10i64..=10 {
-                            if (dx * dx) as f32 / 100.0 + (dy * dy) as f32 / 36.0 <= 1.0 {
-                                put(sx + dx, top + 1 + dy, gas, AIR);
-                            }
-                        }
-                    }
-                } else {
+                {
                     // A flooded dip on the floor below. (Not lava: small
                     // pits cool into gravel against the cold rock at once.)
-                    let (rx, ry, m) = (11i64, 6i64, water);
+                    let (rx, ry, m) = (16i64, 8i64, water);
                     let Some(floor) = (1..24).map(|d| sy + d).find(|&y| get(sx, y) != Some(AIR)) else { continue };
                     if get(sx, floor) != Some(rock) {
                         continue;
                     }
-                    for dy in 1..=ry {
-                        for dx in -rx..=rx {
-                            if (dx * dx) as f32 / (rx * rx) as f32 + ((dy - 1) * (dy - 1)) as f32 / (ry * ry) as f32 <= 1.0 {
-                                put(sx + dx, floor - dy, m, AIR);
+                    // Only a real basin: fill level by level from the bottom,
+                    // and stop below the first level that would spill over a
+                    // side or drain down through a hole (still water sleeps;
+                    // water on a slope trickles about for ever).
+                    let mut best: Vec<(i64, i64)> = Vec::new();
+                    for level in 1..=ry {
+                        let mut seen: Vec<(i64, i64)> = vec![(sx, floor - 1)];
+                        let mut k = 0;
+                        let mut ok = true;
+                        while k < seen.len() {
+                            let (x, y) = seen[k];
+                            k += 1;
+                            if (x - sx).abs() >= rx || get(x, y + 1).is_none() || (y + 1 >= floor && get(x, y + 1) == Some(AIR)) {
+                                ok = false;
+                                break;
+                            }
+                            for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] {
+                                if ny >= floor - level && ny < floor && get(nx, ny) == Some(AIR) && !seen.contains(&(nx, ny)) {
+                                    seen.push((nx, ny));
+                                }
                             }
                         }
+                        if !ok {
+                            break;
+                        }
+                        best = seen;
+                    }
+                    if best.len() < 12 {
+                        continue;
+                    }
+                    for (x, y) in best {
+                        put(x, y, m, AIR);
                     }
                 }
             } else {
-                // Loose gravel inside the rock over a passage, behind a skin.
+                // Inside the rock over a passage, behind a skin of rock:
+                // a sealed gas pocket (bursts out when drilled into) or
+                // loose gravel (pours down). Packed full, neither can move,
+                // so they cost nothing until opened.
+                let fill = if kind < 0.75 { gas } else { gravel };
                 if get(sx, sy) != Some(rock) || !(3..12).any(|d| get(sx, sy + d) == Some(AIR)) {
                     continue;
                 }
@@ -631,7 +650,7 @@ fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64),
                         let (x, y) = (sx + dx, sy + dy);
                         let sealed = (-2..=2).all(|a| (-2..=2).all(|b| get(x + a, y + b).is_some_and(|m| m != AIR)));
                         if sealed {
-                            put(x, y, gravel, rock);
+                            put(x, y, fill, rock);
                         }
                     }
                 }

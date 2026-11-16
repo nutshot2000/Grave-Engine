@@ -443,6 +443,11 @@ impl World {
         }
     }
 
+    /// Is this 32x32 block being worked on (not asleep)?
+    pub fn block_active(&self, b: usize) -> bool {
+        self.active.get(b).copied().unwrap_or(false)
+    }
+
     /// How much of the world is being worked on (0..1): the rest is asleep.
     pub fn awake_fraction(&self) -> f32 {
         self.active.iter().filter(|a| **a).count() as f32 / self.active.len().max(1) as f32
@@ -610,6 +615,12 @@ impl World {
     /// Turn a cell into air, keeping its temperature.
     pub fn make_air(&mut self, i: usize) {
         self.wake_at(i);
+        self.make_air_quietly(i);
+    }
+
+    /// `make_air` without waking the area (a resting creature's body being
+    /// redrawn in the same place: nothing around it needs to react).
+    pub fn make_air_quietly(&mut self, i: usize) {
         self.mat[i] = AIR;
         self.paint[i] = 0;
         self.coat[i] = AIR;

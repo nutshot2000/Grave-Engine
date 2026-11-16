@@ -83,3 +83,10 @@ fire deep down, and a mix of fire, oil, water and some acid elsewhere.
 Seeded, so a scene always gets the same creatures; at most 128 per scene.
 DEEPWARD uses `creatures 0.5 seed 33 avoid 220 590 300` (about 50).
 Endless maps don't scatter creatures yet.
+
+Creatures further than `REST_DISTANCE` (260 cells) from the player rest
+until you come near: no thinking or moving, and their bodies are redrawn
+without waking the cave. They are cold-blooded (they settle to the cave's
+temperature): a 37-degree body warms the rock around it for ever, and heat
+that is still spreading keeps the simulation awake. Together these took
+DEEPWARD from about 16 ms to under 6 ms a frame.

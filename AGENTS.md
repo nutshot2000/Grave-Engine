@@ -339,6 +339,7 @@ Unreal `.uasset` can't be read: export to FBX from Unreal.
 
 ## Conventions and gotchas
 
+- **Keep big worlds asleep.** Anything that never settles keeps its 32x32 block and the 8 around it awake: warm bodies (creatures are cold-blooded and rest beyond `creatures::REST_DISTANCE`, redrawn with `make_air_quietly`), loose gas, water on slopes (generated pools are basins only). Check with `World::block_active` / `awake_fraction` and steady-state ms/frame (frames 300-900), not the first 300 frames.
 - Rust, small focused functions, doc comments in plain English at the top of
   every file and on public items. Comments explain *why*.
 - Keep it general and data-driven; no material names in engine code except
