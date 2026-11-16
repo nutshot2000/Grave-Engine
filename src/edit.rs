@@ -256,10 +256,14 @@ struct CellState {
     shade: u8,
     paint: u32,
     tex: u16,
+    coat: MatId,
+    coat_until: u32,
+    back: MatId,
+    depth_air: bool,
 }
 
 fn state(w: &World, i: usize) -> CellState {
-    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i], paint: w.paint[i], tex: w.tex[i] }
+    CellState { mat: w.mat[i], temp: w.temp[i], burn: w.burn[i], life: w.life[i], flags: w.flags[i], shade: w.shade[i], paint: w.paint[i], tex: w.tex[i], coat: w.coat[i], coat_until: w.coat_until[i], back: w.back[i], depth_air: w.depth_air[i] }
 }
 
 fn restore_state(w: &mut World, i: usize, s: CellState) {
@@ -271,6 +275,10 @@ fn restore_state(w: &mut World, i: usize, s: CellState) {
     w.shade[i] = s.shade;
     w.paint[i] = s.paint;
     w.tex[i] = s.tex;
+    w.coat[i] = s.coat;
+    w.coat_until[i] = s.coat_until;
+    w.back[i] = s.back;
+    w.depth_air[i] = s.depth_air;
 }
 
 /// One undoable step: only the cells that changed, plus the objects before
@@ -352,7 +360,17 @@ impl History {
         let Some((before, label)) = self.pending.take() else { return };
         self.last_touch = None;
         let after = sim.snapshot();
-        let step = if before.actors != after.actors || before.triggers != after.triggers || before.world.ambient != after.world.ambient || before.world.mat.len() != after.world.mat.len() || !before.layers.is_empty() || !after.layers.is_empty() {
+        let step = if before.actors != after.actors
+            || before.triggers != after.triggers
+            || before.world.ambient != after.world.ambient
+            || (before.world.w, before.world.h) != (after.world.w, after.world.h)
+            || before.pumps != after.pumps
+            || before.upright != after.upright
+            || before.checkpoint != after.checkpoint
+            || before.world.wind != after.world.wind
+            || before.world.turbulence != after.world.turbulence
+            || !before.layers.is_empty() || !after.layers.is_empty()
+        {
             Step {
                 label,
                 cells: Vec::new(),
@@ -546,6 +564,16 @@ pub fn freeze(world: &mut World, spec: &BodySpec) {
 /// One recorded moment: the cells that changed since the moment before
 /// (or every cell, for a keyframe), plus all the objects.
 struct Moment {
+    size: (usize, usize),
+    triggers: Vec<crate::trigger::Trigger>,
+    checkpoint: Option<(f32, f32)>,
+    lighting: crate::light::Lighting,
+    weather: crate::weather::Weather,
+    backdrop: crate::backdrop::Backdrop,
+    pumps: Vec<crate::pump::Pump>,
+    upright: Vec<(u64, crate::physics::Balance)>,
+    wind: f32,
+    turbulence: f32,
     supplies: crate::supplies::Supplies,
     mining: crate::mining::Mining,
     mission: Option<crate::mission::Mission>,
@@ -651,29 +679,34 @@ impl Timeline {
         let snap = sim.snapshot();
         let w = &snap.world;
         let n = w.mat.len();
-        let key = force || self.last.len() != n || self.moments.len().is_multiple_of(KEYFRAME_EVERY);
-        let moment = if key {
+        let size = (w.w, w.h);
+        let key = force || self.moments.last().is_some_and(|m| m.size != size) || self.last.len() != n || self.moments.len().is_multiple_of(KEYFRAME_EVERY);
+        let (keyframe, cells) = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { supplies: snap.supplies.clone(), mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            (Some(all), Vec::new())
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
                 let now = state(w, i);
                 let was = self.last[i];
-                let same = now.mat == was.mat
-                    && now.flags == was.flags
-                    && now.burn == was.burn
-                    && now.life == was.life
-                    && now.shade == was.shade
-                    && now.paint == was.paint
+                let same = CellState { temp: was.temp, ..now } == was
                     && (now.temp - was.temp).abs() < TEMP_STEP;
                 if !same {
                     cells.push((i as u32, now));
                     self.last[i] = now;
                 }
             }
-            Moment { supplies: snap.supplies.clone(), mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            (None, cells)
+        };
+        let moment = Moment {
+            size, keyframe, cells, frame: w.frame, ambient: w.ambient, wind: w.wind,
+            turbulence: w.turbulence, flying: w.flying.clone(), triggers: snap.triggers,
+            checkpoint: snap.checkpoint, lighting: snap.lighting, weather: snap.weather,
+            backdrop: snap.backdrop, pumps: snap.pumps, upright: snap.upright,
+            supplies: snap.supplies, mining: snap.mining, mission: snap.mission,
+            layers: snap.layers, layer_names: snap.layer_names, actors: snap.actors,
+            bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow,
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -707,7 +740,9 @@ impl Timeline {
 
     /// Put the simulation back to moment `i`.
     pub fn restore(&self, i: usize, sim: &mut Sim, mats: &Materials) -> bool {
-        let (Some(m), Some(cells)) = (self.moments.get(i), self.cells_at(i.min(self.moments.len().saturating_sub(1)))) else {
+        let Some(m) = self.moments.get(i) else { return false };
+        if m.size != (sim.world.w, sim.world.h) { return false; }
+        let Some(cells) = self.cells_at(i) else {
             return false;
         };
         let mut snap = sim.snapshot();
@@ -727,6 +762,15 @@ impl Timeline {
         snap.supplies = m.supplies.clone();
         snap.mining = m.mining.clone();
         snap.mission = m.mission.clone();
+        snap.triggers = m.triggers.clone();
+        snap.checkpoint = m.checkpoint;
+        snap.lighting = m.lighting.clone();
+        snap.weather = m.weather.clone();
+        snap.backdrop = m.backdrop.clone();
+        snap.pumps = m.pumps.clone();
+        snap.upright = m.upright.clone();
+        snap.world.wind = m.wind;
+        snap.world.turbulence = m.turbulence;
         snap.world.ambient = m.ambient;
         snap.layers = m.layers.clone();
         snap.layer_names = m.layer_names.clone();
@@ -738,6 +782,12 @@ impl Timeline {
 fn moment_bytes(m: &Moment) -> usize {
     let cell = std::mem::size_of::<CellState>();
     m.layers.iter().map(crate::layers::snapshot_bytes).sum::<usize>() + m.keyframe.as_ref().map_or(0, |k| k.len() * cell)
+        + std::mem::size_of_val(m.triggers.as_slice())
+        + m.triggers.iter().map(|t| std::mem::size_of_val(t.actions.as_slice())).sum::<usize>()
+        + std::mem::size_of_val(m.lighting.lights.as_slice())
+        + std::mem::size_of_val(m.backdrop.layers.as_slice())
+        + std::mem::size_of_val(m.pumps.as_slice())
+        + std::mem::size_of_val(m.upright.as_slice())
         + m.cells.len() * (cell + 4)
         + (m.supplies.stock.len()+m.supplies.gas.len())*48 + m.supplies.tools.len()*64 + m.supplies.stations.len()*80
         + m.actors.len() * (std::mem::size_of::<crate::physics::ActorSpec>()+128) + m.actors.iter().filter_map(|a|a.rope.as_ref()).map(|r|r.pins.len()*8).sum::<usize>()
@@ -749,6 +799,42 @@ fn moment_bytes(m: &Moment) -> usize {
 #[cfg(test)]
 mod budget_tests {
     use super::*;
+    #[test]
+    fn rewind_restores_event_and_terrain_state_in_both_directions() {
+        let mats = Materials::load_dir("materials");
+        let (mut sim, issues) = crate::scene::load(
+            "size 24 24\ntrigger 4 4 4 4 by player : checkpoint 4 4\n", &mats, None
+        ).into_sim(&mats);
+        assert!(issues.is_empty(), "{issues:?}");
+        let oil = mats.id("oil").unwrap();
+        let i = sim.world.idx(6, 7);
+        let mut timeline = Timeline::new();
+        assert!(!timeline.restore(0, &mut sim, &mats));
+        timeline.record_now(&mut sim);
+        sim.world.coat[i] = oil;
+        sim.world.coat_until[i] = 500;
+        sim.world.back[i] = mats.id("rock").unwrap();
+        sim.world.tex[i] = 321;
+        sim.world.depth_air[i] = true;
+        sim.triggers[0].fired = true;
+        sim.checkpoint = Some((4., 4.));
+        timeline.record_now(&mut sim);
+        assert!(timeline.restore(0, &mut sim, &mats));
+        assert_eq!(sim.checkpoint, None);
+        assert!(!sim.triggers[0].fired);
+        assert_eq!(sim.world.coat[i], AIR);
+        assert_eq!(sim.world.back[i], AIR);
+        assert!(!sim.world.depth_air[i]);
+        assert!(timeline.restore(1, &mut sim, &mats));
+        assert_eq!(sim.checkpoint, Some((4., 4.)));
+        assert!(sim.triggers[0].fired);
+        assert_eq!(sim.world.coat[i], oil);
+        assert_eq!(sim.world.coat_until[i], 500);
+        assert_eq!(sim.world.back[i], mats.id("rock").unwrap());
+        assert_eq!(sim.world.tex[i], 321);
+        assert!(sim.world.depth_air[i]);
+    }
+
     #[test]
     fn evicting_layered_history_preserves_each_retained_moment() {
         let mats=Materials::load_dir("materials");let mut sim=Sim::empty(24,16,&mats);sim.ensure_layer(1,"inside",&mats);

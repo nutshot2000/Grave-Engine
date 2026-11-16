@@ -108,14 +108,16 @@ impl Endless {
 
     /// Wait for background saves to finish (before quitting, say).
     pub fn settle(&mut self) {
-        for (_, job) in self.saving.drain() {
-            let _ = job.join();
+        let pending: Vec<_> = self.saving.keys().copied().collect();
+        for map in pending {
+            self.finish_save(map);
         }
     }
 
     /// Carry on a run (after the editor restarts into a new build): the
     /// world shows the map at `origin`, and visited regions are on disk.
     pub fn resume(&mut self, origin: (i64, i64)) {
+        self.settle();
         self.origin = origin;
         self.saved.clear();
         self.cache.clear();
@@ -356,9 +358,16 @@ impl Endless {
             // Ready-made in memory, or read back from disk (after a restart).
             let kept = self.cache.get(&map).cloned().or_else(|| {
                 self.finish_save(map);
-                let text = std::fs::read_to_string(self.region_file(map)).ok()?;
+                let path = self.region_file(map);
+                let text = std::fs::read_to_string(&path)
+                    .map_err(|e| self.problems.push(format!("could not read {}: {e}", path.display())))
+                    .ok()?;
                 let (mut part, problems) = scene::load(&text, mats, None).into_sim(mats);
-                self.problems.extend(problems);
+                if !problems.is_empty() || (part.world.w, part.world.h) != (r, r) {
+                    self.problems.push(format!("could not restore {} as a {r}x{r} region", path.display()));
+                    self.problems.extend(problems);
+                    return None;
+                }
                 let psnap = part.snapshot();
                 Some(Arc::new((psnap.world, psnap.bodies)))
             });
@@ -442,6 +451,8 @@ fn copy_block(src: &World, from: (usize, usize), dst: &mut World, to: (usize, us
         dst.burn[d0..d0 + n].copy_from_slice(&src.burn[s0..s0 + n]);
         dst.flags[d0..d0 + n].copy_from_slice(&src.flags[s0..s0 + n]);
         dst.shade[d0..d0 + n].copy_from_slice(&src.shade[s0..s0 + n]);
+        dst.depth_air[d0..d0 + n].copy_from_slice(&src.depth_air[s0..s0 + n]);
+        dst.tex[d0..d0 + n].copy_from_slice(&src.tex[s0..s0 + n]);
         dst.paint[d0..d0 + n].copy_from_slice(&src.paint[s0..s0 + n]);
         dst.coat[d0..d0 + n].copy_from_slice(&src.coat[s0..s0 + n]);
         dst.coat_until[d0..d0 + n].copy_from_slice(&src.coat_until[s0..s0 + n]);

@@ -103,3 +103,21 @@ fn a_fast_thing_cannot_leap_over_a_thin_trigger() {
     }
     assert_eq!(score, 5, "the thin trigger saw the ball go through");
 }
+
+#[test]
+fn scrolling_and_loading_preserve_trigger_targets_and_entry_state() {
+    let m = mats();
+    let mut s = sim(&m, "size 100 100\nplayer 40 60\ntrigger 20 20 45 50 by player repeat : checkpoint 30 60 ; heat rect 20 70 2 2 420 ; score 1\n");
+    s.shift(8, -5);
+    s.step(&m);
+    assert_eq!(s.checkpoint, Some((38., 55.)));
+    assert_eq!(s.world.temp[s.world.idx(28, 65)], 420.);
+    assert!(s.events.contains(&Event::Score(1)));
+    s.events.clear();
+    s.shift(-2, 3);
+    s.step(&m);
+    assert!(!s.events.contains(&Event::Score(1)));
+    let mut loaded = sim(&m, &scene::save(&s.snapshot(), &m));
+    loaded.step(&m);
+    assert!(!loaded.events.contains(&Event::Score(1)));
+}

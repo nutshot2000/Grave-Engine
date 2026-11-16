@@ -95,6 +95,9 @@ fn going_back_finds_things_where_they_were_left() {
     }
     let spec = grave_engine::physics::BodySpec::from_mats(6, 6, &vec![Some(m.id("wood").unwrap()); 36], &m, 120.0, 250.0);
     sim.physics.add(&mut sim.world, &m, spec);
+    let detail = sim.world.idx(100, 300);
+    sim.world.tex[detail] = 1234;
+    sim.world.depth_air[detail] = true;
     let bodies = sim.physics.body_count();
     // Go right (the left region is saved away), then come back.
     e.update(&mut sim, &m, (700.0, 400.0));
@@ -105,6 +108,9 @@ fn going_back_finds_things_where_they_were_left() {
     let brick = m.id("brick").unwrap();
     assert!((300..310).all(|y| (100..140).all(|x| sim.world.mat[sim.world.idx(x, y)] == brick)), "the brick mark is still there");
     assert_eq!(sim.physics.body_count(), bodies, "the crate came back");
+    assert_eq!(sim.world.tex[detail], 1234);
+    assert!(sim.world.depth_air[detail]);
+    e.settle();
     let _ = std::fs::remove_dir_all(&e.dir);
 }
 

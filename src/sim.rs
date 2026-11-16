@@ -236,9 +236,7 @@ impl Sim {
         self.physics.shift(dx, dy);
         if let Some(m)=self.mission.as_mut(){m.home.0+=dx as f32;m.home.1+=dy as f32;}
         for t in self.triggers.iter_mut() {
-            t.x += fx;
-            t.y += fy;
-            t.occupied = false;
+            t.shift(dx, dy);
         }
         if let Some(c) = self.checkpoint.as_mut() {
             c.0 += fx;

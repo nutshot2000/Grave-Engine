@@ -112,6 +112,25 @@ pub struct Trigger {
 }
 
 impl Trigger {
+    /// Translate both the event zone and any destinations authored in world coordinates.
+    pub(crate) fn shift(&mut self, dx: i32, dy: i32) {
+        self.x += dx as f32;
+        self.y += dy as f32;
+        for action in &mut self.actions {
+            match action {
+                Action::HeatCircle(x, y, ..) | Action::HeatRect(x, y, ..) => {
+                    *x = x.saturating_add(dx);
+                    *y = y.saturating_add(dy);
+                }
+                Action::Checkpoint(Some((x, y))) | Action::Focus(FocusAt::Point(x, y), _) => {
+                    *x += dx as f32;
+                    *y += dy as f32;
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn contains(&self, x: f32, y: f32) -> bool {
         x >= self.x && x < self.x + self.w && y >= self.y && y < self.y + self.h
     }
@@ -152,7 +171,7 @@ impl Trigger {
         for a in &self.actions {
             match a {
                 Action::HeatCircle(cx, cy, r, t) => {
-                    let (x0, x1, y0, y1) = world.clip(cx - r, cx + r, cy - r, cy + r);
+                    let (x0, x1, y0, y1) = world.clip(cx.saturating_sub(*r), cx.saturating_add(*r), cy.saturating_sub(*r), cy.saturating_add(*r));
                     for y in y0..=y1 {
                         for x in x0..=x1 {
                             if (x - cx).pow(2) + (y - cy).pow(2) <= r * r + r / 2 {
@@ -164,7 +183,7 @@ impl Trigger {
                     }
                 }
                 Action::HeatRect(x, y, w, h, t) => {
-                    let (x0, x1, y0, y1) = world.clip(*x, x + w - 1, *y, y + h - 1);
+                    let (x0, x1, y0, y1) = world.clip(*x, x.saturating_add(w - 1), *y, y.saturating_add(h - 1));
                     for yy in y0..=y1 {
                         for xx in x0..=x1 {
                             let i = world.idx(xx as usize, yy as usize);
@@ -215,6 +234,7 @@ impl Trigger {
         }
         if self.repeat {
             s += " repeat";
+            if self.occupied { s += " occupied"; }
         }
         if self.fired && !self.repeat {
             s += " fired";
@@ -253,11 +273,12 @@ impl Trigger {
 /// Returns the trigger (with `by` = Any for now) and the `by` word.
 pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, String), String> {
     let num = |i: usize| -> Result<f32, String> {
-        words_before_colon.get(i).and_then(|w| w.parse::<f32>().ok()).ok_or("use `trigger X Y W H [by NAME] [repeat] : ACTIONS`".to_string())
+        words_before_colon.get(i).and_then(|w| w.parse::<f32>().ok()).filter(|n| n.is_finite()).ok_or("use `trigger X Y W H [by NAME] [repeat] : ACTIONS`".to_string())
     };
     let (x, y, w, h) = (num(1)?, num(2)?, num(3)?.max(1.0), num(4)?.max(1.0));
     let mut by = "any".to_string();
     let mut repeat = false;
+    let mut occupied = false;
     let mut fired = false;
     let mut i = 5;
     while i < words_before_colon.len() {
@@ -269,6 +290,7 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
             "repeat" => repeat = true,
             "once" => repeat = false,
             "fired" => fired = true,
+            "occupied" => occupied = true,
             other => return Err(format!("trigger: don't know `{other}`")),
         }
         i += 1;
@@ -276,7 +298,7 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
     let mut list = Vec::new();
     for part in actions.split(';').map(str::trim).filter(|p| !p.is_empty()) {
         let w: Vec<&str> = part.split_whitespace().collect();
-        let n = |k: usize| -> Result<f32, String> { w.get(k).and_then(|v| v.parse::<f32>().ok()).ok_or(format!("trigger action `{part}`: missing a number")) };
+        let n = |k: usize| -> Result<f32, String> { w.get(k).and_then(|v| v.parse::<f32>().ok()).filter(|n| n.is_finite()).ok_or(format!("trigger action `{part}`: missing a number")) };
         list.push(match w[0].to_lowercase().as_str() {
             "heat" => match w.get(1).map(|s| s.to_lowercase()).as_deref() {
                 Some("circle") => Action::HeatCircle(n(2)? as i32, n(3)? as i32, (n(4)? as i32).clamp(0, 4096), n(5)?.clamp(-273.0, 5000.0)),
@@ -327,5 +349,5 @@ pub fn parse(words_before_colon: &[&str], actions: &str) -> Result<(Trigger, Str
     if list.is_empty() {
         return Err("a trigger needs at least one action after `:`".into());
     }
-    Ok((Trigger { x, y, w, h, by: By::Any, repeat, actions: list, fired, occupied: false }, by))
+    Ok((Trigger { x, y, w, h, by: By::Any, repeat, actions: list, fired, occupied }, by))
 }
