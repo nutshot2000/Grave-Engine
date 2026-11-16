@@ -108,3 +108,15 @@ fn capsule_waits_for_the_visible_tuck_before_entering_a_low_beam() {
     let a=&s.physics.actor_status()[0];
     assert!(a.rolling && a.body_height<=10.0 && a.x>50.0,"the tucked pose must unlock the passage: {a:?}");
 }
+/// Rough ground and walls beside the legs don't make him crouch: only
+/// something over his head does (crouching wouldn't help with the rest).
+#[test]
+fn bumps_at_the_feet_do_not_force_a_crouch() {
+    // A knee-high wall right beside him, and small rocks along the path.
+    let (m,mut s)=setup("rect stone 44 144 6 6\nanchor 44 144 6 6\nrect stone 70 148 3 2\nrect stone 95 147 2 3\nrect stone 120 148 4 2\n");
+    for _ in 0..140 {
+        run(&mut s,&m,Controls{walk:1.0,..Default::default()},1);
+        let a=&s.physics.actor_status()[0];
+        assert!(!a.crouched,"crouched with nothing overhead: {a:?}");
+    }
+}

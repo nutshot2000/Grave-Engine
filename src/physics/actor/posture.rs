@@ -67,6 +67,11 @@ pub(super) fn update(a: &mut Actor, bodies: &mut RigidBodySet, cs: &mut Collider
     let pos = rb.translation() / CELL;
     let can_fit = |height| ledge::clear_height((pos.x, pos.y + (H as f32 - height) / 2.0), height, a.collider, w, m, cs, ground);
     let standing = can_fit(H as f32);
+    // Auto-crouch only for something overhead: the band between a crouched
+    // head and a standing head. A bump at the feet, a slope or rough wall
+    // beside the legs isn't fixed by crouching, so it mustn't force one.
+    let band = (H as f32 - settings.crouch_height).max(1.0);
+    let headroom = standing || ledge::clear_height((pos.x, pos.y - H as f32 / 2.0 + band / 2.0), band, a.collider, w, m, cs, ground);
     // A pose blend still starts with the previous standing silhouette. Do not
     // shrink the capsule ahead of that picture and let it enter a low beam
     // while its head is visibly upright. Actual low poses unlock the passage.
@@ -88,13 +93,13 @@ pub(super) fn update(a: &mut Actor, bodies: &mut RigidBodySet, cs: &mut Collider
         p.roll_left = settings.roll_seconds;
         p.cooldown = settings.roll_seconds + 0.3;
     }
-    p.blocked = !standing;
-    p.crouched = !disabled && p.roll_left == 0.0 && ((c.crouch && a.spec.jump_buffer == 0) || !standing);
+    p.blocked = !headroom;
+    p.crouched = !disabled && p.roll_left == 0.0 && ((c.crouch && a.spec.jump_buffer == 0) || !headroom);
     let low = if p.roll_left > 0.0 { settings.roll_height } else if p.crouched { settings.crouch_height } else { H as f32 };
     let target=low.max(pose_height);
     // The capsule follows the rendered tuck and rises only with clear headroom.
     let next = if p.roll_left > 0.0 { target } else { p.height + (target-p.height).clamp(-60.0*DT,60.0*DT) };
-    if (next-p.height).abs() > 0.001 && (next <= p.height || can_fit(next)) {
+    if (next-p.height).abs() > 0.001 && (next <= p.height || headroom || can_fit(next)) {
         p.height = next;
         shape(&mut cs[a.collider], p.height);
     }
