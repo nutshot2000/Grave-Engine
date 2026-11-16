@@ -55,8 +55,9 @@ impl FractureSettings {
                         ^ (y as u32).wrapping_mul(19349663)
                         ^ (z as u32).wrapping_mul(83492791)
                         ^ self.seed
-                        ^ (frame as u32).wrapping_mul(7919)
-                        ^ (material as u32).wrapping_mul(104729);
+                        // Runtime material IDs change when a new file is installed.
+                        // Crack sites are spatial; material still separates each region key.
+                        ^ (frame as u32).wrapping_mul(7919);
                     let random = |n: u32| {
                         let mut h = seed ^ n;
                         h ^= h >> 16;
@@ -81,6 +82,29 @@ impl FractureSettings {
             }
         }
         (material, best.1, best.2, best.3)
+    }
+}
+
+#[cfg(test)]
+mod material_order_tests {
+    use super::*;
+    #[test]
+    fn adding_material_files_cannot_move_spatial_crack_sites() {
+        let settings = FractureSettings::default();
+        for frame in [0, 35, 127] {
+            for x in 0..40 {
+                for z in 0..15 {
+                    let p = Point::new(x as f32 * 0.7, 6.3, z as f32 * 0.8);
+                    let a = settings.region(p, 7, frame);
+                    let b = settings.region(p, 53, frame);
+                    assert_eq!((a.1, a.2, a.3), (b.1, b.2, b.3));
+                    assert_ne!(
+                        a.0, b.0,
+                        "different materials still form separate fragments"
+                    );
+                }
+            }
+        }
     }
 }
 #[derive(Clone, Copy, Debug)]
