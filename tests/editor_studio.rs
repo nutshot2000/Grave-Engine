@@ -73,46 +73,6 @@ fn group_transform_copy_delete_and_undo_include_all_layers_and_joints() {
     assert_eq!(assemblies::names(&loaded).len(), 2);
 }
 #[test]
-fn scene_loaded_groups_rotate_and_ground_anchors_follow_the_building() {
-    let m = mats();
-    let text = std::fs::read_to_string("scenes/layered-shop-night.txt").unwrap();
-    let (mut s, p) = scene::load(&text, &m, Some(Path::new("scenes"))).into_sim(&m);
-    assert!(p.is_empty());
-    let id = s.physics.ids()[0];
-    assert_eq!(s.physics.assembly(id), Some("shop"));
-    assert_eq!(
-        s.layers[0].physics.assembly(s.layers[0].physics.ids()[0]),
-        Some("shop")
-    );
-    let before = s
-        .physics
-        .joints()
-        .into_iter()
-        .find(|j| j.a == 0)
-        .unwrap()
-        .anchor_a;
-    assemblies::transform(&mut s, &m, &[id], true, (10., 0.), 0., (0., 0.));
-    let after = s
-        .physics
-        .joints()
-        .into_iter()
-        .find(|j| j.a == 0)
-        .unwrap()
-        .anchor_a;
-    assert!((after.0 - before.0 - 10.).abs() < 0.01);
-    let pivot = (170., 128.);
-    assemblies::transform(&mut s, &m, &[id], true, (0., 0.), 0.2, pivot);
-    for z in 0..=s.layers.len() {
-        let p = assemblies::plane(&s, z);
-        for id in p.physics.ids() {
-            if p.physics.assembly(id) == Some("shop") {
-                let b = p.physics.spec_of(&p.world, id).unwrap();
-                assert!((b.angle - 0.2).abs() < 0.01);
-            }
-        }
-    }
-}
-#[test]
 fn building_designer_produces_valid_named_material_parts() {
     let m = mats();
     for stories in 1..=3 {

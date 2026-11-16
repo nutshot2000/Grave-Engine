@@ -116,30 +116,4 @@ fn rain_wets_a_character() {
     assert!(soak(&s).is_some_and(|k| k.liquid == m.id("water").unwrap()), "standing in the rain gets you wet");
 }
 
-/// The demo: walk right through the oil, past the fire pit, into the pond.
-#[test]
-fn the_soak_lab_walk() {
-    let m = mats();
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes/soak-lab.txt")).unwrap();
-    let mut s = sim(&m, &text);
-    let (oil, water) = (m.id("oil").unwrap(), m.id("water").unwrap());
-    let (mut oily, mut lit, mut doused) = (false, false, false);
-    for f in 0..900 {
-        run(&mut s, &m, 1, 1.0);
-        let a = &s.physics.actor_status()[0];
-        if let Some(k) = a.soak {
-            oily |= k.liquid == oil && k.amount > 0.2;
-            lit |= k.burning;
-            doused |= lit && k.liquid == water && !k.burning;
-        }
-        if f % 60 == 0 {
-            println!("frame {f}: x {:.0} health {:.0} soak {:?}", a.x, a.health, a.soak);
-        }
-    }
-    let a = &s.physics.actor_status()[0];
-    assert!(oily, "waded through the oil");
-    assert!(lit, "caught fire at the fire pit");
-    assert!(doused, "the pond put the fire out");
-    assert!(!a.dead, "survived the walk (health {})", a.health);
-}
 

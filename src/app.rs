@@ -514,7 +514,7 @@ impl Sandbox {
             app.say(p);
         }
         let start = scene_file.or_else(|| {
-            let p = PathBuf::from("scenes/objects.txt");
+            let p = PathBuf::from("scenes/elements.txt");
             p.exists().then_some(p)
         });
         if let Some(p) = start {

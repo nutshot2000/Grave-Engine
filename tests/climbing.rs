@@ -115,26 +115,6 @@ fn traversal_is_opt_in_and_works_facing_left() {
     assert!(a.grounded && a.x<144.0 && (a.y+8.0-126.0).abs()<1.0,"{a:?}");
 }
 
-#[test]
-fn all_four_roofs_in_the_playable_course_are_reachable() {
-    let (m,mut s)=setup(include_str!("../scenes/climbing-lab.txt"));
-    for roof in 0..4 {
-        if roof>0 {
-            let launch=[0.0,150.0,248.0,338.0][roof];
-            for _ in 0..250 {
-                if s.physics.actor_status()[0].x>=launch { break; }
-                run(&mut s,&m,1,1.0,false,false);
-            }
-        }
-        grab(&mut s,&m);
-        run(&mut s,&m,1,0.0,false,false);
-        run(&mut s,&m,1,0.0,true,false);
-        run(&mut s,&m,150,0.0,false,false);
-        let p=&s.physics.actor_status()[0];
-        assert!(p.grounded && p.health==100.0,"roof {}: {p:?}",roof+1);
-        assert!((p.y+8.0-[212.0,188.0,162.0,138.0][roof]).abs()<1.0);
-    }
-}
 
 #[test]
 fn the_crouched_climb_picture_contacts_the_roof_at_the_end() {

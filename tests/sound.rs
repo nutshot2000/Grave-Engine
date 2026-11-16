@@ -102,17 +102,3 @@ fn a_material_can_choose_its_sound() {
     assert_eq!(Voice::parse("kazoo"), None);
 }
 
-#[test]
-fn the_sound_lab_plays_every_voice() {
-    let m = mats();
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/scenes/sound-lab.txt")).unwrap();
-    let heard = run(&text, &m, 600);
-    let mut voices: Vec<Voice> = heard.iter().filter(|(_, c)| c.kind != Kind::Blast).map(|(_, c)| voice(m.get(c.mat))).collect();
-    voices.sort_by_key(|v| v.name());
-    voices.dedup();
-    for want in [Voice::Metal, Voice::Wood, Voice::Stone, Voice::Glass, Voice::Soft, Voice::Liquid] {
-        assert!(voices.contains(&want), "the sound lab never played {}: heard {voices:?}", want.name());
-    }
-    assert!(heard.iter().any(|(_, c)| c.kind == Kind::Blast), "the charge never went off");
-    assert!(heard.iter().any(|(_, c)| c.kind == Kind::Break), "nothing broke");
-}

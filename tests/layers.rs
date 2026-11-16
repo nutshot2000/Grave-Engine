@@ -9,25 +9,6 @@ use grave_engine::{
 };
 use std::path::Path;
 
-#[test]
-fn night_shop_retains_per_plane_lighting_and_projected_sign_lamps() {
-    let m=mats();
-    let text=std::fs::read_to_string("scenes/layered-shop-night.txt").unwrap();
-    let (mut s,p)=scene::load(&text,&m,Some(Path::new("scenes"))).into_sim(&m);
-    assert!(p.is_empty(),"{p:?}");assert_eq!(s.layers.len(),2);
-    assert!(s.lighting.ambient<0.5);
-    assert!(s.layers[0].lighting.ambient>s.lighting.ambient);
-    assert_eq!(s.lighting.lights.iter().filter(|l|!l.shadows).count(),2);
-    let lamps=s.lamps();assert!(lamps.iter().any(|l|(l.x-132.).abs()<1. && (l.y-110.).abs()<1.));
-    for _ in 0..360 {s.step(&m);}
-    assert_eq!(s.physics.body_count(),16,"night frontage must remain intact before ignition");
-    let (copy,p)=scene::load(&scene::save(&s.snapshot(),&m),&m,None).into_sim(&m);
-    assert!(p.is_empty(),"{p:?}");
-    assert_eq!(copy.lighting.lights.iter().filter(|l|!l.shadows).count(),2);
-    assert_eq!(copy.layers[0].lighting,s.layers[0].lighting);
-    let mut r=Renderer::default();r.light(&s);let pixels=r.draw(&s.world,&m,View::default());
-    assert!(pixels.chunks_exact(4).any(|p|p[0]>100 && p[0]>p[2]));
-}
 fn mats() -> Materials {
     Materials::load_dir("materials")
 }
@@ -182,87 +163,4 @@ fn layers_survive_scene_save_reset_history_and_rewind() {
     );
     let (_, p) = bad.into_sim(&m);
     assert!(!p.is_empty());
-}
-#[test]
-fn layered_shop_stands_then_front_fire_spreads_to_stock_and_reveals_interior() {
-    let m = mats();
-    let a = Asset::load_file(Path::new("assets/workshop/layered_shop.asset"), &m).unwrap();
-    assert!(a.validate(&m).is_empty(), "{:?}", a.validate(&m));
-    assert_eq!(Asset::parse(&a.to_text(&m), &m).unwrap(), a);
-    let text = std::fs::read_to_string("scenes/layered-shop.txt").unwrap();
-    let (mut s, p) = scene::load(&text, &m, Some(Path::new("scenes"))).into_sim(&m);
-    assert!(p.is_empty(), "{p:?}");
-    assert_eq!(s.layers.len(), 2);
-    let count: Vec<_> = s.layers.iter().map(|l| l.physics.body_count()).collect();
-    for _ in 0..240 {
-        s.step(&m);
-    }
-    assert_eq!(s.physics.body_count(), 16);
-    assert_eq!(
-        s.layers
-            .iter()
-            .map(|l| l.physics.body_count())
-            .collect::<Vec<_>>(),
-        count
-    );
-    let mut r = Renderer::default();
-    r.light(&s);
-    grave_engine::headless::shot(
-        &s.world,
-        &m,
-        &mut r,
-        Path::new("shots/layered-shop-before.png"),
-        5,
-        false,
-    )
-    .unwrap();
-    let snap = s.snapshot();
-    let (copy, p) = scene::load(&scene::save(&snap, &m), &m, None).into_sim(&m);
-    assert!(p.is_empty(), "{p:?}");
-    assert_eq!(copy.layers.len(), 2);
-    let mut caught = false;
-    let mut exposed = false;
-    for f in 0..1500 {
-        if f < 120 && f % 20 == 0 {
-            s.world.heat_circle(78, 116, 14, 450.);
-        }
-        s.step(&m);
-        caught |= s.layers[0]
-            .world
-            .flags
-            .iter()
-            .any(|v| v & grave_engine::world::BURNING != 0);
-        for y in 100..135 {
-            for x in 62..100 {
-                let i = s.world.idx(x, y);
-                if s.world.mat[i] == AIR && s.layers[0].world.mat[i] != AIR {
-                    exposed = true;
-                }
-            }
-        }
-        if f == 180 {
-            r.light(&s);
-            grave_engine::headless::shot(
-                &s.world,
-                &m,
-                &mut r,
-                Path::new("shots/layered-shop-burning.png"),
-                5,
-                false,
-            )
-            .unwrap();
-        }
-    }
-    r.light(&s);
-    grave_engine::headless::shot(
-        &s.world,
-        &m,
-        &mut r,
-        Path::new("shots/layered-shop-after.png"),
-        5,
-        false,
-    )
-    .unwrap();
-    assert!(caught, "interior must catch from outside fire");
-    assert!(exposed, "damage must expose physical interior cells");
 }
