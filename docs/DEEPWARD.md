@@ -70,3 +70,16 @@ The first verified route crossed over 40 metres from camp, mined thousands
 of real cells, collected both sample types and returned at full health.
 Native window checks also covered the title/start, HUD, map, pause and save.
 This does not establish long-term balance or every possible generated seed.
+
+## Mining in editor Play mode
+
+Open any scene with a player and press Play. Leave **Player tools** checked
+in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
+drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
+Space flies with the explorer loadout, P pauses, and Reset restores the
+pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
+wall does not mine it remotely. Mining uses the same radius/reach and engine
+excavation rule as DEEPWARD, but does not run its sample mission or inventory.
+
+Pause to select/paint normally, or turn **Player tools** off to use editor
+tools while simulation continues. Clicks outside the canvas do not mine.

@@ -9,3 +9,8 @@ roll   = key X, pad RB
 
 thrust = key Space, pad RT
 pause = key P, pad Start
+
+# Explorer tools while playing; mouse/E drilling is limited to the level canvas.
+drill = mouse Primary, key E, pad LT
+aim_x = keys L J, stick RightX
+aim_y = keys K I, stick RightY

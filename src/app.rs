@@ -117,6 +117,10 @@ struct Sandbox {
     cave_gen: (usize, u32, f32, f32, f32, f32),
     /// Crystal/torch density and cave ambient light.
     cave_atmosphere: (f32, f32, f32),
+    player_tools: bool,
+    drill_held: bool,
+    drill_aim: (f32, f32),
+    play_canvas: Option<Rect>,
     /// Generate caves with the hand-made tiles in tiles/caves.
     cave_tiles: bool,
     playing: bool,
@@ -423,6 +427,7 @@ impl Sandbox {
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2, 0.65, 0.75),
             cave_atmosphere: (0.7, 0.3, 0.32),
+            player_tools: true, drill_held: false, drill_aim: (1.0, 0.0), play_canvas: None,
             cave_tiles: true,
             endless: None,
             endless_reset_origin: (0, 0),
@@ -2109,6 +2114,10 @@ impl Sandbox {
         self.sim_clock = 0.0;
     }
 
+    fn explorer_play(&self) -> bool {
+        self.playing && self.player_tools && self.sim.physics.actor_count() > 0 && self.studio.tab != Tab::Tests
+    }
+
     fn step_once(&mut self) {
         if self.rewind_pos.is_some() || self.timeline.is_empty() {
             self.continue_from_here();
@@ -2118,6 +2127,13 @@ impl Sandbox {
             self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         }
         let t = Instant::now();
+        if self.explorer_play() && self.drill_held && self.sim.world.frame % 3 == 0 {
+            if let Some(p) = self.sim.physics.actor_status().first().filter(|p| !p.dead) {
+                let (x,y)=(p.x+self.drill_aim.0*13.0,p.y+self.drill_aim.1*13.0);
+                self.sim.dig_circle(&self.mats,x,y,8.5,8000.0);
+            }
+        }
+        self.sim.physics.set_actor_animation_parameter(0,"drilling",(self.explorer_play() && self.drill_held) as u8 as f32);
         self.sim.step(&self.mats);
         self.timeline.record(&mut self.sim);
         self.stream_endless();
@@ -2362,6 +2378,9 @@ impl Sandbox {
                 .clicked()
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
+            }
+            if self.sim.physics.actor_count() > 0 {
+                ui.checkbox(&mut self.player_tools,"Player tools").on_hover_text("During Play: aim and hold left-click/E to drill, Space flies. Turn off to use editor tools while running.");
             }
             if ui.button("⏭ Step").on_hover_text("Advance one frame").clicked() {
                 if testing {
@@ -3037,6 +3056,7 @@ Click to mute. The volume is in the View menu.")
         let avail = ui.available_size();
         let fit = (avail.x / w as f32).min(avail.y / h as f32).max(0.05);
         let (outer, _) = ui.allocate_exact_size(avail, Sense::hover());
+        self.play_canvas = Some(outer);
         // What to look at: a camera effect's focus (from a trigger), the
         // followed object, or the player; looking ahead of where it's going.
         let fx = &self.sim.camera;
@@ -3149,6 +3169,24 @@ Click to mute. The volume is in the View menu.")
         self.hover = None;
         self.hover_f = None;
         let pointer = if self.studio.placement.is_some() {ui.input(|i|i.pointer.latest_pos()).filter(|p|outer.contains(*p))} else {resp.hover_pos().or(resp.interact_pointer_pos())};
+        if self.explorer_play() {
+            self.drag = Drag::None;
+            self.menu_at = None;
+            let actor = self.sim.physics.actor_status()[0].clone();
+            let stick = (self.input.axis("aim_x"), self.input.axis("aim_y"));
+            if stick.0.hypot(stick.1) > 0.2 {
+                let n=stick.0.hypot(stick.1);self.drill_aim=(stick.0/n,stick.1/n);
+            } else if let Some(pos) = pointer.filter(|p|outer.contains(*p)) {
+                let (x,y)=to_cells(pos);self.hover_f=Some((x,y));
+                let (dx,dy)=(x-actor.x,y-actor.y);let n=dx.hypot(dy);
+                if n>0.1 {self.drill_aim=(dx/n,dy/n);}
+            }
+            let target=(actor.x+self.drill_aim.0*13.0,actor.y+self.drill_aim.1*13.0);
+            painter.circle_stroke(to_screen(target),8.5*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
+            if self.drill_held {painter.line_segment([to_screen((actor.x,actor.y)),to_screen(target)],Stroke::new(2.0,Color32::from_rgb(255,200,95)));}
+            painter.text(outer.center_bottom()-Vec2::new(0.0,12.0),egui::Align2::CENTER_BOTTOM,"Aim + hold click / E: drill   •   Space: fly   •   P: pause   •   Player tools off: edit",egui::FontId::proportional(14.0),Color32::WHITE);
+            return;
+        }
         if let Some(p) = resp.hover_pos() {
             let (cx, cy) = to_cell(p);
             if self.sim.world.in_bounds(cx, cy) {
@@ -3815,7 +3853,7 @@ Click to mute. The volume is in the View menu.")
         else if r {
             self.reset();
         }
-        if q || e {
+        if (q || e) && !self.explorer_play() {
             let step = 15f32.to_radians() * if q { -1.0 } else { 1.0 };
             self.edit_objects("turn", |s| s.angle += step);
         }
@@ -3899,6 +3937,9 @@ impl eframe::App for Sandbox {
         let crouch = live && self.input.down("crouch");
         let roll = live && self.input.down("roll");
         self.sim.physics.set_controls(grave_engine::physics::Controls { thrust: live && self.input.down("thrust"), crouch, roll, walk: if has_player { throttle } else { 0.0 }, jump, drop });
+
+        let on_canvas = ctx.input(|i|i.pointer.hover_pos()).is_some_and(|p|self.play_canvas.is_some_and(|r|r.contains(p)));
+        self.drill_held = live && self.explorer_play() && on_canvas && (self.input.down("drill") || self.input.pressed("drill"));
 
         // Run the simulation at a steady 60 steps per second (times speed).
         if self.playing {
@@ -4060,6 +4101,36 @@ body rect wood 40 60 20 10
         let app = h.state();
         let id = app.sim.physics.ids()[0];
         app.sim.physics.spec_of(&app.sim.world, id).unwrap()
+    }
+
+    #[test]
+    fn play_mode_clicks_mine_instead_of_selecting_and_reset_restores_terrain() {
+        let mut h=editor();
+        {
+            let app=h.state_mut();
+            let (sim,p)=scene::load("size 200 120\nfill air\nrect stone 0 100 200 20\nrect rock 72 70 20 30\nplayer 60 100\n",&app.mats,None).into_sim(&app.mats);
+            assert!(p.is_empty());app.sim=sim;app.tool=Tool::Select;app.play();
+        }
+        h.run_steps(3);
+        let pointer=at(&h,80.0,92.0);
+        press(&mut h,pointer,true);
+        assert!(h.state().drill_held,"click on the playing canvas activates the drill");
+        assert!(matches!(h.state().drag,Drag::None));
+        {
+            let app=h.state_mut();
+            for _ in 0..4 {app.step_once();}
+            assert_eq!(app.sim.world.mat[app.sim.world.idx(75,92)],AIR);
+            assert!(matches!(app.selection,Selection::None));
+            app.renderer.light(&app.sim);
+            grave_engine::headless::shot_with_actors(&app.sim.world,&app.mats,&mut app.renderer,&app.sim.physics.actor_status(),Some((35,62,70,55)),Path::new("shots/editor-play-mining.png"),5,false).unwrap();
+        }
+        press(&mut h,pointer,false);
+        h.state_mut().reset();
+        let app=h.state();assert_eq!(app.sim.world.mat[app.sim.world.idx(75,92)],app.mats.id("rock").unwrap());
+        // Pausing returns the canvas to ordinary selection.
+        {let app=h.state_mut();app.playing=false;app.cam=None;app.tool=Tool::Select;}h.run_steps(3);
+        let a=at(&h,110.0,102.0);let b=at(&h,135.0,115.0);drag(&mut h,a,b);
+        assert!(matches!(h.state().selection,Selection::Area(_)));
     }
 
     fn count(h: &Harness<Sandbox>, name: &str) -> usize {

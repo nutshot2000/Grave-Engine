@@ -471,3 +471,12 @@ rendering (the script does this) and never commit local .blend source paths.
 Keep saves under ignored `saves/cave-explorer/`; verify mode must not alter a
 player's save. Save files contain terrain, samples, fuel/position and surveyed
 map; health/breath restore through current scene defaults.
+
+Editor mining: `player_tools` defaults on for player scenes. `explorer_play`
+gates the canvas's early player-input branch, bypassing selection/painting/
+notes while playing; the toolbar checkbox restores live editing. Named
+editor.input actions drill/aim_x/aim_y feed a canvas-scoped drill latch and
+world-space aim. `step_once` snapshots before drilling, uses `Sim::dig_circle`
+at 20 Hz, then records the result for rewind; Reset restores original terrain.
+E's turn shortcut is suppressed in player Play mode. The UI test checks real
+mouse mining without a selection box, Reset and paused selection.
