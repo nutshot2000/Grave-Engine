@@ -94,6 +94,7 @@ use std::path::Path;
 
 /// Everything a scene file describes.
 pub struct Loaded {
+    pub mission: Option<crate::mission::Mission>,
     pub pumps: Vec<crate::pump::Pump>,
     /// Index, name, complete plane and whether it inherits fixed front terrain.
     pub layers: Vec<(usize,String,Loaded,bool)>,
@@ -232,6 +233,7 @@ impl Loaded {
         if self.player_zoom > 0.0 {
             sim.zoom = self.player_zoom;
         }
+        sim.mission = self.mission;
         sim.lighting = self.lighting;
         sim.backdrop = self.backdrop;
         sim.weather = self.weather;
@@ -378,6 +380,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     let mut follow: Option<(usize, f32)> = None;
     let mut upright: Vec<(usize, crate::physics::Balance)> = Vec::new();
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
+    let mut mission: Option<crate::mission::Mission> = None;
     let mut lighting = crate::light::Lighting::default();
     let mut backdrop = crate::backdrop::Backdrop::default();
     let mut weather = crate::weather::Weather::default();
@@ -476,6 +479,17 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 // Pictures are found next to the scene (or from the project folder).
                 backdrop.dir = base.map(|b| b.to_path_buf());
             }
+            "mission" => match nums(1,3) {
+                Ok(v)=>mission=Some(crate::mission::Mission::new((v[0],v[1]),v[2].clamp(1.0,200.0))),
+                Err(_)=>err("use mission HOME_X HOME_Y RADIUS".into()),
+            },
+            "sample" => {
+                match (words.get(1).and_then(|n|mats.id(n)), nums(2,2), mission.as_mut()) {
+                    (Some(material),Ok(v),Some(m))=>m.goals.push(crate::mission::Goal{material,target:(v[0] as usize).clamp(1,1000000),collected:(v[1] as usize).min(100000000)}),
+                    _=>err("use sample MATERIAL TARGET COLLECTED after mission".into()),
+                }
+            },
+            "mission_complete" => {if let Some(m)=mission.as_mut(){m.complete=words.get(1)==Some(&"yes");}},
             "lighting" => match nums(1, 1) {
                 Ok(v) => {
                     lighting.ambient = v[0].clamp(0.0, 1.5);
@@ -1299,7 +1313,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { pumps, outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
+    Loaded { mission, pumps, outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1626,6 +1640,11 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     out.push_str(&snap.backdrop.to_lines());
     out.push_str(&snap.weather.to_lines());
+    if let Some(m)=&snap.mission {
+        out.push_str(&format!("\nmission {} {} {}\n",m.home.0,m.home.1,m.radius));
+        for g in &m.goals{out.push_str(&format!("sample {} {} {}\n",mats.get(g.material).name,g.target,g.collected));}
+        if m.complete{out.push_str("mission_complete yes\n");}
+    }
     out.push_str(&snap.lighting.to_lines(|n| format!("obj{n}"), |n| snap.bodies.get(n as usize - 1).map(|b| (b.x, b.y, b.angle))));
     for a in &snap.actors {
         let (x, y) = a.feet();

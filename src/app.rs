@@ -2130,7 +2130,8 @@ impl Sandbox {
         if self.explorer_play() && self.drill_held && self.sim.world.frame % 3 == 0 {
             if let Some(p) = self.sim.physics.actor_status().first().filter(|p| !p.dead) {
                 let (x,y)=(p.x+self.drill_aim.0*13.0,p.y+self.drill_aim.1*13.0);
-                self.sim.dig_circle(&self.mats,x,y,8.5,8000.0);
+                let removed=self.sim.dig_circle(&self.mats,x,y,8.5,8000.0);
+                if let Some(m)=self.sim.mission.as_mut(){m.collect(&removed);}
             }
         }
         self.sim.physics.set_actor_animation_parameter(0,"drilling",(self.explorer_play() && self.drill_held) as u8 as f32);
@@ -2381,6 +2382,18 @@ impl Sandbox {
             }
             if self.sim.physics.actor_count() > 0 {
                 ui.checkbox(&mut self.player_tools,"Player tools").on_hover_text("During Play: aim and hold left-click/E to drill, Space flies. Turn off to use editor tools while running.");
+                let mut mission_on=self.sim.mission.is_some();
+                if ui.checkbox(&mut mission_on,"Crystal mission").on_hover_text("Collect both crystal colours and return to the player's starting camp. Scene saves include progress.").changed() {
+                    self.change("crystal mission",|app| {
+                        app.sim.mission=if mission_on {
+                            let home=app.sim.physics.export_actors()[0].spawn;
+                            let mut m=grave_engine::mission::Mission::new(home,24.0);
+                            for name in ["crystal_cyan","crystal_violet"] {if let Some(material)=app.mats.id(name) {m.goals.push(grave_engine::mission::Goal{material,target:24,collected:0});}}
+                            Some(m)
+                        }else{None};
+                    });
+                }
+
             }
             if ui.button("⏭ Step").on_hover_text("Advance one frame").clicked() {
                 if testing {
@@ -3181,6 +3194,10 @@ Click to mute. The volume is in the View menu.")
                 let (dx,dy)=(x-actor.x,y-actor.y);let n=dx.hypot(dy);
                 if n>0.1 {self.drill_aim=(dx/n,dy/n);}
             }
+            if let Some(m)=&self.sim.mission {
+                painter.circle_stroke(to_screen(m.home),m.radius*scale,Stroke::new(1.5,Color32::from_rgb(255,205,110)));
+                painter.text(to_screen((m.home.0,m.home.1-m.radius-4.0)),egui::Align2::CENTER_BOTTOM,"RETURN CAMP",egui::FontId::proportional(13.0),Color32::from_rgb(255,205,110));
+            }
             let target=(actor.x+self.drill_aim.0*13.0,actor.y+self.drill_aim.1*13.0);
             painter.circle_stroke(to_screen(target),8.5*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
             if self.drill_held {painter.line_segment([to_screen((actor.x,actor.y)),to_screen(target)],Stroke::new(2.0,Color32::from_rgb(255,200,95)));}
@@ -3598,6 +3615,17 @@ Click to mute. The volume is in the View menu.")
             };
             bar(y, s.amount, col, &label);
             y += 16.0;
+        }
+        if let Some(m)=&self.sim.mission {
+            for g in &m.goals {
+                bar(y,g.collected as f32/g.target as f32,color32(self.mats.get(g.material).color),&format!("{} {}/{}",self.mats.get(g.material).name.replace('_'," "),g.collected,g.target));y+=16.0;
+            }
+            let message=if m.complete {"EXPEDITION COMPLETE — samples returned".to_string()}else if m.ready(){"Samples secured — return to camp".to_string()}else{"Collect both crystal samples".to_string()};
+            painter.text(at+Vec2::new(0.0,y+4.0),egui::Align2::LEFT_TOP,message,egui::FontId::proportional(15.0),Color32::from_rgb(255,210,120));y+=24.0;
+            if let Some((x,t))=m.signal(&self.sim.world,(p.x,p.y)) {
+                let (dx,dy)=(x-p.x,t-p.y);let direction=if dy.abs()>dx.abs(){if dy<0.0 {"up"}else{"down"}}else if dx<0.0 {"left"}else{"right"};
+                painter.text(at+Vec2::new(0.0,y),egui::Align2::LEFT_TOP,format!("Signal: {:.0} m {direction}",dx.hypot(dy)/10.0),egui::FontId::proportional(13.0),Color32::LIGHT_GRAY);y+=20.0;
+            }
         }
         let text = if p.dead {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
@@ -4131,6 +4159,20 @@ body rect wood 40 60 20 10
         {let app=h.state_mut();app.playing=false;app.cam=None;app.tool=Tool::Select;}h.run_steps(3);
         let a=at(&h,110.0,102.0);let b=at(&h,135.0,115.0);drag(&mut h,a,b);
         assert!(matches!(h.state().selection,Selection::Area(_)));
+    }
+
+    #[test]
+    fn editor_drilling_collects_samples_and_finishes_after_walking_home() {
+        let mut h=editor();
+        {
+            let app=h.state_mut();
+            let (sim,p)=scene::load("size 200 120\nfill air\nrect rock 0 100 200 20\nrect crystal_cyan 72 78 4 20\nrect crystal_violet 78 78 4 20\nplayer 60 100\nmission 20 92 8\nsample crystal_cyan 1 0\nsample crystal_violet 1 0\n",&app.mats,None).into_sim(&app.mats);
+            assert!(p.is_empty());app.sim=sim;app.play();
+        }
+        h.run_steps(3);let p=at(&h,80.0,92.0);press(&mut h,p,true);
+        {let app=h.state_mut();for _ in 0..8{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().ready());assert!(!app.sim.mission.as_ref().unwrap().complete);}
+        press(&mut h,p,false);
+        {let app=h.state_mut();app.drill_held=false;app.sim.physics.set_controls(grave_engine::physics::Controls{walk:-1.0,..Default::default()});for _ in 0..100{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().complete);app.reset();assert!(!app.sim.mission.as_ref().unwrap().ready());assert_eq!(app.sim.mission.as_ref().unwrap().goals[0].collected,0);}
     }
 
     fn count(h: &Harness<Sandbox>, name: &str) -> usize {

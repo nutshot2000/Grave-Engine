@@ -20,3 +20,13 @@ sun off
 rect wood 87 450 2 12
 rect torch_glow 86 445 4 5
 anchor 86 445 4 17
+
+# Collect both samples, then return to the starting camp.
+mission 60 454 24
+sample crystal_cyan 24 0
+sample crystal_violet 24 0
+# Two accessible sample seams for testing the whole mission in this demo.
+rect crystal_cyan 30 448 4 14
+anchor 30 448 4 14
+rect crystal_violet 112 448 4 14
+anchor 112 448 4 14

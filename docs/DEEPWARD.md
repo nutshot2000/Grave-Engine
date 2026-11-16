@@ -79,7 +79,30 @@ drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
 Space flies with the explorer loadout, P pauses, and Reset restores the
 pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
 wall does not mine it remotely. Mining uses the same radius/reach and engine
-excavation rule as DEEPWARD, but does not run its sample mission or inventory.
+excavation rule as DEEPWARD, and feeds the scene's crystal mission inventory.
 
 Pause to select/paint normally, or turn **Player tools** off to use editor
 tools while simulation continues. Clicks outside the canvas do not mine.
+
+## Full mission testing in the editor
+
+Keep **Player tools** and **Crystal mission** checked in the toolbar, then
+press Play. Mine cyan and violet crystals until both quota bars fill, follow
+the signal to the amber camp ring, and enter it alive to complete the mission.
+The editor continues simulating after success so you can keep testing.
+The cave examples include this mission; the small caves demo includes two
+accessible seams so both sample colours are available.
+
+Pause/resume retains progress. Reset returns terrain and progress to the
+Play reset point. Rewind restores sample counts with the corresponding
+terrain, preventing duplicate rewards. Scene Save/Load and engine updates
+carry mission progress too. The editor does not read or overwrite the
+standalone game's save file.
+
+Mission definitions are editable scene data: `mission HOME_X HOME_Y RADIUS`
+followed by `sample MATERIAL TARGET COLLECTED` for each requested material.
+Targets, counts and completion are saved. Explicit scene goals take priority
+in the standalone game too; its tuning file remains the fallback for scenes
+without a mission. Both use the same `Mission` collection/readiness/return
+rules. With no mission defined, ordinary editor scenes behave as before;
+checking **Crystal mission** adds the two default goals at the player's spawn.

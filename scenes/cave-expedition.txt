@@ -21,3 +21,8 @@ player 96 614 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 je
 # A small first seam beyond camp; the violet samples are deeper in the map.
 rect crystal_cyan 205 582 4 10
 anchor 205 582 4 10
+
+# Collect both samples, then return to the starting camp.
+mission 96 606 24
+sample crystal_cyan 24 0
+sample crystal_violet 24 0

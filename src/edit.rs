@@ -290,6 +290,8 @@ struct Step {
     follow_before: Option<u64>,
     follow_after: Option<u64>,
     /// Lighting (lamps on objects numbered like joints).
+    mission_before: Option<crate::mission::Mission>,
+    mission_after: Option<crate::mission::Mission>,
     lighting_before: crate::light::Lighting,
     lighting_after: crate::light::Lighting,
     backdrop_before: crate::backdrop::Backdrop,
@@ -359,6 +361,7 @@ impl History {
                 joints_after: Vec::new(),
                 follow_before: None,
                 follow_after: None,
+                mission_before: None, mission_after: None,
                 lighting_before: Default::default(),
                 lighting_after: Default::default(),
                 backdrop_before: Default::default(),
@@ -380,6 +383,7 @@ impl History {
                 && before.instances == after.instances
                 && before.joints == after.joints
                 && before.follow == after.follow
+                && before.mission == after.mission
                 && before.lighting == after.lighting
                 && before.backdrop == after.backdrop
                 && before.weather == after.weather
@@ -398,6 +402,7 @@ impl History {
                 joints_after: after.joints,
                 follow_before: before.follow,
                 follow_after: after.follow,
+                mission_before: before.mission, mission_after: after.mission,
                 lighting_before: before.lighting,
                 lighting_after: after.lighting,
                 backdrop_before: before.backdrop,
@@ -485,6 +490,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
     snap.bodies = if forward { step.bodies_after.clone() } else { step.bodies_before.clone() };
     snap.instances = if forward { step.links_after.clone() } else { step.links_before.clone() };
     snap.joints = if forward { step.joints_after.clone() } else { step.joints_before.clone() };
+    snap.mission = if forward {step.mission_after.clone()}else{step.mission_before.clone()};
     snap.follow = if forward { step.follow_after } else { step.follow_before };
     snap.lighting = if forward { step.lighting_after.clone() } else { step.lighting_before.clone() };
     snap.backdrop = if forward { step.backdrop_after.clone() } else { step.backdrop_before.clone() };
@@ -528,6 +534,7 @@ pub fn freeze(world: &mut World, spec: &BodySpec) {
 /// One recorded moment: the cells that changed since the moment before
 /// (or every cell, for a keyframe), plus all the objects.
 struct Moment {
+    mission: Option<crate::mission::Mission>,
     ambient: f32,
     layers: Vec<Snapshot>,
     layer_names: Vec<String>,
@@ -627,7 +634,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -645,7 +652,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -696,6 +703,7 @@ impl Timeline {
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();
         snap.follow = m.follow;
+        snap.mission = m.mission.clone();
         snap.world.ambient = m.ambient;
         snap.layers = m.layers.clone();
         snap.layer_names = m.layer_names.clone();

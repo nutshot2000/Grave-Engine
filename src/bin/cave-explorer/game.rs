@@ -36,7 +36,7 @@ pub struct Expedition {
 }
 impl Expedition {
     pub fn new(resume: bool) -> Self {
-        let tuning = Tuning::load(); let mats = Materials::load_dir("materials");
+        let mut tuning = Tuning::load(); let mats = Materials::load_dir("materials");
         assert!(mats.problems.is_empty(), "{:?}",mats.problems);
         let base = std::fs::read_to_string(&tuning.scene).expect("expedition scene");
         let saved = resume.then(||std::fs::read_to_string(SAVE).ok()).flatten();
@@ -53,6 +53,13 @@ impl Expedition {
         } }
         sim.physics.edit_actor(0, |a| a.spawn=tuning.home);
         let ids=[mats.id("crystal_cyan").unwrap(),mats.id("crystal_violet").unwrap()];
+        let mut mission=sim.mission.take().unwrap_or_else(||grave_engine::mission::Mission::new(tuning.home,24.));
+        if mission.goals.is_empty(){for i in 0..2{mission.goals.push(grave_engine::mission::Goal{material:ids[i],target:tuning.targets[i],collected:samples[i]});}}
+        for i in 0..2 {samples[i]=mission.goals.iter().find(|g|g.material==ids[i]).map_or(0,|g|g.collected);}
+        tuning.home=mission.home;
+        for i in 0..2 {if let Some(g)=mission.goals.iter().find(|g|g.material==ids[i]) {tuning.targets[i]=g.target;}}
+        sim.physics.edit_actor(0,|a|a.spawn=tuning.home);
+        sim.mission=Some(mission);
         let map_w=sim.world.w.div_ceil(16);let map_h=sim.world.h.div_ceil(16);
         let mut g=Self {sim,mats,renderer:Renderer::default(),tuning,samples,won:false,frames:0,toast:"Recover cyan and violet samples, then return to the lift.".into(),aim:(1.,0.),drilling:false,mined:0,signal:None,explored:vec![false;map_w*map_h],map_w,ids,toast_until:900};
         if valid { if let Some(text)=&saved {
@@ -63,16 +70,12 @@ impl Expedition {
         g.refresh_signal();g.reveal();g
     }
     pub fn player(&self) -> ActorStatus { self.sim.physics.actor_status().remove(0) }
-    pub fn ready(&self)->bool {(0..2).all(|i|self.samples[i]>=self.tuning.targets[i])}
+    pub fn ready(&self)->bool {self.sim.mission.as_ref().is_some_and(|m|m.ready())}
     pub fn home_distance(&self)->f32 {let p=self.player();((p.x-self.tuning.home.0).powi(2)+(p.y-self.tuning.home.1).powi(2)).sqrt()}
     pub fn message(&mut self,s:impl Into<String>){self.toast=s.into();self.toast_until=self.frames+300;}
     pub fn visible_message(&self)->&str {if self.frames<self.toast_until {&self.toast}else{""}}
     pub fn refresh_signal(&mut self) {
-        if self.ready(){self.signal=Some(self.tuning.home);return;}
-        let p=self.player();let needed=if self.samples[0]<self.tuning.targets[0] {self.ids[0]}else{self.ids[1]};
-        self.signal=self.sim.world.mat.iter().enumerate().filter(|(_,id)|**id==needed).min_by_key(|(i,_)|{
-            let dx=(*i%self.sim.world.w) as i32-p.x as i32;let dy=(*i/self.sim.world.w) as i32-p.y as i32;dx*dx+dy*dy
-        }).map(|(i,_)|((i%self.sim.world.w) as f32,(i/self.sim.world.w) as f32));
+        let p=self.player();self.signal=self.sim.mission.as_ref().and_then(|m|m.signal(&self.sim.world,(p.x,p.y)));
     }
     fn reveal(&mut self){let p=self.player();let (cx,cy)=(p.x as i32/16,p.y as i32/16);for y in cy-6..=cy+6 {for x in cx-6..=cx+6 {if x>=0&&y>=0&&(x as usize)<self.map_w&&(y as usize)<self.explored.len()/self.map_w&&(x-cx).pow(2)+(y-cy).pow(2)<40 {self.explored[y as usize*self.map_w+x as usize]=true;}}}}
     pub fn step(&mut self, controls:Controls, drill:bool, aim:(f32,f32)) {
@@ -89,9 +92,10 @@ impl Expedition {
         self.sim.physics.set_controls(controls);self.sim.step(&self.mats);
         self.sim.world.sounds.clear();self.reveal();
         if self.frames%45==0{self.refresh_signal();}
-        if self.ready()&&self.home_distance()<24.&& !self.player().dead {self.won=true;self.message("EXPEDITION COMPLETE — samples secured at the lift.");}
+        if self.sim.mission.as_ref().is_some_and(|m|m.complete) {self.won=true;self.message("EXPEDITION COMPLETE — samples secured at the lift.");}
     }
     fn award(&mut self, removed:BTreeMap<u16,usize>){
+        if let Some(m)=self.sim.mission.as_mut(){m.collect(&removed);}
         self.mined+=removed.values().sum::<usize>();
         for i in 0..2 {let found=removed.get(&self.ids[i]).copied().unwrap_or(0);if found>0 {self.samples[i]+=found;self.message(format!("{} sample +{}",if i==0 {"Cyan"}else{"Violet"},found));}}
         if self.ready(){self.message("Samples secured. Follow the signal home to the lift.");self.signal=Some(self.tuning.home);}

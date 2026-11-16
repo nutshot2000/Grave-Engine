@@ -18,3 +18,8 @@ sun off
 rect wood 677 518 2 12
 rect torch_glow 676 513 4 5
 anchor 676 513 4 17
+
+# Collect both samples, then return to the starting camp.
+mission 640 522 24
+sample crystal_cyan 24 0
+sample crystal_violet 24 0

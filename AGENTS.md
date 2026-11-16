@@ -480,3 +480,16 @@ world-space aim. `step_once` snapshots before drilling, uses `Sim::dig_circle`
 at 20 Hz, then records the result for rewind; Reset restores original terrain.
 E's turn shortcut is suppressed in player Play mode. The UI test checks real
 mouse mining without a selection box, Reset and paused selection.
+
+Shared collection missions: `src/mission.rs` defines generic per-material
+`Goal`s and a return-to-home `Mission`. `Sim` and `Snapshot` carry optional
+mission state, `Sim::step` checks alive return-to-camp completion, and shift
+moves the camp. Scene commands: `mission X Y RADIUS`, `sample MAT TARGET COUNT`,
+`mission_complete yes`. History diffs and Timeline moments carry mission
+state alongside terrain. Editor and DEEPWARD both feed actual dig removals
+into `Mission::collect`; editor HUD shows quotas, signal and completion.
+Toolbar **Crystal mission** adds/removes the mission undoably; no standalone
+save is touched in editor tests. The cave examples have scene-defined goals.
+Tests: `tests/mission.rs` (save/reset/rewind/undo/shift) and the editor's actual
+mouse-mining/return/reset UI test. Scene-defined goals take precedence over
+the standalone tuning defaults. Avoid separate mission rule implementations.
