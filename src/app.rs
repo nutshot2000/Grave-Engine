@@ -115,6 +115,8 @@ struct Sandbox {
     ran_since_snapshot: bool,
     /// Edit > Generate caves: tile size, seed, how open, how many pools.
     cave_gen: (usize, u32, f32, f32, f32, f32),
+    /// Generate caves: how much the walls are smoothed and bent (0..1).
+    cave_bend: f32,
     /// Crystal/torch density and cave ambient light.
     cave_atmosphere: (f32, f32, f32),
     creature_stamp: Option<std::time::SystemTime>,
@@ -434,6 +436,7 @@ impl Sandbox {
             rewind_pos: None,
             ran_since_snapshot: false,
             cave_gen: (64, 1, 0.6, 0.2, 0.65, 0.75),
+            cave_bend: 1.0,
             cave_atmosphere: (0.7, 0.3, 0.32),
             player_tools: true, drill_held: false, pending_tool_press: false, vent_held:false, drill_aim: (1.0, 0.0), play_canvas: None,
             cave_tiles: true,
@@ -920,6 +923,9 @@ impl Sandbox {
             ui.label("Dead ends").on_hover_text("More blind side passages with rock beyond their tips");
             ui.add(egui::Slider::new(&mut dead_ends, 0.0..=1.0).show_value(false));
             ui.end_row();
+            ui.label("Bend").on_hover_text("Natural look: smooths the walls and bends the passages so the tile grid disappears; zero = straight tile layout");
+            ui.add(egui::Slider::new(&mut self.cave_bend, 0.0..=1.0).show_value(false));
+            ui.end_row();
             ui.label("Crystals").on_hover_text("Glowing cyan/violet clusters around the large caverns");
             ui.add(egui::Slider::new(&mut crystals, 0.0..=1.0).show_value(false));
             ui.end_row();
@@ -945,7 +951,7 @@ impl Sandbox {
         self.cave_gen = (tile, seed, open, pools, caverns, dead_ends);
         self.cave_atmosphere = (crystals, torches, cave_light);
         if go {
-            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, caverns, dead_ends, crystals, torches, ..grave_engine::levelgen::Settings::new(&self.mats) };
+            let set = grave_engine::levelgen::Settings { tile, seed, open, pools, caverns, dead_ends, crystals, torches, bend: self.cave_bend, ..grave_engine::levelgen::Settings::new(&self.mats) };
             let tiles = if self.cave_tiles { grave_engine::levelgen::Tile::load_dir(Path::new("tiles/caves"), &self.mats).0 } else { Vec::new() };
             self.change("generate caves", |app| {
                 let (w, h) = (app.sim.world.w, app.sim.world.h);

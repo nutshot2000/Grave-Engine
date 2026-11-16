@@ -138,7 +138,7 @@ For the playable collect-and-return game, use `Play/Cave-Explorer.cmd`; see
 
 ## Natural bend
 
-`bend 0..1` (scene `generate` and `endless` lines) wears the walls smooth
+`bend 0..1` (the **Bend** slider in Generate caves; scene `generate` and `endless` lines) wears the walls smooth
 (a 5x5 majority removes hairline cracks, specks and square corners) and
 then bends the whole cave with smooth noise in map coordinates, so
 corridors wander and the tile grid disappears. The bend never folds, so
