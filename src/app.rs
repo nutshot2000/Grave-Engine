@@ -117,6 +117,7 @@ struct Sandbox {
     cave_gen: (usize, u32, f32, f32, f32, f32),
     /// Crystal/torch density and cave ambient light.
     cave_atmosphere: (f32, f32, f32),
+    creature_stamp: Option<std::time::SystemTime>,
     supply_catalog: grave_engine::supplies::Catalog,
     supply_panel: grave_engine::supplies::Panel,
     player_tools: bool,
@@ -411,6 +412,7 @@ impl Sandbox {
         let mut app = Sandbox {
             studio: Studio::default(),
             workshop,
+            creature_stamp: stamp(Path::new("assets/creatures/cave.creatures")),
             supply_catalog: grave_engine::supplies::Catalog::load(&mats),
             supply_panel: Default::default(),
             snapshot: sim.snapshot(),
@@ -2036,6 +2038,8 @@ impl Sandbox {
         }
         self.last_file_check = Instant::now();
         self.supply_catalog=grave_engine::supplies::Catalog::load(&self.mats);
+        let changed=stamp(Path::new("assets/creatures/cave.creatures"));
+        if changed!=self.creature_stamp {self.creature_stamp=changed;if let Err(e)=grave_engine::creatures::refresh(&mut self.sim.physics) {self.say(e);} }
         // A new build of the engine? (Wait until the file has stopped
         // changing for a moment: the build is still writing it.)
         if let Some((path, seen)) = &self.original_exe {
@@ -2134,7 +2138,7 @@ impl Sandbox {
     }
 
     fn explorer_play(&self) -> bool {
-        self.playing && self.player_tools && self.sim.physics.actor_count() > 0 && self.studio.tab != Tab::Tests
+        self.playing && self.player_tools && self.sim.physics.player_count() > 0 && self.studio.tab != Tab::Tests
     }
 
     fn step_once(&mut self) {
@@ -2398,7 +2402,7 @@ impl Sandbox {
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
             }
-            if self.sim.physics.actor_count() > 0 {
+            if self.sim.physics.player_count() > 0 {
                 if ui.button(format!("Storage ({})",self.sim.supplies.total())).on_hover_text("B during Play: inventory, tools and nearby cave workshops").clicked(){self.supply_panel.open=!self.supply_panel.open;}
                 ui.checkbox(&mut self.player_tools,"Player tools").on_hover_text("During Play: aim and hold left-click/E to drill, Space flies. Turn off to use editor tools while running.");
                 let mut mission_on=self.sim.mission.is_some();
@@ -3548,6 +3552,16 @@ Click to mute. The volume is in the View menu.")
     fn draw_characters(&mut self, ui: &egui::Ui, painter: &egui::Painter, origin: Pos2, scale: f32) {
         let body_h = grave_engine::physics::actor_height();
         for a in self.sim.physics.actor_status() {
+            if let Some(c)=&a.creature {
+                if !a.dead {
+                    let normal=a.surface.map_or((0.,-1.),|s|s.normal);let center=(a.x,a.y+(16.-a.body_height)*0.5);let gap=c.species.height*0.5+3.;
+                    let at=origin+Vec2::new((center.0+normal.0*gap)*scale,(center.1+normal.1*gap)*scale);let width=(12.0*scale).max(35.0);
+                    let (label,align)=if normal.1>0.5 {(at+Vec2::new(0.,7.),egui::Align2::CENTER_TOP)}else if normal.0.abs()>0.5 {(at+Vec2::new(normal.0*(width*0.5+5.),0.),if normal.0<0. {egui::Align2::RIGHT_CENTER}else{egui::Align2::LEFT_CENTER})}else{(at-Vec2::new(0.,7.),egui::Align2::CENTER_BOTTOM)};
+                    let r=Rect::from_center_size(at,Vec2::new(width,4.0));painter.rect_filled(r,1.0,Color32::from_black_alpha(180));let mut fill=r;fill.set_width(width*(a.health/c.species.health).clamp(0.0,1.0));painter.rect_filled(fill,1.0,if c.mood==grave_engine::creatures::Mood::Windup {Color32::from_rgb(255,95,60)}else{Color32::from_rgb(185,155,95)});
+                    painter.text(label,align,format!("{} · {}",c.label(),c.mood.name()),egui::FontId::proportional(12.0),if c.mood==grave_engine::creatures::Mood::Windup {Color32::LIGHT_RED}else{Color32::from_rgb(220,205,165)});
+                }
+                continue;
+            }
             // Soaked (water, oil) or on fire: an icon over the head says so.
             if let Some(s) = a.soak
                 && !a.dead
@@ -3612,7 +3626,7 @@ Click to mute. The volume is in the View menu.")
 
     /// The player's health and breath, top left of the view.
     fn draw_hud(&self, painter: &egui::Painter, outer: Rect) {
-        let Some(p) = self.sim.physics.actor_status().into_iter().next() else { return };
+        let Some(p) = self.sim.physics.player_status() else { return };
         let at = outer.min + Vec2::new(12.0, 12.0);
         let bar = |y: f32, frac: f32, col: Color32, label: &str| {
             let r = Rect::from_min_size(at + Vec2::new(0.0, y), Vec2::new(160.0, 12.0));
@@ -4001,7 +4015,7 @@ impl eframe::App for Sandbox {
         let typing = ctx.egui_wants_keyboard_input();
         let live = !typing && !self.supply_panel.open && self.playing && !ctx.input(|i| i.modifiers.shift);
         let throttle = if live { self.input.axis("walk") } else { 0.0 };
-        let has_player = self.sim.physics.actor_count() > 0;
+        let has_player = self.sim.physics.player_count() > 0;
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
         let jump = live && self.input.down("jump");
         let drop = live && self.input.down("drop");
@@ -4240,6 +4254,22 @@ body rect wood 40 60 20 10
         assert_eq!(h.state().sim.supplies.equipped,"reinforced_drill");
         h.key_press(Key::B);h.run_steps(2);assert!(!h.state().supply_panel.open);
         h.state_mut().reset();assert_eq!(h.state().sim.supplies.total(),0);assert!(!h.state().sim.supplies.tools.contains("reinforced_drill"));
+    }
+
+    #[test]
+    fn editor_play_fires_real_acid_and_a_climbing_guard_reacts_then_reset_restores_it() {
+        let mut h=editor();
+        {
+            let app=h.state_mut();let (s,p)=scene::load("size 200 140\nfill air\nrect bedrock 0 100 200 40\nrect bedrock 107 0 8 100\nanchor 0 0 200 140\nplayer 50 100\ncreature skitter 90 100 health 8\nworkshop chemistry 50 92 24\n",&app.mats,None).into_sim(&app.mats);assert!(p.is_empty());app.sim=s;
+            for (&id,&n) in &app.supply_catalog.recipes.iter().find(|r|r.id=="acid_shooter").unwrap().costs {app.sim.supplies.stock.insert(id,n);}
+            app.sim.craft(&app.supply_catalog,"acid_shooter").unwrap();app.sim.supplies.stock.insert(app.mats.id("acid").unwrap(),300);app.play();
+        }
+        h.run_steps(3);let p=at(&h,70.,94.);press(&mut h,p,true);assert!(h.state().drill_held,"playing={} tools={} panel={} canvas={:?} pointer={:?} player_count={} input={}",h.state().playing,h.state().player_tools,h.state().supply_panel.open,h.state().play_canvas,p,h.state().sim.physics.player_count(),h.state().input.down("drill"));
+        let mut reacted=false;
+        for _ in 0..360 {if h.state().sim.physics.actor_status()[1].dead {break;}h.state_mut().step_once();let a=h.state().sim.physics.actor_status()[1].clone();reacted|=a.creature.as_ref().unwrap().mood==grave_engine::creatures::Mood::Flee||a.health<8.;}
+        assert!(reacted,"a climbing guard must react to the real acid stream; it can escape a fixed aim");
+        let acid=h.state().mats.id("acid").unwrap();assert!(h.state().sim.supplies.count(acid)<300);
+        press(&mut h,p,false);h.state_mut().reset();assert!(!h.state().sim.physics.actor_status()[1].dead);assert_eq!(h.state().sim.supplies.count(acid),300);
     }
 
     fn count(h: &Harness<Sandbox>, name: &str) -> usize {

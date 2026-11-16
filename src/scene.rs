@@ -229,7 +229,8 @@ impl Loaded {
                 && !sim.physics.set_joint_break_force(a, b, force) { problems.push("scene: break force must be finite and positive".into()); }
         }
         let mut sim = sim;
-        for a in self.actors {
+        let mut actors=self.actors;actors.sort_by_key(|a|a.creature.is_some());
+        for a in actors {
             sim.physics.add_actor(&mut sim.world, mats, a);
         }
         if self.player_zoom > 0.0 {
@@ -1010,6 +1011,28 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     _ => err("depth needs a preceding body and a thickness in metres (0 < depth <= 10)".into()),
                 }
             }
+            "creature" => {
+                let parsed=(||->Result<crate::physics::ActorSpec,String>{
+                    if actors.iter().filter(|a|a.creature.is_some()).count()>=128 {return Err("a scene supports at most 128 creatures".into());}
+                    let kind=*words.get(1).ok_or("use creature KIND X FEET")?;let v=nums(2,2)?;
+                    if !v.iter().all(|v|v.is_finite()){return Err("creature coordinates must be finite".into());}
+                    let species=crate::creatures::species()?.into_iter().find(|s|s.id==kind).ok_or_else(||format!("unknown creature {kind}"))?;
+                    let opt=|key:&str|words.iter().position(|w|*w==key).and_then(|i|words.get(i+1)).copied();
+                    let number=|key:&str,default:f32|->Result<f32,String>{match opt(key) {Some(n)=>n.parse::<f32>().ok().filter(|v|v.is_finite()).ok_or_else(||format!("{key} needs a finite number")),None=>Ok(default)}};
+                    let pair=|key:&str,default:(f32,f32)|->Result<(f32,f32),String>{if let Some(i)=words.iter().position(|w|*w==key) {let v=nums(i+1,2)?;if !v.iter().all(|v|v.is_finite()){return Err(format!("{key} needs two finite numbers"));}Ok((v[0],v[1]))}else{Ok(default)}};
+                    let home=(v[0],v[1]-species.height*0.5);let mut c=crate::creatures::Creature::new(species,home);
+                    if let Some(element)=opt("element").filter(|e|*e!="none") {let id=mats.id(element).filter(|id|*id!=AIR).ok_or("element must name a non-air material")?;c.element=Some(mats.get(id).name.clone());}
+                    c.burst=number("burst",80.)?.clamp(1.,2048.) as u16;c.erupted=opt("erupted")==Some("yes");
+                    c.home=pair("home",c.home)?;c.target=pair("target",c.home)?;
+                    if let Some(mode)=opt("mood") {c.mood=crate::creatures::Mood::parse(mode).ok_or("unknown creature mood")?;}
+                    c.timer=number("timer",0.)?.clamp(0.,600.) as u32;c.cooldown=number("cooldown",0.)?.clamp(0.,600.) as u32;c.alert=number("alert",0.)?.clamp(0.,600.) as u32;c.flee_dir=number("flee",1.)?.signum();
+                    let mut a=c.actor(mats,v[0],v[1]);if let Some(surface)=a.surface.as_mut(){let n=pair("normal",surface.normal)?;let len=n.0.hypot(n.1);if len>0.01 {surface.normal=(n.0/len,n.1/len);}surface.attached=opt("attached")==Some("yes");}
+                    a.health=number("health",a.health)?.clamp(0.,a.health);a.dead_for=number("dead",0.)?.clamp(0.,10000000.) as u32;
+                    if a.health<=0. {a.dead_for=a.dead_for.max(1);}
+                    a.facing=number("facing",1.)?.signum();a.vx=number("vx",0.)?.clamp(-500.,500.);a.vy=number("vy",0.)?.clamp(-500.,500.);a.temp=number("temp",37.)?.clamp(-200.,3000.);a.breath=number("breath",10.)?.clamp(0.,10.);Ok(a)
+                })();
+                match parsed {Ok(a)=>actors.push(a),Err(e)=>err(e)}
+            },
             "player" => {
                 let opt = |key: &str| words.iter().position(|w| w.eq_ignore_ascii_case(key)).and_then(|i| words.get(i + 1));
                 let material = opt("material").map(|s| s.to_string()).unwrap_or_else(|| "flesh".into());
@@ -1674,6 +1697,9 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     out.push_str(&snap.lighting.to_lines(|n| format!("obj{n}"), |n| snap.bodies.get(n as usize - 1).map(|b| (b.x, b.y, b.angle))));
     for a in &snap.actors {
         let (x, y) = a.feet();
+        if let Some(c)=&a.creature {
+            out.push_str(&format!("\ncreature {} {} {} health {} dead {} home {} {} target {} {} mood {} timer {} cooldown {} alert {} flee {} facing {} vx {} vy {} temp {} breath {} normal {} {} attached {} element {} burst {} erupted {}\n",c.species.id,x,y,a.health,a.dead_for,c.home.0,c.home.1,c.target.0,c.target.1,c.mood.name(),c.timer,c.cooldown,c.alert,c.flee_dir,a.facing,a.vx,a.vy,a.temp,a.breath,a.surface.map_or(0.,|s|s.normal.0),a.surface.map_or(-1.,|s|s.normal.1),if a.surface.is_some_and(|s|s.attached){"yes"}else{"no"},c.element.as_deref().unwrap_or("none"),c.burst,if c.erupted {"yes"}else{"no"}));continue;
+        }
         let mut line = format!("\nplayer {x:.1} {y:.1}");
         if let Some(l) = &a.look {
             // Its name if that finds it again (assets/characters/NAME), else its folder.

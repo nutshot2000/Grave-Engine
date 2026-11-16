@@ -736,6 +736,7 @@ fn moment_bytes(m: &Moment) -> usize {
     m.layers.iter().map(crate::layers::snapshot_bytes).sum::<usize>() + m.keyframe.as_ref().map_or(0, |k| k.len() * cell)
         + m.cells.len() * (cell + 4)
         + m.supplies.stock.len()*48 + m.supplies.tools.len()*64 + m.supplies.stations.len()*80
+        + m.actors.len() * (std::mem::size_of::<crate::physics::ActorSpec>()+128)
         + m.mining.fractures.len() * 48
         + m.flying.len() * std::mem::size_of::<crate::world::Flyer>()
         + m.bodies.iter().map(|b| b.cells.len() * std::mem::size_of::<Option<BodyCell>>() + 64).sum::<usize>()

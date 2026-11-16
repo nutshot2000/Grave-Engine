@@ -48,3 +48,6 @@ pub mod mining;
 
 /// Mined-cell inventory, workshops and material tools.
 pub mod supplies;
+
+/// Territorial material creatures and their shared native art.
+pub mod creatures;

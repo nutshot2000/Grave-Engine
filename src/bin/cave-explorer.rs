@@ -57,6 +57,9 @@ impl App {
         }
         let camp=point(self.game.tuning.home.0,self.game.tuning.home.1);draw.circle_stroke(camp,19.*scale,(1.2,Color32::from_rgb(255,196,90)));draw.text(camp-Vec2::new(0.,25.*scale),Align2::CENTER_BOTTOM,"LIFT CAMP",FontId::proportional(14.),Color32::from_rgb(255,210,140));
         for b in &self.game.sim.supplies.stations {let at=point(b.x,b.y);draw.circle_stroke(at,5.*scale,(1.5,Color32::from_rgb(120,235,190)));draw.text(at-Vec2::new(0.,18.*scale),Align2::CENTER_BOTTOM,format!("{} workshop / B",b.kind),FontId::proportional(13.),Color32::from_rgb(140,240,200));}
+        for a in self.game.sim.physics.actor_status() {if let Some(c)=&a.creature {if !a.dead {
+            let n=a.surface.map_or((0.,-1.),|s|s.normal);let gap=c.species.height*0.5+3.;let at=point(a.x+n.0*gap,a.y+(16.-a.body_height)*0.5+n.1*gap);let width=12.*scale;let r=Rect::from_center_size(at,Vec2::new(width,4.));draw.rect_filled(r,1.,Color32::from_black_alpha(180));let mut fill=r;fill.set_width(width*(a.health/c.species.health).clamp(0.,1.));draw.rect_filled(fill,1.,Color32::from_rgb(220,150,90));draw.text(at+Vec2::new(0.,if n.1>0.5 {7.}else{-7.}),if n.1>0.5 {Align2::CENTER_TOP}else{Align2::CENTER_BOTTOM},format!("{} / {}",c.label(),c.mood.name()),FontId::proportional(12.),if c.mood==grave_engine::creatures::Mood::Windup {Color32::LIGHT_RED}else{Color32::from_rgb(225,205,165)});
+        }}}
         self.hud(&draw,rect);
         if self.map&&self.started&&!self.paused&&!self.game.won{self.draw_map(&draw,rect);}
         if !self.started||self.paused||self.game.won {

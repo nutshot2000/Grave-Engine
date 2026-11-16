@@ -1,0 +1,3 @@
+# kind | name | health | speed m/s | sight cells | hearing | leash | bite damage | windup frames | recovery frames | hazard avoidance | shell RGB | body height
+skitter | Cave skitter | 36 | 3.0 | 65 | 95 | 65 | 8 | 24 | 66 | 23 | #c68a4b | 9
+shellback | Crystal shellback | 95 | 1.5 | 55 | 75 | 48 | 17 | 38 | 100 | 15 | #638e86 | 12

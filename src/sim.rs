@@ -305,10 +305,12 @@ impl Sim {
         // objects feel this frame's physics.
         let follow = self.follow.and_then(|id| self.physics.centre(id));
         crate::weather::step(&mut self.world, mats, &mut self.weather, &mut self.weather_run, self.weather_view, follow, &mut self.camera);
+        crate::creatures::think(&mut self.physics,&mut self.world,mats);
         self.physics.update(&mut self.world, mats);
+        crate::creatures::death_bursts(&mut self.physics,&mut self.world,mats);
         self.mining.prune(&self.world);
         self.sync_carried_samples();
-        if let Some(m)=self.mission.as_mut(){if let Some(p)=self.physics.actor_status().first(){m.update((p.x,p.y),!p.dead);}}
+        if let Some(m)=self.mission.as_mut(){if let Some(p)=self.physics.player_status(){m.update((p.x,p.y),!p.dead);}}
         for p in &mut self.pumps { p.step(&mut self.world,mats,&self.physics); }
         if !self.triggers.is_empty() {
             self.run_triggers();
@@ -378,7 +380,7 @@ impl Sim {
     fn run_triggers(&mut self) {
         use crate::trigger::By;
         let bodies: Vec<(u64, (f32, f32))> = self.physics.ids().into_iter().filter_map(|id| Some((id, self.physics.centre(id)?))).collect();
-        let actors: Vec<(f32, f32)> = self.physics.actor_status().iter().map(|a| (a.x, a.y)).collect();
+        let actors: Vec<(f32, f32)> = self.physics.actor_status().iter().filter(|a|a.creature.is_none()).map(|a| (a.x, a.y)).collect();
         // A trigger is set off by being inside it now, or by having crossed it
         // since last frame (a fast thing can leap right over a thin box).
         let seen = std::mem::take(&mut self.seen);

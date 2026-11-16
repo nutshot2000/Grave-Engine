@@ -226,6 +226,7 @@ pub fn run(o: &Options) -> i32 {
     println!("Temperature range: {tmin:.0}°C to {tmax:.0}°C");
     println!("Objects: {} at the start, {} now", objects_at_start, sim.physics.body_count());
     for (n, a) in sim.physics.actor_status().iter().enumerate() {
+        if let Some(c)=&a.creature {println!("Creature {}: at ({:.1},{:.1}), {}, health {:.1}/{:.0}",c.label(),a.x,a.y,if a.dead {"dead"}else{c.mood.name()},a.health,c.species.health);continue;}
         let state = if a.dead {
             "dead".to_string()
         } else if a.hanging {

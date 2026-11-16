@@ -76,7 +76,7 @@ mod actor;
 mod shift;
 mod bend;
 mod vehicle;
-pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold, MobilitySettings, Posture, Soak, Jetpack};
+pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold, MobilitySettings, Posture, Soak, Jetpack, SurfaceWalker, surface_advance, surface_rotate, surface_tangent};
 pub use vehicle::{Balance, WheelContact};
 
 /// How tall a character's body is, in cells.

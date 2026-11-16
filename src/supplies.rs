@@ -289,9 +289,7 @@ impl Sim {
     pub fn craft(&mut self, cat: &Catalog, id: &str) -> Result<(), String> {
         let p = self
             .physics
-            .actor_status()
-            .into_iter()
-            .next()
+            .player_status()
             .filter(|p| !p.dead)
             .ok_or("A living player must use the workshop")?;
         let r = cat
@@ -325,6 +323,7 @@ impl Sim {
                     return empty;
                 }
                 let removed = self.mining.strike(&mut self.world, m, from, aim, tool);
+                if self.mining.impact.as_ref().is_some_and(|hit|hit.frame==self.world.frame) {crate::creatures::noise(&mut self.physics,from);}
                 self.collect_mined(&removed);
                 removed
             }
@@ -377,6 +376,7 @@ impl Sim {
                         (ax - ay * spread) * speed,
                         (ay + ax * spread) * speed,
                     ) {
+                        crate::creatures::noise(&mut self.physics,from);
                         *self.supplies.stock.get_mut(&ammo).unwrap() -= 1;
                         self.sync_carried_samples();
                     }
@@ -440,7 +440,7 @@ impl Panel {
             ui.separator();ui.heading("Tools");ui.horizontal_wrapped(|ui|{for t in &cat.tools {if s.supplies.tools.contains(&t.id)&&ui.selectable_label(s.supplies.equipped==t.id,&t.title).clicked(){action=Some(Action::Equip(t.id.clone()));}}});
             if let Some(t)=cat.tool(&s.supplies.equipped) {if let Mode::Spray{ammo,..}=t.mode {ui.label(format!("{}: {} ammunition cells",m.get(ammo).name,s.supplies.count(ammo)));}}
             ui.separator();ui.heading("Workshop recipes");
-            let player=s.physics.actor_status().into_iter().next().filter(|p|!p.dead);let p=player.as_ref().map(|p|(p.x,p.y));
+            let player=s.physics.player_status().filter(|p|!p.dead);let p=player.as_ref().map(|p|(p.x,p.y));
             let near:Vec<_>=s.supplies.stations.iter().filter(|b|p.is_some_and(|p|(b.x-p.0).hypot(b.y-p.1)<=b.radius)).map(|b|b.kind.replace('_'," ")).collect();
             ui.label(if near.is_empty(){"Find a workshop in the cave to build tools or make supplies.".into()}else{format!("In reach: {} workshop",near.join(", "))});
             egui::ScrollArea::vertical().id_salt("workshop_recipes").max_height(265.).show(ui,|ui|{

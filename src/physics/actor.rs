@@ -14,6 +14,8 @@ use crate::world::Blast;
 use std::sync::Arc;
 mod ledge;
 mod posture;
+mod surface;
+pub use surface::{SurfaceWalker,advance as surface_advance,rotate as surface_rotate,tangent as surface_tangent};
 mod soak;
 pub use soak::Soak;
 pub use posture::{MobilitySettings, Posture};
@@ -73,6 +75,8 @@ pub struct Controls {
 /// An actor's state: enough to save it, rewind it and put it back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpec {
+    pub creature: Option<crate::creatures::Creature>,
+    pub surface: Option<SurfaceWalker>,
     /// Optional reusable flight assist; fuel and active state are rewindable.
     pub jetpack: Option<Jetpack>,
     /// Radius of a personal warm headlamp (zero = none).
@@ -122,6 +126,8 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
+            surface: None,
+            creature: None,
             jetpack: None, headlamp: 0.0,
             control_override: None, respawn: true,
             mobility: None, posture: Posture::default(),
@@ -190,6 +196,9 @@ impl ActorSpec {
 /// What the HUD needs to show.
 #[derive(Clone, Debug)]
 pub struct ActorStatus {
+    pub surface: Option<SurfaceWalker>,
+    pub creature: Option<crate::creatures::Creature>,
+    pub dead_for: u32,
     pub jet_fuel: Option<(f32, f32)>,
     pub boosting: bool,
     pub headlamp: f32,
@@ -236,6 +245,7 @@ pub(super) struct Actor {
     head_air: bool,
     head_wet: bool,
     /// Frames since it last stood on something.
+    surface_controlled: bool,
     since_ground: u32,
     /// How much of it is in liquid (0..1), and the liquid's density.
     wet: f32,
@@ -323,6 +333,7 @@ impl Physics {
             handle,
             collider,
             stamped: Vec::new(),
+            surface_controlled:false,
             since_ground: COYOTE,
             wet: 0.0,
             liquid_density: 1000.0,
@@ -335,6 +346,7 @@ impl Physics {
             pending: 0.0,
             pending_cause: None,
         };
+        if a.spec.creature.is_some()&&a.spec.dead_for>240 {self.colliders[a.collider].set_enabled(false);self.set[a.handle].set_body_type(RigidBodyType::Fixed,true);}
         Self::stamp_actor(&mut a, &self.set, world, mats);
         self.actors.push(a);
         self.actors.len() - 1
@@ -350,11 +362,15 @@ impl Physics {
             rb.set_translation(t + delta, true);
             a.stamped = a.stamped.iter().filter_map(|&(wi, li)| Some((moved(wi)?, li))).collect();
             a.spec.spawn = (a.spec.spawn.0 + dx as f32, a.spec.spawn.1 + dy as f32);
+            if let Some(c)=a.spec.creature.as_mut(){c.shift(dx,dy); }
             if let Some(hold) = a.spec.ledge.as_mut() {
                 hold.edge = (hold.edge.0 + dx, hold.edge.1 + dy);
             }
         }
     }
+
+    pub fn player_count(&self)->usize {self.actors.iter().filter(|a|a.spec.creature.is_none()).count()}
+    pub fn player_status(&self)->Option<ActorStatus> {self.actor_status().into_iter().find(|a|a.creature.is_none())}
 
     pub fn actor_count(&self) -> usize {
         self.actors.len()
@@ -369,7 +385,9 @@ impl Physics {
     /// bucket, heal it...). Returns false if there's no such actor.
     pub fn edit_actor(&mut self, index: usize, f: impl FnOnce(&mut ActorSpec)) -> bool {
         let Some(a) = self.actors.get_mut(index) else { return false };
+        let height=a.spec.posture.height;
         f(&mut a.spec);
+        if (a.spec.posture.height-height).abs()>0.001 {posture::shape(&mut self.colliders[a.collider],a.spec.posture.height);}
         true
     }
 
@@ -477,6 +495,7 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
+                    surface:a.spec.surface,creature:a.spec.creature.clone(),dead_for:a.spec.dead_for,
                     jet_fuel: a.spec.jetpack.map(|j| (j.fuel, j.capacity)),
                     boosting: a.spec.jetpack.is_some_and(|j| j.active),
                     headlamp: a.spec.headlamp,
@@ -571,6 +590,7 @@ impl Physics {
         }
         let blasts = merge_blasts(blasts);
         for a in self.actors.iter_mut() {
+            a.surface_controlled=false;
             let controls = a.spec.control_override.unwrap_or(self.controls);
             let rb = &self.set[a.handle];
             let pos = rb.translation();
@@ -685,11 +705,13 @@ impl Physics {
                 }
             };
             // Generic contact hazards, independent of heat and material names.
+            let affinity_id=a.spec.creature.as_ref().and_then(|c|c.element.as_deref()).and_then(|name|mats.id(name));
             let mut contact_harm=0.0f32;
             for &(wi,_) in &a.stamped {
                 let i=wi as usize;let (x,y)=(i%world.w,i/world.w);
                 for j in [Some(i),(x>0).then(||i-1),(x+1<world.w).then(||i+1),(y>0).then(||i-world.w),(y+1<world.h).then(||i+world.w)].into_iter().flatten() {
-                    contact_harm=contact_harm.max(mats.get(world.mat[j]).hurts_on_touch);
+                    let id=world.mat[j];
+                    if affinity_id!=Some(id) {contact_harm=contact_harm.max(mats.get(id).hurts_on_touch);}
                 }
             }
             hurt(contact_harm*DT,"were hurt by contact");
@@ -697,8 +719,10 @@ impl Physics {
             // safe, averaged over the body.
             let n = a.stamped.len().max(1) as f32;
             let body = || a.stamped.iter().map(|&(_, li)| a.temps[li as usize]);
-            let too_hot = body().map(|t| (t - HOT).max(0.0)).sum::<f32>() / n;
-            let too_cold = body().map(|t| (COLD - t).max(0.0)).sum::<f32>() / n;
+            let affinity=affinity_id.map(|id|mats.get(id));
+            let hot=affinity.map_or(HOT,|m|m.temperature.max(HOT));let cold=affinity.map_or(COLD,|m|m.temperature.min(COLD));
+            let too_hot = body().map(|t| (t - hot).max(0.0)).sum::<f32>() / n;
+            let too_cold = body().map(|t| (cold - t).max(0.0)).sum::<f32>() / n;
             // (A wet body is shielded from some of it.)
             hurt(too_hot * 3.0 * DT * soak::heat_shield(&a.spec, mats), "burned");
             hurt(too_cold * 2.0 * DT, "froze");
@@ -725,6 +749,7 @@ impl Physics {
                 }
             }
 
+            if a.spec.surface.is_some()&&surface::update(a,&mut self.set,world,mats,controls) {continue;}
             // Moving.
             let pressed = controls.jump && !a.spec.up_held;
             a.spec.jump_buffer = if pressed { if a.spec.posture.height < H as f32 { 12 } else { 6 } } else { a.spec.jump_buffer.saturating_sub(1) };
@@ -841,8 +866,8 @@ impl Physics {
                 // landing or getting hit by something heavy. Gravity alone
                 // only changes speed by 0.16 m/s a frame.
                 let dv = (v - a.v_before).length();
-                if a.spec.ledge.is_some() {
-                    // Traversal velocity is controlled, not an impact.
+                if a.spec.ledge.is_some()||a.surface_controlled {
+                    // Supported traversal velocity is controlled, not an impact.
                 } else if a.launched && dv > SAFE_LANDING {
                     // The landing after a bounce pad: games don't punish that.
                     a.launched = false;
@@ -856,12 +881,14 @@ impl Physics {
                     if a.spec.health <= 0.0 {
                         a.spec.health = 0.0;
                         a.spec.dead_for = 1;
+                        if let Some(s)=a.spec.surface.as_mut(){s.attached=false;s.normal=(0.,-1.);self.set[a.handle].set_body_type(RigidBodyType::Dynamic,true); }
                         a.spec.posture.roll_left = 0.0;
                         a.spec.posture.crouched = false;
                         if a.spec.ledge.is_some() { ledge::release(a, &mut self.set[a.handle]); }
                     }
                 }
             }
+            if a.spec.creature.is_some()&&((a.spec.dead_for>45&&a.since_ground==0)||a.spec.dead_for>240) {self.colliders[a.collider].set_enabled(false);self.set[a.handle].set_body_type(RigidBodyType::Fixed,true);}
             a.pending = 0.0;
             a.pending_cause = None;
             Self::advance_animation(a, &self.set, a.spec.control_override.unwrap_or(self.controls));
@@ -873,12 +900,13 @@ impl Physics {
     /// its current animation frame, or the plain figure.
     fn stamp_actor(a: &mut Actor, set: &RigidBodySet, world: &mut World, mats: &Materials) {
         a.stamped.clear();
+        if a.spec.creature.is_some()&&a.spec.dead_for>0 {return;}
         let t = set[a.handle].translation();
         let offset = a.spec.visual_offset();
         let (cx, cy) = (t.x / CELL + offset.0, t.y / CELL + offset.1);
         let left = (cx - MASK_W as f32 / 2.0).round() as i32;
         let top = (cy - H as f32 / 2.0).round() as i32;
-        let (mask, mirror, hidden) = match &a.spec.look {
+        let (mask, mirror, hidden) = if let Some(c)=&a.spec.creature {(crate::creatures::mask(c,world.frame),a.spec.facing<0.0,crate::world::HIDDEN)}else{match &a.spec.look {
             Some(look) => {
                 let animator = a.spec.animation.as_ref().unwrap();
                 let (frame, _, _) = look.sample(&animator.state().clip, animator.sample_time(|c| look.duration(c)), animator.blend.as_ref());
@@ -895,7 +923,7 @@ impl Physics {
                 }
                 (m, a.spec.facing < 0.0, 0)
             }
-        };
+        }};
         for row in 0..H {
             for col in 0..MASK_W {
                 if !mask[row * MASK_W + col] {
@@ -903,7 +931,11 @@ impl Physics {
                 }
                 // Mirror the figure when it faces the other way.
                 let col_w = if mirror { MASK_W - 1 - col } else { col };
-                let (wx, wy) = (left + col_w as i32, top + row as i32);
+                let (wx,wy)=if let Some(s)=a.spec.surface {
+                    let offset=(H as f32-a.spec.posture.height)*0.5;
+                    let local=(col_w as f32+0.5-MASK_W as f32/2.,row as f32+0.5-H as f32/2.-offset);
+                    let p=surface::rotate(s.normal,local);((cx+p.0).floor() as i32,(cy+offset+p.1).floor() as i32)
+                }else{(left+col_w as i32,top+row as i32)};
                 if !world.in_bounds(wx, wy) {
                     continue;
                 }

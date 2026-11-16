@@ -28,6 +28,7 @@ pub struct Renderer {
     lighting: crate::light::Lighting,
     lamps: Vec<crate::light::Placed>,
     mining: crate::mining::Mining,
+    creatures:Vec<crate::physics::ActorStatus>,
     illum: Vec<[f32; 3]>,
     sun_scratch: Vec<[f32; 3]>,
     /// Weather being drawn: fog (0..1) and how dusty/tan it is, the lightning
@@ -144,6 +145,7 @@ impl Renderer {
         self.layer_worlds=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|l.world.clone()).collect();
         self.layer_lighting=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|if l.lighting.is_plain() {None} else {Some((l.lighting.clone(),l.lamps()))}).collect();
         self.layer_renderers.resize_with(self.layer_worlds.len(),Renderer::default);
+        self.creatures=crate::creatures::draws(&sim.physics.actor_status());
         self.mining = sim.mining.clone();
         self.lighting = sim.lighting.clone();
         self.lamps = sim.lamps();
@@ -508,6 +510,25 @@ impl Renderer {
                 }
             }
         }
+        // Creature bodies use the same native art in editor, games and shots.
+        if !view.heat {for a in &self.creatures {
+            let c=a.creature.as_ref().unwrap();if a.dead_for>240 {continue;}
+            let left=(a.x-crate::look::MASK_W as f32/2.0).round() as i32;let top=(a.y-8.0).round() as i32;
+            for (x,y,rgb) in crate::creatures::pixels(c,world.frame,a.dead) {
+                let col=if a.facing<0.0 {crate::look::MASK_W-1-x}else{x};
+                let (x,y)=if let Some(surface)=a.surface {
+                    let offset=(16.-a.body_height)*0.5;let p=crate::physics::surface_rotate(surface.normal,(col as f32+0.5-crate::look::MASK_W as f32/2.,y as f32+0.5-8.-offset));
+                    ((a.x+p.0).floor() as i32,(a.y+offset+p.1).floor() as i32)
+                }else{(left+col as i32,top+y as i32)};
+                if x<ex0 as i32||y<ey0 as i32||x>=(ex0+ew) as i32||y>=(ey0+eh) as i32 {continue;}
+                let i=world.idx(x as usize,y as usize);if !a.dead&&!world.is_owned(i){continue;}
+                let j=(y as usize-ey0)*ew+x as usize-ex0;
+                let affinity=c.element.as_deref().and_then(|name|mats.id(name)).map(|id|mats.get(id));
+                let col=affinity.map_or(c3(rgb),|m|{let base=(c.species.color.iter().map(|v|*v as f32).sum::<f32>()/3.).max(1.);let grain=((rgb[0] as f32+rgb[1] as f32+rgb[2] as f32)/3./base).clamp(0.35,1.8);m.color.map(|v|v as f32*grain)});
+                self.tmp[j]=col.map(|v|v*if a.dead {0.6}else{1.0});
+                if !a.dead&&(rgb[0]>230||affinity.is_some_and(|m|m.glow>0.5)) {self.self_lit[j]=true;}
+            }
+        }}
         // Cells flying through the air, drawn on top.
         for f in &world.flying {
             if f.x < ex0 as f32 || f.y < ey0 as f32 || f.x >= (ex0 + ew) as f32 || f.y >= (ey0 + eh) as f32 {
@@ -543,6 +564,12 @@ impl Renderer {
             blur(&mut self.light, &mut self.scratch, ew, eh, 5);
         }
         let mut lamps = self.lamps.clone();
+        if !view.heat {for a in self.creatures.iter().filter(|a|!a.dead) {
+            let Some(id)=a.creature.as_ref().and_then(|c|c.element.as_deref()).and_then(|name|mats.id(name)) else{continue;};let m=mats.get(id);if m.glow<=0.05 {continue;}
+            let n=a.surface.map_or((0.,-1.),|s|s.normal);let r=a.body_height*0.5+1.;let center=(a.x,a.y+(16.-a.body_height)*0.5);
+            lamps.push(crate::light::Placed{shadows:true,x:center.0+n.0*r,y:center.1+n.1*r,radius:18.+m.glow*28.,strength:m.glow*0.45,color:m.color,cone:None});
+        }}
+
         if !view.heat { lamps.extend(crate::light::material_lamps(world, mats, e)); }
         let lit = !view.heat && !(self.lighting.is_plain() && lamps.is_empty());
         // In the dark, glow also reaches far: a wide, soft spread of it,
