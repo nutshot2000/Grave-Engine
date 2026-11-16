@@ -45,3 +45,6 @@ pub mod mission;
 
 /// Surface drilling, material resistance and persistent fracture marks.
 pub mod mining;
+
+/// Mined-cell inventory, workshops and material tools.
+pub mod supplies;

@@ -5,6 +5,11 @@ Keep **Player tools** and **Crystal mission** checked, then press **Play**.
 Use A/D to move, aim with the mouse, hold click or E to drill, W to jump/climb,
 and Space for short jetpack bursts. P pauses. Reset restores the test.
 
+The trial also has [material storage and workshops](CAVE-WORKSHOPS.md).
+B opens exact material counts and crafting; F cycles built tools. The camp
+mechanic makes a reinforced drill or flame projector; the gallery chemistry
+bench makes an acid sprayer. Fuel and acid are finite crafted supplies.
+
 The point is to compare choices, rather than race to fill the sample bars:
 
 - At camp, chip the golden sandstone. It gives way quickly.

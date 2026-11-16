@@ -96,6 +96,7 @@ use std::path::Path;
 pub struct Loaded {
     pub mission: Option<crate::mission::Mission>,
     pub mining: crate::mining::Mining,
+    pub supplies: crate::supplies::Supplies,
     pub pumps: Vec<crate::pump::Pump>,
     /// Index, name, complete plane and whether it inherits fixed front terrain.
     pub layers: Vec<(usize,String,Loaded,bool)>,
@@ -234,8 +235,10 @@ impl Loaded {
         if self.player_zoom > 0.0 {
             sim.zoom = self.player_zoom;
         }
+        sim.supplies = self.supplies;
         sim.mining = self.mining;
         sim.mission = self.mission;
+        sim.sync_carried_samples();
         sim.lighting = self.lighting;
         sim.backdrop = self.backdrop;
         sim.weather = self.weather;
@@ -384,6 +387,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     let mut triggers: Vec<crate::trigger::Trigger> = Vec::new();
     let mut mission: Option<crate::mission::Mission> = None;
     let mut mining=crate::mining::Mining::default();
+    let mut supplies=crate::supplies::Supplies::default();
     let mut lighting = crate::light::Lighting::default();
     let mut backdrop = crate::backdrop::Backdrop::default();
     let mut weather = crate::weather::Weather::default();
@@ -482,6 +486,15 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 // Pictures are found next to the scene (or from the project folder).
                 backdrop.dir = base.map(|b| b.to_path_buf());
             }
+            "storage" => supplies.tracking=words.get(1)==Some(&"on"),
+            "stock" => match (words.get(1).and_then(|n|mats.id(n)),words.get(2).and_then(|n|n.parse::<u64>().ok())) {
+                (Some(id),Some(n))=>{supplies.stock.insert(id,n);supplies.tracking=true;},_=>err("use stock MATERIAL COUNT".into()),
+            },
+            "owned_tool" => {if let Some(id)=words.get(1) {supplies.tools.insert((*id).into());}else{err("use owned_tool ID".into());}},
+            "equipped_tool" => {if let Some(id)=words.get(1) {supplies.equipped=(*id).into();}else{err("use equipped_tool ID".into());}},
+            "workshop" => match (words.get(1),nums(2,3)) {
+                (Some(kind),Ok(v)) if v.iter().all(|v|v.is_finite())=>supplies.stations.push(crate::supplies::Station{kind:(*kind).into(),x:v[0],y:v[1],radius:v[2].clamp(4.0,64.0)}),_=>err("use workshop KIND X Y RADIUS".into()),
+            },
             "fracture" => match (nums(1,2),words.get(3).and_then(|n|mats.id(n)),nums(4,1)) {
                 (Ok(p),Some(material),Ok(v))=>{let w=ensure(&mut world,mats);let (x,y)=(p[0] as usize,p[1] as usize);if x<w.w&&y<w.h&&v[0].is_finite() {mining.fractures.insert(w.idx(x,y),crate::mining::Fracture{material,work:v[0].clamp(0.0,100.0)});}},
                 _=>err("use fracture X Y MATERIAL WORK".into()),
@@ -1320,7 +1333,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
     for (i, inst) in placed {
         instances[i] = Some(inst);
     }
-    Loaded { mining, mission, pumps, outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
+    Loaded { supplies, mining, mission, pumps, outside_temperature, layers, world, bodies, problems, heated, instances, joints, follow, upright, triggers, lighting, backdrop, weather, actors, player_zoom }
 }
 
 /// Fill each column from `top(x)` down to `bottom` (exclusive), for x in
@@ -1647,6 +1660,11 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     }
     out.push_str(&snap.backdrop.to_lines());
     out.push_str(&snap.weather.to_lines());
+    if snap.supplies.tracking {out.push_str("storage on\n");}
+    for (&id,&n) in &snap.supplies.stock {if n>0 {out.push_str(&format!("stock {} {}\n",mats.get(id).name,n));}}
+    for id in &snap.supplies.tools {if id!="drill" {out.push_str(&format!("owned_tool {id}\n"));}}
+    if snap.supplies.equipped!="drill" {out.push_str(&format!("equipped_tool {}\n",snap.supplies.equipped));}
+    for b in &snap.supplies.stations {out.push_str(&format!("workshop {} {} {} {}\n",b.kind,b.x,b.y,b.radius));}
     for (&i,f) in &snap.mining.fractures {if i<snap.world.mat.len()&&snap.world.mat[i]==f.material {out.push_str(&format!("fracture {} {} {} {}\n",i%snap.world.w,i/snap.world.w,mats.get(f.material).name,f.work));}}
     if let Some(m)=&snap.mission {
         out.push_str(&format!("\nmission {} {} {}\n",m.home.0,m.home.1,m.radius));

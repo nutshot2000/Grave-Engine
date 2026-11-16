@@ -290,6 +290,8 @@ struct Step {
     follow_before: Option<u64>,
     follow_after: Option<u64>,
     /// Lighting (lamps on objects numbered like joints).
+    supplies_before: crate::supplies::Supplies,
+    supplies_after: crate::supplies::Supplies,
     mining_before: crate::mining::Mining,
     mining_after: crate::mining::Mining,
     mission_before: Option<crate::mission::Mission>,
@@ -363,6 +365,7 @@ impl History {
                 joints_after: Vec::new(),
                 follow_before: None,
                 follow_after: None,
+                supplies_before: Default::default(), supplies_after: Default::default(),
                 mining_before: Default::default(), mining_after: Default::default(),
                 mission_before: None, mission_after: None,
                 lighting_before: Default::default(),
@@ -386,6 +389,7 @@ impl History {
                 && before.instances == after.instances
                 && before.joints == after.joints
                 && before.follow == after.follow
+                && before.supplies == after.supplies
                 && before.mining == after.mining
                 && before.mission == after.mission
                 && before.lighting == after.lighting
@@ -406,6 +410,7 @@ impl History {
                 joints_after: after.joints,
                 follow_before: before.follow,
                 follow_after: after.follow,
+                supplies_before: before.supplies, supplies_after: after.supplies,
                 mining_before: before.mining, mining_after: after.mining,
                 mission_before: before.mission, mission_after: after.mission,
                 lighting_before: before.lighting,
@@ -495,6 +500,7 @@ fn apply(sim: &mut Sim, mats: &Materials, step: &Step, forward: bool) {
     snap.bodies = if forward { step.bodies_after.clone() } else { step.bodies_before.clone() };
     snap.instances = if forward { step.links_after.clone() } else { step.links_before.clone() };
     snap.joints = if forward { step.joints_after.clone() } else { step.joints_before.clone() };
+    snap.supplies = if forward {step.supplies_after.clone()}else{step.supplies_before.clone()};
     snap.mining = if forward {step.mining_after.clone()}else{step.mining_before.clone()};
     snap.mission = if forward {step.mission_after.clone()}else{step.mission_before.clone()};
     snap.follow = if forward { step.follow_after } else { step.follow_before };
@@ -540,6 +546,7 @@ pub fn freeze(world: &mut World, spec: &BodySpec) {
 /// One recorded moment: the cells that changed since the moment before
 /// (or every cell, for a keyframe), plus all the objects.
 struct Moment {
+    supplies: crate::supplies::Supplies,
     mining: crate::mining::Mining,
     mission: Option<crate::mission::Mission>,
     ambient: f32,
@@ -626,6 +633,9 @@ impl Timeline {
         self.counter = 0;
     }
 
+    /// Record an inventory transaction even while the world clock is paused.
+    pub fn record_now(&mut self, sim:&mut Sim) {self.counter=self.every;self.record(sim);}
+
     /// Call after every simulation step: stores a moment every `every` frames.
     pub fn record(&mut self, sim: &mut Sim) {
         let force = self.moments.is_empty();
@@ -641,7 +651,7 @@ impl Timeline {
         let moment = if key {
             let all: Vec<CellState> = (0..n).map(|i| state(w, i)).collect();
             self.last = all.clone();
-            Moment { mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { supplies: snap.supplies.clone(), mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: Some(all), cells: Vec::new(), flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         } else {
             let mut cells = Vec::new();
             for i in 0..n {
@@ -659,7 +669,7 @@ impl Timeline {
                     self.last[i] = now;
                 }
             }
-            Moment { mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
+            Moment { supplies: snap.supplies.clone(), mining: snap.mining.clone(), mission: snap.mission.clone(), ambient: w.ambient, layers: snap.layers, layer_names: snap.layer_names, frame: w.frame, keyframe: None, cells, flying: w.flying.clone(), actors: snap.actors.clone(), bodies: snap.bodies, links: snap.instances, joints: snap.joints, follow: snap.follow }
         };
         self.bytes += moment_bytes(&moment);
         self.moments.push(moment);
@@ -710,6 +720,7 @@ impl Timeline {
         snap.instances = m.links.clone();
         snap.joints = m.joints.clone();
         snap.follow = m.follow;
+        snap.supplies = m.supplies.clone();
         snap.mining = m.mining.clone();
         snap.mission = m.mission.clone();
         snap.world.ambient = m.ambient;
@@ -724,6 +735,7 @@ fn moment_bytes(m: &Moment) -> usize {
     let cell = std::mem::size_of::<CellState>();
     m.layers.iter().map(crate::layers::snapshot_bytes).sum::<usize>() + m.keyframe.as_ref().map_or(0, |k| k.len() * cell)
         + m.cells.len() * (cell + 4)
+        + m.supplies.stock.len()*48 + m.supplies.tools.len()*64 + m.supplies.stations.len()*80
         + m.mining.fractures.len() * 48
         + m.flying.len() * std::mem::size_of::<crate::world::Flyer>()
         + m.bodies.iter().map(|b| b.cells.len() * std::mem::size_of::<Option<BodyCell>>() + 64).sum::<usize>()

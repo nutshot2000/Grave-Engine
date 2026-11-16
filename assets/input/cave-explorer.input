@@ -13,3 +13,10 @@ pause = key Escape, key P, pad Start
 start = key Enter, pad A
 save = key F5, pad Y
 restart = key R, pad LB
+
+# Material storage and cave workshop controls.
+storage = key B, pad LStick
+tool_next = key F, pad LB
+recipe_next = key ArrowDown, pad Down
+recipe_prev = key ArrowUp, pad Up
+craft = key Enter, pad Y

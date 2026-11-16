@@ -107,3 +107,14 @@ in the standalone game too; its tuning file remains the fallback for scenes
 without a mission. Both use the same `Mission` collection/readiness/return
 rules. With no mission defined, ordinary editor scenes behave as before;
 checking **Crystal mission** adds the two default goals at the player's spawn.
+
+## Materials, tools and workshops
+
+B opens [storage and workshops](CAVE-WORKSHOPS.md); F cycles built tools.
+The same inventory, crafting and material-tool rules work in editor Play.
+Every drilled terrain cell is stored under its material. Crafting and ammo
+spend the recorded quantities, and spending crystals lowers carried mission
+quotas until you mine replacements. Tool tuning and recipes are in
+`assets/crafting/`; `assets/cave-explorer/game.txt` sets the expedition scene,
+home, targets and view. Use the small Mining Trial for the authored workshop
+progression; generated caves now include mineable iron ore seams.

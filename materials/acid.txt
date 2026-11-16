@@ -1,0 +1,27 @@
+# A finite chemical reagent: one cell is spent when one neighbour dissolves.
+about = Corrosive liquid. Dissolves common rock, wood and metal into empty space; becomes water when spent. Bedrock resists it.
+state = liquid
+density = 1200
+color = #9bdd51
+color_variation = 0.08
+conducts_heat = 0.3
+heat_capacity = 1.8
+boils_at = 110
+boils_into = steam
+flows = 4
+lets_light_through = 0.85
+glow = 0.12
+coats = no
+lifetime = 900
+decays_into = water
+reaction = rock -> water + air, chance 0.15
+reaction = stone -> water + air, chance 0.15
+reaction = sandstone -> water + air, chance 0.2
+reaction = shale -> water + air, chance 0.18
+reaction = basalt -> water + air, chance 0.08
+reaction = iron -> water + air, chance 0.2
+reaction = steel -> water + air, chance 0.12
+reaction = iron_ore -> water + air, chance 0.2
+reaction = wood -> water + air, chance 0.15
+hurts_on_touch = 15
+reaction = water -> water + water, chance 0.2

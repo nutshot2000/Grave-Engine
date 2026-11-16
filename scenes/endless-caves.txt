@@ -23,3 +23,6 @@ anchor 676 513 4 17
 mission 640 522 24
 sample crystal_cyan 24 0
 sample crystal_violet 24 0
+
+# A mechanic workshop near the starting camp.
+workshop mechanic 640 522 26

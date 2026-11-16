@@ -43,6 +43,7 @@ the file and line number.
 
 | Key | What it means | Default |
 | --- | --- | --- |
+| `hurts_on_touch` | Character contact damage in health/second. Acid 15; strongest material touching the body wins, rather than multiplying by body pixels. Independent of heat damage | 0 |
 | `mining_hardness` | Focused drill work in seconds per surface layer. Dirt 0.1, rock 0.7, basalt 2.2. Above the starter tool grade (3) requires a stronger drill; bedrock 8. Separate from physics strength. `none` derives from toughness / 7000, or 0.15 without toughness | none |
 | `toughness` | How hard a hit (or how much weight) it takes to crack, in kilonewtons. Wood 1500, stone 5000, iron 30000, ice 300. `none` = never cracks | none |
 | `breaks_into` | What cracked cells turn into (stone cracks into gravel). Without it, cracked bits splinter into small flying pieces | none |

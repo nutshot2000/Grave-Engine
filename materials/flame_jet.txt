@@ -1,0 +1,16 @@
+# Pressurised tool flame: real hot gas, with enough contact time to ignite timber.
+about = A hot fuel jet. Ignites flammable materials through heat; dangerous in enclosed spaces.
+state = gas
+density = 0.4
+color = #ffb64d
+color_variation = 0.2
+glow = 1
+temperature = 1600
+stays_at = 1600
+conducts_heat = 0.8
+heat_capacity = 2
+lifetime = 110
+decays_into = smoke
+decays_into_chance = 0.35
+flows = 1
+feeds_fire = yes

@@ -1018,7 +1018,7 @@ fn draw_cave_blocks(world: &mut World, mats: &Materials, grid: &[Block], dimensi
     // Draw rounded natural walls at cell resolution, retaining built details.
     let (pw, ph) = (gw as usize * t / g as usize, gh as usize * t / g as usize);
     let (brick, stone, wood, lava, powder) = (pick(mats, "brick", s.rock), pick(mats, "stone", s.rock), pick(mats, "wood", s.rock), pick(mats, "lava", AIR), pick(mats, "gunpowder", s.rock));
-    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
+    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron_ore", s.rock)];
     for cy in 0..ph {
         for cx in 0..pw {
             let (x, y) = (at.0 + cx as i32, at.1 + cy as i32);
@@ -1240,7 +1240,7 @@ fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usiz
     // Map position of a world cell (patches and ore follow the map).
     let map = |x: usize, y: usize| ((origin.0 + x as i64) as i32, (origin.1 + y as i64) as i32);
     let (stone, sand) = (pick(mats, "shale", s.rock), pick(mats, "sandstone", s.rock));
-    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron", s.rock)];
+    let ores = [pick(mats, "copper", s.rock), pick(mats, "brass", s.rock), pick(mats, "iron_ore", s.rock)];
     let scale = (s.tile as f32 * 1.5).max(10.0);
     for y in ay..ay + ah {
         for x in ax..ax + aw {

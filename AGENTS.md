@@ -486,8 +486,9 @@ Shared collection missions: `src/mission.rs` defines generic per-material
 mission state, `Sim::step` checks alive return-to-camp completion, and shift
 moves the camp. Scene commands: `mission X Y RADIUS`, `sample MAT TARGET COUNT`,
 `mission_complete yes`. History diffs and Timeline moments carry mission
-state alongside terrain. Editor and DEEPWARD both feed actual dig removals
-into `Mission::collect`; editor HUD shows quotas, signal and completion.
+state alongside terrain. Editor and DEEPWARD credit actual removals through `Sim::collect_mined`;
+tracked mission quotas reflect carried inventory after crafting/ammo use.
+The editor HUD shows quotas, signal and completion.
 Toolbar **Crystal mission** adds/removes the mission undoably; no standalone
 save is touched in editor tests. The cave examples have scene-defined goals.
 Tests: `tests/mission.rs` (save/reset/rewind/undo/shift) and the editor's actual
@@ -506,7 +507,7 @@ when cells change, bounded, shifted and carried in Sim/Snapshot, History,
 Timeline and scene `fracture X Y MATERIAL WORK` lines. Timeline memory counts
 fractures. Renderer captures fractures/last impact through `light(sim)` for
 progressive veins and cosmetic chips; no extra mineable cells. Material
-sound cues come from strikes. Both editor and DEEPWARD use this rule and
+sound cues come from strikes. Both editor and DEEPWARD use this rule through `Sim::use_tool` and
 award only its removed-cell counts. `dig_circle` remains instant for other
 tools; do not put it back in the player drill. The editor HUD probes the
 actual surface and shows hardness/work. All values are editable through the
@@ -515,3 +516,36 @@ material inspector. Test scene: `scenes/mining-trial.txt`, launcher
 `tests/mining.rs` cover resistance, shielding, persistence, rendering and
 explorer-sized route clearance; editor tests cover real mouse excavation
 and sample mission completion.
+
+### Cave storage, workshops and tool loadout
+
+`src/supplies.rs` owns exact u64 material counters, owned/equipped tools,
+workshop markers, catalog parsing, atomic recipes, and the shared storage UI.
+Sim/Snapshot carry Supplies; History and Timeline carry it too (including
+transactions made with the clock paused via `record_now`), and shift moves
+workshops. Scene lines: `storage on`, `stock MAT N`, `owned_tool ID`,
+`equipped_tool ID`, `workshop KIND X Y RADIUS`. Once tracking starts,
+mission sample quotas mirror current stock until completion. Old untracked
+saves seed known crystal counts on their first mining award; ordinary mined
+materials from old saves cannot be reconstructed.
+
+Player tools call `Sim::use_tool`: drills credit exact actual removals once,
+sprayers spend one ammo cell only after `spawn_flyer` succeeds. No harvesting
+credit for fire/acid destruction. Tool defs: `assets/crafting/cave-tools.txt`;
+recipes: `assets/crafting/cave-recipes.txt` (editor reloads, standalone reads
+at startup). Crafting checks all costs, ownership and a living player near
+the required workshop before changing any counter. No duplicate tool charge.
+Editor B/left-stick click opens the shared panel and pauses simulation and
+player input; F/LB cycles tools; D-pad chooses recipes, Y crafts. Suppress
+B/F editor shortcuts in player Play. Reset restores inventory and terrain.
+
+Trial has mechanic/chemistry stations, finite timber/iron ore, a steel cache
+and burnable roots. Natural ore slots now use `iron_ore` instead of worked
+iron. Acid, hot flame jets and iron ore are normal material files. Acid's
+finite reactions spend it to water, and bedrock has no acid reaction. The
+generic `hurts_on_touch` material key applies the strongest body contact
+rate to characters each tick, independently of heat; exposed in inspector.
+Tests: `tests/supplies.rs` covers ledger conservation, craft transactions,
+save/reset/undo/rewind/shift, actual burning/steel dissolution and contact
+harm; the editor UI test mines, opens storage, crafts, pauses and resets.
+Guide: `docs/CAVE-WORKSHOPS.md`. This remains a progression prototype.

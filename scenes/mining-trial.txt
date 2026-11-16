@@ -82,3 +82,29 @@ player 75 272 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 je
 mission 75 264 20
 sample crystal_cyan 16 0
 sample crystal_violet 16 0
+
+# Workshop loop: all raw supplies are real mineable cells.
+# The pale iron-bearing seam is beside camp; timber is a finite fuel source.
+rect iron_ore 134 254 6 18
+anchor 134 254 6 18
+rect wood 109 258 7 14
+anchor 109 258 7 14
+# Workstations are ordinary editable scene markers with matching iron benches.
+rect iron 87 267 17 3
+rect iron 88 270 2 2
+rect iron 101 270 2 2
+workshop mechanic 94 260 24
+light 94 259 20 strength 0.45 color #8beac7
+rect iron 226 267 18 3
+rect iron 227 270 2 2
+rect iron 240 270 2 2
+workshop chemistry 235 260 26
+light 235 259 22 strength 0.45 color #a4ed6b
+# Optional sealed cache: acid cuts the steel grille; the drills cannot.
+rect steel 492 308 3 20
+anchor 492 308 3 20
+rect crystal_violet 533 305 4 12
+anchor 533 305 4 12
+# Burnable roots beyond the grille: use fire or the drill to clear them.
+rect wood 503 306 3 25
+anchor 503 306 3 25

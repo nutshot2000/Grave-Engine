@@ -1,0 +1,18 @@
+# Accessible raw iron for cave workshop recipes; distinct from hard worked iron.
+about = Iron-bearing ore. Mine it for workshop tool parts.
+category = Stone & building
+state = solid
+density = 3200
+color = #998578
+color_variation = 0.12
+conducts_heat = 0.5
+heat_capacity = 1
+melts_at = 1400
+melts_into = molten_iron
+strength = 25
+toughness = 4000
+breaks_into = gravel
+friction = 0.85
+mining_hardness = 0.55
+sound = stone
+texture = textures/iron.png

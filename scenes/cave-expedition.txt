@@ -26,3 +26,12 @@ anchor 205 582 4 10
 mission 96 606 24
 sample crystal_cyan 24 0
 sample crystal_violet 24 0
+
+# A mechanic workshop near the starting camp.
+workshop mechanic 120 606 26
+# Raw workshop supplies beside camp.
+rect iron_ore 184 598 7 16
+anchor 184 598 7 16
+rect wood 145 602 7 12
+anchor 145 602 7 12
+workshop chemistry 160 606 24

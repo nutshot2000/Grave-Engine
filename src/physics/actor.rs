@@ -684,6 +684,15 @@ impl Physics {
                     a.pending_cause = Some(why);
                 }
             };
+            // Generic contact hazards, independent of heat and material names.
+            let mut contact_harm=0.0f32;
+            for &(wi,_) in &a.stamped {
+                let i=wi as usize;let (x,y)=(i%world.w,i/world.w);
+                for j in [Some(i),(x>0).then(||i-1),(x+1<world.w).then(||i+1),(y>0).then(||i-world.w),(y+1<world.h).then(||i+world.w)].into_iter().flatten() {
+                    contact_harm=contact_harm.max(mats.get(world.mat[j]).hurts_on_touch);
+                }
+            }
+            hurt(contact_harm*DT,"were hurt by contact");
             // Burns and frostbite: how far each part of the body is past
             // safe, averaged over the body.
             let n = a.stamped.len().max(1) as f32;

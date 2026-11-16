@@ -30,3 +30,6 @@ rect crystal_cyan 30 448 4 14
 anchor 30 448 4 14
 rect crystal_violet 112 448 4 14
 anchor 112 448 4 14
+
+# A mechanic workshop near the starting camp.
+workshop mechanic 70 454 26

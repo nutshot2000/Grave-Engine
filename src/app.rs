@@ -117,6 +117,8 @@ struct Sandbox {
     cave_gen: (usize, u32, f32, f32, f32, f32),
     /// Crystal/torch density and cave ambient light.
     cave_atmosphere: (f32, f32, f32),
+    supply_catalog: grave_engine::supplies::Catalog,
+    supply_panel: grave_engine::supplies::Panel,
     player_tools: bool,
     drill_held: bool,
     drill_aim: (f32, f32),
@@ -409,6 +411,8 @@ impl Sandbox {
         let mut app = Sandbox {
             studio: Studio::default(),
             workshop,
+            supply_catalog: grave_engine::supplies::Catalog::load(&mats),
+            supply_panel: Default::default(),
             snapshot: sim.snapshot(),
             sim,
             mats,
@@ -1348,6 +1352,7 @@ impl Sandbox {
                 if cur.state == State::Solid {
                     num(ui, "strength", "Overhang strength", "How far it can stick out from a support before snapping", cur.strength, def.strength, 0.0..=500.0, false);
                 }
+                num(ui, "hurts_on_touch", "Contact harm (health/s)", "Damage to characters touching this material", cur.hurts_on_touch, def.hurts_on_touch, 0.0..=100.0, false);
                 num(ui, "mining_hardness", "Mining hardness (seconds)", "Time to chip away a surface layer. Above 3 needs a stronger drill.", grave_engine::mining::hardness(&cur), grave_engine::mining::hardness(&def), 0.01..=10.0, false);
                 if let Some(t) = cur.toughness {
                     num(ui, "toughness", "Toughness (kN)", "How hard a hit it takes to crack it", t, def.toughness.unwrap_or(t), 10.0..=100_000.0, true);
@@ -2030,6 +2035,7 @@ impl Sandbox {
             return;
         }
         self.last_file_check = Instant::now();
+        self.supply_catalog=grave_engine::supplies::Catalog::load(&self.mats);
         // A new build of the engine? (Wait until the file has stopped
         // changing for a moment: the build is still writing it.)
         if let Some((path, seen)) = &self.original_exe {
@@ -2115,6 +2121,18 @@ impl Sandbox {
         self.sim_clock = 0.0;
     }
 
+    fn supply_action(&mut self,action:grave_engine::supplies::Action) {
+        self.continue_from_here();
+        if !self.ran_since_snapshot {self.snapshot=self.sim.snapshot();}
+        let mut outcome=Ok(());
+        self.change("workshop supplies",|app|{match action {
+            grave_engine::supplies::Action::Equip(id)=>{if !app.sim.supplies.equip(&id){outcome=Err("Tool has not been built".into());}},
+            grave_engine::supplies::Action::Craft(id)=>outcome=app.sim.craft(&app.supply_catalog,&id),
+        }});
+        self.supply_panel.message=match outcome {Ok(())=>"Ready — close storage to try it. F cycles tools.".into(),Err(e)=>e};
+        self.ran_since_snapshot=true;self.timeline.record_now(&mut self.sim);
+    }
+
     fn explorer_play(&self) -> bool {
         self.playing && self.player_tools && self.sim.physics.actor_count() > 0 && self.studio.tab != Tab::Tests
     }
@@ -2128,10 +2146,9 @@ impl Sandbox {
             self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         }
         let t = Instant::now();
-        if self.explorer_play() && self.drill_held && self.sim.world.frame % 6 == 0 {
+        if self.explorer_play() && self.drill_held {
             if let Some(p) = self.sim.physics.actor_status().first().filter(|p| !p.dead) {
-                let removed=self.sim.mining.strike(&mut self.sim.world,&self.mats,(p.x,p.y),self.drill_aim,grave_engine::mining::Drill::default());
-                if let Some(m)=self.sim.mission.as_mut(){m.collect(&removed);}
+                self.sim.use_tool(&self.mats,&self.supply_catalog,(p.x,p.y),self.drill_aim);
             }
         }
         self.sim.physics.set_actor_animation_parameter(0,"drilling",(self.explorer_play() && self.drill_held) as u8 as f32);
@@ -2181,6 +2198,7 @@ impl Sandbox {
         self.rewind_pos = None;
         self.ran_since_snapshot = false;
         self.playing = false;
+        self.supply_panel.open=false;
         self.selection = Selection::None;
     }
 
@@ -2381,6 +2399,7 @@ impl Sandbox {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
             }
             if self.sim.physics.actor_count() > 0 {
+                if ui.button(format!("Storage ({})",self.sim.supplies.total())).on_hover_text("B during Play: inventory, tools and nearby cave workshops").clicked(){self.supply_panel.open=!self.supply_panel.open;}
                 ui.checkbox(&mut self.player_tools,"Player tools").on_hover_text("During Play: aim and hold left-click/E to drill, Space flies. Turn off to use editor tools while running.");
                 let mut mission_on=self.sim.mission.is_some();
                 if ui.checkbox(&mut mission_on,"Crystal mission").on_hover_text("Collect both crystal colours and return to the player's starting camp. Scene saves include progress.").changed() {
@@ -3198,17 +3217,24 @@ Click to mute. The volume is in the View menu.")
                 painter.circle_stroke(to_screen(m.home),m.radius*scale,Stroke::new(1.5,Color32::from_rgb(255,205,110)));
                 painter.text(to_screen((m.home.0,m.home.1-m.radius-4.0)),egui::Align2::CENTER_BOTTOM,"RETURN CAMP",egui::FontId::proportional(13.0),Color32::from_rgb(255,205,110));
             }
-            let hit=grave_engine::mining::surface(&self.sim.world,&self.mats,(actor.x,actor.y),self.drill_aim,19.0);
-            let target=hit.map(|i|((i%self.sim.world.w) as f32,(i/self.sim.world.w) as f32)).unwrap_or((actor.x+self.drill_aim.0*19.0,actor.y+self.drill_aim.1*19.0));
-            painter.circle_stroke(to_screen(target),6.0*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
-            if let Some(i)=hit {
+            for b in &self.sim.supplies.stations {
+                let near=(b.x-actor.x).hypot(b.y-actor.y)<=b.radius;
+                painter.circle_stroke(to_screen((b.x,b.y)),5.0*scale,Stroke::new(if near {2.0}else{1.0},Color32::from_rgb(115,235,195)));
+                painter.text(to_screen((b.x,b.y-12.0)),egui::Align2::CENTER_BOTTOM,format!("{} workshop{}",b.kind,if near {" — B to craft"}else{""}),egui::FontId::proportional(13.0),Color32::from_rgb(140,245,210));
+            }
+            let drill=self.supply_catalog.tool(&self.sim.supplies.equipped).and_then(|t|if let grave_engine::supplies::Mode::Drill(d)=t.mode{Some(d)}else{None});
+            let reach=drill.map_or(19.0,|d|d.reach);let grade=drill.map_or(3.0,|d|d.grade);
+            let hit=grave_engine::mining::surface(&self.sim.world,&self.mats,(actor.x,actor.y),self.drill_aim,reach);
+            let target=hit.map(|i|((i%self.sim.world.w) as f32,(i/self.sim.world.w) as f32)).unwrap_or((actor.x+self.drill_aim.0*reach,actor.y+self.drill_aim.1*reach));
+            painter.circle_stroke(to_screen(target),drill.map_or(1.5,|d|d.radius)*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
+            if let Some(i)=hit.filter(|_|drill.is_some()) {
                 let mat=self.mats.get(self.sim.world.mat[i]);let h=grave_engine::mining::hardness(mat);
                 let pct=self.sim.mining.fractures.get(&i).filter(|f|f.material==self.sim.world.mat[i]).map_or(0.0,|f|f.work/h*100.0);
-                let status=if h>3.0 {"TOO HARD — stronger drill needed".into()}else{format!("{} — {:.0}%",if h<0.3 {"soft"}else if h<1.0 {"hard"}else{"very hard"},pct.min(99.0))};
-                painter.text(to_screen((target.0,target.1-10.0)),egui::Align2::CENTER_BOTTOM,format!("{}: {status}",mat.name.replace('_'," ")),egui::FontId::proportional(13.0),if h>3.0 {Color32::from_rgb(255,135,105)}else{Color32::from_rgb(255,220,160)});
+                let status=if h>grade {"TOO HARD — stronger drill needed".into()}else{format!("{} — {:.0}%",if h<0.3 {"soft"}else if h<1.0 {"hard"}else{"very hard"},pct.min(99.0))};
+                painter.text(to_screen((target.0,target.1-10.0)),egui::Align2::CENTER_BOTTOM,format!("{}: {status}",mat.name.replace('_'," ")),egui::FontId::proportional(13.0),if h>grade {Color32::from_rgb(255,135,105)}else{Color32::from_rgb(255,220,160)});
             }
             if self.drill_held {painter.line_segment([to_screen((actor.x,actor.y)),to_screen(target)],Stroke::new(2.0,Color32::from_rgb(255,200,95)));}
-            painter.text(outer.center_bottom()-Vec2::new(0.0,12.0),egui::Align2::CENTER_BOTTOM,"Aim + hold click / E: drill   •   Space: fly   •   P: pause   •   Player tools off: edit",egui::FontId::proportional(14.0),Color32::WHITE);
+            painter.text(outer.center_bottom()-Vec2::new(0.0,12.0),egui::Align2::CENTER_BOTTOM,"Aim + hold click / E: use tool   •   F: change tool   •   B: storage / workshop   •   Space: fly   •   P: pause",egui::FontId::proportional(14.0),Color32::WHITE);
             return;
         }
         if let Some(p) = resp.hover_pos() {
@@ -3634,6 +3660,11 @@ Click to mute. The volume is in the View menu.")
                 painter.text(at+Vec2::new(0.0,y),egui::Align2::LEFT_TOP,format!("Signal: {:.0} m {direction}",dx.hypot(dy)/10.0),egui::FontId::proportional(13.0),Color32::LIGHT_GRAY);y+=20.0;
             }
         }
+        let title=self.supply_catalog.tool(&self.sim.supplies.equipped).map_or("Mining drill",|t|t.title.as_str());
+        painter.text(at+Vec2::new(0.0,y+4.0),egui::Align2::LEFT_TOP,format!("{title}  •  F: change tool  •  B: storage ({} cells)",self.sim.supplies.total()),egui::FontId::proportional(14.0),Color32::from_rgb(155,225,215));y+=24.0;
+        if let Some(t)=self.supply_catalog.tool(&self.sim.supplies.equipped) {if let grave_engine::supplies::Mode::Spray{ammo,..}=t.mode {
+            painter.text(at+Vec2::new(0.0,y),egui::Align2::LEFT_TOP,format!("{} ammo: {}",self.mats.get(ammo).name,self.sim.supplies.count(ammo)),egui::FontId::proportional(13.0),Color32::WHITE);y+=20.0;
+        }}
         let text = if p.dead {
             Some(format!("You {}. Back in a moment...", p.hurt_by.unwrap_or("died")))
         } else if p.hanging {
@@ -3892,13 +3923,13 @@ Click to mute. The volume is in the View menu.")
             let step = 15f32.to_radians() * if q { -1.0 } else { 1.0 };
             self.edit_objects("turn", |s| s.angle += step);
         }
-        if f {
+        if f && !self.explorer_play() && !self.supply_panel.open {
             self.transform_selection(Transform::FlipH, "flip");
         }
         if v {
             self.tool = Tool::Select;
         }
-        if b {
+        if b && !self.explorer_play() && !self.supply_panel.open {
             self.tool = Tool::Paint;
         }
     }
@@ -3957,13 +3988,18 @@ impl eframe::App for Sandbox {
             self.import_file(&path);
         }
         self.input.update(&ctx);
+        let supplies_keys=self.explorer_play()||self.supply_panel.open;
         self.shortcuts(&ctx);
+        if supplies_keys {
+            self.supply_panel.input(&self.input,self.supply_catalog.recipes.len());
+            if self.input.pressed("tool_next") {self.sim.supplies.cycle(&self.supply_catalog);}
+        }
 
         // Driving and the player: keyboard or game controller, through the
         // engine's controls (assets/input/editor.input). → / D or the left
         // stick drive motors marked `drive`, or walk the player.
         let typing = ctx.egui_wants_keyboard_input();
-        let live = !typing && self.playing && !ctx.input(|i| i.modifiers.shift);
+        let live = !typing && !self.supply_panel.open && self.playing && !ctx.input(|i| i.modifiers.shift);
         let throttle = if live { self.input.axis("walk") } else { 0.0 };
         let has_player = self.sim.physics.actor_count() > 0;
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
@@ -3977,7 +4013,8 @@ impl eframe::App for Sandbox {
         self.drill_held = live && self.explorer_play() && on_canvas && (self.input.down("drill") || self.input.pressed("drill"));
 
         // Run the simulation at a steady 60 steps per second (times speed).
-        if self.playing {
+        if self.supply_panel.open {self.sim_clock=0.0;}
+        if self.playing && !self.supply_panel.open {
             // Slow motion from a trigger (or the game) slows time on top.
             self.sim_clock += dt * SIM_HZ * self.speed as f64 * self.sim.camera.time_scale() as f64;
             let mut steps = 0;
@@ -4015,6 +4052,7 @@ impl eframe::App for Sandbox {
             let speed = if self.playing && self.studio.tab != Tab::Tests { self.speed * self.sim.camera.time_scale() } else { 0.0 };
             self.sound.listen(&mut self.sim, &self.mats, (x0 + 25.0, y0, x1 - 25.0, y1), speed);
         }
+        if let Some(action)=self.supply_panel.show(&ctx,&self.sim,&self.mats,&self.supply_catalog) {self.supply_action(action);}
         self.note_window(&ctx);
         self.material_settings_window(&ctx);
         self.animation_window(&ctx, dt as f32);
@@ -4180,6 +4218,28 @@ body rect wood 40 60 20 10
         {let app=h.state_mut();for _ in 0..100{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().ready());assert!(!app.sim.mission.as_ref().unwrap().complete);}
         press(&mut h,p,false);
         {let app=h.state_mut();app.drill_held=false;app.sim.physics.set_controls(grave_engine::physics::Controls{walk:-1.0,..Default::default()});for _ in 0..100{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().complete);app.reset();assert!(!app.sim.mission.as_ref().unwrap().ready());assert_eq!(app.sim.mission.as_ref().unwrap().goals[0].collected,0);}
+    }
+
+    #[test]
+    fn editor_mines_stores_and_crafts_through_the_play_inventory_then_reset_restores_both() {
+        let mut h=editor();
+        {
+            let app=h.state_mut();let (s,p)=scene::load("size 200 120\nfill air\nrect rock 0 100 200 20\nrect rock 72 78 4 20\nanchor 0 0 200 120\nplayer 60 100\nworkshop mechanic 60 92 24\n",&app.mats,None).into_sim(&app.mats);assert!(p.is_empty());app.sim=s;app.tool=Tool::Select;
+            // A tiny authored recipe keeps this UI test focused on the complete
+            // mine -> storage -> workshop transaction; default costs have engine tests.
+            app.supply_catalog.recipes[0].costs=std::collections::BTreeMap::from([(app.mats.id("rock").unwrap(),8)]);
+            app.last_file_check=Instant::now()+std::time::Duration::from_secs(60);
+            app.play();
+        }
+        h.run_steps(3);let p=at(&h,80.,92.);press(&mut h,p,true);for _ in 0..150 {h.state_mut().step_once();}press(&mut h,p,false);
+        let rock=h.state().mats.id("rock").unwrap();let mined=h.state().sim.supplies.count(rock);assert!(mined>=8);
+        h.key_press(Key::B);h.run_steps(2);assert!(h.state().supply_panel.open);assert!(matches!(h.state().tool,Tool::Select));
+        let frame=h.state().sim.world.frame;h.run_steps(3);assert_eq!(h.state().sim.world.frame,frame,"storage pauses the world");
+        h.get_all_by_label("Craft").next().unwrap().click();h.run_steps(2);
+        assert!(h.state().sim.supplies.tools.contains("reinforced_drill"));assert_eq!(h.state().sim.supplies.count(rock),mined-8);
+        assert_eq!(h.state().sim.supplies.equipped,"reinforced_drill");
+        h.key_press(Key::B);h.run_steps(2);assert!(!h.state().supply_panel.open);
+        h.state_mut().reset();assert_eq!(h.state().sim.supplies.total(),0);assert!(!h.state().sim.supplies.tools.contains("reinforced_drill"));
     }
 
     fn count(h: &Harness<Sandbox>, name: &str) -> usize {

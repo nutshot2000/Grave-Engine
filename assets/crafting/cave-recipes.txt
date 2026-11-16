@@ -1,0 +1,6 @@
+# id | display name | workshop kind | output | exact material costs
+reinforced_drill | Reinforced drill | mechanic | tool reinforced_drill | iron_ore 24, rock 50, crystal_cyan 6
+flamethrower | Flame projector | mechanic | tool flamethrower | iron_ore 24, sandstone 24, crystal_cyan 4
+fuel | Refine fuel (96 cells) | mechanic | stock oil 96 | wood 8, sandstone 8
+acid_shooter | Acid sprayer | chemistry | tool acid_shooter | iron_ore 24, sandstone 24, crystal_violet 6
+acid_charge | Mix acid (48 cells) | chemistry | stock acid 48 | sandstone 24, crystal_violet 2

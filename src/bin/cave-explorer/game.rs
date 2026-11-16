@@ -4,10 +4,10 @@ use grave_engine::{Materials, Sim, physics::{ActorStatus, Controls}, render::Ren
 use std::{path::Path, collections::BTreeMap};
 
 pub const SAVE: &str = "saves/cave-explorer/run.txt";
-pub struct Tuning { pub scene: String, pub home: (f32, f32), pub targets: [usize; 2], pub drill_radius: f32, pub drill_reach: f32, pub view: f32 }
+pub struct Tuning { pub scene: String, pub home: (f32, f32), pub targets: [usize; 2], pub view: f32 }
 impl Tuning {
     fn load() -> Self {
-        let mut c = Self { scene: "scenes/cave-expedition.txt".into(), home: (96.,606.), targets: [24,24], drill_radius: 6., drill_reach: 19., view: 230. };
+        let mut c = Self { scene: "scenes/cave-expedition.txt".into(), home: (96.,606.), targets: [24,24], view: 230. };
         let text = std::fs::read_to_string("assets/cave-explorer/game.txt").unwrap_or_default();
         for line in text.lines() {
             let w: Vec<_> = line.split('#').next().unwrap_or("").split_whitespace().collect();
@@ -17,8 +17,6 @@ impl Tuning {
                 Some("home") => if let (Some(x),Some(y)) = (n(1),n(2)) { c.home=(x,y); },
                 Some("target_cyan") => c.targets[0] = n(1).unwrap_or(24.).clamp(1.,500.) as usize,
                 Some("target_violet") => c.targets[1] = n(1).unwrap_or(24.).clamp(1.,500.) as usize,
-                Some("drill_radius") => c.drill_radius = n(1).unwrap_or(6.).clamp(3.,12.),
-                Some("drill_reach") => c.drill_reach = n(1).unwrap_or(19.).clamp(8.,20.),
                 Some("view_width") => c.view = n(1).unwrap_or(230.).clamp(150.,450.),
                 _ => {}
             }
@@ -30,6 +28,7 @@ impl Tuning {
 pub struct Expedition {
     pub sim: Sim, pub mats: Materials, pub renderer: Renderer, pub tuning: Tuning,
     pub samples: [usize; 2], pub won: bool, pub frames: u32, pub toast: String,
+    pub catalog:grave_engine::supplies::Catalog,
     pub aim: (f32,f32), pub drilling: bool, pub mined: usize,
     pub signal: Option<(f32,f32)>, pub explored: Vec<bool>, pub map_w: usize,
     ids: [u16;2], toast_until: u32,
@@ -61,7 +60,8 @@ impl Expedition {
         sim.physics.edit_actor(0,|a|a.spawn=tuning.home);
         sim.mission=Some(mission);
         let map_w=sim.world.w.div_ceil(16);let map_h=sim.world.h.div_ceil(16);
-        let mut g=Self {sim,mats,renderer:Renderer::default(),tuning,samples,won:false,frames:0,toast:"Recover cyan and violet samples, then return to the lift.".into(),aim:(1.,0.),drilling:false,mined:0,signal:None,explored:vec![false;map_w*map_h],map_w,ids,toast_until:900};
+        let catalog=grave_engine::supplies::Catalog::load(&mats);
+        let mut g=Self {catalog,sim,mats,renderer:Renderer::default(),tuning,samples,won:false,frames:0,toast:"Recover cyan and violet samples, then return to the lift.".into(),aim:(1.,0.),drilling:false,mined:0,signal:None,explored:vec![false;map_w*map_h],map_w,ids,toast_until:900};
         if valid { if let Some(text)=&saved {
             if let Some(hex)=text.lines().find_map(|l|l.strip_prefix("# surveyed ")) {
                 for (i,c) in hex.chars().enumerate() {if let Some(bits)=c.to_digit(16) {for bit in 0..4 {let n=i*4+bit;if n<g.explored.len(){g.explored[n]=bits&(1<<bit)!=0;}}}}
@@ -83,9 +83,8 @@ impl Expedition {
         if aim.0.hypot(aim.1)>0.1 {let d=aim.0.hypot(aim.1);self.aim=(aim.0/d,aim.1/d);}
         self.drilling=drill&&!p.dead;
         self.sim.physics.set_actor_animation_parameter(0,"drilling",self.drilling as u8 as f32);
-        if self.drilling&&self.frames%6==0 {
-            let tool=grave_engine::mining::Drill{radius:self.tuning.drill_radius,reach:self.tuning.drill_reach,..Default::default()};
-            let removed=self.sim.mining.strike(&mut self.sim.world,&self.mats,(p.x,p.y),self.aim,tool);
+        if self.drilling {
+            let removed=self.sim.use_tool(&self.mats,&self.catalog,(p.x,p.y),self.aim);
             self.award(removed);
         }
         if self.drilling&&controls.walk.abs()<0.1&&self.aim.0.abs()>0.1{let facing=self.aim.0.signum();self.sim.physics.edit_actor(0,|a|a.facing=facing);}
@@ -95,9 +94,8 @@ impl Expedition {
         if self.sim.mission.as_ref().is_some_and(|m|m.complete) {self.won=true;self.message("EXPEDITION COMPLETE — samples secured at the lift.");}
     }
     fn award(&mut self, removed:BTreeMap<u16,usize>){
-        if let Some(m)=self.sim.mission.as_mut(){m.collect(&removed);}
         self.mined+=removed.values().sum::<usize>();
-        for i in 0..2 {let found=removed.get(&self.ids[i]).copied().unwrap_or(0);if found>0 {self.samples[i]+=found;self.message(format!("{} sample +{}",if i==0 {"Cyan"}else{"Violet"},found));}}
+        for i in 0..2 {let found=removed.get(&self.ids[i]).copied().unwrap_or(0);if found>0 {self.samples[i]=self.sim.supplies.count(self.ids[i]) as usize;self.message(format!("{} sample +{}",if i==0 {"Cyan"}else{"Violet"},found));}}
         if self.ready(){self.message("Samples secured. Follow the signal home to the lift.");self.signal=Some(self.tuning.home);}
     }
     pub fn save_to(&mut self,path:&Path)->Result<(),String>{
