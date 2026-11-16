@@ -395,3 +395,16 @@ fn the_same_scene_always_plays_out_the_same() {
     };
     assert!(run() == run(), "two runs of the same scene differ");
 }
+
+#[test]
+fn vertical_shift_can_replace_the_entire_physics_window() {
+    let m = grave_engine::Materials::load_dir("materials");
+    let mut sim = grave_engine::Sim::empty(48, 32, &m);
+    sim.world.set(&m, 12, 10, m.id("stone").unwrap());
+    sim.step(&m);
+    for dy in [65, -67] {
+        sim.shift(0, dy);
+        sim.step(&m);
+        assert!(sim.world.mat.iter().all(|&id| id == grave_engine::material::AIR));
+    }
+}

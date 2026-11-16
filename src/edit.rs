@@ -495,7 +495,8 @@ fn same_bodies(a: &[BodySpec], b: &[BodySpec]) -> bool {
             && (a.y - b.y).abs() < 0.01
             && (a.angle - b.angle).abs() < 0.001
             && a.assembly == b.assembly
-            && a.cells.iter().zip(&b.cells).all(|(p, q)| p.map(|c| c.mat) == q.map(|c| c.mat))
+            && a.depth == b.depth
+            && a.cells == b.cells
     })
 }
 

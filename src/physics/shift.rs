@@ -87,12 +87,11 @@ impl Physics {
         if n == (w * h) as usize {
             let (wu, hu) = (w as usize, h as usize);
             let v = &mut self.solid_prev;
+            let d = (dy.unsigned_abs() as usize).min(hu) * wu;
             if dy > 0 {
-                let d = dy as usize * wu;
                 v.copy_within(0..n - d, d);
                 v[..d].fill(false);
             } else if dy < 0 {
-                let d = (-dy) as usize * wu;
                 v.copy_within(d.., 0);
                 v[n - d..].fill(false);
             }

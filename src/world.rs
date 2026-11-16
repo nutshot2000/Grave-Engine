@@ -304,7 +304,7 @@ impl World {
         // In place: rows move as whole slices (memmove), then the gap fills.
         fn slide<T: Copy>(v: &mut [T], w: usize, h: usize, dx: i32, dy: i32, fill: T) {
             let (wi, hi) = (w as i32, h as i32);
-            if dx.abs() >= wi || dy.abs() >= hi {
+            if dx.unsigned_abs() >= wi as u32 || dy.unsigned_abs() >= hi as u32 {
                 v.fill(fill);
                 return;
             }

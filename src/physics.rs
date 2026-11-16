@@ -163,7 +163,7 @@ struct Joint {
 }
 
 /// One cell of an object, with all its simulation state.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BodyCell {
     pub mat: MatId,
     pub temp: f32,

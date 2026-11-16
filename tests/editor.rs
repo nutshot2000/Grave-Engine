@@ -36,6 +36,35 @@ fn undo_and_redo_painting() {
 }
 
 #[test]
+fn repainting_and_changing_object_depth_undo_separately() {
+    let m = mats();
+    let mut s = sim(&m, "size 60 40\nbody rect wood 10 10 6 4\n");
+    let id = s.physics.ids()[0];
+    let body = |s: &Sim| s.physics.spec_of(&s.world, s.physics.ids()[0]).unwrap();
+    let original = body(&s);
+    let mut h = History::new();
+    h.touch(&mut s, "paint object");
+    s.physics.edit(&mut s.world, &m, id, |b| {
+        for cell in b.cells.iter_mut().flatten() {
+            cell.paint = grave_engine::asset::pack_paint([42, 70, 90]);
+        }
+    });
+    h.commit(&mut s);
+    let painted = body(&s);
+    assert_ne!(painted.cells, original.cells);
+    h.touch(&mut s, "change thickness");
+    s.physics.edit(&mut s.world, &m, id, |b| b.depth = original.depth + 1.0);
+    h.commit(&mut s);
+    assert_eq!(h.undo(&mut s, &m).as_deref(), Some("change thickness"));
+    assert_eq!(body(&s).depth, original.depth);
+    assert_eq!(body(&s).cells, painted.cells);
+    assert_eq!(h.undo(&mut s, &m).as_deref(), Some("paint object"));
+    assert_eq!(body(&s).cells, original.cells);
+    h.redo(&mut s, &m);
+    assert_eq!(body(&s).cells, painted.cells);
+}
+
+#[test]
 fn many_undo_steps() {
     let m = mats();
     let mut s = sim(&m, "size 40 30\nfill air\n");
