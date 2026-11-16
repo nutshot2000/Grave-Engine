@@ -85,6 +85,12 @@ pub enum Mood {
     Recover,
     Flee,
     Return,
+    /// Crawling towards its element.
+    Seek,
+    /// Chewing through rock towards its element.
+    Burrow,
+    /// Eating its element (the death burst grows).
+    Feed,
 }
 impl Mood {
     pub fn name(self) -> &'static str {
@@ -96,6 +102,9 @@ impl Mood {
             Self::Recover => "recovering",
             Self::Flee => "fleeing",
             Self::Return => "returning",
+            Self::Seek => "seeking",
+            Self::Burrow => "burrowing",
+            Self::Feed => "feeding",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -107,6 +116,9 @@ impl Mood {
             Self::Recover,
             Self::Flee,
             Self::Return,
+            Self::Seek,
+            Self::Burrow,
+            Self::Feed,
         ]
         .into_iter()
         .find(|m| m.name() == s)
@@ -125,6 +137,11 @@ pub struct Creature {
     pub alert: u32,
     pub cooldown: u32,
     pub flee_dir: f32,
+    /// Where it smelled its element (re-smelled every second; not saved).
+    pub food: Option<(f32, f32)>,
+    /// Closest it has got to the food, and frames without getting closer.
+    pub best: f32,
+    pub stuck: u32,
 }
 impl Creature {
     pub fn new(species: Species, home: (f32, f32)) -> Self {
@@ -140,6 +157,9 @@ impl Creature {
             alert: 0,
             cooldown: 0,
             flee_dir: 1.,
+            food: None,
+            best: f32::MAX,
+            stuck: 0,
         }
     }
     pub fn label(&self) -> String {
@@ -173,8 +193,125 @@ impl Creature {
         self.home.1 += dy as f32;
         self.target.0 += dx as f32;
         self.target.1 += dy as f32;
+        if let Some(f) = self.food.as_mut() {
+            f.0 += dx as f32;
+            f.1 += dy as f32;
+        }
     }
 }
+/// How far a creature smells its element, how close it feeds from, and the
+/// most a death burst grows to by feeding (cells).
+pub const SMELL: f32 = 120.0;
+const FEED_REACH: f32 = 10.0;
+const MAX_BURST: usize = 400;
+/// The hardest ground a creature can chew (rock 0.7 yes; stone, basalt no).
+const CHEW: f32 = 0.75;
+
+/// What a creature of this element eats.
+fn food_of(element: Option<&str>, m: &Materials) -> Vec<crate::material::MatId> {
+    let names: &[&str] = match element {
+        Some("water") => &["water"],
+        Some("oil") => &["oil", "volatile_gas"],
+        Some("fire") => &["fire", "lava", "ember", "torch_glow"],
+        Some("lava") => &["lava", "fire", "ember"],
+        Some("acid") => &["acid"],
+        _ => &[],
+    };
+    names.iter().filter_map(|n| m.id(n)).collect()
+}
+
+/// The nearest cell of its food within `SMELL` (through rock too: a sealed
+/// gas pocket is smelled, and burrowed into).
+fn smell(w: &World, m: &Materials, p: (f32, f32), food: &[crate::material::MatId]) -> Option<(f32, f32)> {
+    if food.is_empty() {
+        return None;
+    }
+    let _ = m;
+    let r = SMELL as i32;
+    let (cx, cy) = (p.0 as i32, p.1 as i32);
+    let mut best: Option<((f32, f32), i32)> = None;
+    for dy in (-r..=r).step_by(3) {
+        for dx in (-r..=r).step_by(3) {
+            let d2 = dx * dx + dy * dy;
+            if d2 > r * r || best.is_some_and(|(_, b)| d2 >= b) {
+                continue;
+            }
+            let (x, y) = (cx + dx, cy + dy);
+            if !w.in_bounds(x, y) {
+                continue;
+            }
+            let i = w.idx(x as usize, y as usize);
+            if !w.is_owned(i) && food.contains(&w.mat[i]) {
+                best = Some(((x as f32, y as f32), d2));
+            }
+        }
+    }
+    best.map(|(f, _)| f)
+}
+
+/// Eat up to 8 cells of its food near `p`; how many.
+fn feed(w: &mut World, m: &Materials, p: (f32, f32), food: &[crate::material::MatId]) -> usize {
+    let mut eaten = 0;
+    let (cx, cy) = (p.0 as i32, p.1 as i32);
+    let r = FEED_REACH as i32 + 2;
+    for dy in -r..=r {
+        for dx in -r..=r {
+            if eaten >= 8 || dx * dx + dy * dy > r * r {
+                continue;
+            }
+            let (x, y) = (cx + dx, cy + dy);
+            if !w.in_bounds(x, y) {
+                continue;
+            }
+            let i = w.idx(x as usize, y as usize);
+            if !w.is_owned(i) && food.contains(&w.mat[i]) {
+                w.set(m, x as usize, y as usize, crate::material::AIR);
+                eaten += 1;
+            }
+        }
+    }
+    eaten
+}
+
+/// Chew a hole a little way towards `to`: soft ground (up to `CHEW`) only,
+/// never crystals, objects or characters. Some of it falls as dust. How
+/// many cells were chewed, or None when only too-hard ground is in the way.
+fn burrow(w: &mut World, m: &Materials, from: (f32, f32), to: (f32, f32)) -> Option<usize> {
+    let d = distance(from, to).max(0.001);
+    let dir = ((to.0 - from.0) / d, (to.1 - from.1) / d);
+    // Ahead of the body, never under its feet (pulling the ground out from
+    // under a creature flings it about).
+    let (cx, cy) = (from.0 + dir.0 * 10.0, from.1 + dir.1 * 10.0);
+    let dust = m.id("dust");
+    let mut dug = 0;
+    let mut hard = false;
+    for dy in -5i32..=5 {
+        for dx in -5i32..=5 {
+            if dx * dx + dy * dy > 25 {
+                continue;
+            }
+            let (x, y) = (cx as i32 + dx, cy as i32 + dy);
+            if !w.in_bounds(x, y) || (y as f32 > from.1 + 5.0 && (x as f32 - from.0).abs() < 9.0) {
+                continue;
+            }
+            let i = w.idx(x as usize, y as usize);
+            let mat = m.get(w.mat[i]);
+            let crystal = mat.name.starts_with("crystal");
+            if w.is_owned(i) || mat.state != crate::material::State::Solid {
+                continue;
+            }
+            if crystal || crate::mining::hardness(mat) > CHEW {
+                hard = true;
+                continue;
+            }
+            let rubble = if dug % 6 == 0 { dust.unwrap_or(crate::material::AIR) } else { crate::material::AIR };
+            w.set(m, x as usize, y as usize, rubble);
+            dug += 1;
+        }
+    }
+    if dug == 0 && hard { None } else { Some(dug) }
+}
+
 fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
     (a.0 - b.0).hypot(a.1 - b.1)
 }
@@ -437,6 +574,14 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                 -a.facing
             };
         }
+        if w.frame % 60 == i as u32 % 60 && c.mood != Mood::Burrow {
+            let food = smell(w, m, p, &food_of(c.element.as_deref(), m));
+            if food.is_some_and(|f| c.food.is_none_or(|old| distance(old, f) > 20.0)) {
+                c.best = f32::MAX;
+                c.stuck = 0;
+            }
+            c.food = if c.burst as usize >= MAX_BURST { None } else { food };
+        }
         let target = player.map(|(_, p)| (p.x, p.y + 2.));
         let seen = target.is_some_and(|t| {
             distance(p, t) <= c.species.sight
@@ -475,6 +620,48 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                     c.mood = Mood::Hunt;
                 } else if c.alert > 0 && distance(c.home, c.target) <= c.species.leash + 20. {
                     c.mood = Mood::Investigate;
+                } else if let Some(f) = c.food {
+                    // Its element: crawl to it, chew through rock if stuck,
+                    // and eat it once there (its death burst grows).
+                    c.home = f;
+                    c.target = f;
+                    let d = distance(p, f);
+                    if d < c.best - 3.0 {
+                        c.best = d;
+                        c.stuck = 0;
+                    } else {
+                        c.stuck += 1;
+                    }
+                    if d < FEED_REACH {
+                        c.mood = Mood::Feed;
+                        if w.frame % 20 == i as u32 % 20 {
+                            let eaten = feed(w, m, p, &food_of(c.element.as_deref(), m));
+                            c.burst = (c.burst as usize + eaten).min(MAX_BURST) as u16;
+                            if eaten == 0 || c.burst as usize >= MAX_BURST {
+                                c.food = None;
+                            }
+                        }
+                    } else if c.stuck > 40 {
+                        c.mood = Mood::Burrow;
+                        if w.frame % 8 == i as u32 % 8 {
+                            match burrow(w, m, p, f) {
+                                // Chewed some: crawl into the hole.
+                                Some(n) if n > 0 => {
+                                    c.stuck = 28;
+                                    c.best = d;
+                                }
+                                // Nothing ahead to chew: just keep crawling.
+                                Some(_) => c.stuck = 0,
+                                // Too hard to chew: give up on this one.
+                                None => {
+                                    c.food = None;
+                                    c.stuck = 0;
+                                }
+                            }
+                        }
+                    } else {
+                        c.mood = Mood::Seek;
+                    }
                 } else {
                     c.target = c.home;
                     c.mood = if distance(p, c.home) > c.species.leash * 0.8 {
@@ -483,7 +670,9 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                         Mood::Guard
                     };
                 }
-                if c.mood == Mood::Guard {
+                if c.mood == Mood::Feed {
+                    walk = 0.0;
+                } else if c.mood == Mood::Guard {
                     walk = if (w.frame / 30 + (c.home.0.abs() as u32 / 13)) % 6 == 0 {
                         0.0
                     } else {
@@ -549,7 +738,7 @@ pub fn pixels(c: &Creature, frame: u32, dead: bool) -> Vec<(usize, usize, [u8; 3
     let phase = if !dead
         && matches!(
             c.mood,
-            Mood::Hunt | Mood::Flee | Mood::Investigate | Mood::Return
+            Mood::Hunt | Mood::Flee | Mood::Investigate | Mood::Return | Mood::Seek | Mood::Burrow | Mood::Feed
         ) {
         (frame / 4) % 2
     } else {

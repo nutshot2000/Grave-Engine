@@ -206,3 +206,31 @@ fn creatures_line_scatters_elemental_creatures_over_the_level() {
     let place = |s: &grave_engine::Sim| s.physics.actor_status().iter().map(|a| (a.x as i32, a.y as i32)).collect::<Vec<_>>();
     assert_eq!(place(&s), place(&again), "same scene, same creatures");
 }
+
+/// Creatures seek out their element, chew through soft rock to reach it,
+/// and feed on it (their death burst grows). Hard stone stops them.
+#[test]
+fn creatures_seek_burrow_to_and_feed_on_their_element() {
+    let m = grave_engine::Materials::load_dir("materials");
+    let run = |wall: &str| {
+        let text = format!("size 320 140\nfill air\nrect stone 0 110 320 30\nrect stone 0 0 320 20\nrect stone 190 80 4 30\nrect stone 250 80 4 30\nrect water 194 92 56 18\n{wall}creature skitter 100 110 element water\n");
+        let (mut s, problems) = grave_engine::scene::load(&text, &m, None).into_sim(&m);
+        assert!(problems.is_empty(), "{problems:?}");
+        let water = m.id("water").unwrap();
+        let before = s.world.mat.iter().filter(|&&c| c == water).count();
+        for _ in 0..1800 {
+            s.step(&m);
+        }
+        let after = s.world.mat.iter().filter(|&&c| c == water).count();
+        let bug = s.physics.actor_status().into_iter().find(|a| a.creature.is_some()).unwrap();
+        (before as i64, after as i64, bug.creature.unwrap().burst, bug.x)
+    };
+    let (before, after, burst, _) = run("");
+    assert!(after < before - 40 && burst > 120, "open route: drank {} cells, burst {burst}", before - after);
+    let shale = m.id("shale").unwrap();
+    let (before, after, burst, x) = run("rect shale 140 20 24 90\n");
+    assert!(after < before - 20 && burst > 100 && x > 150.0, "chewed through shale: drank {}, burst {burst}, at x {x}", before - after);
+    let _ = shale;
+    let (before, after, burst, x) = run("rect stone 140 20 24 90\n");
+    assert!(after >= before - 2 && burst == 80 && x < 140.0, "stone stops it: drank {}, burst {burst}, at x {x}", before - after);
+}

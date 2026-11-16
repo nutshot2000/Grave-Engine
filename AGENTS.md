@@ -563,7 +563,7 @@ Guide: `docs/CAVE-WORKSHOPS.md`. This remains a progression prototype.
 
 ### Cave crawlers and elemental variants
 
-`src/creatures.rs` (`scatter` + scene line `creatures AMOUNT [seed N] [avoid X Y R]` fills a generated level with element-suited creatures; docs/CAVE-CREATURES.md) supplies data-defined skitter/shellback brains and native
+`src/creatures.rs` (`scatter` + scene line `creatures AMOUNT [seed N] [avoid X Y R]` fills a generated level with element-suited creatures; awake ones smell, seek, burrow (hardness <= 0.75) and feed on their element, growing their burst; docs/CAVE-CREATURES.md) supplies data-defined skitter/shellback brains and native
 art. Species: `assets/creatures/cave.creatures` (editor reloads on file change).
 `ActorSpec::creature` carries species, home/target, mood, timers, element,
 burst quota and emitted flag. All bodies use existing flesh: temperature,

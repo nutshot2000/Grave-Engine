@@ -116,7 +116,25 @@ fn verify() -> bool {
     // It mines the guarded violet without fighting back, so a few unlucky
     // bites decided pass or fail. Guard fights are covered by the creature
     // tests; here the suit is tougher so the run checks the loop itself.
-    game.sim.physics.edit_actor(0, |a| a.health = 300.0);
+    // (Its crude rope swinging also slams it into walls: "hit too hard".)
+    game.sim.physics.edit_actor(0, |a| a.health = 1000.0);
+    // The roaming creatures (`creatures` line) seek their elements, burrow
+    // into gas pockets and set off chain reactions: that's for players to
+    // face. This runner can't dodge or fight, so it checks the camp loop
+    // with only the two authored guards in the gallery (around 335, 600).
+    let home = (335.0, 600.0);
+    for i in 0..game.sim.physics.actor_status().len() {
+        game.sim.physics.edit_actor(i, |a| {
+            let far = a.creature.as_ref().is_some_and(|c| (c.home.0 - home.0).hypot(c.home.1 - home.1) > 90.0);
+            if far {
+                a.health = 0.0;
+                a.dead_for = 1000;
+                if let Some(c) = a.creature.as_mut() {
+                    c.erupted = true;
+                }
+            }
+        });
+    }
     let mut last_x = game.player().x;
     let mut stalled = 0;
     let mut last_hook = -100_i32;

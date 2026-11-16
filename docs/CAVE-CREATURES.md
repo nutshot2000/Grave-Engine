@@ -90,3 +90,21 @@ without waking the cave. They are cold-blooded (they settle to the cave's
 temperature): a 37-degree body warms the rock around it for ever, and heat
 that is still spreading keeps the simulation awake. Together these took
 DEEPWARD from about 16 ms to under 6 ms a frame.
+
+## Seeking, burrowing and feeding
+
+Awake creatures smell their element up to `SMELL` (120 cells) away, once
+a second, through rock too: water bugs seek water, oil bugs oil and
+volatile gas (including sealed gas pockets), fire bugs fire, lava, embers
+and torches, lava bugs lava and fire, acid bugs acid. They move their home
+there and crawl over (mood `seeking`). If they stop getting closer they
+chew a hole ahead (mood `burrowing`): soft ground up to hardness 0.75 (rock,
+shale, sandstone, dirt), never stone, basalt, bedrock or crystals, and
+never the ground under their own feet; some of it falls as dust. Next to
+their element they eat it (mood `feeding`, 8 cells every third of a
+second) and their death burst grows by one cell per cell eaten, up to 400.
+So an oil bug can dig into a gas pocket and let the gas out, a water bug
+drains a pool, and a fire bug that ate a torch dies in a bigger fireball.
+Player hunting still comes first. Creatures far from the player rest, so
+this only happens near you. Test:
+`creatures_seek_burrow_to_and_feed_on_their_element`.
