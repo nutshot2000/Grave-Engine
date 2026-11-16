@@ -2399,7 +2399,7 @@ impl Sandbox {
             let running = if testing { self.studio.test_running } else { self.playing };
             if ui
                 .add(egui::Button::new(RichText::new(if running { "⏸ Pause" } else { "▶ Play" }).strong()).fill(Color32::from_rgb(35, 105, 94)).min_size(Vec2::new(96., 28.)))
-                .on_hover_text("Play/Pause: P or controller Start. Space starts play. Cave rope: Q / R3 attaches; Space / S reels.")
+                .on_hover_text("Play/Pause: P or controller Start. Space starts play. Caves: Space jumps. Hold right mouse for rope; scroll to climb; release to let go.")
                 .clicked()
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
@@ -3174,6 +3174,8 @@ Click to mute. The volume is in the View menu.")
                     self.brush_size = (self.brush_size + step).clamp(1, 40);
                     self.scroll_acc -= 30.0 * step as f32;
                 }
+            } else if wheel != 0.0 && self.explorer_play() && self.sim.physics.player_status().and_then(|a|a.rope).is_some_and(|r|!r.pins.is_empty()) {
+                self.sim.physics.wind_rope(wheel*0.08);
             } else if wheel != 0.0 {
                 self.zoom_acc += wheel;
                 while self.zoom_acc.abs() >= 30.0 {
@@ -4009,7 +4011,7 @@ impl eframe::App for Sandbox {
         let throttle = if live { self.input.axis("walk") } else { 0.0 };
         let has_player = self.sim.physics.player_count() > 0;
         self.sim.physics.set_throttle(if has_player { 0.0 } else { throttle });
-        let jump = live && self.input.down("jump");
+        let jump = live && (self.input.down("jump")||(self.sim.physics.player_status().is_some_and(|a|a.rope.is_some())&&self.input.down("rope_jump")));
         let drop = live && self.input.down("drop");
         let crouch = live && self.input.down("crouch");
         let roll = live && self.input.down("roll");
@@ -4026,7 +4028,7 @@ impl eframe::App for Sandbox {
         }
         self.vent_held=live&&self.explorer_play()&&on_canvas&&self.input.down("vent");
         if live&&self.explorer_play() {
-            if self.input.pressed("grapple")&&on_canvas {self.sim.physics.grapple(&self.sim.world,&self.mats,self.drill_aim);}
+            self.sim.physics.hold_grapple(&self.sim.world,&self.mats,self.drill_aim,self.input.down("grapple"),on_canvas&&self.input.pressed("grapple"));
             self.sim.physics.reel_rope(self.input.axis("reel"));
 
         } else {self.sim.physics.reel_rope(0.);}
@@ -4049,7 +4051,7 @@ impl eframe::App for Sandbox {
 
         let immersive=self.explorer_play()&&self.sim.physics.player_status().is_some_and(|p|p.rope.is_some());
         if immersive {
-            egui::Panel::top("game_bar").show(ui,|ui|{ui.horizontal_wrapped(|ui|{ui.strong("D E E P W A R D");ui.separator();ui.small("EDITOR PLAYTEST");if ui.button("Pause & edit [P]").clicked(){self.playing=false;}if ui.button("Reset").clicked(){self.reset();}if ui.button("Inventory [B]").clicked(){self.supply_panel.open=!self.supply_panel.open;}ui.separator();if ui.button("− Zoom out").clicked(){self.sim.zoom=(self.sim.zoom/1.25).max(1.);}if ui.button("+ Zoom in").clicked(){self.sim.zoom=(self.sim.zoom*1.25).min(8.);}ui.small("Mouse wheel also zooms");});});
+            egui::Panel::top("game_bar").show(ui,|ui|{ui.horizontal_wrapped(|ui|{ui.strong("D E E P W A R D");ui.separator();ui.small("EDITOR PLAYTEST");if ui.button("Pause & edit [P]").clicked(){self.playing=false;}if ui.button("Reset").clicked(){self.reset();}if ui.button("Inventory [B]").clicked(){self.supply_panel.open=!self.supply_panel.open;}ui.separator();if ui.button("− Zoom out").clicked(){self.sim.zoom=(self.sim.zoom/1.25).max(1.);}if ui.button("+ Zoom in").clicked(){self.sim.zoom=(self.sim.zoom*1.25).min(8.);}ui.small("Wheel: rope length when attached; otherwise zoom");});});
         } else {
         egui::Panel::top("top").show(ui, |ui| {
             ui.add_space(4.0);
@@ -4233,8 +4235,11 @@ body rect wood 40 60 20 10
     fn cave_play_grapple_uses_the_current_pointer_and_reset_restores_the_starting_rope() {
         let mut h=editor();
         {let app=h.state_mut();let(s,p)=scene::load("size 200 160\nfill air\nrect bedrock 0 0 200 10\nrect bedrock 0 150 200 10\nanchor 0 0 200 160\nplayer 80 145 rope rope_range 160\n",&app.mats,None).into_sim(&app.mats);assert!(p.is_empty());app.sim=s;app.play();}
-        h.run_steps(4);let actor=h.state().sim.physics.player_status().unwrap();let cursor=at(&h,actor.x,actor.y-7.);h.event(Event::PointerMoved(cursor));h.key_press(Key::Q);h.run_steps(2);
-        let rope=h.state().sim.physics.player_status().unwrap().rope.unwrap();assert!(!rope.pins.is_empty(),"Q should launch toward the ceiling, not the previous right-facing aim");assert!(rope.pins[0].1<11.);h.key_press(Key::Space);h.run_steps(2);assert!(h.state().playing,"Space reels the rope rather than pausing cave Play");
+        h.run_steps(4);let actor=h.state().sim.physics.player_status().unwrap();let cursor=at(&h,actor.x,actor.y-7.);h.event(Event::PointerMoved(cursor));h.event(Event::PointerButton{pos:cursor,button:PointerButton::Secondary,pressed:true,modifiers:Modifiers::NONE});h.run_steps(2);
+        let rope=h.state().sim.physics.player_status().unwrap().rope.unwrap();assert!(!rope.pins.is_empty(),"Holding right mouse should launch toward the ceiling");assert!(rope.pins[0].1<11.);
+        let zoom=h.state().sim.zoom;let length=rope.length;h.event(Event::MouseWheel{unit:egui::MouseWheelUnit::Point,delta:Vec2::new(0.,120.),modifiers:Modifiers::NONE,phase:egui::TouchPhase::Move,source:egui::MouseWheelSource::Unknown});h.run_steps(3);assert!(h.state().sim.physics.player_status().unwrap().rope.unwrap().length<length,"wheel pulls in rope");assert_eq!(h.state().sim.zoom,zoom,"wheel on attached rope must not zoom the camera");
+        h.key_press(Key::Space);h.run_steps(2);assert!(h.state().playing,"Space jumps rather than pausing cave Play");
+        h.event(Event::PointerButton{pos:cursor,button:PointerButton::Secondary,pressed:false,modifiers:Modifiers::NONE});h.run_steps(2);assert!(h.state().sim.physics.player_status().unwrap().rope.unwrap().pins.is_empty(),"releasing right mouse releases rope");
         h.state_mut().reset();assert!(h.state().sim.physics.player_status().unwrap().rope.unwrap().pins.is_empty());
     }
 

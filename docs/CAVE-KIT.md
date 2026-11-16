@@ -7,9 +7,10 @@ seam and sandstone nearby to build more equipment. Crystal shelves and an
 oil crawler/fire shellback give you a reason to cross the cavern.
 
 The camera starts pulled back with room above the diver to see rope anchors.
-Use **− Zoom out / + Zoom in** in the editor play bar, or the mouse wheel.
-The separate gold hook target shows the exact anchor a right click will use;
-the cyan circle remains the short-range mining target. An offscreen hook is
+Use **− Zoom out / + Zoom in** in the editor play bar, or the mouse wheel
+when no rope is attached. While attached, the wheel changes rope length.
+The small gold hook target shows the exact anchor holding right mouse will use;
+the mining tool has a tiny cross and coloured terrain pixels, without a circle. An offscreen hook is
 marked at the edge of the view. If there is no rock in range, the view says so.
 The rope help card changes to reel/release instructions once attached.
 
@@ -20,10 +21,10 @@ retain their previous equipment until restarted.
 | Action | Keyboard / mouse | Controller |
 | --- | --- | --- |
 | Move / pump a swing | A/D | Left stick |
-| Jump / grab / climb | W | A |
+| Jump / grab / climb | Space (W also works) | A |
 | Aim | Mouse / IJKL | Right stick |
-| Attach / release rope | Q / right click | Right-stick click |
-| Reel in / pay out rope | Space / S | D-pad up/down |
+| Rope | Hold right mouse (Q also works); release to let go | Hold right-stick click |
+| Pull up / lower on rope | Mouse wheel up / down while attached | D-pad up/down |
 | Use equipped tool | Hold left click / E | LT |
 | Change tool | F | LB |
 | Cargo and workshops | B | Left-stick click |
@@ -31,8 +32,9 @@ retain their previous equipment until restarted.
 | Crouch / roll | C / X | X / RB |
 | Pause and edit | P / top bar | Start |
 
-Aim at solid scenery and attach the rope, then jump, swing and reel. Release
-to keep your momentum. It has elastic give and wraps around nearby exposed
+Aim at solid scenery and **hold right mouse** to attach the rope. Keep holding
+while you swing with A/D. Scroll up to pull yourself up, down to lower. Let
+go of right mouse to release and keep your momentum. It has elastic give and wraps around nearby exposed
 corners, then unwraps when the line clears them. Removing its anchor drops
 the line. Rock collisions still matter: this does not let you fly through
 walls. The jetpack remains supported as optional scene equipment.
@@ -44,7 +46,7 @@ them. **Reset** restores the starting terrain, enemies, inventory and rope.
 Cargo pauses the simulation and shows exact counts, locked/owned tools,
 recipe costs and the reason a recipe is unavailable.
 
-The drill highlights the actual exposed pixels it will work in cyan, after
+The large mining circle is removed. The drill highlights the actual exposed pixels it will work in cyan, after
 lighting so they remain visible in darkness. Red means the surface requires
 a stronger drill. The progress label reflects existing fracture work. This
 is a temporary display overlay and does not paint or change materials.

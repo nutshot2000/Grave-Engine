@@ -2,11 +2,11 @@
 
 Double-click **Play/Mining-Trial.cmd** to open the cavern in the editor.
 Keep **Player tools** and **Crystal mission** checked, then press **Play**.
-The starter kit now uses a grappling rope: Q/right click attaches/releases;
-Space/S reels in/out. See [Cave kit](CAVE-KIT.md).
+The starter kit now uses a grappling rope: hold right mouse to attach;
+scroll to pull up/lower, release right mouse to let go. Space jumps. See [Cave kit](CAVE-KIT.md).
 
-Use A/D to move, aim with the mouse, hold click or E to drill, W to jump/climb,
-and Space/S to reel the attached rope in/out. P pauses. Reset restores the test.
+Use A/D to move, aim with the mouse, hold click or E to drill, Space/W to jump/climb,
+and scroll to change the attached rope's length. P pauses. Reset restores the test.
 
 The trial also has [material storage and workshops](CAVE-WORKSHOPS.md).
 B opens exact material counts and crafting; F cycles built tools. The camp

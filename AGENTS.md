@@ -620,3 +620,11 @@ Cave-Kit-Trial; tests/cave_kit.rs plus editor click-through tests.
 Overhead rubble crack-site jitter is spatial/frame-seeded, independent of runtime
 material IDs. Material IDs still separate fragment groups. This prevents adding
 a cave material from changing other games' rubble geometry and combat routes.
+
+Cave controls simplified after user feedback: hold right mouse/Q/R3 to attach
+and maintain the rope; release to detach. `Physics::hold_grapple` shares this
+input rule; `wind_rope` changes length from the mouse wheel while attached.
+Wheel otherwise zooms. Space jumps for rope loadouts (rope_jump input), with W
+still supported. Big mining ring removed: tiny cross, exposed-pixel tint and
+progress text only during work/blocked surfaces. Keep editor and standalone
+controls and hints consistent; do not restore the old toggle/Space-to-reel UI.

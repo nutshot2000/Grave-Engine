@@ -21,7 +21,9 @@ recipe_next = key ArrowDown, pad Down
 recipe_prev = key ArrowUp, pad Up
 craft = key Enter, pad Y
 
-# Grapple toggle, then reel in/out; independent from the later jetpack.
+# Hold right mouse to attach; release to let go. Wheel winds rope while held.
 grapple = mouse Secondary, key Q, pad RStick
-reel = keys Space S, pads Up Down
+reel = keys ArrowUp ArrowDown, pads Up Down
 vent = key V, pad RT
+
+rope_jump = key Space, pad A

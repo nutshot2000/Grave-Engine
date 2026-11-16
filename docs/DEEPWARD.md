@@ -13,9 +13,9 @@ Health, swimming, heat, collisions and the material simulation still apply.
 | Action | Keyboard / mouse | Controller |
 | --- | --- | --- |
 | Walk | A / D, arrows | Left stick / d-pad |
-| Jump / grab / climb | W / Up | A |
-| Attach / release rope | Q / right click | Right-stick click |
-| Reel in / out | Space / S | D-pad up/down |
+| Jump / grab / climb | Space / W | A |
+| Rope | Hold right mouse; release to let go | Hold right-stick click |
+| Pull up / lower | Scroll wheel while attached | D-pad up/down |
 | Fast descent / release ledge | S / Down | B |
 | Crouch / roll | C / X | X / RB |
 | Aim drill | Mouse, or I/J/K/L | Right stick |
@@ -39,8 +39,8 @@ to camp after a short delay, retaining the run's terrain and sample count.
 
 New expeditions use the full local rig when installed and a grappling rope,
 with a shared game HUD, hand-mounted tools, bright mining preview and a
-craftable gas collector. **Q/right click** attaches/releases the rope;
-**Space/S** reels in/out. See [Cave kit](CAVE-KIT.md) for the current controls
+craftable gas collector. **Hold right mouse** for the rope, release to let go;
+**scroll up/down** changes its length. **Space** jumps. See [Cave kit](CAVE-KIT.md) for the current controls
 and the Lantern Cut editor playtest. The jetpack remains an optional later loadout and is preserved in old saves.
 
 ## Everything to edit
@@ -57,7 +57,7 @@ and the Lantern Cut editor playtest. The jetpack remains an optional later loado
   suit, utility pack and drill from the engine's existing editable hero rig.
   It also writes a local `.blend` for sculpting; that file is not distributed.
 - The original `caves.txt` and `endless-caves.txt` now use the same explorer,
-  rope and headlamp in editor Play mode. **P** pauses; Space/S reels.
+  rope and headlamp in editor Play mode. **P** pauses; the wheel reels while right mouse is held.
 
 The starter traversal is reusable: `player ... rope rope_range 160
 rope_elasticity 0.06 headlamp 125`. Focused surface mining, inventories and
@@ -81,7 +81,7 @@ human playtesting and balance remain to be done.
 Open any scene with a player and press Play. Leave **Player tools** checked
 in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
 drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
-Q/right click attaches the rope, Space/S reels, P pauses, and Reset restores the
+Hold right mouse for the rope; scroll changes its length, P pauses, and Reset restores the
 pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
 wall does not mine it remotely. Mining uses the same focused surface drilling and material hardness rules
 as DEEPWARD, and feeds the scene's crystal mission inventory. See the

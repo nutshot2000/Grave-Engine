@@ -45,6 +45,34 @@ fn obstruction(w: &World, m: &Materials, a: Point, b: Point) -> Option<Point> {
     None
 }
 impl Physics {
+    /// Hold-to-grapple controls: release the button to release the rope.
+    pub fn hold_grapple(
+        &mut self,
+        w: &World,
+        m: &Materials,
+        aim: Point,
+        held: bool,
+        pressed: bool,
+    ) {
+        let attached = self
+            .player_status()
+            .and_then(|a| a.rope)
+            .is_some_and(|r| !r.pins.is_empty());
+        if (!held && attached) || (held && pressed && !attached) {
+            self.grapple(w, m, aim);
+        }
+    }
+    /// Mouse wheel winds rope directly; positive cells pull the player closer.
+    pub fn wind_rope(&mut self, cells: f32) {
+        if !cells.is_finite() {
+            return;
+        }
+        if let Some(a) = self.actors.iter_mut().find(|a| a.spec.creature.is_none()) {
+            if let Some(r) = a.spec.rope.as_mut().filter(|r| !r.pins.is_empty()) {
+                r.length = (r.length - cells.clamp(-30., 30.)).clamp(10., r.range);
+            }
+        }
+    }
     /// Press once to launch along aim; press again to detach, preserving velocity.
     pub fn grapple(&mut self, w: &World, m: &Materials, aim: Point) -> bool {
         let Some(a) = self.actors.iter_mut().find(|a| a.spec.creature.is_none()) else {

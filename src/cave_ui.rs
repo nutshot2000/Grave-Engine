@@ -78,7 +78,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
     let rope = a.rope.as_ref();
     let traversal = if let Some(ro) = rope {
         if ro.pins.is_empty() {
-            "ROPE READY · aim at solid rock".into()
+            "HOLD RIGHT MOUSE · rope".into()
         } else {
             format!("ROPE ATTACHED · {:.1} m", ro.length / 10.)
         }
@@ -91,16 +91,15 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
     if let Some(rope) = &a.rope {
         let width = (r.width() - 28.).min(440.);
         let at =
-            r.center_bottom() - Vec2::new(width * 0.5, if r.width() < 1050. { 218. } else { 125. });
-        card(p, Rect::from_min_size(at, Vec2::new(width, 86.)), GOLD);
-        let attached = !rope.pins.is_empty();
+            r.center_bottom() - Vec2::new(width * 0.5, if r.width() < 1050. { 178. } else { 99. });
+        card(p, Rect::from_min_size(at, Vec2::new(width, 58.)), GOLD);
         label(
             p,
             at + Vec2::new(14., 10.),
-            if attached {
-                "ROPE ATTACHED — hold to pull yourself up"
+            if pad {
+                "HOLD R3: rope · Release R3: let go"
             } else {
-                "ROPE — aim above you at the gold hook target"
+                "HOLD RIGHT MOUSE: rope · Release: let go"
             },
             14.,
             GOLD,
@@ -109,33 +108,14 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             at + Vec2::new(14., 35.),
             if pad {
-                if attached {
-                    "Hold D-pad UP: pull up   DOWN: lower yourself"
-                } else {
-                    "Click RIGHT STICK once to attach"
-                }
-            } else if attached {
-                "Hold SPACE: pull up   Hold S: lower yourself"
+                "D-pad up/down: rope length · Left stick: swing"
+            } else if rope.pins.is_empty() {
+                "Aim at rock above you. Hold the button to attach."
             } else {
-                "RIGHT CLICK or Q once to attach (no need to hold)"
+                "SCROLL UP: pull up · SCROLL DOWN: lower"
             },
             13.,
             INK,
-        );
-        label(
-            p,
-            at + Vec2::new(14., 59.),
-            if attached {
-                if pad {
-                    "A/D or left stick: swing · R3 again: release"
-                } else {
-                    "A/D: swing · RIGHT CLICK / Q again: release"
-                }
-            } else {
-                "Then hold SPACE to climb the rope. A/D swings."
-            },
-            12.,
-            MUTED,
         );
     }
     if let Some(mission) = &s.mission {
@@ -323,9 +303,9 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
         );
     }
     let help = if pad {
-        "LS Move   A Jump   R3 Rope   D-pad Reel   LT Tool   LB Equip   L3 Cargo"
+        "LS Move   A Jump   Hold R3 Rope   LT Tool   LB Equip   L3 Cargo"
     } else {
-        "A/D Move   W Jump/climb   Q / right click Rope   Space/S Reel   Click Tool   F Equip   B Cargo   P Pause"
+        "A/D Move   SPACE Jump   LEFT MOUSE Tool   HOLD RIGHT MOUSE Rope   F Equip   B Cargo   P Pause"
     };
     let footer = Rect::from_min_max(r.left_bottom() + Vec2::new(0., -29.), r.right_bottom());
     p.rect_filled(footer, 0., Color32::from_rgba_unmultiplied(7, 15, 23, 235));
@@ -384,7 +364,7 @@ pub fn equipment(
                     (1.5, GOLD),
                 );
                 let text = if clip.contains(actual) {
-                    "ROPE HOOK · right click / Q"
+                    "HOLD RIGHT MOUSE"
                 } else {
                     "ROPE HOOK OFFSCREEN · aim this way"
                 };
@@ -494,21 +474,15 @@ pub fn equipment(
             );
         }
     }
-    let radius = drill.map_or(6., |d| d.radius * scale);
-    p.circle_stroke(center, radius + 1., (3., Color32::from_black_alpha(230)));
-    p.circle_stroke(center, radius, (1.5, target_col));
-    for dir in [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y] {
+    // Small cross only: the terrain tint already shows the actual mining footprint.
+    for dir in [Vec2::X, Vec2::Y] {
         p.line_segment(
-            [center + dir * (radius + 3.), center + dir * (radius + 9.)],
-            (3., Color32::BLACK),
+            [center - dir * 3., center + dir * 3.],
+            (3., Color32::from_black_alpha(220)),
         );
-        p.line_segment(
-            [center + dir * (radius + 3.), center + dir * (radius + 9.)],
-            (1.4, INK),
-        );
+        p.line_segment([center - dir * 3., center + dir * 3.], (1., target_col));
     }
-    p.circle_filled(center, 1.5, INK);
-    if let Some((i, _)) = hit.zip(drill) {
+    if let Some((i, _)) = hit.zip(drill).filter(|_| active || blocked) {
         let mat = m.get(s.world.mat[i]);
         let h = crate::mining::hardness(mat);
         let progress = s.mining.fractures.get(&i).map_or(0., |f| f.work / h);
@@ -522,7 +496,7 @@ pub fn equipment(
             }
         );
         let galley = p.layout_no_wrap(text, FontId::proportional(11.), INK);
-        let at = center - Vec2::new(galley.size().x / 2., radius + 29.);
+        let at = center - Vec2::new(galley.size().x / 2., 20.);
         p.rect_filled(
             Rect::from_min_size(at - Vec2::splat(5.), galley.size() + Vec2::splat(10.)),
             4.,

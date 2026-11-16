@@ -17,7 +17,7 @@ impl App {
     fn new()->Self{let game=Expedition::new(true);let p=game.player();Self{supplies:Default::default(),game,input:Input::load_or("assets/input/cave-explorer.input",INPUT).expect("controls"),texture:None,sprites:BTreeMap::new(),last:Instant::now(),clock:0.,started:false,paused:false,map:false,view_at:None,last_mouse:None,camera:(p.x,p.y),save_clock:0}}
     fn draw(&mut self,ctx:&egui::Context,ui:&mut egui::Ui){
         let rect=ui.max_rect();let p=self.game.player();
-        if !self.supplies.open {let wheel=ctx.input(|i|i.smooth_scroll_delta.y);if wheel.abs()>0.1{self.game.tuning.view=(self.game.tuning.view*(1.12f32).powf(-wheel/60.)).clamp(180.,600.);}}
+        if !self.supplies.open {let wheel=ctx.input(|i|i.smooth_scroll_delta.y);if wheel.abs()>0.1&&p.rope.as_ref().is_some_and(|r|!r.pins.is_empty()){self.game.sim.physics.wind_rope(wheel*0.08);}else if wheel.abs()>0.1{self.game.tuning.view=(self.game.tuning.view*(1.12f32).powf(-wheel/60.)).clamp(180.,600.);}}
         let width=self.game.tuning.view;let scale=rect.width()/width;
         let height=rect.height()/scale;
         self.camera.0+=(p.x+p.facing*16.-self.camera.0)*0.09;self.camera.1+=(p.y-if p.rope.is_some(){30.}else{8.}-self.camera.1)*0.08;
@@ -62,7 +62,8 @@ impl App {
             let label=if self.game.won{"EXPEDITION COMPLETE"}else if self.paused{"EXPEDITION PAUSED"}else{"A CAVE EXPEDITION"};
             draw.text(center-Vec2::new(0.,65.),Align2::CENTER_CENTER,label,FontId::proportional(18.),Color32::from_rgb(102,218,209));
             draw.text(center,Align2::CENTER_CENTER,"Recover cyan and violet crystal samples.\nBring both back to the lift. Make your own route.",FontId::proportional(19.),Color32::from_rgb(220,223,225));
-            draw.text(center+Vec2::new(0.,90.),Align2::CENTER_CENTER,"A/D move   W jump/climb   Q rope · SPACE/S reel   S descend\nMouse aim + hold click / E to drill   C crouch\nM map   F5 save   ESC pause   R new expedition",FontId::proportional(16.),Color32::from_rgb(180,191,204));
+            draw.text(center+Vec2::new(0.,90.),Align2::CENTER_CENTER,"A/D move   SPACE jump   Hold right mouse: rope
+Scroll while attached to climb/lower; release right mouse to let go\nMouse aim + hold click / E to drill   C crouch\nM map   F5 save   ESC pause   R new expedition",FontId::proportional(16.),Color32::from_rgb(180,191,204));
             if !self.game.won{draw.text(center+Vec2::new(0.,170.),Align2::CENTER_CENTER,"ENTER / controller A to continue",FontId::proportional(20.),Color32::from_rgb(255,205,116));}
         }
     }
@@ -89,10 +90,10 @@ impl eframe::App for App{
         if self.input.pressed("save")&&!self.supplies.open{self.game.save();}
         if self.input.pressed("restart")&&(!self.started||self.paused||self.game.won){self.game=Expedition::new(false);self.game.save();self.paused=false;self.started=true;self.sprites.clear();}
         if self.started&&!self.paused&&!self.game.won&&!self.supplies.open{
-            if self.input.pressed("grapple"){self.game.sim.physics.grapple(&self.game.sim.world,&self.game.mats,self.game.aim);}
+            self.game.sim.physics.hold_grapple(&self.game.sim.world,&self.game.mats,self.game.aim,self.input.down("grapple"),self.input.pressed("grapple"));
             self.game.sim.physics.reel_rope(self.input.axis("reel"));
             self.game.venting=self.input.down("vent");
-            self.clock=(self.clock+dt).min(0.1);while self.clock>=1./60.{self.clock-=1./60.;let c=Controls{walk:self.input.axis("walk"),jump:self.input.down("jump"),thrust:self.input.down("thrust"),drop:self.input.down("drop"),crouch:self.input.down("crouch"),roll:self.input.down("roll")};self.game.step(c,self.input.down("drill"),self.game.aim);self.save_clock+=1;if self.save_clock>=1800||self.game.won{self.game.save();self.save_clock=0;}}}else{self.clock=0.;}
+            self.clock=(self.clock+dt).min(0.1);while self.clock>=1./60.{self.clock-=1./60.;let c=Controls{walk:self.input.axis("walk"),jump:self.input.down("jump")||(self.game.player().rope.is_some()&&self.input.down("rope_jump")),thrust:self.input.down("thrust"),drop:self.input.down("drop"),crouch:self.input.down("crouch"),roll:self.input.down("roll")};self.game.step(c,self.input.down("drill"),self.game.aim);self.save_clock+=1;if self.save_clock>=1800||self.game.won{self.game.save();self.save_clock=0;}}}else{self.clock=0.;}
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui,|ui|self.draw(&ctx,ui));
         if let Some(action)=self.supplies.show(&ctx,&self.game.sim,&self.game.mats,&self.game.catalog) {
             let outcome=match action {grave_engine::supplies::Action::Equip(id)=>if self.game.sim.supplies.equip(&id){Ok(())}else{Err("Tool not built".into())},grave_engine::supplies::Action::Craft(id)=>self.game.sim.craft(&self.game.catalog,&id)};

@@ -20,6 +20,18 @@ fn setup(text: &str) -> (Materials, Sim, Catalog) {
 }
 const ROOM: &str = "size 260 260\nfill air\nrect bedrock 0 0 260 10\nrect bedrock 0 245 260 15\nanchor 0 0 260 260\nplayer 90 170 rope rope_range 220\n";
 #[test]
+fn holding_rope_keeps_it_attached_wheel_winds_it_and_release_detaches() {
+    let(m,mut s,_)=setup(ROOM);
+    s.physics.hold_grapple(&s.world,&m,(0.,-1.),true,true);
+    let length=s.physics.player_status().unwrap().rope.unwrap().length;
+    s.physics.hold_grapple(&s.world,&m,(0.,-1.),true,false);
+    assert!(!s.physics.player_status().unwrap().rope.unwrap().pins.is_empty());
+    s.physics.wind_rope(10.);assert_eq!(s.physics.player_status().unwrap().rope.unwrap().length,length-10.);
+    s.physics.wind_rope(-5.);assert_eq!(s.physics.player_status().unwrap().rope.unwrap().length,length-5.);
+    s.physics.hold_grapple(&s.world,&m,(0.,-1.),false,false);
+    assert!(s.physics.player_status().unwrap().rope.unwrap().pins.is_empty());
+}
+#[test]
 fn rope_preview_matches_the_actual_hook_and_reports_out_of_range() {
     let(m,mut s,_)=setup(ROOM);
     let a=s.physics.player_status().unwrap();let from=grave_engine::tool_pose::shoulder(&a);
