@@ -343,47 +343,11 @@ pub fn equipment(
                     actual.x.clamp(clip.left(), clip.right()),
                     actual.y.clamp(clip.top(), clip.bottom()),
                 );
-                let start = point(from);
-                let length = (shown - start).length();
-                for i in 0..((length / 16.).ceil() as usize).min(80) {
-                    let t = i as f32 * 16. / length.max(1.);
-                    let end = (t + 5. / length.max(1.)).min(1.);
-                    p.line_segment(
-                        [start.lerp(shown, t), start.lerp(shown, end)],
-                        (1., GOLD.gamma_multiply(0.45)),
-                    );
-                }
-                p.circle_filled(shown, 9., Color32::from_black_alpha(220));
-                p.circle_stroke(shown, 7., (2., GOLD));
-                p.line_segment(
-                    [shown - Vec2::new(4., 0.), shown + Vec2::new(4., 0.)],
-                    (1.5, GOLD),
-                );
-                p.line_segment(
-                    [shown - Vec2::new(0., 4.), shown + Vec2::new(0., 4.)],
-                    (1.5, GOLD),
-                );
-                let text = if clip.contains(actual) {
-                    "HOLD RIGHT MOUSE"
-                } else {
-                    "ROPE HOOK OFFSCREEN · aim this way"
-                };
-                p.text(
-                    shown + Vec2::new(0., 15.),
-                    Align2::CENTER_TOP,
-                    text,
-                    FontId::proportional(12.),
-                    GOLD,
-                );
-            } else {
-                let at = point((a.x, a.y - 15.));
-                p.text(
-                    at,
-                    Align2::CENTER_BOTTOM,
-                    "ROPE: no solid rock in this direction / range",
-                    FontId::proportional(12.),
-                    GOLD,
-                );
+                // A quiet ring where the hook would catch: no line or text
+                // over the aim (the footer says how to use the rope).
+                let alpha = if clip.contains(actual) { 0.75 } else { 0.4 };
+                p.circle_stroke(shown, 4.5, (3., Color32::from_black_alpha(140)));
+                p.circle_stroke(shown, 4.5, (1.3, GOLD.gamma_multiply(alpha)));
             }
         }
         if let Some(last) = rope.pins.last() {
@@ -484,8 +448,10 @@ pub fn equipment(
         );
         p.line_segment([center - dir * 3., center + dir * 3.], (1., target_col));
     }
+    // Readouts sit at the bottom of the view, never over the crosshair.
+    let readout = p.clip_rect().center_bottom() - Vec2::new(0., 64.);
     if active && drill.is_some() && hit.is_none() {
-        p.text(center - Vec2::new(0., 8.), Align2::CENTER_BOTTOM, "No reachable rock", FontId::proportional(12.), INK);
+        p.text(readout, Align2::CENTER_BOTTOM, "No reachable rock", FontId::proportional(12.), INK);
     }
     if let Some((i, _)) = hit.zip(drill).filter(|_| active || blocked) {
         let mat = m.get(s.world.mat[i]);
@@ -501,7 +467,7 @@ pub fn equipment(
             }
         );
         let galley = p.layout_no_wrap(text, FontId::proportional(11.), INK);
-        let at = center - Vec2::new(galley.size().x / 2., 20.);
+        let at = readout - Vec2::new(galley.size().x / 2., galley.size().y);
         p.rect_filled(
             Rect::from_min_size(at - Vec2::splat(5.), galley.size() + Vec2::splat(10.)),
             4.,
@@ -521,9 +487,71 @@ pub fn equipment(
         }
     }
     if active {
-        p.circle_filled(end, 1.8 * scale, target_col);
         if drill.is_some() {
-            p.line_segment([end, center], (1.2, target_col));
+            cutting_beam(p, s, m, end, center, hit, target_col, blocked, scale);
+        } else {
+            p.circle_filled(end, 1.8 * scale, target_col);
         }
+    }
+}
+
+/// A small pseudo-random number in 0..1 (stable per frame and index).
+fn jitter(a: u32, b: u32) -> f32 {
+    let mut h = a.wrapping_mul(0x9E37_79B9) ^ b.wrapping_mul(0x85EB_CA6B);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    (h & 0xFFFF) as f32 / 65535.
+}
+
+/// The drill at work: a flickering beam with a hot core, a glow where it
+/// bites, and sparks of the rock's own colour flying back off the face.
+/// Too-hard rock makes it sputter red.
+#[allow(clippy::too_many_arguments)]
+fn cutting_beam(p: &egui::Painter, s: &Sim, m: &Materials, from: Pos2, to: Pos2, hit: Option<usize>, col: Color32, blocked: bool, scale: f32) {
+    let f = s.world.frame as u32;
+    if blocked && (f / 3) % 3 == 0 {
+        return;
+    }
+    let flick = 0.8 + 0.2 * jitter(f, 1);
+    let along = to - from;
+    let len = along.length().max(1.);
+    let side = Vec2::new(-along.y, along.x) / len;
+    let white = Color32::from_rgb(235, 255, 252);
+    // Soft glow, then a brighter band.
+    p.line_segment([from, to], (6. * flick, col.gamma_multiply(0.13)));
+    p.line_segment([from, to], (3. * flick, col.gamma_multiply(0.38)));
+    // A crackling core: short segments nudged sideways each frame.
+    let n = ((len / 6.).ceil() as u32).clamp(2, 24);
+    let mut prev = from;
+    for k in 1..=n {
+        let t = k as f32 / n as f32;
+        let wobble = if k == n { 0. } else { (jitter(f, k + 7) - 0.5) * 2.2 * (t * (1. - t) * 4.).min(1.) };
+        let next = from + along * t + side * wobble;
+        p.line_segment([prev, next], (1.3, white.gamma_multiply(0.9)));
+        prev = next;
+    }
+    // Muzzle flare and the hot spot on the rock.
+    p.circle_filled(from, 2.4 * flick, col.gamma_multiply(0.45));
+    p.circle_filled(from, 1.1, white);
+    if hit.is_none() {
+        return;
+    }
+    p.circle_filled(to, 6. * flick, col.gamma_multiply(0.18));
+    p.circle_filled(to, 3.2 * flick, Color32::from_rgb(255, 214, 140).gamma_multiply(0.6));
+    p.circle_filled(to, 1.4, white);
+    // Sparks: thrown back off the face, in the rock's colour turning hot.
+    let rock = hit.map_or([200, 200, 200], |i| m.get(s.world.mat[i]).color);
+    let rock = Color32::from_rgb(rock[0], rock[1], rock[2]);
+    let back = -along / len;
+    for i in 0..12u32 {
+        let life = ((f + i * 5) % 14) as f32 / 14.;
+        let seed = (f + i * 5) / 14;
+        let spread = (jitter(seed, i) - 0.5) * 2.4;
+        let dir = (back + side * spread).normalized();
+        let speed = 6. + 12. * jitter(seed, i + 40);
+        let at = to + dir * speed * life * scale.max(1.) * 0.6 + Vec2::new(0., life * life * 5.);
+        let c = if i % 3 == 0 { Color32::from_rgb(255, 196, 110) } else { rock };
+        p.circle_filled(at, (1.3 * (1. - life)).max(0.4), c.gamma_multiply(1. - life * 0.7));
     }
 }
