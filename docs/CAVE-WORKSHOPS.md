@@ -3,6 +3,11 @@
 The mining trial now tests a small **mine → build → explore** loop.
 Open `Play/Mining-Trial.cmd`, leave **Player tools** on and press **Play**.
 
+[Elemental crawlers](CAVE-CREATURES.md) now guard the richer pockets. They
+can climb onto walls and ceilings, retreat from hazards and release their
+material payload on death. The separate gallery supplies weapons and ammo
+for quick combat experiments.
+
 Every terrain cell removed by your drill adds exactly one unit of that
 material to storage. Rock, sand, sandstone, timber, ore and each crystal
 colour have separate whole-number counts. B opens the complete inventory,

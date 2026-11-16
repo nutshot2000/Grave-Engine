@@ -27,6 +27,7 @@ The games and labs open from the [`Play`](../Play) folder.
 
 ## Games and levels (they show what the engine can do, and what it needs next)
 
+- [Cave creatures](CAVE-CREATURES.md): surface crawlers, resource guards, elemental deaths and a combat gallery.
 - [Cave storage and workshops](CAVE-WORKSHOPS.md): exact mining inventory, tool recipes, fuel and real fire/acid tools.
 - [Mining trial](MINING-TRIAL.md): compare soft ground, hard shortcuts and a winding route in editor Play.
 - [DEEPWARD](DEEPWARD.md): playable cave expedition, explorer, jetpack, drilling, samples, map and saves.

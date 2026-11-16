@@ -1,0 +1,3 @@
+@echo off
+cd /d "%~dp0.."
+call Play\Editor.cmd scenes/elemental-creatures.txt

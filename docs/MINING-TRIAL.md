@@ -10,6 +10,10 @@ B opens exact material counts and crafting; F cycles built tools. The camp
 mechanic makes a reinforced drill or flame projector; the gallery chemistry
 bench makes an acid sprayer. Fuel and acid are finite crafted supplies.
 
+[Surface-crawling guards](CAVE-CREATURES.md) protect the richer lower pocket
+and cache. Their elemental deaths release real material spills. A small
+violet seam near the shaft provides initial chemical supplies before them.
+
 The point is to compare choices, rather than race to fill the sample bars:
 
 - At camp, chip the golden sandstone. It gives way quickly.

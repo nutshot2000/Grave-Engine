@@ -35,3 +35,18 @@ anchor 184 598 7 16
 rect wood 145 602 7 12
 anchor 145 602 7 12
 workshop chemistry 160 606 24
+
+# A guarded bonus gallery beyond camp; first workshop supplies stay safe.
+rect air 250 555 150 59
+rect air 190 590 70 24
+rect rock 250 614 150 7
+anchor 250 614 150 7
+rect crystal_violet 385 595 4 19
+anchor 385 595 4 19
+rect iron_ore 377 603 6 11
+anchor 377 603 6 11
+rect wood 333 596 3 18
+anchor 333 596 3 18
+light 350 580 70 strength 0.65 color #b7b0dc
+creature skitter 306 614 element oil burst 112
+creature shellback 364 614 element acid burst 96

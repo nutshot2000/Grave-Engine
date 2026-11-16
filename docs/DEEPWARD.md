@@ -118,3 +118,11 @@ quotas until you mine replacements. Tool tuning and recipes are in
 `assets/crafting/`; `assets/cave-explorer/game.txt` sets the expedition scene,
 home, targets and view. Use the small Mining Trial for the authored workshop
 progression; generated caves now include mineable iron ore seams.
+
+## Elemental cave guards
+
+[Crawlers](CAVE-CREATURES.md) guard the authored bonus gallery. They patrol
+floors, walls and ceilings, investigate noise and warn before biting. Oil
+and acid variants spill real material on death; other variants are in the
+elemental gallery. Their state and spent death payloads are saved with the
+scene. Editor Play uses the same brains, movement and material reactions.

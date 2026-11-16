@@ -108,3 +108,12 @@ anchor 533 305 4 12
 # Burnable roots beyond the grille: use fire or the drill to clear them.
 rect wood 503 306 3 25
 anchor 503 306 3 25
+
+# First chemical supplies remain accessible before taking on the guards.
+rect crystal_violet 336 354 3 10
+anchor 336 354 3 10
+# Richer pockets carry a risk: a tough shellback and a quick cache skitter.
+rect iron_ore 428 355 5 13
+anchor 428 355 5 13
+creature shellback 444 368 element fire burst 96
+creature skitter 525 299 normal 0 1 attached yes element acid burst 96

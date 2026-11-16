@@ -549,3 +549,45 @@ Tests: `tests/supplies.rs` covers ledger conservation, craft transactions,
 save/reset/undo/rewind/shift, actual burning/steel dissolution and contact
 harm; the editor UI test mines, opens storage, crafts, pauses and resets.
 Guide: `docs/CAVE-WORKSHOPS.md`. This remains a progression prototype.
+
+### Cave crawlers and elemental variants
+
+`src/creatures.rs` supplies data-defined skitter/shellback brains and native
+art. Species: `assets/creatures/cave.creatures` (editor reloads on file change).
+`ActorSpec::creature` carries species, home/target, mood, timers, element,
+burst quota and emitted flag. All bodies use existing flesh: temperature,
+contact harm, drowning and physics health are shared with the player. Material
+affinity raises safe temperature limits to the element's starting temperature
+and ignores that material's contact damage; AI avoidance follows the same
+properties. Every motion goes through independent actor controls.
+
+`ActorSpec::surface` / `SurfaceWalker` in actor/surface.rs follows nearby
+terrain contours via bounded nearest-solid probes and iterative separation.
+It handles inside/outside corners and rejects narrow slits. Kinematic adhesion
+is lost when support is removed, restoring normal dynamic gravity. Brains
+compare both contour directions to reach a player on another surface. This
+is connected-terrain traversal, not flying or a global pathfinder. Native
+art and stamped body cells use the same rotation about the collider centre;
+rendered health/warning labels stay readable for wall/ceiling poses.
+
+Creature scene syntax: `creature KIND X FEET [element MAT] [burst N]` plus
+optional health/dead, home/target, normal/attached, mood/timers and erupted.
+Scene load orders players first; player_status/player_count exclude creatures
+from controls, crafting, HUD and player triggers. Sim calls brains before
+physics and once-only death bursts after physics. A payload creates finite
+actual flying cells (1–2048 authored, bounded by world capacity), never
+overwrites terrain, and uses normal material reactions afterwards. Erupted
+flags prevent duplicate emissions after save/load or rewind. Dead creatures
+fall, do not respawn, and later stop blocking/fade. Snapshot, Timeline, undo
+and scene save carry AI, health, poses and death flags; shifting moves homes
+and targets. Timeline memory includes actor records.
+
+Mining Trial protects initial supplies, guards richer resources and a cache.
+DEEPWARD has an authored guarded bonus gallery. `Play/Elemental-Creatures.cmd`
+opens a supplied combat gallery with fire/acid/oil/lava/water variants.
+Tests: creatures.rs (bites, occlusion, dodge, retreat, actual crafted-weapon
+kills, persistence, ceiling pursuit), surface_walk.rs (four surfaces, convex
+corners, support removal, gaps, saved pose/crop equality), elemental_creatures.rs
+(finite bursts, affinities, acid scenery erosion, oil ignition, no save/rewind
+duplication), and editor mouse firing/reaction/Reset. Docs: CAVE-CREATURES.md.
+No automatic endless-region creature population is included yet.

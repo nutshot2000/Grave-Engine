@@ -1,0 +1,72 @@
+# ELEMENTAL CREATURE GALLERY — editor Play combat experiments.
+# Left to right: fire, acid, oil, lava, water. B opens storage; F cycles tools.
+# Starter supplies are intentionally generous in this lab. The Mining Trial
+# keeps the normal mine/craft progression and guarded resource encounters.
+size 800 440
+seed 151
+fill bedrock
+rect rock 16 160 768 260
+backwall shale 0 0 800 440
+# Shared safe upper passage and camp.
+rect air 20 170 760 50
+rect steel 25 220 65 4
+# Five connected drop-in test chambers.
+circle air 120 310 55
+rect air 70 310 100 55
+rect air 108 210 24 100
+circle air 270 310 55
+rect air 220 310 100 55
+rect air 258 210 24 100
+circle air 420 310 55
+rect air 370 310 100 55
+rect air 408 210 24 100
+circle air 570 310 55
+rect air 520 310 100 55
+rect air 558 210 24 100
+circle air 720 310 55
+rect air 670 310 100 55
+rect air 708 210 24 100
+# Finite timber makes the effects of fire and burning oil easy to see.
+rect wood 146 340 3 25
+rect wood 446 340 3 25
+rect wood 596 340 3 25
+# The acid room has a metal grille and an ore ledge to dissolve.
+rect steel 302 338 3 27
+rect iron_ore 293 357 7 8
+# Real rewards remain in the chambers after the guards are defeated.
+rect crystal_cyan 137 352 4 13
+rect crystal_cyan 287 352 4 13
+rect crystal_violet 437 352 4 13
+rect crystal_violet 587 352 4 13
+rect crystal_violet 737 352 4 13
+anchor 0 0 800 440
+lighting 0.48 #cad8ed
+sun off
+light 60 200 65 strength 0.9 color #ffcb90
+light 120 310 90 strength 0.5 color #ffb26a
+light 270 310 90 strength 0.5 color #b4e978
+light 420 310 90 strength 0.5 color #d1bd8b
+light 570 310 90 strength 0.5 color #ff9d68
+light 720 310 90 strength 0.5 color #8dc9ed
+player 60 220 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 jet_capacity 4 headlamp 110 zoom 3
+workshop mechanic 60 212 30
+workshop chemistry 60 212 30
+storage on
+owned_tool reinforced_drill
+owned_tool flamethrower
+owned_tool acid_shooter
+equipped_tool acid_shooter
+stock oil 1200
+stock acid 1200
+stock rock 100
+stock sandstone 100
+stock iron_ore 100
+stock wood 100
+stock crystal_cyan 30
+stock crystal_violet 30
+# Any species can use any material variant; body size and brain stay independent.
+creature skitter 120 365 element fire burst 112
+creature shellback 250 272 normal 0 1 attached yes home 270 330 element acid burst 112
+creature skitter 420 365 element oil burst 192
+creature shellback 570 365 element lava burst 112
+creature skitter 700 269 normal 0 1 attached yes home 720 330 element water burst 768
