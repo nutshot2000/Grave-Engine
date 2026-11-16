@@ -216,6 +216,9 @@ pub struct Settings {
     /// 0..1: bend the whole cave with smooth map-wide noise, so passages
     /// wander and tile seams vanish (0 = off). See `bend_caves`.
     pub bend: f32,
+    /// 0..1: cave dangers (gas pockets, flooded dips, loose gravel
+    /// ceilings). See `place_dangers`.
+    pub dangers: f32,
     /// Frequency of crystal clusters and torches around large chambers.
     pub crystals: f32,
     pub torches: f32,
@@ -239,6 +242,7 @@ impl Settings {
             caverns: 0.65,
             dead_ends: 0.75,
             bend: 0.0,
+            dangers: 0.0,
             crystals: 0.7,
             torches: 0.3,
         }
@@ -360,7 +364,7 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
         }
     }
     let caverns = large_caverns(s, (gx, gy, aw, ah));
-    let hand = if s.bend > 0.0 {
+    let hand = if s.bend > 0.0 || s.dangers > 0.0 {
         bend_caves(world, mats, (ax, ay, aw, ah), origin, s, tiles, &caverns, (uw, uh), &free)
     } else {
         carve_bricks(world, mats, (ax, ay, aw, ah), origin, s, tiles, &caverns, (uw, uh), &free)
@@ -474,7 +478,12 @@ fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usi
     let t = s.tile.max(8) as f32;
     let bend = s.bend.clamp(0.0, 1.0);
     let (big, small) = (bend * t * 0.3, bend * t * 0.075);
-    let margin = (big + small).ceil() as usize + 2 + SMOOTH_PASSES * 2;
+    let smooth = if bend > 0.0 { SMOOTH_PASSES } else { 0 };
+    // Dangers look around their site, so the bent cave is worked out a bit
+    // beyond the area too (`reach`), and the carving beyond that.
+    let reach = if s.dangers > 0.0 { DANGER_REACH * 2 } else { 0 };
+    let warp = (big + small).ceil() as usize + 2 + smooth * 2;
+    let margin = warp + reach;
     let (tw, th) = (aw + 2 * margin, ah + 2 * margin);
     let mut temp = World::new(tw, th);
     for y in 0..th {
@@ -488,7 +497,7 @@ fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usi
     // Wear the walls smooth first: a 5x5 majority rounds corners and removes
     // hairline cracks and specks (real passages are far wider than 3 cells).
     let mut solid: Vec<bool> = temp.mat.iter().map(|&m| m != AIR).collect();
-    for _ in 0..SMOOTH_PASSES {
+    for _ in 0..smooth {
         let before = solid.clone();
         for y in 2..th - 2 {
             for x in 2..tw - 2 {
@@ -508,25 +517,127 @@ fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usi
     let at = |x: usize, y: usize| temp.mat[y * tw + x];
     let plain = |m: MatId| m == rock || m == AIR;
     let seed = s.seed ^ 0x5eed_b3d5;
-    for y in ay..ay + ah {
-        for x in ax..ax + aw {
-            if !free(x as i32, y as i32) {
-                continue;
-            }
-            let (mx, my) = ((origin.0 + x as i64) as f32, (origin.1 + y as i64) as f32);
+    // The bent cave over the area and `reach` around it (map-space noise).
+    let (ew, eh) = (aw + 2 * reach, ah + 2 * reach);
+    let mut cave = vec![AIR; ew * eh];
+    for ey in 0..eh {
+        for ex in 0..ew {
+            let (ox, oy) = (ex + warp, ey + warp);
+            let (mx, my) = ((to.0 + ox as i64) as f32, (to.1 + oy as i64) as f32);
             let wave = |k: u32, f: f32| noise(seed ^ k, mx * f, my * f) * 2.0 - 1.0;
             let dx = wave(1, 1.0 / (t * 1.6)) * big + wave(3, 1.0 / (t * 0.5)) * small;
             let dy = wave(2, 1.0 / (t * 1.6)) * big + wave(4, 1.0 / (t * 0.5)) * small;
-            let (ox, oy) = (x - ax + margin, y - ay + margin);
             let sx = (ox as f32 + dx).round().clamp(0.0, tw as f32 - 1.0) as usize;
             let sy = (oy as f32 + dy).round().clamp(0.0, th as f32 - 1.0) as usize;
             let (original, sampled) = (at(ox, oy), at(sx, sy));
             // Built features stay put and aren't smeared into the rock.
-            let m = if plain(original) && plain(sampled) { sampled } else { original };
-            world.set(mats, x, y, m);
+            cave[ey * ew + ex] = if plain(original) && plain(sampled) { sampled } else { original };
+        }
+    }
+    if s.dangers > 0.0 {
+        let corner = (to.0 + warp as i64, to.1 + warp as i64);
+        place_dangers(&mut cave, (ew, eh), corner, (reach, reach, aw, ah), s, mats);
+    }
+    for y in ay..ay + ah {
+        for x in ax..ax + aw {
+            if free(x as i32, y as i32) {
+                world.set(mats, x, y, cave[(y - ay + reach) * ew + (x - ax + reach)]);
+            }
         }
     }
     hand
+}
+
+/// How far a danger reaches from its site (cells).
+const DANGER_REACH: usize = 34;
+
+/// Cave dangers, scattered on a map-space lattice (`dangers` = how many):
+/// volatile gas trapped under ceilings (explodes with fire, or collect it),
+/// flooded dips (swim; breath runs out), and
+/// loose gravel behind a thin skin of rock over passages (drill into it and
+/// it pours down). Each site reads only the untouched cave around it and
+/// sites are applied in map order, so endless regions agree exactly.
+fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64), (ix, iy, iw, ih): (usize, usize, usize, usize), s: &Settings, mats: &Materials) {
+    let (Some(gas), Some(water), Some(gravel)) = (mats.id("volatile_gas"), mats.id("water"), mats.id("gravel")) else { return };
+    let base = cave.to_vec();
+    let rock = s.rock;
+    let r = DANGER_REACH as i64;
+    let get = |x: i64, y: i64| -> Option<MatId> {
+        let (lx, ly) = (x - corner.0, y - corner.1);
+        (lx >= 0 && ly >= 0 && lx < w as i64 && ly < h as i64).then(|| base[ly as usize * w + lx as usize])
+    };
+    let spacing = 44i64;
+    // Sites whose reach can touch the inner area.
+    let (x0, y0) = (corner.0 + ix as i64 - r, corner.1 + iy as i64 - r);
+    let (x1, y1) = (corner.0 + (ix + iw) as i64 + r, corner.1 + (iy + ih) as i64 + r);
+    for j in y0.div_euclid(spacing)..=y1.div_euclid(spacing) {
+        for i in x0.div_euclid(spacing)..=x1.div_euclid(spacing) {
+            let roll = |k: i32| unit(hash(s.seed ^ 0xda46_e125, i as i32, j as i32, k));
+            if roll(0) > s.dangers * 0.55 {
+                continue;
+            }
+            let (sx, sy) = (i * spacing + (roll(1) * spacing as f32) as i64, j * spacing + (roll(2) * spacing as f32) as i64);
+            if sx < x0 || sy < y0 || sx > x1 || sy > y1 {
+                continue;
+            }
+            let kind = roll(3);
+            let mut put = |x: i64, y: i64, m: MatId, only: MatId| {
+                let (lx, ly) = (x - corner.0, y - corner.1);
+                if lx >= 0 && ly >= 0 && lx < w as i64 && ly < h as i64 && base[ly as usize * w + lx as usize] == only {
+                    cave[ly as usize * w + lx as usize] = m;
+                }
+            };
+            if kind < 0.78 {
+                // Gas or water: needs open cave at the site.
+                if get(sx, sy) != Some(AIR) {
+                    continue;
+                }
+                if kind < 0.4 {
+                    // Gas gathers under the ceiling above.
+                    let Some(top) = (1..24).map(|d| sy - d).find(|&y| get(sx, y) != Some(AIR)) else { continue };
+                    for dy in 0..6i64 {
+                        for dx in -10i64..=10 {
+                            if (dx * dx) as f32 / 100.0 + (dy * dy) as f32 / 36.0 <= 1.0 {
+                                put(sx + dx, top + 1 + dy, gas, AIR);
+                            }
+                        }
+                    }
+                } else {
+                    // A flooded dip on the floor below. (Not lava: small
+                    // pits cool into gravel against the cold rock at once.)
+                    let (rx, ry, m) = (11i64, 6i64, water);
+                    let Some(floor) = (1..24).map(|d| sy + d).find(|&y| get(sx, y) != Some(AIR)) else { continue };
+                    if get(sx, floor) != Some(rock) {
+                        continue;
+                    }
+                    for dy in 1..=ry {
+                        for dx in -rx..=rx {
+                            if (dx * dx) as f32 / (rx * rx) as f32 + ((dy - 1) * (dy - 1)) as f32 / (ry * ry) as f32 <= 1.0 {
+                                put(sx + dx, floor - dy, m, AIR);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Loose gravel inside the rock over a passage, behind a skin.
+                if get(sx, sy) != Some(rock) || !(3..12).any(|d| get(sx, sy + d) == Some(AIR)) {
+                    continue;
+                }
+                for dy in -7i64..=7 {
+                    for dx in -9i64..=9 {
+                        if (dx * dx) as f32 / 81.0 + (dy * dy) as f32 / 49.0 > 1.0 {
+                            continue;
+                        }
+                        let (x, y) = (sx + dx, sy + dy);
+                        let sealed = (-2..=2).all(|a| (-2..=2).all(|b| get(x + a, y + b).is_some_and(|m| m != AIR)));
+                        if sealed {
+                            put(x, y, gravel, rock);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// A cavern in map coordinates, independent of the current streaming window.

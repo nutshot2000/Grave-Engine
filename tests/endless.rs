@@ -250,3 +250,27 @@ fn bent_caves_are_the_same_however_they_are_cut_up() {
     levelgen::generate_at(&mut flat, &m, (0, 0, 768, 512), origin, &Settings { bend: 0.0, ..s.clone() }, &tiles);
     assert!(whole.mat.iter().zip(&flat.mat).filter(|(a, b)| a != b).count() > 5000);
 }
+
+/// Dangers (gas, flooded dips, loose gravel) land in the same places
+/// however the map is cut up, and there are some of each.
+#[test]
+fn cave_dangers_are_the_same_however_the_map_is_cut_up() {
+    let m = mats();
+    let s = Settings { tile: 140, bend: 1.0, dangers: 1.0, open_sides: true, seed: 33, ..Settings::new(&m) };
+    let origin = (-300, 170);
+    let mut whole = World::new(768, 512);
+    levelgen::generate_at(&mut whole, &m, (0, 0, 768, 512), origin, &s, &[]);
+    let mut parts = World::new(768, 512);
+    for ry in 0..2 {
+        for rx in 0..3 {
+            levelgen::generate_at(&mut parts, &m, (rx * 256, ry * 256, 256, 256), origin, &s, &[]);
+        }
+    }
+    let differ = whole.mat.iter().zip(&parts.mat).filter(|(a, b)| a != b).count();
+    assert_eq!(differ, 0, "{differ} cells differ between whole and region-by-region");
+    for name in ["volatile_gas", "water", "gravel"] {
+        let id = m.id(name).unwrap();
+        let n = whole.mat.iter().filter(|&&c| c == id).count();
+        assert!(n > 20, "only {n} cells of {name}");
+    }
+}
