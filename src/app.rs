@@ -1348,6 +1348,7 @@ impl Sandbox {
                 if cur.state == State::Solid {
                     num(ui, "strength", "Overhang strength", "How far it can stick out from a support before snapping", cur.strength, def.strength, 0.0..=500.0, false);
                 }
+                num(ui, "mining_hardness", "Mining hardness (seconds)", "Time to chip away a surface layer. Above 3 needs a stronger drill.", grave_engine::mining::hardness(&cur), grave_engine::mining::hardness(&def), 0.01..=10.0, false);
                 if let Some(t) = cur.toughness {
                     num(ui, "toughness", "Toughness (kN)", "How hard a hit it takes to crack it", t, def.toughness.unwrap_or(t), 10.0..=100_000.0, true);
                 }
@@ -2127,10 +2128,9 @@ impl Sandbox {
             self.endless_reset_origin = self.endless.as_ref().map_or((0, 0), |e| e.origin);
         }
         let t = Instant::now();
-        if self.explorer_play() && self.drill_held && self.sim.world.frame % 3 == 0 {
+        if self.explorer_play() && self.drill_held && self.sim.world.frame % 6 == 0 {
             if let Some(p) = self.sim.physics.actor_status().first().filter(|p| !p.dead) {
-                let (x,y)=(p.x+self.drill_aim.0*13.0,p.y+self.drill_aim.1*13.0);
-                let removed=self.sim.dig_circle(&self.mats,x,y,8.5,8000.0);
+                let removed=self.sim.mining.strike(&mut self.sim.world,&self.mats,(p.x,p.y),self.drill_aim,grave_engine::mining::Drill::default());
                 if let Some(m)=self.sim.mission.as_mut(){m.collect(&removed);}
             }
         }
@@ -3198,8 +3198,15 @@ Click to mute. The volume is in the View menu.")
                 painter.circle_stroke(to_screen(m.home),m.radius*scale,Stroke::new(1.5,Color32::from_rgb(255,205,110)));
                 painter.text(to_screen((m.home.0,m.home.1-m.radius-4.0)),egui::Align2::CENTER_BOTTOM,"RETURN CAMP",egui::FontId::proportional(13.0),Color32::from_rgb(255,205,110));
             }
-            let target=(actor.x+self.drill_aim.0*13.0,actor.y+self.drill_aim.1*13.0);
-            painter.circle_stroke(to_screen(target),8.5*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
+            let hit=grave_engine::mining::surface(&self.sim.world,&self.mats,(actor.x,actor.y),self.drill_aim,19.0);
+            let target=hit.map(|i|((i%self.sim.world.w) as f32,(i/self.sim.world.w) as f32)).unwrap_or((actor.x+self.drill_aim.0*19.0,actor.y+self.drill_aim.1*19.0));
+            painter.circle_stroke(to_screen(target),6.0*scale,Stroke::new(1.0,Color32::from_rgba_unmultiplied(255,205,110,130)));
+            if let Some(i)=hit {
+                let mat=self.mats.get(self.sim.world.mat[i]);let h=grave_engine::mining::hardness(mat);
+                let pct=self.sim.mining.fractures.get(&i).filter(|f|f.material==self.sim.world.mat[i]).map_or(0.0,|f|f.work/h*100.0);
+                let status=if h>3.0 {"TOO HARD — stronger drill needed".into()}else{format!("{} — {:.0}%",if h<0.3 {"soft"}else if h<1.0 {"hard"}else{"very hard"},pct.min(99.0))};
+                painter.text(to_screen((target.0,target.1-10.0)),egui::Align2::CENTER_BOTTOM,format!("{}: {status}",mat.name.replace('_'," ")),egui::FontId::proportional(13.0),if h>3.0 {Color32::from_rgb(255,135,105)}else{Color32::from_rgb(255,220,160)});
+            }
             if self.drill_held {painter.line_segment([to_screen((actor.x,actor.y)),to_screen(target)],Stroke::new(2.0,Color32::from_rgb(255,200,95)));}
             painter.text(outer.center_bottom()-Vec2::new(0.0,12.0),egui::Align2::CENTER_BOTTOM,"Aim + hold click / E: drill   •   Space: fly   •   P: pause   •   Player tools off: edit",egui::FontId::proportional(14.0),Color32::WHITE);
             return;
@@ -4146,8 +4153,8 @@ body rect wood 40 60 20 10
         assert!(matches!(h.state().drag,Drag::None));
         {
             let app=h.state_mut();
-            for _ in 0..4 {app.step_once();}
-            assert_eq!(app.sim.world.mat[app.sim.world.idx(75,92)],AIR);
+            for _ in 0..160 {app.step_once();}
+            assert_eq!(app.sim.world.mat[app.sim.world.idx(73,92)],AIR);
             assert!(matches!(app.selection,Selection::None));
             app.renderer.light(&app.sim);
             grave_engine::headless::shot_with_actors(&app.sim.world,&app.mats,&mut app.renderer,&app.sim.physics.actor_status(),Some((35,62,70,55)),Path::new("shots/editor-play-mining.png"),5,false).unwrap();
@@ -4166,11 +4173,11 @@ body rect wood 40 60 20 10
         let mut h=editor();
         {
             let app=h.state_mut();
-            let (sim,p)=scene::load("size 200 120\nfill air\nrect rock 0 100 200 20\nrect crystal_cyan 72 78 4 20\nrect crystal_violet 78 78 4 20\nplayer 60 100\nmission 20 92 8\nsample crystal_cyan 1 0\nsample crystal_violet 1 0\n",&app.mats,None).into_sim(&app.mats);
+            let (sim,p)=scene::load("size 200 120\nfill air\nrect rock 0 100 200 20\nrect crystal_cyan 72 78 4 20\nrect crystal_violet 78 78 4 20\nanchor 72 78 10 20\nplayer 60 100\nmission 20 92 8\nsample crystal_cyan 1 0\nsample crystal_violet 1 0\n",&app.mats,None).into_sim(&app.mats);
             assert!(p.is_empty());app.sim=sim;app.play();
         }
         h.run_steps(3);let p=at(&h,80.0,92.0);press(&mut h,p,true);
-        {let app=h.state_mut();for _ in 0..8{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().ready());assert!(!app.sim.mission.as_ref().unwrap().complete);}
+        {let app=h.state_mut();for _ in 0..100{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().ready());assert!(!app.sim.mission.as_ref().unwrap().complete);}
         press(&mut h,p,false);
         {let app=h.state_mut();app.drill_held=false;app.sim.physics.set_controls(grave_engine::physics::Controls{walk:-1.0,..Default::default()});for _ in 0..100{app.step_once();}assert!(app.sim.mission.as_ref().unwrap().complete);app.reset();assert!(!app.sim.mission.as_ref().unwrap().ready());assert_eq!(app.sim.mission.as_ref().unwrap().goals[0].collected,0);}
     }

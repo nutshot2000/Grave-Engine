@@ -14,3 +14,5 @@ breaks_into = sand
 friction = 0.8
 texture = textures/sandstone.png  # generated artwork; see textures/CREDITS.md
 texture_blend = 5
+
+mining_hardness = 0.28

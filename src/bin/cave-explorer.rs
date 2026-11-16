@@ -46,7 +46,13 @@ impl App {
             draw.image(tex.id(),Rect::from_min_size(min,Vec2::new(frame.w as f32*cpp*scale,frame.h as f32*cpp*scale)),uv,Color32::WHITE);
         }
         if p.boosting {for i in 0..7{let flicker=((self.game.frames+i*13) as f32*0.7).sin();let x=p.x-p.facing*3.+flicker*0.6;let y=p.y+4.+i as f32*0.9;draw.circle_filled(point(x,y),(2.4-i as f32*0.24)*scale,Color32::from_rgba_unmultiplied(85,210,255,200-i as u8*22));}}
-        if self.game.drilling{let a=point(p.x+self.game.aim.0*5.,p.y+self.game.aim.1*5.);let b=point(p.x+self.game.aim.0*17.,p.y+self.game.aim.1*17.);draw.line_segment([a,b],(1.5,Color32::from_rgb(255,196,90)));for i in 0..8{let t=self.game.frames as f32*0.4+i as f32*2.1;draw.circle_filled(b+Vec2::new(t.cos()*8.,t.sin()*8.),1.5,Color32::from_rgb(255,200,100));}}
+        if let Some(i)=grave_engine::mining::surface(&self.game.sim.world,&self.game.mats,(p.x,p.y),self.game.aim,self.game.tuning.drill_reach) {
+            let b=point((i%self.game.sim.world.w) as f32,(i/self.game.sim.world.w) as f32);
+            if self.game.drilling {draw.line_segment([point(p.x+self.game.aim.0*5.,p.y+self.game.aim.1*5.),b],(1.5,Color32::from_rgb(255,196,90)));}
+            let mat=self.game.mats.get(self.game.sim.world.mat[i]);let h=grave_engine::mining::hardness(mat);
+            let status=if h>3.0 {"stronger drill needed"}else if h<0.3 {"soft"}else if h<1.0 {"hard"}else{"very hard"};
+            draw.text(b-Vec2::new(0.,24.),Align2::CENTER_BOTTOM,format!("{} / {status}",mat.name.replace('_'," ")),FontId::proportional(13.),Color32::from_rgb(255,210,145));
+        }
         let camp=point(self.game.tuning.home.0,self.game.tuning.home.1);draw.circle_stroke(camp,19.*scale,(1.2,Color32::from_rgb(255,196,90)));draw.text(camp-Vec2::new(0.,25.*scale),Align2::CENTER_BOTTOM,"LIFT CAMP",FontId::proportional(14.),Color32::from_rgb(255,210,140));
         self.hud(&draw,rect);
         if self.map&&self.started&&!self.paused&&!self.game.won{self.draw_map(&draw,rect);}

@@ -14,3 +14,5 @@ breaks_into = gravel
 friction = 0.8
 texture = textures/stone.png  # generated artwork; see textures/CREDITS.md
 texture_blend = 5
+
+mining_hardness = 0.8

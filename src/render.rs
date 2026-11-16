@@ -27,6 +27,7 @@ pub struct Renderer {
     /// The lighting to draw with (see light.rs; set it with `light`).
     lighting: crate::light::Lighting,
     lamps: Vec<crate::light::Placed>,
+    mining: crate::mining::Mining,
     illum: Vec<[f32; 3]>,
     sun_scratch: Vec<[f32; 3]>,
     /// Weather being drawn: fog (0..1) and how dusty/tan it is, the lightning
@@ -143,6 +144,7 @@ impl Renderer {
         self.layer_worlds=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|l.world.clone()).collect();
         self.layer_lighting=sim.layers.iter().filter(|l|(l.world.w,l.world.h)==(sim.world.w,sim.world.h)).map(|l|if l.lighting.is_plain() {None} else {Some((l.lighting.clone(),l.lamps()))}).collect();
         self.layer_renderers.resize_with(self.layer_worlds.len(),Renderer::default);
+        self.mining = sim.mining.clone();
         self.lighting = sim.lighting.clone();
         self.lamps = sim.lamps();
         self.backdrop = sim.backdrop.clone();
@@ -479,6 +481,33 @@ impl Renderer {
             }
         }
 
+        // Fracture veins darken progressively without changing the rock's material.
+        if !view.heat {
+            for (&i,f) in &self.mining.fractures {
+                if i>=world.mat.len()||world.mat[i]!=f.material||world.is_owned(i) {continue;}
+                let (x,y)=(i%world.w,i/world.w);
+                if x<ex0||y<ey0||x>=ex0+ew||y>=ey0+eh {continue;}
+                let j=(y-ey0)*ew+x-ex0;let k=(f.work/crate::mining::hardness(mats.get(f.material))).clamp(0.0,1.0);
+                let vein=(x+y/3)%5==0||(x*2+y)%11==0;
+                self.tmp[j]=lerp3(self.tmp[j],if vein {[12.0,12.0,15.0]}else{[175.0,165.0,145.0]},k*if vein {0.85}else{0.12});
+            }
+            // Cosmetic chips and dust: no extra mineable cells or sample rewards.
+            if let Some(hit)=&self.mining.impact {
+                let age=world.frame.saturating_sub(hit.frame);
+                if age<20 {
+                    let t=age as f32/60.0;let col=c3(mats.get(hit.material).color);
+                    for n in 0..if hit.broken {15}else{6} {
+                        let seed=hash(hit.frame.wrapping_add(n*7919));let side=(seed%101) as f32/50.0-1.0;
+                        let speed=12.0+(seed%23) as f32;
+                        let x=(hit.x-hit.aim.0*speed*t-hit.aim.1*side*22.0*t) as isize;
+                        let y=(hit.y-hit.aim.1*speed*t+hit.aim.0*side*22.0*t+45.0*t*t) as isize;
+                        if x<ex0 as isize||y<ey0 as isize||x>=(ex0+ew) as isize||y>=(ey0+eh) as isize {continue;}
+                        let j=(y as usize-ey0)*ew+x as usize-ex0;
+                        self.tmp[j]=lerp3(self.tmp[j],if hit.blocked {[255.0,185.0,95.0]}else{col},(1.0-age as f32/20.0)*0.9);
+                    }
+                }
+            }
+        }
         // Cells flying through the air, drawn on top.
         for f in &world.flying {
             if f.x < ex0 as f32 || f.y < ey0 as f32 || f.x >= (ex0 + ew) as f32 || f.y >= (ey0 + eh) as f32 {

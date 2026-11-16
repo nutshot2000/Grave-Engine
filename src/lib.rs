@@ -42,3 +42,6 @@ pub mod overhead;
 pub mod pump;
 
 pub mod mission;
+
+/// Surface drilling, material resistance and persistent fracture marks.
+pub mod mining;

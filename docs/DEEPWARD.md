@@ -78,8 +78,9 @@ in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
 drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
 Space flies with the explorer loadout, P pauses, and Reset restores the
 pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
-wall does not mine it remotely. Mining uses the same radius/reach and engine
-excavation rule as DEEPWARD, and feeds the scene's crystal mission inventory.
+wall does not mine it remotely. Mining uses the same focused surface drilling and material hardness rules
+as DEEPWARD, and feeds the scene's crystal mission inventory. See the
+[mining trial](MINING-TRIAL.md) for a small cavern designed to test the feel.
 
 Pause to select/paint normally, or turn **Player tools** off to use editor
 tools while simulation continues. Clicks outside the canvas do not mine.

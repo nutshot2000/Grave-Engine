@@ -1,0 +1,18 @@
+# Dense volcanic rock: an expensive shortcut for an ordinary drill.
+about = Dense basalt. Mineable, but much slower than ordinary rock. Try a route around it.
+category = Stone & building
+state = solid
+density = 2900
+color = #525e70
+color_variation = 0.1
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1250
+melts_into = lava
+strength = 30
+toughness = 8500
+breaks_into = gravel
+friction = 0.85
+mining_hardness = 2.2
+sound = stone
+texture = textures/stone.png

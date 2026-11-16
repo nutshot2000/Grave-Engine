@@ -1,0 +1,18 @@
+# A geological barrier: tool grade, rather than physics strength, gates mining.
+about = Deep bedrock. The starter drill cannot cut this; find a passage around it.
+category = Stone & building
+state = solid
+density = 3100
+color = #363f50
+color_variation = 0.12
+conducts_heat = 0.3
+heat_capacity = 1
+melts_at = 1400
+melts_into = lava
+strength = 50
+toughness = 18000
+breaks_into = gravel
+friction = 0.85
+mining_hardness = 8
+sound = stone
+texture = textures/cave_shale.png

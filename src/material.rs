@@ -164,6 +164,8 @@ pub struct Material {
     /// How hard a hit (or how much weight) it takes to crack, in kilonewtons.
     /// `None` = it never cracks.
     pub toughness: Option<f32>,
+    /// Seconds of focused drilling per surface cell; None derives from toughness.
+    pub mining_hardness: Option<f32>,
     /// What cracked cells turn into (stone -> gravel). `None` = it splinters
     /// into small loose pieces instead.
     pub breaks_into: Option<MatId>,
@@ -295,6 +297,7 @@ impl Material {
             slides: 1.0,
             strength: 1.0,
             toughness: None,
+            mining_hardness: None,
             breaks_into: None,
             friction: 0.6,
             coats: None,
@@ -798,6 +801,7 @@ fn apply(
         "flows" => m.flows = num(v)?.clamp(0.0, 16.0) as u8,
         "slides" => m.slides = num(v)?.clamp(0.0, 1.0),
         "strength" => m.strength = num(v)?,
+        "mining_hardness" => m.mining_hardness = opt_num(v)?.map(|t| t.clamp(0.01, 100.0)),
         "toughness" => m.toughness = opt_num(v)?.map(|t| t.max(0.0)),
         "breaks_into" => m.breaks_into = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
         "friction" => m.friction = num(v)?.clamp(0.0, 2.0),

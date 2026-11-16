@@ -476,8 +476,8 @@ Editor mining: `player_tools` defaults on for player scenes. `explorer_play`
 gates the canvas's early player-input branch, bypassing selection/painting/
 notes while playing; the toolbar checkbox restores live editing. Named
 editor.input actions drill/aim_x/aim_y feed a canvas-scoped drill latch and
-world-space aim. `step_once` snapshots before drilling, uses `Sim::dig_circle`
-at 20 Hz, then records the result for rewind; Reset restores original terrain.
+world-space aim. `step_once` snapshots before drilling, uses `Mining::strike`
+at 10 Hz, then records the result for rewind; Reset restores original terrain.
 E's turn shortcut is suppressed in player Play mode. The UI test checks real
 mouse mining without a selection box, Reset and paused selection.
 
@@ -493,3 +493,25 @@ save is touched in editor tests. The cave examples have scene-defined goals.
 Tests: `tests/mission.rs` (save/reset/rewind/undo/shift) and the editor's actual
 mouse-mining/return/reset UI test. Scene-defined goals take precedence over
 the standalone tuning defaults. Avoid separate mission rule implementations.
+
+### Surface drilling / mining trial
+
+Player drills use `src/mining.rs`: `Mining::strike` at 10 Hz, `Drill`
+(radius/reach/power/grade), first-surface ray and at most two exposed layers
+per strike. Hard facings, owned cells and liquids block excavation. Material
+`mining_hardness` is separate from physics toughness; unspecified values
+derive from toughness. Starter grade 3, dirt 0.1, rock 0.7, basalt 2.2, bedrock 8.
+Sparse fractures store actual work and material identity; they are pruned
+when cells change, bounded, shifted and carried in Sim/Snapshot, History,
+Timeline and scene `fracture X Y MATERIAL WORK` lines. Timeline memory counts
+fractures. Renderer captures fractures/last impact through `light(sim)` for
+progressive veins and cosmetic chips; no extra mineable cells. Material
+sound cues come from strikes. Both editor and DEEPWARD use this rule and
+award only its removed-cell counts. `dig_circle` remains instant for other
+tools; do not put it back in the player drill. The editor HUD probes the
+actual surface and shows hardness/work. All values are editable through the
+material inspector. Test scene: `scenes/mining-trial.txt`, launcher
+`Play/Mining-Trial.cmd`, guide `docs/MINING-TRIAL.md`. Tests in
+`tests/mining.rs` cover resistance, shielding, persistence, rendering and
+explorer-sized route clearance; editor tests cover real mouse excavation
+and sample mission completion.

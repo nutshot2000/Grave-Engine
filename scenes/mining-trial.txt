@@ -1,0 +1,84 @@
+# THE CROOKED SEAM — a small mining/traversal experiment, in editor Play.
+# Try: soft sandstone at camp, basalt shortcut to the right, winding upper
+# route around it, cyan shelf, then dig down into the lower violet pocket.
+# Return to the amber camp ring with 16 of each. Reset starts a fresh test.
+# Everything here is normal editable material, lighting and scene geometry.
+size 600 400
+seed 91
+fill bedrock
+rect rock 16 16 568 368
+backwall shale 0 0 600 400
+# Uneven sediment and dense veins separate the route choices.
+poly sandstone 20 160 154 145 167 275 20 292
+poly shale 180 70 370 60 420 210 290 245
+poly basalt 154 176 183 183 194 282 153 286
+poly bedrock 152 286 214 286 249 384 162 384
+poly bedrock 385 180 432 155 460 287 398 298
+poly sandstone 288 272 390 269 403 303 288 310
+# Camp: a flat landing inside a scalloped chamber.
+circle air 83 225 52
+circle air 122 224 37
+rect air 38 226 116 46
+rect rock 38 272 116 8
+# Upper winding route: open passage, two short climbs and resting shelves.
+line air 116 204 113 163 29
+line air 113 163 157 135 30
+line air 157 135 217 130 31
+line air 217 130 250 162 31
+line air 250 162 275 204 31
+circle air 173 129 21
+circle air 227 140 23
+# A soft lip beside the open route: quick practice chips, or simply pass it.
+rect sandstone 99 163 8 4
+# The cyan gallery, beyond the basalt shortcut.
+circle air 235 231 49
+circle air 291 227 50
+circle air 337 241 37
+rect air 185 226 183 46
+rect rock 184 272 148 9
+rect rock 366 272 15 9
+# Interior formations, supported so drilling is the only changing geometry.
+poly rock 281 180 287 206 293 180
+poly shale 310 178 319 213 326 180
+poly rock 295 272 300 252 307 272
+rect shale 278 246 26 5
+rect crystal_cyan 280 236 5 10
+rect crystal_cyan 291 239 4 7
+# Lower pocket: the soft floor cap is the invitation to dig down.
+line air 348 298 348 330 31
+circle air 354 339 37
+circle air 411 337 37
+circle air 461 338 29
+rect air 332 330 141 38
+# The shaft remains capped by sandstone at y=272..283.
+rect air 332 284 33 20
+# Stepping ledges make a return path; fly in short bursts, rest on shelves.
+rect shale 352 307 16 5
+rect shale 327 329 16 5
+poly rock 395 304 400 326 407 301
+poly shale 424 368 432 348 440 368
+rect crystal_violet 450 356 5 12
+rect crystal_violet 461 358 4 10
+# A small blind side pocket to practise choosing a mining direction.
+line air 484 335 524 309 23
+circle air 529 306 17
+rect sandstone 489 318 7 21
+# Pin scenery; chipping still removes anchored cells normally.
+anchor 0 0 600 400
+# Camp equipment and the warm/cool lights mark the route.
+rect steel 48 272 38 3
+rect wood 52 257 2 15
+rect torch_glow 51 252 4 5
+rect wood 217 118 2 12
+rect torch_glow 216 113 4 5
+rect wood 330 258 2 14
+rect torch_glow 329 253 4 5
+lighting 0.42 #bfcee3
+sun off
+light 78 247 84 strength 0.9 color #ffce99
+light 190 139 58 strength 0.65 color #c4d4e9
+light 370 326 60 strength 0.5 color #a6b6da
+player 75 272 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 jet_capacity 1.8 headlamp 110 zoom 4
+mission 75 264 20
+sample crystal_cyan 16 0
+sample crystal_violet 16 0

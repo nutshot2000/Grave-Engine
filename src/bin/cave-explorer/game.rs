@@ -7,7 +7,7 @@ pub const SAVE: &str = "saves/cave-explorer/run.txt";
 pub struct Tuning { pub scene: String, pub home: (f32, f32), pub targets: [usize; 2], pub drill_radius: f32, pub drill_reach: f32, pub view: f32 }
 impl Tuning {
     fn load() -> Self {
-        let mut c = Self { scene: "scenes/cave-expedition.txt".into(), home: (96.,606.), targets: [24,24], drill_radius: 8.5, drill_reach: 13., view: 230. };
+        let mut c = Self { scene: "scenes/cave-expedition.txt".into(), home: (96.,606.), targets: [24,24], drill_radius: 6., drill_reach: 19., view: 230. };
         let text = std::fs::read_to_string("assets/cave-explorer/game.txt").unwrap_or_default();
         for line in text.lines() {
             let w: Vec<_> = line.split('#').next().unwrap_or("").split_whitespace().collect();
@@ -17,8 +17,8 @@ impl Tuning {
                 Some("home") => if let (Some(x),Some(y)) = (n(1),n(2)) { c.home=(x,y); },
                 Some("target_cyan") => c.targets[0] = n(1).unwrap_or(24.).clamp(1.,500.) as usize,
                 Some("target_violet") => c.targets[1] = n(1).unwrap_or(24.).clamp(1.,500.) as usize,
-                Some("drill_radius") => c.drill_radius = n(1).unwrap_or(8.5).clamp(3.,12.),
-                Some("drill_reach") => c.drill_reach = n(1).unwrap_or(13.).clamp(8.,20.),
+                Some("drill_radius") => c.drill_radius = n(1).unwrap_or(6.).clamp(3.,12.),
+                Some("drill_reach") => c.drill_reach = n(1).unwrap_or(19.).clamp(8.,20.),
                 Some("view_width") => c.view = n(1).unwrap_or(230.).clamp(150.,450.),
                 _ => {}
             }
@@ -83,9 +83,9 @@ impl Expedition {
         if aim.0.hypot(aim.1)>0.1 {let d=aim.0.hypot(aim.1);self.aim=(aim.0/d,aim.1/d);}
         self.drilling=drill&&!p.dead;
         self.sim.physics.set_actor_animation_parameter(0,"drilling",self.drilling as u8 as f32);
-        if self.drilling&&self.frames%3==0 {
-            let target=(p.x+self.aim.0*self.tuning.drill_reach,p.y+self.aim.1*self.tuning.drill_reach);
-            let removed=self.sim.dig_circle(&self.mats,target.0,target.1,self.tuning.drill_radius,8000.);
+        if self.drilling&&self.frames%6==0 {
+            let tool=grave_engine::mining::Drill{radius:self.tuning.drill_radius,reach:self.tuning.drill_reach,..Default::default()};
+            let removed=self.sim.mining.strike(&mut self.sim.world,&self.mats,(p.x,p.y),self.aim,tool);
             self.award(removed);
         }
         if self.drilling&&controls.walk.abs()<0.1&&self.aim.0.abs()>0.1{let facing=self.aim.0.signum();self.sim.physics.edit_actor(0,|a|a.facing=facing);}

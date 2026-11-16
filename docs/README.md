@@ -27,6 +27,7 @@ The games and labs open from the [`Play`](../Play) folder.
 
 ## Games and levels (they show what the engine can do, and what it needs next)
 
+- [Mining trial](MINING-TRIAL.md): compare soft ground, hard shortcuts and a winding route in editor Play.
 - [DEEPWARD](DEEPWARD.md): playable cave expedition, explorer, jetpack, drilling, samples, map and saves.
 - [Cave generation](CAVE-GENERATION.md): varied natural passages, landmark rooms, rock textures and endless-map checks.
 
