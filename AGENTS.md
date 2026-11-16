@@ -459,7 +459,7 @@ and "New graph from clip". Workshop "New asset" picks a free name
 
 `Play/Cave-Explorer.cmd` builds `src/bin/cave-explorer.rs`; its mission/save
 rules are in `src/bin/cave-explorer/game.rs`. Scene: `scenes/cave-expedition.txt`;
-tuning: `assets/cave-explorer/game.txt`; controls: `assets/input/cave-explorer.input`.
+tuning: `assets/cave-explorer/game.txt`; controls: `assets/input/cave-explorer.input` (Space jump, S crouch, Shift roll, Q tool, E/B kit; keep `editor.input` in step, minus editor shortcuts like Space/E/Tab).
 Docs: `docs/DEEPWARD.md`. Mine real cyan/violet cells and return to camp.
 Native title/map/pause/save checks and `--verify` cover a complete control-
 driven expedition; keep it a prototype, not a claim of finished balance.

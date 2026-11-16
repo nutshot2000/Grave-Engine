@@ -205,9 +205,9 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             base + Vec2::new(14., 10.),
             if pad {
-                "EQUIPPED  /  F / LB change"
+                "EQUIPPED  /  Q / LB RB change"
             } else {
-                "EQUIPPED  /  F change"
+                "EQUIPPED  /  Q change"
             },
             10.,
             MUTED,
@@ -259,7 +259,7 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
             p,
             stock + Vec2::new(14., 62.),
             if pad {
-                "B / L3  Inventory & workshops"
+                "B / Y  Inventory & workshops"
             } else {
                 "B  Inventory & workshops"
             },
@@ -303,9 +303,9 @@ pub fn hud(p: &egui::Painter, r: Rect, s: &Sim, m: &Materials, c: &Catalog, pad:
         );
     }
     let help = if pad {
-        "A/D / LS Move   SPACE / A Jump   Left mouse / RT Tool   Hold right mouse / LT Rope"
+        "LS Move   A Jump   X Crouch   B Roll   RT Tool   Hold LT Rope   LB/RB Equip   Y Cargo"
     } else {
-        "A/D Move   SPACE Jump   LEFT MOUSE Tool   HOLD RIGHT MOUSE Rope   F Equip   B Cargo   P Pause"
+        "A/D Move   SPACE Jump   S Crouch   SHIFT Roll   LEFT MOUSE Tool   HOLD RIGHT MOUSE Rope   Q Equip   B Cargo"
     };
     let footer = Rect::from_min_max(r.left_bottom() + Vec2::new(0., -29.), r.right_bottom());
     p.rect_filled(footer, 0., Color32::from_rgba_unmultiplied(7, 15, 23, 235));

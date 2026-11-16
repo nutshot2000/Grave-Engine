@@ -18,16 +18,19 @@ Health, swimming, heat, collisions and the material simulation still apply.
 | --- | --- | --- |
 | Walk | A / D, arrows | Left stick / d-pad |
 | Jump / grab / climb | Space / W | A |
+| Crouch / let go of a ledge / drop faster | S / Down | X |
+| Roll | Shift | B |
 | Rope | Hold right mouse; release to let go | Hold LT |
-| Pull up / lower | Scroll wheel while attached | D-pad up/down |
-| Fast descent / release ledge | S / Down | D-pad down |
-| Crouch / roll | C / X | X / B |
+| Pull up / lower on the rope | Scroll wheel | D-pad up/down |
 | Aim drill | Mouse, or I/J/K/L | Right stick |
-| Drill | Hold left click or E | RT |
-| Survey map | M or Tab | Back |
+| Drill | Hold left click | RT |
+| Change tool | Q | LB / RB |
+| Kit, storage and workshops | E or B | Y |
+| Vent gas | V | Right stick click |
+| Survey map | Tab or M | Back |
 | Pause (also saves) | Escape or P | Start |
-| Save | F5 | Y |
-| New expedition (title, paused or won) | R | LB |
+| Save | F5 | (autosaves; pause saves) |
+| New expedition (title, paused or won) | R | Y |
 
 Attach to rock, jump and swing, then reel to reach a shelf. Release the rope
 to keep your momentum. The headlamp follows aim. Every connected crystal patch lights the scene,
@@ -90,8 +93,8 @@ Human playtesting is still needed for control feel and balance.
 
 Open any scene with a player and press Play. Leave **Player tools** checked
 in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
-drill; I/J/K/L or the controller right stick can aim too, with RT drilling.
-Hold right mouse for the rope; scroll changes its length, P pauses, and Reset restores the
+drill (the editor also keeps E); I/J/K/L or the controller right stick can aim too, with RT drilling.
+Hold right mouse for the rope; scroll changes its length, S crouches, Shift rolls, Q changes tool, P pauses, and Reset restores the
 pre-play terrain. The cutter reaches three metres. Highlighted pixels show the
 exposed material under the crosshair. Holding fire with no target shows “No reachable rock”. Mining uses the same focused surface drilling and material hardness rules
 as DEEPWARD, and feeds the scene's crystal mission inventory.
@@ -124,7 +127,7 @@ checking **Crystal mission** adds the two default goals at the player's spawn.
 
 ## Materials, tools and workshops
 
-B opens [storage and workshops](CAVE-WORKSHOPS.md); F cycles built tools.
+E or B opens [storage and workshops](CAVE-WORKSHOPS.md); Q cycles built tools.
 The same inventory, crafting and material-tool rules work in editor Play.
 Every drilled terrain cell is stored under its material. Crafting and ammo
 spend the recorded quantities, and spending crystals lowers carried mission

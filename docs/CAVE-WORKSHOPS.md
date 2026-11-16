@@ -39,7 +39,7 @@ Y crafts the selected recipe; LB cycles owned tools. Mouse buttons work too.
    and becomes water when it dissolves a cell or meets water. Acid contact
    hurts characters; fire and hot surroundings can burn you.
 
-**F cycles tools.** Aim and hold click/E to use the selected tool; hold right mouse
+**Q (or F) cycles tools.** Aim and hold left click to use the selected tool; hold right mouse
 for the rope, scroll to change its length and release to let go. Space jumps/climbs and P pauses. The HUD names your tool and shows its
 remaining ammunition. B lists every stored material and its exact count.
 

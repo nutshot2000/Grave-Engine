@@ -1,29 +1,33 @@
-# Keyboard / mouse and controller controls. The right stick aims the drill.
+# DEEPWARD controls: keyboard / mouse and controller. Edit freely; every
+# name is listed at the top of src/input.rs. The right stick aims the drill.
 walk = keys D A, keys ArrowRight ArrowLeft, stick LeftX, pads Right Left
-jump = key W, key ArrowUp, pad A
-thrust = key Space, pad A
-drop = key S, key ArrowDown, pad Down
-crouch = key C, pad X
-roll = key X, pad B
-drill = mouse Primary, key E, pad RT
+jump = key Space, key W, key ArrowUp, pad A
+thrust = key Space, key W, pad A
+rope_jump = key Space, key W, pad A
+# S crouches on the ground, lets go of a ledge, and drops faster in the air.
+crouch = key S, key ArrowDown, key C, pad X
+drop = key S, key ArrowDown, pad X
+roll = key Shift, key X, pad B
+
+drill = mouse Primary, pad RT
 aim_x = keys L J, stick RightX
 aim_y = keys K I, stick RightY
-map = key M, key Tab, pad Back
+# Hold right mouse / LT to attach; release to let go. The wheel (d-pad on a
+# controller) winds the rope in and out while attached.
+grapple = mouse Secondary, pad LT
+reel = pads Up Down
+vent = key V, pad RStick
+
+# Tools, storage and workshops (the world pauses while the kit is open).
+tool_next = key Q, key F, pad LB, pad RB
+storage = key E, key B, pad Y
+recipe_next = key ArrowDown, key S, pad Down
+recipe_prev = key ArrowUp, key W, pad Up
+craft = key Enter, pad A
+
+map = key Tab, key M, pad Back
 pause = key Escape, key P, pad Start
 start = key Enter, pad A
-save = key F5, pad Y
-restart = key R, pad LB
-
-# Material storage and cave workshop controls.
-storage = key B, pad LStick
-tool_next = key F, pad LB
-recipe_next = key ArrowDown, pad Down
-recipe_prev = key ArrowUp, pad Up
-craft = key Enter, pad Y
-
-# Hold right mouse to attach; release to let go. Wheel winds rope while held.
-grapple = mouse Secondary, key Q, pad LT
-reel = keys ArrowUp ArrowDown, pads Up Down
-vent = key V, pad RB
-
-rope_jump = key Space, pad A
+save = key F5
+# New expedition: only on the title, pause or finish screen.
+restart = key R, pad Y

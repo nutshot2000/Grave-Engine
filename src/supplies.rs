@@ -499,7 +499,7 @@ impl Panel {
                 ui.separator();
                 if !self.message.is_empty(){ui.colored_label(Color32::from_rgb(255,210,130),&self.message);}
                 for problem in &cat.problems {ui.colored_label(Color32::LIGHT_RED,problem);}
-                ui.small("↑/↓ / D-pad: recipe    Enter / Y: craft    F / LB: change equipped tool");
+                ui.small("W/S / D-pad: recipe    Enter / A: craft    Q / LB RB: change equipped tool");
             });
         self.open = open;
         self.craft_pressed = false;

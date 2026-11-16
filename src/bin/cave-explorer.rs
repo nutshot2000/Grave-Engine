@@ -62,8 +62,9 @@ impl App {
             let label=if self.game.won{"EXPEDITION COMPLETE"}else if self.paused{"EXPEDITION PAUSED"}else{"A CAVE EXPEDITION"};
             draw.text(center-Vec2::new(0.,65.),Align2::CENTER_CENTER,label,FontId::proportional(18.),Color32::from_rgb(102,218,209));
             draw.text(center,Align2::CENTER_CENTER,"Recover cyan and violet crystal samples.\nBring both back to the lift. Make your own route.",FontId::proportional(19.),Color32::from_rgb(220,223,225));
-            draw.text(center+Vec2::new(0.,90.),Align2::CENTER_CENTER,"A/D move   SPACE jump   Hold right mouse: rope
-Scroll while attached to climb/lower; release right mouse to let go\nMouse aim + hold click / E to drill   C crouch\nM map   F5 save   ESC pause   R new expedition",FontId::proportional(16.),Color32::from_rgb(180,191,204));
+            draw.text(center+Vec2::new(0.,90.),Align2::CENTER_CENTER,"A/D move   SPACE jump   S crouch   SHIFT roll   Hold right mouse: rope (wheel: in/out)
+Mouse aim + hold left click to drill   Q change tool   E / B kit & workshops
+TAB map   ESC pause (saves)   R new expedition (from this screen)",FontId::proportional(16.),Color32::from_rgb(180,191,204));
             if !self.game.won{draw.text(center+Vec2::new(0.,170.),Align2::CENTER_CENTER,"ENTER / controller A to continue",FontId::proportional(20.),Color32::from_rgb(255,205,116));}
         }
     }
