@@ -180,3 +180,13 @@ fn file_save_reload_works_for_ai_edits() {
     assert_eq!(a, b);
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn empty_and_reordered_layers_keep_their_depth_on_save() {
+    let m = mats();
+    let mut a = sample(&m);
+    a.add_layer("middle").unwrap();
+    let back = a.add_layer("back").unwrap();
+    a.parts.iter_mut().for_each(|p| p.layer = back);
+    assert_eq!(Asset::parse(&a.to_text(&m), &m).unwrap(), a);
+}

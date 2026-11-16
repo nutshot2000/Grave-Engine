@@ -20,35 +20,48 @@ fn run()->Result<(),String>{
     }
     if frames>36000 || !min_turns.is_finite() || min_turns<0. {return Err("Use at most 36000 frames and a finite nonnegative turn count".into());}
     let mats=Materials::load_dir("materials");
+    if !mats.problems.is_empty() { return Err(mats.problems.join("\n")); }
     let asset=Asset::load_file(Path::new(&file),&mats)?;
     let mut issues=asset.validate(&mats);
+    if Asset::parse(&asset.to_text(&mats), &mats)? != asset {
+        issues.push("Asset data changed on save and reload".into());
+    }
     println!("ASSET {}: {} named parts, {} welds, {} moving joints",asset.name,asset.parts.len(),asset.welds.len(),asset.joints.len());
     for issue in &issues {println!("CHECK: {issue}");}
     let floor=asset.h+50;let width=(asset.w+100).max(240);
     let mut sim=Sim::empty(width,floor+30,&mats);
     let stone=mats.id("stone").ok_or("stone material missing")?;
     for y in floor..sim.world.h{for x in 0..width{sim.world.set(&mats,x,y,stone);}}
-    let ids=asset.instantiate(&mut sim,&mats,width as f32/2.,floor as f32-1.)?;
-    let before=sim.physics.body_count();
-    let mut angles:BTreeMap<String,(u64,f32,f32)>=ids.iter().filter_map(|(name,id)|Some((name.clone(),(*id,sim.physics.pose_of(*id)?.2,0.)))).collect();
+    asset.instantiate(&mut sim,&mats,width as f32/2.,asset.pivot_on_floor(floor as f32-1.))?;
+    let mut angles = BTreeMap::new();
+    for z in 0..asset.layers.len() {
+        let physics = &grave_engine::assemblies::plane(&sim, z).physics;
+        let names = asset.parts.iter().filter(|p| p.layer == z && p.cells.iter().any(|&c| c != grave_engine::material::AIR));
+        // This is a fresh test bay. Bodies are added in the part order of each plane.
+        for (part, id) in names.zip(physics.ids()) {
+            let (_, _, angle) = physics.pose_of(id).ok_or("missing initial part pose")?;
+            angles.insert(part.name.clone(), (z, id, angle, 0.0_f32));
+        }
+    }
+    let before = angles.len();
     if let Some(name)=&motion {if !angles.contains_key(name){return Err(format!("no part named {name}"));}if frames<180{return Err("Motion review needs at least 180 frames".into());}}
     for _ in 0..frames{
         sim.step(&mats);
-        for (_, (id,last,total))in &mut angles{
-            if let Some((_,_,angle))=sim.physics.pose_of(*id){let delta=angle-*last;*total+=delta.sin().atan2(delta.cos());*last=angle;}
+        for (z,id,last,total) in angles.values_mut() {
+            if let Some((_,_,angle))=grave_engine::assemblies::plane(&sim,*z).physics.pose_of(*id){let delta=angle-*last;*total+=delta.sin().atan2(delta.cos());*last=angle;}
         }
     }
-    for(name,(id,_,angle))in &angles{
-        match sim.physics.pose_of(*id){
+    for(name,(z,id,_,angle))in &angles{
+        match grave_engine::assemblies::plane(&sim,*z).physics.pose_of(*id){
             Some((x,y,_))=>println!("PART {name}: at {x:.1},{y:.1}; net turns {:.3}",angle.abs()/std::f32::consts::TAU),
             None=>issues.push(format!("{name} did not remain intact during the motion review")),
         }
     }
     if let Some(name)=motion{
-        let turns=angles[&name].2.abs()/std::f32::consts::TAU;
+        let turns=angles[&name].3.abs()/std::f32::consts::TAU;
         if turns<min_turns{issues.push(format!("{name} turned {turns:.3} times; expected at least {min_turns}. Check full-sweep clearance and motor strength."));}
     }
-    println!("SIMULATION: {frames} frames; {before} bodies initially, {} now",sim.physics.body_count());
+    println!("SIMULATION: {frames} frames; {before} bodies initially, {} now",sim.physics.body_count() + sim.layers.iter().map(|l| l.physics.body_count()).sum::<usize>());
     if let Some(path)=shot{
         if let Some(dir)=path.parent(){std::fs::create_dir_all(dir).map_err(|e|e.to_string())?;}
         let mut renderer=Renderer::default();renderer.light(&sim);

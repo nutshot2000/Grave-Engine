@@ -237,21 +237,8 @@ impl Workshop {
             &mut sim,
             mats,
             (if impact { 85. } else { 120. }) + self.asset.pivot.0 - self.asset.w as f32 / 2.,
-            (if self.asset.h > 80 {
-                let last = self
-                    .asset
-                    .parts
-                    .iter()
-                    .flat_map(|p| p.cells.iter().enumerate())
-                    .filter(|(_, m)| **m != AIR)
-                    .map(|(i, _)| i / self.asset.w)
-                    .max()
-                    .unwrap_or(self.asset.h - 1);
-                159. - (last + 1) as f32 + self.asset.h as f32 / 2.
-            } else {
-                65.
-            }) + self.asset.pivot.1
-                - self.asset.h as f32 / 2.,
+            if self.asset.h > 80 { self.asset.pivot_on_floor(159.) }
+            else { 65. + self.asset.pivot.1 - self.asset.h as f32 / 2. },
         ) {
             Ok(parts) => {
                 if impact {
@@ -295,8 +282,8 @@ impl Workshop {
                         self.message = "This asset changed on disk. Save to keep your version, or Reload from disk to see the new one.".into();
                         self.disk = Some((path, now));
                     } else {
+                        self.disk = Some((path.clone(), now));
                         self.load(&path, mats);
-                        self.message = format!("{} changed on disk: updated live", path.display());
                     }
                 }
             }

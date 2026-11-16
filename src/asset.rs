@@ -626,6 +626,13 @@ impl Asset {
         }
         out
     }
+    /// Placement height that rests the lowest occupied row on top of a floor.
+    pub fn pivot_on_floor(&self, floor_y: f32) -> f32 {
+        let bottom = self.parts.iter().flat_map(|p| p.cells.iter().enumerate())
+            .filter(|(_, m)| **m != AIR).map(|(i, _)| i / self.w + 1).max().unwrap_or(self.h);
+        floor_y + self.pivot.1 - bottom as f32
+    }
+
     pub fn bodies(&self, mats: &Materials, x: f32, y: f32) -> Vec<(String, BodySpec)> {
         self.parts
             .iter()
@@ -759,6 +766,10 @@ impl Asset {
         let legend: BTreeMap<_, _> = used.into_iter().zip(chars).collect();
         for (m, ch) in &legend {
             out.push_str(&format!("legend {ch} {}\n", mats.get(*m).name));
+        }
+        // Declare the stack before the parts, including empty or reordered layers.
+        for layer in self.layers.iter().skip(1) {
+            out.push_str(&format!("layer {layer}\n"));
         }
         for p in &self.parts {
             if self.layers.len() > 1 {
