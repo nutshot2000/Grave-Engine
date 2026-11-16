@@ -32,7 +32,8 @@ fn run()->Result<(),String>{
     let mut sim=Sim::empty(width,floor+30,&mats);
     let stone=mats.id("stone").ok_or("stone material missing")?;
     for y in floor..sim.world.h{for x in 0..width{sim.world.set(&mats,x,y,stone);}}
-    asset.instantiate(&mut sim,&mats,width as f32/2.,asset.pivot_on_floor(floor as f32-1.))?;
+    let pivot_x = (width - asset.w) as f32 / 2. + asset.pivot.0;
+    asset.instantiate(&mut sim,&mats,pivot_x,asset.pivot_on_floor(floor as f32-1.))?;
     let mut angles = BTreeMap::new();
     for z in 0..asset.layers.len() {
         let physics = &grave_engine::assemblies::plane(&sim, z).physics;
@@ -61,7 +62,9 @@ fn run()->Result<(),String>{
         let turns=angles[&name].3.abs()/std::f32::consts::TAU;
         if turns<min_turns{issues.push(format!("{name} turned {turns:.3} times; expected at least {min_turns}. Check full-sweep clearance and motor strength."));}
     }
-    println!("SIMULATION: {frames} frames; {before} bodies initially, {} now",sim.physics.body_count() + sim.layers.iter().map(|l| l.physics.body_count()).sum::<usize>());
+    let after = sim.physics.body_count() + sim.layers.iter().map(|l| l.physics.body_count()).sum::<usize>();
+    println!("SIMULATION: {frames} frames; {before} bodies initially, {after} now");
+    if after != before { issues.push(format!("Body count changed from {before} to {after} during the stability check")); }
     if let Some(path)=shot{
         if let Some(dir)=path.parent(){std::fs::create_dir_all(dir).map_err(|e|e.to_string())?;}
         let mut renderer=Renderer::default();renderer.light(&sim);
