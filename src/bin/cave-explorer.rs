@@ -112,6 +112,10 @@ fn verify() -> bool {
     // (controls, mining, return) with small quotas. The full quotas send a
     // player out into the cave, which needs a human playtest.
     if let Some(m) = game.sim.mission.as_mut() { for g in &mut m.goals { g.target = g.target.min(24); } }
+    // It mines the guarded violet without fighting back, so a few unlucky
+    // bites decided pass or fail. Guard fights are covered by the creature
+    // tests; here the suit is tougher so the run checks the loop itself.
+    game.sim.physics.edit_actor(0, |a| a.health = 300.0);
     let mut last_x = game.player().x;
     let mut stalled = 0;
     let mut last_hook = -100_i32;
