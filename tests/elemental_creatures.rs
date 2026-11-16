@@ -234,3 +234,39 @@ fn creatures_seek_burrow_to_and_feed_on_their_element() {
     let (before, after, burst, x) = run("rect stone 140 20 24 90\n");
     assert!(after >= before - 2 && burst == 80 && x < 140.0, "stone stops it: drank {}, burst {burst}, at x {x}", before - after);
 }
+
+/// The newer creatures: a crystal mite eats crystals and bursts them back
+/// out when killed; a gravel worm tunnels through shale leaving gravel; an
+/// ember beetle drops sparks as it runs to gas.
+#[test]
+fn mites_worms_and_beetles_do_their_thing() {
+    let m = grave_engine::Materials::load_dir("materials");
+    let count = |s: &grave_engine::Sim, name: &str| { let id = m.id(name).unwrap(); s.world.mat.iter().filter(|&&c| c == id).count() };
+    let load = |extra: &str| {
+        let text = format!("size 320 140\nfill air\nrect stone 0 110 320 30\nrect stone 0 0 320 20\n{extra}");
+        let (s, problems) = grave_engine::scene::load(&text, &m, None).into_sim(&m);
+        assert!(problems.is_empty(), "{problems:?}");
+        s
+    };
+    // Mite.
+    let mut s = load("rect crystal_cyan 170 96 8 14\nanchor 170 96 8 14\ncreature mite 110 110 element crystal_cyan burst 20\n");
+    let crystals = count(&s, "crystal_cyan");
+    for _ in 0..1200 { s.step(&m); }
+    let left = count(&s, "crystal_cyan");
+    let i = s.physics.actor_status().iter().position(|a| a.creature.is_some()).unwrap();
+    let burst = s.physics.actor_status()[i].creature.as_ref().unwrap().burst;
+    assert!(left < crystals && burst as usize > 20, "the mite ate crystals: {crystals} -> {left}, burst {burst}");
+    s.physics.damage_actor(i, 999.0, "test");
+    for _ in 0..120 { s.step(&m); }
+    let back = count(&s, "crystal_cyan");
+    assert!(back > left + 10, "killing it bursts the crystals back out: {left} -> {back}");
+    // Worm.
+    let mut s = load("rect shale 140 20 30 90\nrect sandstone 200 60 30 50\ncreature worm 100 110 element gravel\n");
+    for _ in 0..1500 { s.step(&m); }
+    assert!(count(&s, "gravel") > 10, "the worm left gravel behind: {}", count(&s, "gravel"));
+    // Beetle.
+    let mut s = load("rect volatile_gas 220 60 30 20\ncreature beetle 100 110 element ember\n");
+    let mut sparks = 0;
+    for _ in 0..600 { s.step(&m); sparks = sparks.max(count(&s, "ember") + count(&s, "fire")); }
+    assert!(sparks > 0, "the beetle dropped sparks");
+}

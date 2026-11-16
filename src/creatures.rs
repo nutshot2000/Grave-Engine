@@ -215,6 +215,10 @@ fn food_of(element: Option<&str>, m: &Materials) -> Vec<crate::material::MatId> 
         Some("fire") => &["fire", "lava", "ember", "torch_glow"],
         Some("lava") => &["lava", "fire", "ember"],
         Some("acid") => &["acid"],
+        Some("crystal_cyan") | Some("crystal_violet") => &["crystal_cyan", "crystal_violet"],
+        Some("volatile_gas") => &["volatile_gas"],
+        Some("gravel") => &["shale", "sandstone", "dirt"],
+        Some("ember") => &["volatile_gas", "oil"],
         _ => &[],
     };
     names.iter().filter_map(|n| m.id(n)).collect()
@@ -276,13 +280,14 @@ fn feed(w: &mut World, m: &Materials, p: (f32, f32), food: &[crate::material::Ma
 /// Chew a hole a little way towards `to`: soft ground (up to `CHEW`) only,
 /// never crystals, objects or characters. Some of it falls as dust. How
 /// many cells were chewed, or None when only too-hard ground is in the way.
-fn burrow(w: &mut World, m: &Materials, from: (f32, f32), to: (f32, f32)) -> Option<usize> {
+fn burrow(w: &mut World, m: &Materials, from: (f32, f32), to: (f32, f32), element: Option<&str>) -> Option<usize> {
     let d = distance(from, to).max(0.001);
     let dir = ((to.0 - from.0) / d, (to.1 - from.1) / d);
     // Ahead of the body, never under its feet (pulling the ground out from
     // under a creature flings it about).
     let (cx, cy) = (from.0 + dir.0 * 10.0, from.1 + dir.1 * 10.0);
-    let dust = m.id("dust");
+    // Gravel worms leave a trail of gravel; the rest a little dust.
+    let (rubble_mat, every) = if element == Some("gravel") { (m.id("gravel"), 3) } else { (m.id("dust"), 6) };
     let mut dug = 0;
     let mut hard = false;
     for dy in -5i32..=5 {
@@ -304,7 +309,7 @@ fn burrow(w: &mut World, m: &Materials, from: (f32, f32), to: (f32, f32)) -> Opt
                 hard = true;
                 continue;
             }
-            let rubble = if dug % 6 == 0 { dust.unwrap_or(crate::material::AIR) } else { crate::material::AIR };
+            let rubble = if dug % every == 0 { rubble_mat.unwrap_or(crate::material::AIR) } else { crate::material::AIR };
             w.set(m, x as usize, y as usize, rubble);
             dug += 1;
         }
@@ -644,7 +649,7 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                     } else if c.stuck > 40 {
                         c.mood = Mood::Burrow;
                         if w.frame % 8 == i as u32 % 8 {
-                            match burrow(w, m, p, f) {
+                            match burrow(w, m, p, f, c.element.as_deref()) {
                                 // Chewed some: crawl into the hole.
                                 Some(n) if n > 0 => {
                                     c.stuck = 28;
@@ -709,6 +714,15 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                     loud: 0.65,
                     size: 5.,
                 });
+            }
+        }
+        // Ember beetles drop sparks as they run (they set off gas).
+        if walk != 0.0 && c.element.as_deref() == Some("ember") && w.frame % 25 == i as u32 % 25 {
+            if let Some(ember) = m.id("ember") {
+                let (x, y) = ((p.0 - a.facing * 7.0) as i32, (p.1 + 2.0) as i32);
+                if w.in_bounds(x, y) && w.mat[w.idx(x as usize, y as usize)] == crate::material::AIR {
+                    w.set(m, x as usize, y as usize, ember);
+                }
             }
         }
         let controls = Controls {
@@ -850,6 +864,7 @@ pub fn scatter(world: &crate::World, mats: &crate::Materials, amount: f32, seed:
         (v & 0xFFFF) as f32 / 65535.0
     };
     let (water, gas, oil, lava) = (mats.id("water"), mats.id("volatile_gas"), mats.id("oil"), mats.id("lava"));
+    let (cyan, violet) = (mats.id("crystal_cyan"), mats.id("crystal_violet"));
     let spacing = 64;
     let mut out = Vec::new();
     for j in 0..h / spacing + 1 {
@@ -857,8 +872,11 @@ pub fn scatter(world: &crate::World, mats: &crate::Materials, amount: f32, seed:
             if out.len() >= max || roll(i, j, 0) > amount.clamp(0.0, 1.0) * 0.7 {
                 continue;
             }
-            let shell = roll(i, j, 1) < 0.35;
-            let tall = if shell { 18 } else { 12 };
+            // Which creature: mostly skitters and shellbacks, with worms,
+            // beetles, mites and bloaters among them.
+            let kind = roll(i, j, 1);
+            let species = if kind < 0.38 { "skitter" } else if kind < 0.58 { "shellback" } else if kind < 0.72 { "worm" } else if kind < 0.84 { "beetle" } else if kind < 0.94 { "mite" } else { "bloater" };
+            let tall = match species { "shellback" | "bloater" => 18, _ => 12 };
             // A few tries in this patch: down to a floor (open cell, solid
             // ground under it) with footing and room to stand.
             let found = (0..8u32).find_map(|k| {
@@ -880,7 +898,22 @@ pub fn scatter(world: &crate::World, mats: &crate::Materials, amount: f32, seed:
             };
             let deep = y as f32 > h as f32 * 0.65;
             let pick = roll(i, j, 4);
-            let element = if near(water) > 6 {
+            // Mites gather at crystals; the rest suit the place.
+            let crystals = (near(cyan), near(violet));
+            let (species, element) = if crystals.0 + crystals.1 > 3 && kind < 0.84 {
+                ("mite", if crystals.0 >= crystals.1 { "crystal_cyan" } else { "crystal_violet" })
+            } else {
+                (species, match species {
+                    "mite" => if pick < 0.5 { "crystal_cyan" } else { "crystal_violet" },
+                    "bloater" => "volatile_gas",
+                    "worm" => "gravel",
+                    "beetle" => "ember",
+                    _ => "",
+                })
+            };
+            let element = if !element.is_empty() {
+                element
+            } else if near(water) > 6 {
                 "water"
             } else if near(gas) + near(oil) > 6 {
                 "oil"
@@ -889,7 +922,8 @@ pub fn scatter(world: &crate::World, mats: &crate::Materials, amount: f32, seed:
             } else {
                 ["fire", "oil", "water", "fire", "acid", "oil"][(pick * 6.0) as usize % 6]
             };
-            out.push(Spawn { species: if shell { "shellback" } else { "skitter" }.into(), x: x as f32, feet: (y + 1) as f32, element, burst: if shell { 110 } else { 80 } });
+            let burst = match species { "shellback" => 110, "bloater" => 160, "mite" => 20, "worm" => 90, "beetle" => 50, _ => 80 };
+            out.push(Spawn { species: species.into(), x: x as f32, feet: (y + 1) as f32, element, burst });
         }
     }
     out

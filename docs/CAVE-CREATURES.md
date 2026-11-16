@@ -108,3 +108,18 @@ drains a pool, and a fire bug that ate a torch dies in a bigger fireball.
 Player hunting still comes first. Creatures far from the player rest, so
 this only happens near you. Test:
 `creatures_seek_burrow_to_and_feed_on_their_element`.
+
+## More species
+
+`assets/creatures/cave.creatures` also has (element in brackets):
+
+| Species | Eats | On death | Notes |
+| --- | --- | --- | --- |
+| Crystal mite (`crystal_cyan` / `crystal_violet`) | cyan and violet crystals | bursts out the crystals it ate (mine them for samples) | small and quick; competes for your quota |
+| Gas bloater (`volatile_gas`) | volatile gas | a cloud of gas | big and slow; kill it near fire and it explodes |
+| Gravel worm (`gravel`) | shale, sandstone, dirt | gravel | tunnels through soft rock leaving gravel |
+| Ember beetle (`ember`) | gas and oil | embers | drops sparks while running, setting off gas |
+
+`creatures AMOUNT` mixes them in: about 38% skitters, 20% shellbacks, 14%
+worms, 12% beetles, 10% mites, 6% bloaters, and mites wherever crystals are
+near. Test: `mites_worms_and_beetles_do_their_thing`.

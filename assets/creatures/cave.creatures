@@ -1,3 +1,11 @@
 # kind | name | health | speed m/s | sight cells | hearing | leash | bite damage | windup frames | recovery frames | hazard avoidance | shell RGB | body height
 skitter | Cave skitter | 36 | 3.0 | 65 | 95 | 65 | 8 | 24 | 66 | 23 | #c68a4b | 9
 shellback | Crystal shellback | 95 | 1.5 | 55 | 75 | 48 | 17 | 38 | 100 | 15 | #638e86 | 12
+# Eats crystals (cyan/violet element: bursts out what it ate when killed).
+mite | Crystal mite | 22 | 3.4 | 50 | 80 | 60 | 5 | 20 | 50 | 25 | #b9a7ff | 8
+# Swollen with volatile gas: kill it near fire and it goes up.
+bloater | Gas bloater | 60 | 0.9 | 45 | 60 | 50 | 6 | 40 | 90 | 10 | #9baf65 | 14
+# Tunnels through soft rock, leaving gravel behind.
+worm | Gravel worm | 70 | 1.2 | 40 | 90 | 80 | 12 | 34 | 80 | 20 | #8a7a66 | 9
+# Hunts gas and oil and drops sparks as it runs.
+beetle | Ember beetle | 28 | 3.2 | 60 | 85 | 70 | 7 | 22 | 60 | 30 | #e0702a | 9
