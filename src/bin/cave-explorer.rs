@@ -106,20 +106,71 @@ impl eframe::App for App{
 }
 impl Drop for App{fn drop(&mut self){if self.started{self.game.save();}}}
 
-fn verify()->bool{
-    let mut g=Expedition::new(false);let mut recharge=false;let mut max_distance=0.0f32;
-    g.shot(Path::new("shots/deepward-start.png"),false);
-    for step in 0..24000{
-        if g.won{break;}let p=g.player();let Some(target)=g.signal else{break;};let (dx,dy)=(target.0-p.x,target.1-p.y);
-        let fuel=p.jet_fuel.map_or(6.,|f|f.0);if fuel<0.12{recharge=true;}if fuel>2.5{recharge=false;}
-        let thrust=dy < -3. && !recharge;
-        let controls=Controls{walk:(dx/22.).clamp(-1.,1.),thrust,drop:dy>18.,..Default::default()};
-        g.step(controls,true,(dx,dy));max_distance=max_distance.max(g.home_distance());
-        if step%600==0{println!("frame={step} player=({:.1},{:.1}) target=({:.1},{:.1}) fuel={fuel:.1} samples={:?} health={}",p.x,p.y,target.0,target.1,g.samples,p.health);}
-        if step==180||step==420||step==900||step==2400{g.shot(Path::new(&format!("shots/deepward-route-{step}.png")),false);}
+fn verify() -> bool {
+    let mut game = Expedition::new(false);
+    let mut last_x = game.player().x;
+    let mut stalled = 0;
+    let mut last_hook = -100_i32;
+    let mut catches = 0;
+    let mut last_gain = 0;
+    let mut deaths = 0;
+    let mut respawn_finish = false;
+    let mut max_distance = 0.0_f32;
+    game.shot(Path::new("shots/deepward-start.png"), false);
+    for step in 0..6000 {
+        if game.won { break; }
+        let Some(target) = game.signal else { break; };
+        let p = game.player();
+        let shoulder = grave_engine::tool_pose::shoulder(&p);
+        let dx = target.0 - shoulder.0;
+        let dy = target.1 - shoulder.1;
+        let near_sample = !game.ready() && dx.hypot(dy) < 28.;
+        // A guard or ledge can block the face even inside drill range. Change angle
+        // if sustained work yields nothing, especially while guarding the violet seam.
+        let change_angle = near_sample && step - last_gain > 65;
+        let lift_gap = game.ready() && (198.0..260.).contains(&p.x);
+        let below_lift = game.ready() && p.x < 211. && p.y > game.tuning.home.1 + 5.;
+        let walk = if below_lift { 1. } else if near_sample && !change_angle { 0. } else { (dx / 8.).clamp(-1., 1.) };
+        if walk.abs() > 0.3 && (p.x - last_x).abs() < 0.12 { stalled += 1; } else { stalled = 0; }
+        last_x = p.x;
+        let guard_ahead = game.sim.physics.actor_status().iter().any(|a| {
+            let ahead = (a.x - p.x) * walk.signum();
+            a.creature.is_some() && !a.dead && (0.0..40.).contains(&ahead) && (a.y - p.y).abs() < 22.
+        });
+        let launch = !near_sample && step - last_hook > 55 && (stalled > 8 || guard_ahead || lift_gap);
+        if launch { last_hook = step; }
+        let rope_aim = (if lift_gap { -0.4 } else { walk.signum() * 0.8 }, -1.);
+        let held = step - last_hook < 35 && !near_sample;
+        game.sim.physics.hold_grapple(&game.sim.world, &game.mats, rope_aim, held, launch);
+        if launch && game.player().rope.is_some_and(|r| !r.pins.is_empty()) { catches += 1; }
+        if held { game.sim.physics.wind_rope(0.9); }
+        let jump = launch || ((stalled > 4 || change_angle || p.hanging) && step % 16 == 0);
+        let aim = if near_sample || dx.abs() < 18. {
+            (dx, dy)
+        } else {
+            // Work the passage at foot height when a low obstacle blocks walking.
+            (dx.signum(), if stalled > 4 { 0.9 } else { 0.15 })
+        };
+        let samples_before = game.samples;
+        game.step(Controls { walk, jump, ..Default::default() }, !launch && (!game.ready() || (stalled > 8 && !below_lift && !lift_gap)), if launch { rope_aim } else { aim });
+        let after = game.player();
+        if !p.dead && after.dead { deaths += 1; }
+        if game.won { respawn_finish = p.dead; }
+        if samples_before != game.samples || !near_sample { last_gain = step; }
+        max_distance = max_distance.max(game.home_distance());
+        if step % 300 == 0 {
+            println!("frame={step} position=({:.1},{:.1}) target={target:?} samples={:?} health={:.0}",
+                     p.x, p.y, game.samples, p.health);
+        }
+        if matches!(step, 180 | 420 | 900 | 2400) {
+            game.shot(Path::new(&format!("shots/deepward-route-{step}.png")), false);
+        }
     }
-    g.shot(Path::new("shots/deepward-finish.png"),false);g.shot(Path::new("shots/deepward-map.png"),true);
-    println!("EXPEDITION won={} samples={:?} distance={max_distance:.1} cells mined={}",g.won,g.samples,g.mined);g.won
+    game.shot(Path::new("shots/deepward-finish.png"), false);
+    game.shot(Path::new("shots/deepward-map.png"), true);
+    println!("EXPEDITION won={} samples={:?} distance={max_distance:.1} hook catches={catches} deaths={deaths} finished_on_respawn={respawn_finish} cells mined={}",
+             game.won, game.samples, game.mined);
+    game.won && !respawn_finish
 }
 fn main()->eframe::Result{
     std::env::set_current_dir(env!("CARGO_MANIFEST_DIR")).expect("project directory");

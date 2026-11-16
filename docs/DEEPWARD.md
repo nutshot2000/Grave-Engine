@@ -72,9 +72,14 @@ The input test covers a complete press/release arriving in one render frame.
 `cargo test --release --test cave_kit` covers the new starter rope, gas tank
 and hand attachments. The editor tests exercise actual pointer input, mining,
 crafting, mission return and reset. Native checks cover the game HUD, mining
-highlight, weapon pose, rope attachment and workshop screen. Earlier flight
-autopilot results do not validate a winning route with the new rope kit;
-human playtesting and balance remain to be done.
+highlight, weapon pose, rope attachment and workshop screen.
+
+Run `target/release/cave-explorer --verify` for a fresh expedition on the
+authored map. The runner walks, jumps, grapples, winds the rope and drills
+using normal game actions. It checks that both quotas reach the lift,
+rejects a finish on the respawn frame, and prints deaths and hook catches.
+The return route crosses the gap at the east edge of the lift platform.
+Human playtesting is still needed for control feel and balance.
 
 ## Mining in editor Play mode
 
