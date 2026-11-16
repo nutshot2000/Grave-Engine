@@ -1,0 +1,17 @@
+# Magma: lava fed from deep below. It never cools (a heat source), so cave
+# lava pools stay molten. Ordinary lava (bursts, spills) still cools.
+about = Deep molten rock fed from below: it never cools. Water still turns it to stone.
+state = liquid
+density = 2600
+color = #ff6a18
+color_variation = 0.18
+glow = 1.0
+temperature = 1200
+stays_at = 1200
+conducts_heat = 0.08
+heat_capacity = 6
+flows = 2
+strength = 0
+reaction = water -> stone + steam, chance 0.2
+texture = textures/lava.png  # same artwork as lava; see textures/CREDITS.md
+lets_light_through = 0

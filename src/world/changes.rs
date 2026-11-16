@@ -172,6 +172,33 @@ impl Changer<'_> {
             return;
         }
 
+        // Geysers: in bursts, spit lumps up into the air above. The block is
+        // visited every SLOW_EVERY frames even asleep, and spits on those
+        // visits, so an eruption comes in pulses.
+        if let Some(lump) = m.spits {
+            let block = self.block_of(i);
+            unsafe { *self.c.slow.add(block) = true };
+            let turn = self.frame % SLOW_EVERY == block as u32 % SLOW_EVERY;
+            if turn && i >= self.w && ml[self.mat(i - self.w) as usize].state == State::Gas {
+                let (x, y) = ((i % self.w) as u32, (i / self.w) as u32);
+                // Each vent (16x16 cells of it) keeps its own rhythm.
+                let mut h = (x / 16).wrapping_mul(0x9E37_79B9) ^ (y / 16).wrapping_mul(0x85EB_CA6B);
+                h ^= h >> 15;
+                let every = m.spits_every.max(30);
+                if (self.frame + h % every) % every < every / 5 {
+                    for _ in 0..4 {
+                        if !self.chance(m.spits_chance) {
+                            continue;
+                        }
+                        let r = |s: &mut Self| (s.rand() % 1000) as f32 / 1000.0;
+                        let vx = (r(self) - 0.5) * 0.9;
+                        let vy = -m.spits_speed * (0.6 + r(self) * 0.5);
+                        self.out.sparks.push((lump, x as f32 + 0.5, y as f32 - 0.5, vx, vy));
+                    }
+                }
+            }
+        }
+
         // Short-lived things (fire, smoke) run out.
         if m.lifetime.is_some() {
             self.wake_at(i);

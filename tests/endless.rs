@@ -268,7 +268,7 @@ fn cave_dangers_are_the_same_however_the_map_is_cut_up() {
     }
     let differ = whole.mat.iter().zip(&parts.mat).filter(|(a, b)| a != b).count();
     assert_eq!(differ, 0, "{differ} cells differ between whole and region-by-region");
-    for name in ["volatile_gas", "water", "gravel"] {
+    for name in ["volatile_gas", "water", "gravel", "magma"] {
         let id = m.id(name).unwrap();
         let n = whole.mat.iter().filter(|&&c| c == id).count();
         assert!(n > 20, "only {n} cells of {name}");

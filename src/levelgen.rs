@@ -552,12 +552,15 @@ fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usi
 const DANGER_REACH: usize = 34;
 
 /// Cave dangers, scattered on a map-space lattice (`dangers` = how many):
-/// flooded dips (swim; breath runs out), and sealed pockets behind a thin
+/// flooded dips (swim; breath runs out), small magma pools that never
+/// cool, lava geysers (vent rock that erupts every few seconds), and sealed
+/// pockets behind a thin
 /// skin of rock over passages: volatile gas (bursts out when drilled into;
 /// explodes with fire, or collect it) or loose gravel (pours down). Each site reads only the untouched cave around it and
 /// sites are applied in map order, so endless regions agree exactly.
 fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64), (ix, iy, iw, ih): (usize, usize, usize, usize), s: &Settings, mats: &Materials) {
     let (Some(gas), Some(water), Some(gravel)) = (mats.id("volatile_gas"), mats.id("water"), mats.id("gravel")) else { return };
+    let (magma, vent) = (mats.id("magma"), mats.id("magma_vent"));
     let base = cave.to_vec();
     let rock = s.rock;
     let r = DANGER_REACH as i64;
@@ -565,6 +568,8 @@ fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64),
         let (lx, ly) = (x - corner.0, y - corner.1);
         (lx >= 0 && ly >= 0 && lx < w as i64 && ly < h as i64).then(|| base[ly as usize * w + lx as usize])
     };
+    // The cave floor nearest the site, up or down (open cell over rock).
+    let floor_near = |x: i64, y: i64| (0..40i64).flat_map(|d| [y + d, y - d]).find(|&f| get(x, f) == Some(rock) && get(x, f - 1) == Some(AIR));
     let spacing = 44i64;
     // Sites whose reach can touch the inner area.
     let (x0, y0) = (corner.0 + ix as i64 - r, corner.1 + iy as i64 - r);
@@ -586,19 +591,45 @@ fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64),
                     cave[ly as usize * w + lx as usize] = m;
                 }
             };
-            if kind < 0.45 {
-                // A flooded dip: needs open cave at the site.
-                if get(sx, sy) != Some(AIR) {
-                    continue;
+            if (0.5..0.56).contains(&kind) {
+                // A lava geyser: a patch of vent rock set into a passage floor.
+                let Some(vent) = vent else { continue };
+                let Some(floor) = floor_near(sx, sy) else { continue };
+                let floors: Option<Vec<i64>> = (-3..=3i64).map(|dx| floor_near(sx + dx, floor).filter(|f| (f - floor).abs() <= 3)).collect();
+                let Some(floors) = floors else { continue };
+                for (k, f) in floors.into_iter().enumerate() {
+                    let dx = k as i64 - 3;
+                    for dy in 0..3 - dx.abs() / 2 {
+                        put(sx + dx, f + dy, vent, rock);
+                    }
                 }
+                continue;
+            }
+            if kind < 0.5 {
+                // A flooded dip or a magma pool, on a floor near the site.
                 {
-                    // A flooded dip on the floor below. (Not lava: small
-                    // pits cool into gravel against the cold rock at once.)
-                    let (rx, ry, m) = (16i64, 8i64, water);
-                    let Some(floor) = (1..24).map(|d| sy + d).find(|&y| get(sx, y) != Some(AIR)) else { continue };
-                    if get(sx, floor) != Some(rock) {
+                    // A flooded dip on the floor below, or (a quarter of
+                    // them) a small pool of magma, which never cools.
+                    let lava = kind > 0.3 && magma.is_some();
+                    let Some(floor) = floor_near(sx, sy) else { continue };
+                    if lava {
+                        // A bowl sunk into the floor, filled flush with
+                        // magma: a basin by construction, so it never spills.
+                        // (The floor may be a little uneven: the surface sits
+                        // at its lowest point, so rock holds it on all sides.)
+                        let (rx, ry) = (8i64, 4i64);
+                        let floors: Option<Vec<i64>> = (-rx..=rx).map(|dx| floor_near(sx + dx, floor).filter(|f| (f - floor).abs() <= 3)).collect();
+                        let Some(floors) = floors else { continue };
+                        let level = *floors.iter().max().unwrap();
+                        for dx in -rx..=rx {
+                            let depth = (ry as f32 * (1.0 - (dx * dx) as f32 / (rx * rx) as f32).sqrt()).round() as i64;
+                            for y in level..level + depth.max(1) {
+                                put(sx + dx, y, magma.unwrap(), rock);
+                            }
+                        }
                         continue;
                     }
+                    let (rx, ry, m) = (16i64, 8i64, water);
                     // Only a real basin: fill level by level from the bottom,
                     // and stop below the first level that would spill over a
                     // side or drain down through a hole (still water sleeps;
@@ -633,7 +664,7 @@ fn place_dangers(cave: &mut [MatId], (w, h): (usize, usize), corner: (i64, i64),
                         put(x, y, m, AIR);
                     }
                 }
-            } else {
+            } else if kind >= 0.56 {
                 // Inside the rock over a passage, behind a skin of rock:
                 // a sealed gas pocket (bursts out when drilled into) or
                 // loose gravel (pours down). Packed full, neither can move,
@@ -1472,21 +1503,33 @@ fn texture_ground(world: &mut World, mats: &Materials, area: (usize, usize, usiz
             }
         }
     }
-    // Ore: small clumps (a 2x2 in a 3x3 grid square, where the map says
-    // so). Decided cell by cell from the map position alone, so it comes out
-    // the same however the map is cut into regions; clumps show where
-    // passages cut through them.
+    // Ore veins: thin winding seams through the rock that swell and narrow,
+    // only in some stretches of the map. Iron is commonest and thickest,
+    // copper less so, brass rare and thin. Each is a ridge of smooth noise
+    // (where the noise crosses its middle), bent by more noise; decided from
+    // the map position alone, so regions join seamlessly.
+    let veins = [(ores[2], 0x0a11u32, 70.0f32, 0.024f32, 0.42f32), (ores[0], 0x0b22, 58.0, 0.016, 0.52), (ores[1], 0x0c33, 46.0, 0.012, 0.64)];
     for y in ay..ay + ah {
         for x in ax..ax + aw {
-            let (mx, my) = map(x, y);
-            let (gx, gy) = (mx.div_euclid(3) * 3, my.div_euclid(3) * 3);
-            if mx - gx > 1 || my - gy > 1 || unit(hash(s.seed, gx, gy, 77)) > 0.012 || !free(x as i32, y as i32) {
-                continue;
-            }
             let i = world.idx(x, y);
             // (Only in the plain ground, not in a tile's brick or timber.)
-            if world.mat[i] == s.rock || world.mat[i] == stone || world.mat[i] == sand {
-                world.set(mats, x, y, ores[(hash(s.seed, gx, gy, 78) % 3) as usize]);
+            if !(world.mat[i] == s.rock || world.mat[i] == stone || world.mat[i] == sand) || !free(x as i32, y as i32) {
+                continue;
+            }
+            let (mx, my) = map(x, y);
+            let (fx, fy) = (mx as f32, my as f32);
+            let bx = (noise(s.seed ^ 0x0e01, fx / 38.0, fy / 38.0) - 0.5) * 30.0;
+            let by = (noise(s.seed ^ 0x0e02, fx / 38.0, fy / 38.0) - 0.5) * 30.0;
+            for &(ore, salt, scale, width, region) in &veins {
+                if noise(s.seed ^ salt ^ 0x0f00, fx / (scale * 3.0), fy / (scale * 3.0)) < region {
+                    continue;
+                }
+                let ridge = (noise(s.seed ^ salt, (fx + bx) / scale, (fy + by) / scale) - 0.5).abs();
+                let swell = 0.5 + noise(s.seed ^ salt ^ 0x0f0f, fx / 14.0, fy / 14.0) * 0.8;
+                if ridge < width * swell {
+                    world.set(mats, x, y, ore);
+                    break;
+                }
             }
         }
     }

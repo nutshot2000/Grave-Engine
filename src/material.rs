@@ -105,6 +105,14 @@ pub struct Material {
     /// per burning cell per frame. They fly, drift on the air, and land.
     pub sparks: Option<MatId>,
     pub sparks_chance: f32,
+    /// A geyser: spits this up into the air above in bursts. Every
+    /// `spits_every` frames it erupts for a fifth of that time, throwing
+    /// lumps at up to `spits_speed` (cells a frame), each visit with
+    /// `spits_chance`. Its block is visited regularly even when asleep.
+    pub spits: Option<MatId>,
+    pub spits_chance: f32,
+    pub spits_every: u32,
+    pub spits_speed: f32,
     /// Does it feed fire? (Air does: things only burn when touching it.)
     pub feeds_fire: bool,
     /// Does it put out fires it touches? (Water does.)
@@ -275,6 +283,10 @@ impl Material {
             gives_off_chance: 0.1,
             sparks: None,
             sparks_chance: 0.0,
+            spits: None,
+            spits_chance: 0.0,
+            spits_every: 300,
+            spits_speed: 2.0,
             feeds_fire: false,
             puts_out_fire: false,
             crushable: false,
@@ -769,6 +781,10 @@ fn apply(
         "gives_off_chance" => m.gives_off_chance = num(v)?.clamp(0.0, 1.0),
         "sparks" | "throws_sparks" => m.sparks = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
         "sparks_chance" => m.sparks_chance = num(v)?.clamp(0.0, 1.0),
+        "spits" => m.spits = if is_none(v) { None } else { Some(name_to_id(v, by_name)?) },
+        "spits_chance" => m.spits_chance = num(v)?.clamp(0.0, 1.0),
+        "spits_every" => m.spits_every = (num(v)?.clamp(30.0, 36000.0)) as u32,
+        "spits_speed" => m.spits_speed = num(v)?.clamp(0.1, 8.0),
         "feeds_fire" => m.feeds_fire = yes_no(v)?,
         "puts_out_fire" => m.puts_out_fire = yes_no(v)?,
         "crushable" => m.crushable = yes_no(v)?,

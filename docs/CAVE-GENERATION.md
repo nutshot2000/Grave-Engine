@@ -157,7 +157,24 @@ in sealed pockets inside the rock over passages, behind a thin skin
 with the gas collector), flooded basins in passage floors (swim, and watch
 your breath; only real basins, filled to the level that won't spill,
 because water on a slope trickles about for ever and keeps the simulation
-awake), and loose gravel pockets the same way as the gas (it pours down). Lava pits are not used: small
-ones cool into gravel against the cold rock at once. Endless regions get
+awake), and loose gravel pockets the same way as the gas (it pours down).
+Magma pools are bowls sunk into the floor and filled flush with `magma`
+(lava that never cools: `stays_at`; ordinary lava still cools into
+gravel). Lava geysers are patches of `magma_vent` set into a floor: every
+`spits_every` frames (600) a vent erupts for a fifth of that time,
+spitting lava blobs high into the air in pulses (they cool into gravel
+where they land). Vents are the costliest danger (eruptions wake the area),
+so they are kept rare. Test: `tests/magma.rs`. Endless regions get
 identical dangers (`cave_dangers_are_the_same_however_the_map_is_cut_up`).
 DEEPWARD uses `dangers 0.6`.
+
+## Ore veins
+
+Ore is laid as veins: thin winding seams through the rock that swell and
+narrow, only in some stretches of the map (iron commonest and thickest,
+copper less so, brass rare and thin). Each is a ridge of smooth noise bent
+by more noise, from the map position alone, so endless regions join.
+`cargo run --release --example awake -- SCENE` prints how much of a scene
+stays awake once settled (the real cost; timings are noisy when other
+programs run). `cargo run --release --example geyser_shot -- SCENE` saves
+a close-up of a geyser mid-eruption to `shots/geyser.png`.

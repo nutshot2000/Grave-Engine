@@ -1,0 +1,18 @@
+# A lava geyser: cracked, glowing rock over a magma chamber (it glows but
+# is only warm, so it does not keep heating the cave). Every few
+# seconds it erupts, spitting blobs of lava high into the air (they cool
+# into gravel where they land, building a little cone).
+about = A crack over a magma chamber. It erupts every few seconds, spitting lava.
+state = solid
+color = #6a2412
+color_variation = 0.25
+glow = 0.8
+temperature = 60
+conducts_heat = 0.08
+heat_capacity = 3
+toughness = 6000
+mining_hardness = 2.0
+spits = lava
+spits_chance = 0.8
+spits_every = 600
+spits_speed = 3.4

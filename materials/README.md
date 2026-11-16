@@ -89,6 +89,10 @@ The snow preset uses density 120 with `melt_yield = 0.12`: its deliberately smal
 | `gives_off_chance` | Chance per frame of puffing | 0.1 |
 | `sparks` | What it flings into the air while burning: glowing embers (`ember`) that drift on the air and wind, land, and can start new fires | none |
 | `sparks_chance` | Chance per burning cell per frame of throwing one (wood 0.0025, cloth 0.004) | 0 |
+| `spits` | A geyser: what it spits up into the air above, in bursts (`magma_vent` spits `lava`) | none |
+| `spits_every` | Frames between eruptions; each lasts a fifth of that | 300 |
+| `spits_chance` | Chance of each lump on each pulse (every 16 frames while erupting) | 0 |
+| `spits_speed` | How fast the lumps fly up, cells a frame | 2 |
 | `feeds_fire` | `yes` if things can burn next to it (air and flames do) | no |
 | `puts_out_fire` | `yes` if it stops burning things it touches (water does) | no |
 
