@@ -407,6 +407,27 @@ impl Physics {
         }
     }
 
+    /// A creature far from the player: still moves, but its body is redrawn
+    /// without waking the cave around it.
+    pub fn quiet_actor(&mut self, index: usize) {
+        if let Some(a) = self.actors.get_mut(index) {
+            a.resting = true;
+        }
+    }
+
+    /// Put an actor's body centre at (x, y) cells, at rest (a creature found
+    /// sealed in rock moves to open floor this way).
+    pub fn move_actor(&mut self, index: usize, x: f32, y: f32) {
+        let Some(a) = self.actors.get_mut(index) else { return };
+        let rb = &mut self.set[a.handle];
+        rb.set_translation(Vector::new(x * CELL, y * CELL), true);
+        rb.set_linvel(Vector::new(0.0, 0.0), true);
+        if let Some(s) = a.spec.surface.as_mut() {
+            s.attached = false;
+            s.normal = (0.0, -1.0);
+        }
+    }
+
     /// Every creature is awake again until `rest_actor` says otherwise.
     pub fn clear_rest(&mut self) {
         for a in self.actors.iter_mut() {

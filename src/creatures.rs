@@ -317,6 +317,35 @@ fn burrow(w: &mut World, m: &Materials, from: (f32, f32), to: (f32, f32), elemen
     if dug == 0 && hard { None } else { Some(dug) }
 }
 
+/// No open space anywhere around the body: sealed in rock.
+fn buried(w: &World, m: &Materials, p: (f32, f32)) -> bool {
+    (0..16).all(|k| {
+        let t = k as f32 * std::f32::consts::TAU / 16.0;
+        let (x, y) = ((p.0 + t.cos() * 9.0) as i32, (p.1 + t.sin() * 9.0) as i32);
+        !w.in_bounds(x, y) || {
+            let i = w.idx(x as usize, y as usize);
+            w.is_owned(i) || m.get(w.mat[i]).state == crate::material::State::Solid
+        }
+    })
+}
+
+/// The nearest open floor (x, feet) with room to stand, within 150 cells.
+fn open_floor(w: &World, m: &Materials, p: (f32, f32), height: f32) -> Option<(f32, f32)> {
+    let solid = |x: i32, y: i32| w.in_bounds(x, y) && m.get(w.mat[w.idx(x as usize, y as usize)]).state == crate::material::State::Solid;
+    let air = |x: i32, y: i32| w.in_bounds(x, y) && { let i = w.idx(x as usize, y as usize); w.mat[i] == crate::material::AIR && !w.is_owned(i) };
+    let tall = height as i32 + 3;
+    for r in (10..150).step_by(5) {
+        for k in 0..(r / 3).max(12) {
+            let t = k as f32 * std::f32::consts::TAU / (r / 3).max(12) as f32;
+            let (x, y) = ((p.0 + t.cos() * r as f32) as i32, (p.1 + t.sin() * r as f32) as i32);
+            if air(x, y) && solid(x, y + 1) && (-4..=4).all(|dx| (1..tall).all(|dy| air(x + dx, y - dy))) {
+                return Some((x as f32, (y + 1) as f32));
+            }
+        }
+    }
+    None
+}
+
 fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
     (a.0 - b.0).hypot(a.1 - b.1)
 }
@@ -547,13 +576,28 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
         if a.dead {
             continue;
         }
-        // Far from the player and not stirred up: rest (no thinking or
-        // moving), so the cave around it can sleep. Wakes as you come near.
-        if c.alert == 0 && player.is_some_and(|(_, pl)| (pl.x - a.x).hypot(pl.y - a.y) > REST_DISTANCE) {
-            physics.rest_actor(i);
-            continue;
+        // Far from the player: it keeps roaming, but quietly (its body is
+        // redrawn without waking the cave around it), so the whole map lives
+        // without the cost of keeping it all awake.
+        // (It only digs, eats and drops sparks near the player: changing
+        // the cave far away would keep it all awake for nothing.)
+        let far = player.is_some_and(|(_, pl)| (pl.x - a.x).hypot(pl.y - a.y) > REST_DISTANCE);
+        if far {
+            physics.quiet_actor(i);
         }
         let p = (a.x, a.y + (16.0 - a.body_height) * 0.5);
+        // Sealed in rock (new caves generated around it, or buried by a
+        // fall): hop to the nearest open floor.
+        if w.frame % 60 == (i as u32 + 30) % 60 && buried(w, m, p) {
+            if let Some((x, feet)) = open_floor(w, m, p, c.species.height) {
+                physics.move_actor(i, x, feet - 8.0);
+                c.home = (x, feet - c.species.height * 0.5);
+                c.target = c.home;
+                c.food = None;
+                physics.edit_actor(i, |a| a.creature = Some(c));
+                continue;
+            }
+        }
         let normal = a.surface.map_or((0., -1.), |s| s.normal);
         let tangent = crate::physics::surface_tangent(normal);
         c.cooldown = c.cooldown.saturating_sub(1);
@@ -637,7 +681,9 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
                     } else {
                         c.stuck += 1;
                     }
-                    if d < FEED_REACH {
+                    if far {
+                        c.mood = Mood::Seek;
+                    } else if d < FEED_REACH {
                         c.mood = Mood::Feed;
                         if w.frame % 20 == i as u32 % 20 {
                             let eaten = feed(w, m, p, &food_of(c.element.as_deref(), m));
@@ -717,7 +763,7 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
             }
         }
         // Ember beetles drop sparks as they run (they set off gas).
-        if walk != 0.0 && c.element.as_deref() == Some("ember") && w.frame % 25 == i as u32 % 25 {
+        if !far && walk != 0.0 && c.element.as_deref() == Some("ember") && w.frame % 25 == i as u32 % 25 {
             if let Some(ember) = m.id("ember") {
                 let (x, y) = ((p.0 - a.facing * 7.0) as i32, (p.1 + 2.0) as i32);
                 if w.in_bounds(x, y) && w.mat[w.idx(x as usize, y as usize)] == crate::material::AIR {

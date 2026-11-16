@@ -84,12 +84,13 @@ Seeded, so a scene always gets the same creatures; at most 128 per scene.
 DEEPWARD uses `creatures 0.5 seed 33 avoid 220 590 300` (about 50).
 Endless maps don't scatter creatures yet.
 
-Creatures further than `REST_DISTANCE` (260 cells) from the player rest
-until you come near: no thinking or moving, and their bodies are redrawn
-without waking the cave. They are cold-blooded (they settle to the cave's
+Creatures further than `REST_DISTANCE` (260 cells) from the player keep
+roaming and seeking, but quietly: their bodies are redrawn without waking
+the cave, and they only dig, eat and drop sparks near the player (changing
+the cave far away would keep it all awake). A creature found sealed in rock
+(caves regenerated around it, or buried) hops to the nearest open floor. They are cold-blooded (they settle to the cave's
 temperature): a 37-degree body warms the rock around it for ever, and heat
-that is still spreading keeps the simulation awake. Together these took
-DEEPWARD from about 16 ms to under 6 ms a frame.
+that is still spreading keeps the simulation awake. DEEPWARD runs at about 10 ms a frame with every creature roaming.
 
 ## Seeking, burrowing and feeding
 

@@ -270,3 +270,25 @@ fn mites_worms_and_beetles_do_their_thing() {
     for _ in 0..600 { s.step(&m); sparks = sparks.max(count(&s, "ember") + count(&s, "fire")); }
     assert!(sparks > 0, "the beetle dropped sparks");
 }
+
+/// A creature sealed in rock (say the caves were regenerated around it)
+/// moves to the nearest open floor instead of staying stuck.
+#[test]
+fn a_creature_sealed_in_rock_moves_to_open_floor() {
+    let m = grave_engine::Materials::load_dir("materials");
+    let text = "size 320 160\nfill air\nrect stone 0 120 320 40\nrect rock 40 40 80 80\nanchor 40 40 80 80\ncreature skitter 80 90 element fire\n";
+    let (mut s, problems) = grave_engine::scene::load(text, &m, None).into_sim(&m);
+    assert!(problems.is_empty(), "{problems:?}");
+    for _ in 0..150 {
+        s.step(&m);
+    }
+    let a = s.physics.actor_status().into_iter().find(|a| a.creature.is_some()).unwrap();
+    assert!(!a.dead && (a.x < 38.0 || a.x > 122.0), "moved out of the rock to open floor: ({}, {})", a.x, a.y);
+    let before = a.x;
+    for _ in 0..300 {
+        s.step(&m);
+    }
+    let a = s.physics.actor_status().into_iter().find(|a| a.creature.is_some()).unwrap();
+    assert!(!a.dead, "and lives there");
+    let _ = before;
+}

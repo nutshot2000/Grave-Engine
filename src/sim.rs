@@ -303,7 +303,7 @@ impl Sim {
         // objects feel this frame's physics.
         let follow = self.follow.and_then(|id| self.physics.centre(id));
         crate::weather::step(&mut self.world, mats, &mut self.weather, &mut self.weather_run, self.weather_view, follow, &mut self.camera);
-        crate::creatures::think(&mut self.physics,&mut self.world,mats);
+        {let _p=crate::profile::scope("sim.creatures"); crate::creatures::think(&mut self.physics,&mut self.world,mats);}
         self.physics.update(&mut self.world, mats);
         crate::creatures::death_bursts(&mut self.physics,&mut self.world,mats);
         self.mining.prune(&self.world);
