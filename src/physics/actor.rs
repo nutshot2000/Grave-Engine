@@ -45,8 +45,10 @@ pub const MAX_BREATH: f32 = 10.0;
 const BODY_TEMP: f32 = 37.0;
 const HOT: f32 = 45.0;
 const COLD: f32 = 5.0;
-/// Slowing down faster than this in one frame hurts (m/s): roughly a fall of 4 m.
-const SAFE_LANDING: f32 = 9.0;
+/// Slowing down faster than this in one frame hurts (m/s): roughly a fall of 6 m.
+const SAFE_LANDING: f32 = 11.0;
+/// Health lost per m/s over `SAFE_LANDING` (a 10 m fall ~18, 20 m ~53).
+const LANDING_HURTS: f32 = 6.0;
 /// Frames before a dead actor comes back.
 const RESPAWN_FRAMES: u32 = 120;
 
@@ -930,7 +932,7 @@ impl Physics {
                     // The landing after a bounce pad: games don't punish that.
                     a.launched = false;
                 } else if dv > SAFE_LANDING {
-                    a.pending += (dv - SAFE_LANDING) * 10.0;
+                    a.pending += (dv - SAFE_LANDING) * LANDING_HURTS;
                     a.pending_cause = Some("hit too hard");
                 }
                 if a.pending > 0.0 {
