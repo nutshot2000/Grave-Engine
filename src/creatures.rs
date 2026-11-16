@@ -739,6 +739,12 @@ pub fn think(physics: &mut Physics, w: &mut World, m: &Materials) {
 /// Coloured, articulated native art. The same silhouette supplies real body
 /// cells for heat/contact/acid, and is rendered inside the normal lighting pass.
 pub fn pixels(c: &Creature, frame: u32, dead: bool) -> Vec<(usize, usize, [u8; 3])> {
+    let moving = matches!(c.mood, Mood::Hunt | Mood::Flee | Mood::Investigate | Mood::Return | Mood::Seek | Mood::Burrow | Mood::Feed);
+    if !dead {
+        if let Some(body) = shaped(c, frame, moving) {
+            return body;
+        }
+    }
     let mut grid = vec![None; crate::look::MASK_W * 16];
     let width = crate::look::MASK_W;
     let shell = c.species.color;
@@ -820,6 +826,132 @@ pub fn pixels(c: &Creature, frame: u32, dead: bool) -> Vec<(usize, usize, [u8; 3
         .enumerate()
         .filter_map(|(i, c)| c.map(|rgb| (i % width, i / width, rgb)))
         .collect()
+}
+/// Body shapes of the newer species (alive; corpses use the shared flat
+/// shape). Drawn facing right on the 20x16 grid, like the bug body. The
+/// picture is also the body: cells for heat, contact and acid.
+fn shaped(c: &Creature, frame: u32, moving: bool) -> Option<Vec<(usize, usize, [u8; 3])>> {
+    let width = crate::look::MASK_W as i32;
+    let mut grid: Vec<Option<[u8; 3]>> = vec![None; crate::look::MASK_W * 16];
+    let shell = c.species.color;
+    let dark = shell.map(|v| (v as f32 * 0.38) as u8);
+    let light = shell.map(|v| v.saturating_add(45));
+    let eye = if c.mood == Mood::Windup { [255, 80, 55] } else { [255, 222, 118] };
+    let mut dot = |x: i32, y: i32, col: [u8; 3]| {
+        if (0..width).contains(&x) && (0..16).contains(&y) {
+            grid[(y * width + x) as usize] = Some(col);
+        }
+    };
+    let step = if moving { (frame / 4) % 2 } else { 0 } as i32;
+    let blob = |dot: &mut dyn FnMut(i32, i32, [u8; 3]), cx: f32, cy: f32, rx: f32, ry: f32, top: [u8; 3], body: [u8; 3], rim: [u8; 3]| {
+        for y in 0..16 {
+            for x in 0..width {
+                let d = ((x as f32 - cx) / rx).powi(2) + ((y as f32 - cy) / ry).powi(2);
+                if d <= 1.0 {
+                    dot(x, y, if d > 0.72 { rim } else if (y as f32) < cy - ry * 0.3 { top } else { body });
+                }
+            }
+        }
+    };
+    match c.species.id.as_str() {
+        // A long segmented worm, rippling along the ground; jaws at the front.
+        "worm" => {
+            for k in 0..6 {
+                let x = 2.5 + k as f32 * 2.9;
+                let lift = ((k as f32 * 1.3 + frame as f32 * if moving { 0.25 } else { 0.05 }).sin() * 0.8).round();
+                let cy = 12.5 - lift;
+                blob(&mut dot, x, cy, 2.0, 2.3 - (5 - k) as f32 * 0.06, light, shell, shell);
+                // A dark ring between segments.
+                for y in (cy - 2.0) as i32..=(cy + 2.0) as i32 {
+                    dot((x + 1.5).round() as i32, y, dark);
+                }
+                dot(x.round() as i32, (cy + 2.2) as i32, dark);
+            }
+            let hy = (12.5 - ((5.0 * 1.3 + frame as f32 * if moving { 0.25 } else { 0.05 }).sin() * 0.8).round()) as i32;
+            dot(18, hy - 1, eye);
+            dot(19, hy - 2, dark);
+            dot(19, hy + 1, dark);
+            // Gravel caught in its skin.
+            for (x, y) in [(5, 13), (11, 14), (14, 11)] {
+                dot(x, y, [118, 112, 104]);
+            }
+        }
+        // A swollen sac of gas on stubby legs; it slowly breathes.
+        "bloater" => {
+            let pulse = ((frame as f32 * 0.08).sin() * 0.5) + if c.mood == Mood::Windup { 0.8 } else { 0.0 };
+            for n in 0..3 {
+                let x = 6 + n * 4;
+                dot(x, 14 + (n + step) % 2, dark);
+                dot(x, 15, dark);
+            }
+            blob(&mut dot, 9.0, 7.8, 7.0 + pulse, 6.0 + pulse * 0.6, light, shell, dark);
+            // Pale swollen blisters.
+            for (x, y) in [(6, 5), (10, 4), (12, 8), (7, 9)] {
+                dot(x, y, [206, 222, 150]);
+            }
+            for y in 8..13 {
+                for x in 15..19 {
+                    dot(x, y, if y == 8 { light } else { dark });
+                }
+            }
+            dot(17, 9, eye);
+            dot(17, 11, eye);
+            dot(19, 10, dark);
+        }
+        // A tiny tick on long spindly legs, crystal shards on its back.
+        "mite" => {
+            let glint = match c.element.as_deref() {
+                Some("crystal_violet") => [205, 160, 255],
+                _ => [130, 240, 255],
+            };
+            for n in 0..4 {
+                let x = 5 + n * 3;
+                let lift = (n + step) % 2;
+                dot(x - 1, 11 - lift, dark);
+                dot(x - 2, 12, dark);
+                dot(x - 2, 13, dark);
+                dot(x - 3, 14 + lift, dark);
+                dot(x - 3, 15, dark);
+            }
+            blob(&mut dot, 10.0, 11.5, 4.0, 2.8, light, shell, dark);
+            for (x, h) in [(8, 3), (10, 4), (12, 2)] {
+                for y in 0..h {
+                    dot(x, 8 - y, if y == h - 1 { [240, 252, 255] } else { glint });
+                }
+            }
+            dot(14, 11, eye);
+            dot(15, 12, dark);
+        }
+        // A low, round beetle: split wing cases with glowing embers in them
+        // and a horn at the front.
+        "beetle" => {
+            for n in 0..3 {
+                let x = 6 + n * 4;
+                let lift = (n + step) % 2;
+                dot(x - 1, 13 + lift, dark);
+                dot(x - 2, 14 + lift, dark);
+                dot(x - 2, 15, dark);
+            }
+            blob(&mut dot, 9.5, 10.5, 6.0, 4.0, light, shell, dark);
+            for y in 7..14 {
+                dot(9, y, dark);
+            }
+            for (k, (x, y)) in [(6, 10), (12, 9), (7, 12), (13, 12)].into_iter().enumerate() {
+                let hot = (frame / 6 + k as u32) % 3 != 0;
+                dot(x, y, if hot { [255, 196, 70] } else { [190, 70, 20] });
+            }
+            for y in 9..13 {
+                for x in 15..18 {
+                    dot(x, y, dark);
+                }
+            }
+            dot(17, 10, eye);
+            dot(18, 9, light);
+            dot(19, 8, light);
+        }
+        _ => return None,
+    }
+    Some(grid.into_iter().enumerate().filter_map(|(i, c)| c.map(|rgb| (i % width as usize, i / width as usize, rgb))).collect())
 }
 pub fn mask(c: &Creature, frame: u32) -> Vec<bool> {
     let mut result = vec![false; crate::look::MASK_W * 16];

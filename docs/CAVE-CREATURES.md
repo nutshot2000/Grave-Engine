@@ -123,3 +123,10 @@ this only happens near you. Test:
 `creatures AMOUNT` mixes them in: about 38% skitters, 20% shellbacks, 14%
 worms, 12% beetles, 10% mites, 6% bloaters, and mites wherever crystals are
 near. Test: `mites_worms_and_beetles_do_their_thing`.
+
+Each newer species has its own body (`shaped` in `src/creatures.rs`): a
+crystal-spiked mite on spindly legs, a breathing gas sac on stubby legs, a
+slim ringed worm that ripples, and a beetle with glowing ember spots. The
+picture is also the body (heat, contact, acid). Corpses use the shared flat
+shape. `cargo run --release --example bug_sheet` draws every species, alive
+and dead, to `shots/creature-sheet.png`.
