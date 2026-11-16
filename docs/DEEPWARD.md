@@ -4,7 +4,7 @@ Double-click **Play/Cave-Explorer.cmd**. The title screen resumes the saved
 expedition; press **Enter** (controller A) to start. This is a playable first
 loop built on Grave Engine, not a finished or balanced game.
 
-Recover the cyan and violet sample quotas shown in the HUD (130 cyan, 120
+Recover the cyan and violet sample quotas shown in the HUD (100 cyan, 120
 violet), then return to the amber lift marker. The patch above camp, the
 small seam beside it and the guarded violet gallery are only a start: the
 rest is out in the cave, cyan to the north or south, violet in the middle.

@@ -226,3 +226,27 @@ fn a_smooth_scroll_keeps_physics_running() {
     // Stone that slid in from the right is solid ground too.
     assert_eq!(sim.world.mat[sim.world.idx(100, 450)], m.id("stone").unwrap());
 }
+
+/// Bent (natural-looking) caves join seamlessly too: the bend uses map
+/// coordinates and each region is carved with a margin around it.
+#[test]
+fn bent_caves_are_the_same_however_they_are_cut_up() {
+    let m = mats();
+    let (tiles, _) = levelgen::Tile::load_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tiles/caves"), &m);
+    let s = Settings { tile: 140, bend: 1.0, open_sides: true, seed: 33, ..Settings::new(&m) };
+    let origin = (-300, 170);
+    let mut whole = World::new(768, 512);
+    levelgen::generate_at(&mut whole, &m, (0, 0, 768, 512), origin, &s, &tiles);
+    let mut parts = World::new(768, 512);
+    for ry in 0..2 {
+        for rx in 0..3 {
+            levelgen::generate_at(&mut parts, &m, (rx * 256, ry * 256, 256, 256), origin, &s, &tiles);
+        }
+    }
+    let differ = whole.mat.iter().zip(&parts.mat).filter(|(a, b)| a != b).count();
+    assert_eq!(differ, 0, "{differ} cells differ between whole and region-by-region");
+    // And it really did bend: not the same as the unbent map.
+    let mut flat = World::new(768, 512);
+    levelgen::generate_at(&mut flat, &m, (0, 0, 768, 512), origin, &Settings { bend: 0.0, ..s.clone() }, &tiles);
+    assert!(whole.mat.iter().zip(&flat.mat).filter(|(a, b)| a != b).count() > 5000);
+}

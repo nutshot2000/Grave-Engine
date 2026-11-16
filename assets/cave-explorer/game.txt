@@ -1,6 +1,6 @@
 # DEEPWARD prototype tuning. Every distance is in engine cells (10 cm).
 scene scenes/cave-expedition.txt
 home 96 606
-target_cyan 130
+target_cyan 100
 target_violet 120
 view_width 360

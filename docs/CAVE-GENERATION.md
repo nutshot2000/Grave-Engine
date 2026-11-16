@@ -135,3 +135,15 @@ rendering, deterministic flicker, density controls and region equivalence.
 The caves now have an animated explorer loadout with jetpack and headlamp.
 For the playable collect-and-return game, use `Play/Cave-Explorer.cmd`; see
 [DEEPWARD](DEEPWARD.md). In editor Play mode Space flies and P pauses.
+
+## Natural bend
+
+`bend 0..1` (scene `generate` and `endless` lines) wears the walls smooth
+(a 5x5 majority removes hairline cracks, specks and square corners) and
+then bends the whole cave with smooth noise in map coordinates, so
+corridors wander and the tile grid disappears. The bend never folds, so
+passages that meet still meet. Masonry, timber, pools and ore keep their
+shapes, and endless regions still join exactly (each region is carved
+with a margin). Off by default. The cave scenes use
+`tile 140 caverns 1 rooms 0 bend 1 deadends 0.4`. Test:
+`bent_caves_are_the_same_however_they_are_cut_up` in `tests/endless.rs`.

@@ -5,7 +5,7 @@
 size 1280 1024
 seed 3
 fill air
-endless seed 33 tiles tiles/caves
+endless seed 33 tiles tiles/caves tile 140 caverns 1 rooms 0 bend 1 deadends 0.4
 rect air 600 470 90 60                     # a start chamber...
 rect rock 600 530 90 10                    # ...with a floor
 anchor 600 530 90 10

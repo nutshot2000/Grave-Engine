@@ -213,6 +213,9 @@ pub struct Settings {
     pub caverns: f32,
     /// How strongly natural plans favour blind side passages (0..1).
     pub dead_ends: f32,
+    /// 0..1: bend the whole cave with smooth map-wide noise, so passages
+    /// wander and tile seams vanish (0 = off). See `bend_caves`.
+    pub bend: f32,
     /// Frequency of crystal clusters and torches around large chambers.
     pub crystals: f32,
     pub torches: f32,
@@ -235,6 +238,7 @@ impl Settings {
             rooms: 0.25,
             caverns: 0.65,
             dead_ends: 0.75,
+            bend: 0.0,
             crystals: 0.7,
             torches: 0.3,
         }
@@ -343,10 +347,7 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
     // The area on the map, and the units it covers. (A sealed area's edges
     // are units 0 and uw, uh: only for `generate`, whose corner is 0,0.)
     let (gx, gy) = (origin.0 + ax as i64, origin.1 + ay as i64);
-    let ti = t as i64;
     let (uw, uh) = (aw.div_ceil(t) as i32, ah.div_ceil(t) as i32);
-    let from = (gx.div_euclid(ti) as i32, gy.div_euclid(ti) as i32);
-    let to = ((gx + aw as i64 - 1).div_euclid(ti) as i32 + 1, (gy + ah as i64 - 1).div_euclid(ti) as i32 + 1);
     // Solid ground first, then each brick carves its passages. (Cells of
     // objects and characters are left alone throughout.)
     let owned: Vec<bool> = (ay..ay + ah).flat_map(|y| (ax..ax + aw).map(move |x| (x, y))).map(|(x, y)| world.is_owned(world.idx(x, y))).collect();
@@ -358,8 +359,57 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
             }
         }
     }
-    let mut hand = 0;
     let caverns = large_caverns(s, (gx, gy, aw, ah));
+    let hand = if s.bend > 0.0 {
+        bend_caves(world, mats, (ax, ay, aw, ah), origin, s, tiles, &caverns, (uw, uh), &free)
+    } else {
+        carve_bricks(world, mats, (ax, ay, aw, ah), origin, s, tiles, &caverns, (uw, uh), &free)
+    };
+    carve_large_caverns(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
+    // Varied ground: patches of other stone, and ore specks in the walls.
+    texture_ground(world, mats, (ax, ay, aw, ah), origin, s, &free);
+    // The wall behind the caves.
+    for y in ay..ay + ah {
+        for x in ax..ax + aw {
+            let i = world.idx(x, y);
+            world.back[i] = s.back;
+        }
+    }
+    // Sealed: a solid rim, so no cavern bulges out of the sides.
+    if !s.open_sides {
+        for y in ay..ay + ah {
+            for x in ax..ax + aw {
+                let rim = x < ax + 2 || y < ay + 2 || x + 2 >= ax + aw || y + 2 >= ay + ah;
+                if rim && free(x as i32, y as i32) {
+                    world.set(mats, x, y, s.rock);
+                }
+            }
+        }
+    }
+    cave_fixtures(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
+    if s.anchored {
+        for y in ay..ay + ah {
+            for x in ax..ax + aw {
+                let i = world.idx(x, y);
+                if !world.is_owned(i) && mats.get(world.mat[i]).state == crate::material::State::Solid {
+                    world.flags[i] |= crate::world::ANCHORED;
+                }
+            }
+        }
+    }
+    hand
+}
+
+/// Each herringbone brick carves its passages (hand-made tiles, natural
+/// plans or the built-in layouts) into `area`. Returns hand tiles used.
+#[allow(clippy::too_many_arguments)]
+fn carve_bricks(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, tiles: &[Tile], caverns: &[LargeCavern], (uw, uh): (i32, i32), free: &dyn Fn(i32, i32) -> bool) -> usize {
+    let t = s.tile.max(8);
+    let ti = t as i64;
+    let (gx, gy) = (origin.0 + ax as i64, origin.1 + ay as i64);
+    let from = (gx.div_euclid(ti) as i32, gy.div_euclid(ti) as i32);
+    let to = ((gx + aw as i64 - 1).div_euclid(ti) as i32 + 1, (gy + ah as i64 - 1).div_euclid(ti) as i32 + 1);
+    let mut hand = 0;
     for b in layout_range(from, to) {
         let edges: Edges = b.pieces().map(|k| piece_open(s, k, uw, uh));
         // Exact fits first; failing that, a tile with one spare doorway (it
@@ -409,36 +459,71 @@ pub fn generate_at(world: &mut World, mats: &Materials, area: (usize, usize, usi
             }
         }
     }
-    carve_large_caverns(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
-    // Varied ground: patches of other stone, and ore specks in the walls.
-    texture_ground(world, mats, (ax, ay, aw, ah), origin, s, &free);
-    // The wall behind the caves.
+    hand
+}
+
+const SMOOTH_PASSES: usize = 2;
+
+/// Carve the bricks a little beyond `area`, then bend them with smooth noise
+/// in map coordinates: corridors wander and tile seams vanish. The bend is
+/// gentle enough never to fold (so passages that meet still meet), uses map
+/// coordinates (so endless regions join), and built features (masonry,
+/// timber, pools, ore) keep their shapes.
+#[allow(clippy::too_many_arguments)]
+fn bend_caves(world: &mut World, mats: &Materials, (ax, ay, aw, ah): (usize, usize, usize, usize), origin: (i64, i64), s: &Settings, tiles: &[Tile], caverns: &[LargeCavern], units: (i32, i32), free: &dyn Fn(i32, i32) -> bool) -> usize {
+    let t = s.tile.max(8) as f32;
+    let bend = s.bend.clamp(0.0, 1.0);
+    let (big, small) = (bend * t * 0.3, bend * t * 0.075);
+    let margin = (big + small).ceil() as usize + 2 + SMOOTH_PASSES * 2;
+    let (tw, th) = (aw + 2 * margin, ah + 2 * margin);
+    let mut temp = World::new(tw, th);
+    for y in 0..th {
+        for x in 0..tw {
+            temp.set(mats, x, y, s.rock);
+        }
+    }
+    let to = (origin.0 + ax as i64 - margin as i64, origin.1 + ay as i64 - margin as i64);
+    let hand = carve_bricks(&mut temp, mats, (0, 0, tw, th), to, s, tiles, caverns, units, &|_, _| true);
+    let rock = s.rock;
+    // Wear the walls smooth first: a 5x5 majority rounds corners and removes
+    // hairline cracks and specks (real passages are far wider than 3 cells).
+    let mut solid: Vec<bool> = temp.mat.iter().map(|&m| m != AIR).collect();
+    for _ in 0..SMOOTH_PASSES {
+        let before = solid.clone();
+        for y in 2..th - 2 {
+            for x in 2..tw - 2 {
+                if temp.mat[y * tw + x] != rock && temp.mat[y * tw + x] != AIR {
+                    continue;
+                }
+                let n = (y - 2..=y + 2).map(|yy| (x - 2..=x + 2).filter(|&xx| before[yy * tw + xx]).count()).sum::<usize>();
+                solid[y * tw + x] = n >= 13;
+            }
+        }
+    }
+    for i in 0..temp.mat.len() {
+        if temp.mat[i] == rock || temp.mat[i] == AIR {
+            temp.mat[i] = if solid[i] { rock } else { AIR };
+        }
+    }
+    let at = |x: usize, y: usize| temp.mat[y * tw + x];
+    let plain = |m: MatId| m == rock || m == AIR;
+    let seed = s.seed ^ 0x5eed_b3d5;
     for y in ay..ay + ah {
         for x in ax..ax + aw {
-            let i = world.idx(x, y);
-            world.back[i] = s.back;
-        }
-    }
-    // Sealed: a solid rim, so no cavern bulges out of the sides.
-    if !s.open_sides {
-        for y in ay..ay + ah {
-            for x in ax..ax + aw {
-                let rim = x < ax + 2 || y < ay + 2 || x + 2 >= ax + aw || y + 2 >= ay + ah;
-                if rim && free(x as i32, y as i32) {
-                    world.set(mats, x, y, s.rock);
-                }
+            if !free(x as i32, y as i32) {
+                continue;
             }
-        }
-    }
-    cave_fixtures(world, mats, (ax, ay, aw, ah), origin, s, &caverns, &free);
-    if s.anchored {
-        for y in ay..ay + ah {
-            for x in ax..ax + aw {
-                let i = world.idx(x, y);
-                if !world.is_owned(i) && mats.get(world.mat[i]).state == crate::material::State::Solid {
-                    world.flags[i] |= crate::world::ANCHORED;
-                }
-            }
+            let (mx, my) = ((origin.0 + x as i64) as f32, (origin.1 + y as i64) as f32);
+            let wave = |k: u32, f: f32| noise(seed ^ k, mx * f, my * f) * 2.0 - 1.0;
+            let dx = wave(1, 1.0 / (t * 1.6)) * big + wave(3, 1.0 / (t * 0.5)) * small;
+            let dy = wave(2, 1.0 / (t * 1.6)) * big + wave(4, 1.0 / (t * 0.5)) * small;
+            let (ox, oy) = (x - ax + margin, y - ay + margin);
+            let sx = (ox as f32 + dx).round().clamp(0.0, tw as f32 - 1.0) as usize;
+            let sy = (oy as f32 + dy).round().clamp(0.0, th as f32 - 1.0) as usize;
+            let (original, sampled) = (at(ox, oy), at(sx, sy));
+            // Built features stay put and aren't smeared into the rock.
+            let m = if plain(original) && plain(sampled) { sampled } else { original };
+            world.set(mats, x, y, m);
         }
     }
     hand

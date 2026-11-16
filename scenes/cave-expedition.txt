@@ -2,7 +2,7 @@
 size 1280 960
 seed 33
 fill air
-generate 0 0 1280 960 seed 33 tiles tiles/caves caverns 0.9 crystals 0.9 torches 0.45
+generate 0 0 1280 960 seed 33 tiles tiles/caves tile 140 caverns 1 rooms 0 bend 1 deadends 0.4 crystals 0.9 torches 0.45
 lighting 0.36 #c8d6f0
 sun off
 # Lift camp: a sheltered platform and two warm lamps.
@@ -26,7 +26,7 @@ anchor 205 582 4 10
 # above camp and the guarded violet gallery are only a start: the rest is
 # out in the cave (cyan up north or down south, violet in the middle).
 mission 96 606 24
-sample crystal_cyan 130 0
+sample crystal_cyan 100 0
 sample crystal_violet 120 0
 
 # A mechanic workshop near the starting camp.
@@ -41,8 +41,14 @@ workshop chemistry 160 606 24
 # A guarded bonus gallery beyond camp; first workshop supplies stay safe.
 rect air 250 555 150 59
 rect air 190 590 70 24
+# The walkway's own floor (a shaft may open beneath it).
+rect rock 190 614 70 7
+anchor 190 614 70 7
 rect rock 250 614 150 7
 anchor 250 614 150 7
+# Its roof, so the bent caves above don't open into it.
+rect rock 250 548 150 7
+anchor 250 548 150 7
 rect crystal_violet 385 595 4 19
 anchor 385 595 4 19
 rect iron_ore 377 603 6 11

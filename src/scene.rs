@@ -791,6 +791,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                             // Huge chambers and blind side passages: docs/CAVE-GENERATION.md.
                             "caverns" => number().map(|n| set.caverns = n.clamp(0.0, 1.0)),
                             "deadends" => number().map(|n| set.dead_ends = n.clamp(0.0, 1.0)),
+                            "bend" => number().map(|n| set.bend = n.clamp(0.0, 1.0)),
                             "crystals" => number().map(|n| set.crystals = n.clamp(0.0, 1.0)),
                             "torches" => number().map(|n| set.torches = n.clamp(0.0, 1.0)),
                             "back" => if val == "none" { set.back = AIR; Ok(()) } else { mat(val).map(|id| set.back = id) },
