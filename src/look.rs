@@ -55,6 +55,8 @@ pub struct Look {
     pub blends: BTreeMap<(String,String),BlendBank>,
     /// Editable animation graph loaded alongside the rendered clips.
     pub graph: Arc<crate::animation::Graph>,
+    /// The editable file, which can be outside the sprite folder for a linked look.
+    pub graph_path: PathBuf,
     /// Folder name (what scenes call it).
     pub name: String,
     pub dir: PathBuf,
@@ -95,7 +97,7 @@ impl Look {
                 return Err(format!("{} line {}: expected `key = value`", file.display(), n + 1));
             };
             let (key, value) = (key.trim().to_lowercase(), value.trim());
-            let num = |v: &str| v.split_whitespace().next().and_then(|w| w.parse::<f32>().ok());
+            let num = |v: &str| v.split_whitespace().next().and_then(|w| w.parse::<f32>().ok()).filter(|n| n.is_finite());
             match key.as_str() {
                 "frame" => {}
                 "figure" => figure = num(value),
@@ -111,9 +113,9 @@ impl Look {
                         if part == "loop" {
                             looping = true;
                         } else if part.ends_with("fps") {
-                            fps = num(&part).unwrap_or(10.0);
+                            fps = num(&part).filter(|n| *n > 0.).ok_or_else(|| format!("{} line {}: fps must be positive and finite", file.display(), n+1))?;
                         } else if part.ends_with("frames") || part.ends_with("frame") {
-                            count = num(&part).map(|c| c as usize);
+                            count = part.split_whitespace().next().and_then(|v| v.parse::<usize>().ok());
                         }
                     }
                     let Some(count) = count.filter(|c| *c > 0) else {
@@ -123,7 +125,7 @@ impl Look {
                 }
             }
         }
-        let figure = figure.ok_or(format!("{}: missing `figure = ...`", file.display()))?;
+        let figure = figure.filter(|n| *n > 0.).ok_or(format!("{}: missing `figure = ...`", file.display()))?;
         let feet = feet.ok_or(format!("{}: missing `feet = ...`", file.display()))?;
         let mut anims = BTreeMap::new();
         for (name, count, fps, looping) in wanted {
@@ -150,7 +152,7 @@ impl Look {
         }
         let blends=blends::load(dir,figure,feet,body_h,&anims)?;
         let hands = std::fs::read_to_string(dir.join("hand.sockets")).unwrap_or_default().lines().filter_map(|l| { let v:Vec<_>=l.split_whitespace().collect(); if v.len()!=4 { return None; } Some(((v[0].to_string(),v[1].parse().ok()?),(v[2].parse().ok()?,v[3].parse().ok()?))) }).collect();
-        let look=Look { hands, blends, graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims };
+        let look=Look { hands, blends, graph_path, graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims };
         look.validate_blends(&look.graph)?;
         Ok(look)
     }
@@ -233,11 +235,15 @@ fn outline(pic: &Picture, figure: f32, feet: f32, body_h: usize) -> Vec<bool> {
 }
 
 /// Loaded looks, shared (loading the frames once is plenty).
-static CACHE: Mutex<BTreeMap<PathBuf, Arc<Look>>> = Mutex::new(BTreeMap::new());
+static CACHE: Mutex<BTreeMap<(PathBuf, usize), Arc<Look>>> = Mutex::new(BTreeMap::new());
 
 /// Find and load a look by name (a folder in `assets/characters/`) or path.
 /// `base` is where the scene file is.
 pub fn find(name: &str, base: Option<&Path>, body_h: usize) -> Result<Arc<Look>, String> {
+    find_linked(name, base, body_h, &mut Vec::new())
+}
+
+fn find_linked(name: &str, base: Option<&Path>, body_h: usize, chain: &mut Vec<PathBuf>) -> Result<Arc<Look>, String> {
     let mut tries: Vec<PathBuf> = Vec::new();
     if let Some(b) = base {
         tries.push(b.join(name));
@@ -251,6 +257,9 @@ pub fn find(name: &str, base: Option<&Path>, body_h: usize) -> Result<Arc<Look>,
         .into_iter()
         .find(|d| d.join("character.txt").is_file()||d.join("look.link").is_file())
         .ok_or(format!("no character called `{name}` (looked for assets/characters/{name}/character.txt)"))?;
+    let path = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+    if chain.contains(&path) { return Err(format!("Circular character link at {}", dir.display())); }
+    chain.push(path.clone());
     // A text link selects an installed local character without publishing its art.
     // Graph overrides belong to this alias; other scenes retain the original graph.
     if dir.join("look.link").is_file() {
@@ -259,18 +268,18 @@ pub fn find(name: &str, base: Option<&Path>, body_h: usize) -> Result<Arc<Look>,
         let source=fields.get("source").ok_or("look.link needs source = NAME")?;
         if *source==name {return Err("look.link cannot refer to itself".into());}
         let source_dir=dir.parent().unwrap_or(&dir).join(source);
-        if !source_dir.join("character.txt").is_file() {let fallback=fields.get("fallback").ok_or("linked local look is not installed")?;if *fallback==name {return Err("look.link fallback cannot refer to itself".into());}return find(fallback,base,body_h);}
-        let key=dir.canonicalize().unwrap_or(dir.clone());
+        if !source_dir.join("character.txt").is_file() {let fallback=fields.get("fallback").ok_or("linked local look is not installed")?;if *fallback==name {return Err("look.link fallback cannot refer to itself".into());}return find_linked(fallback,base,body_h,chain);}
+        let key = (path, body_h);
         let graph_file=dir.join(fields.get("graph").ok_or("look.link needs graph = FILE")?);
         let graph=crate::animation::Graph::parse(&std::fs::read_to_string(&graph_file).map_err(|e|e.to_string())?)?;
         let mut cache=CACHE.lock().unwrap();
-        if let Some(l)=cache.get(&key) {if graph==*l.graph{return Ok(l.clone());}}
+        if let Some(l)=cache.get(&key) {if graph==*l.graph && l.dir==source_dir && l.graph_path==graph_file {return Ok(l.clone());}}
         let mut look=Look::load(&source_dir,body_h)?;
         for state in &graph.states {if !look.anims.contains_key(&state.clip){return Err(format!("linked look missing clip {}",state.clip));}}
-        look.validate_blends(&graph)?;look.name=name.into();look.graph=Arc::new(graph);
+        look.validate_blends(&graph)?;look.name=name.into();look.graph_path=graph_file;look.graph=Arc::new(graph);
         let look=Arc::new(look);cache.insert(key,look.clone());return Ok(look);
     }
-    let key = dir.canonicalize().unwrap_or(dir.clone());
+    let key = (path, body_h);
     if let Some(l) = CACHE.lock().unwrap().get(&key) {
         // Frames stay cached; graph edits must be visible on scene reload too.
         let graph_file = dir.join("animation.graph");

@@ -13,6 +13,7 @@ pub(super) struct AnimationEditor {
     preview: Animator,
     running: bool,
     texture: Option<TextureHandle>,
+    preview_frame: Option<(std::path::PathBuf, String, usize)>,
     source: String,
     events: String,
     selected_action: String,
@@ -31,6 +32,7 @@ impl Default for AnimationEditor {
             graph,
             running: true,
             texture: None,
+            preview_frame: None,
             source: String::new(),
             events: String::new(),
             selected_action: String::new(),
@@ -51,13 +53,15 @@ impl AnimationEditor {
         self.preview = Animator::new(Arc::new(self.graph.clone())).unwrap();
         self.path = a.look.as_ref().map_or_else(
             || "assets/animations/custom.graph".into(),
-            |l| l.dir.join("animation.graph").to_string_lossy().into_owned(),
+            |l| l.graph_path.to_string_lossy().into_owned(),
         );
+        self.preview_frame = None;
+        self.events.clear();
         self.message.clear();
         self.source = self.graph.to_text();
     }
 
-    fn validated(&self, look: Option<&grave_engine::look::Look>) -> Result<Arc<Graph>, String> {
+    fn validated(&self, look: Option<&grave_engine::look::Look>) -> Result<(), String> {
         self.graph.validate()?;
         if let Some(l) = look {
             l.validate_blends(&self.graph)?;
@@ -67,7 +71,7 @@ impl AnimationEditor {
                 }
             }
         }
-        Ok(Arc::new(self.graph.clone()))
+        Ok(())
     }
 
     /// Returns a graph to apply to the scene only after an explicit button press.
@@ -76,7 +80,6 @@ impl AnimationEditor {
             return None;
         }
         let actors = sim.physics.actor_status();
-        let look = actors.get(self.actor).and_then(|a| a.look.as_deref());
         let mut open = self.open;
         let mut apply = None;
         egui::Window::new("Animation state machine").open(&mut open).default_size([950.0, 680.0]).show(ctx, |ui| {
@@ -87,19 +90,20 @@ impl AnimationEditor {
                 });
                 if let Some(a) = actors.get(self.actor) { ui.label(format!("Live: {} → {}", a.animation_state, a.anim)); }
             });
+            let look = actors.get(self.actor).and_then(|a| a.look.as_deref());
             if actors.is_empty() { ui.label("Load a scene with a character to apply a graph. The preview controls still work."); }
             ui.horizontal_wrapped(|ui| {
                 if ui.button("Restart preview").clicked() {
-                    match self.validated(look) { Ok(g) => { self.preview = Animator::new(g).unwrap(); self.message = "Preview updated".into(); }, Err(e) => self.message = e }
+                    match self.validated(look) { Ok(()) => { self.preview = Animator::new(Arc::new(self.graph.clone())).unwrap(); self.message = "Preview updated".into(); }, Err(e) => self.message = e }
                 }
                 ui.checkbox(&mut self.running, "Play preview");
                 if ui.button("Apply to character").clicked() {
-                    match self.validated(look) { Ok(g) if !actors.is_empty() => apply = Some((self.actor, g)), Ok(_) => self.message = "No character in scene".into(), Err(e) => self.message = e }
+                    match self.validated(look) { Ok(()) if self.actor < actors.len() => apply = Some((self.actor, Arc::new(self.graph.clone()))), Ok(_) => self.message = "No character in scene".into(), Err(e) => self.message = e }
                 }
                 if ui.button("Save graph + apply").clicked() {
                     match self.validated(look) {
-                        Ok(g) => match std::fs::write(&self.path, self.graph.to_text()) {
-                            Ok(()) => { self.message = "Saved. Character folders load animation.graph automatically.".into(); if !actors.is_empty() { apply = Some((self.actor, g)); } },
+                        Ok(()) => match std::fs::write(&self.path, self.graph.to_text()) {
+                            Ok(()) => { self.message = format!("Saved {}", self.path); if self.actor < actors.len() { apply = Some((self.actor, Arc::new(self.graph.clone()))); } },
                             Err(e) => self.message = format!("Could not save: {e}"),
                         }, Err(e) => self.message = e,
                     }
@@ -152,10 +156,16 @@ impl AnimationEditor {
                     if let Some(b)=&self.preview.blend { cols[1].label(format!("Blending from {} · {:.0}%",b.from_clip,(b.elapsed/b.seconds*100.0).clamp(0.0,100.0))); }
                     cols[1].label(format!("State time {:.2}s · clip time {:.2}s", self.preview.elapsed, self.preview.time));
                     if let Some(l) = look {
-                        let (f, _, _) = l.sample(&self.preview.state().clip, self.preview.sample_time(|c| l.duration(c)), self.preview.blend.as_ref());
-                        let img = egui::ColorImage::from_rgba_unmultiplied([f.w, f.h], &f.rgba);
-                        if let Some(t) = &mut self.texture { t.set(img, TextureOptions::LINEAR); } else { self.texture = Some(ctx.load_texture("animation-preview", img, TextureOptions::LINEAR)); }
-                        cols[1].image((self.texture.as_ref().unwrap().id(), Vec2::splat(180.0)));
+                        let (f, clip, index) = l.sample(&self.preview.state().clip, self.preview.sample_time(|c| l.duration(c)), self.preview.blend.as_ref());
+                        let same_frame = self.preview_frame.as_ref().is_some_and(|(dir, c, i)| dir == &l.dir && c == clip && *i == index);
+                        if !same_frame {
+                            let img = egui::ColorImage::from_rgba_unmultiplied([f.w, f.h], &f.rgba);
+                            if let Some(t) = &mut self.texture { t.set(img, TextureOptions::LINEAR); }
+                            else { self.texture = Some(ctx.load_texture("animation-preview", img, TextureOptions::LINEAR)); }
+                            self.preview_frame = Some((l.dir.clone(), clip.to_owned(), index));
+                        }
+                        let size = Vec2::new(f.w as f32, f.h as f32);
+                        cols[1].image((self.texture.as_ref().unwrap().id(), size * (180. / size.max_elem())));
                     }
                     cols[1].label(format!("Events: {}", self.events));
                 });

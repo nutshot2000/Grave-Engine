@@ -148,7 +148,7 @@ fn the_crouched_climb_picture_contacts_the_roof_at_the_end() {
         for y in 2..=20 { for x in 15..=17 { rgba[(y*32+x)*4+3]=255; } }
         Frame{w:32,h:32,rgba,mask:vec![false;320],scale:1.0}
     };
-    let look=Arc::new(Look{hands:Default::default(),blends:Default::default(),graph:graph.clone(),name:"crouched-fixture".into(),dir:Default::default(),figure:16.0,feet:30.0,faces_right:true,anims:[("hang".into(),Anim{frames:vec![frame()],fps:1.0,looping:true}),("climb".into(),Anim{frames:vec![frame()],fps:1.0,looping:false})].into()});
+    let look=Arc::new(Look{graph_path:Default::default(),hands:Default::default(),blends:Default::default(),graph:graph.clone(),name:"crouched-fixture".into(),dir:Default::default(),figure:16.0,feet:30.0,faces_right:true,anims:[("hang".into(),Anim{frames:vec![frame()],fps:1.0,looping:true}),("climb".into(),Anim{frames:vec![frame()],fps:1.0,looping:false})].into()});
     let mut a=ActorSpec::standing_at(0,0.0,0.0);
     a.look=Some(look);a.animation=Some(Animator::new(graph).unwrap());
     a.climb=Some(ClimbSettings{reach:6.0,seconds:2.0});

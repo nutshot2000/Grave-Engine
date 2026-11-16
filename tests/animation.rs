@@ -331,3 +331,21 @@ fn invalid_actor_or_scene_graph_does_not_replace_good_state() {
     );
     assert!(!result.problems.is_empty());
 }
+
+#[test]
+fn linked_editor_graph_is_the_override_and_fallback_cycles_are_reported() {
+    let root = std::env::temp_dir().join(format!("grave-graph-path-{}", std::process::id()));
+    for (name, next) in [("alpha", "beta"), ("beta", "alpha")] {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("look.link"), format!("source = absent\nfallback = {next}\n")).unwrap();
+    }
+    assert!(grave_engine::look::find("alpha", Some(&root), 16).unwrap_err().contains("Circular"));
+    let alias = root.join("alpha");
+    let sprite_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/characters/explorer");
+    std::fs::write(alias.join("test.graph"), "initial standing\nstate standing clip idle loop speed 1\n").unwrap();
+    std::fs::write(alias.join("look.link"), format!("source = {}\ngraph = test.graph\n", sprite_dir.display())).unwrap();
+    let look = grave_engine::look::find("alpha", Some(&root), 16).unwrap();
+    assert_eq!(look.graph_path, alias.join("test.graph"));
+    std::fs::remove_dir_all(root).unwrap();
+}
