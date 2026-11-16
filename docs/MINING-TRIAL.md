@@ -2,8 +2,11 @@
 
 Double-click **Play/Mining-Trial.cmd** to open the cavern in the editor.
 Keep **Player tools** and **Crystal mission** checked, then press **Play**.
+The starter kit now uses a grappling rope: Q/right click attaches/releases;
+Space/S reels in/out. See [Cave kit](CAVE-KIT.md).
+
 Use A/D to move, aim with the mouse, hold click or E to drill, W to jump/climb,
-and Space for short jetpack bursts. P pauses. Reset restores the test.
+and Space/S to reel the attached rope in/out. P pauses. Reset restores the test.
 
 The trial also has [material storage and workshops](CAVE-WORKSHOPS.md).
 B opens exact material counts and crafting; F cycles built tools. The camp
@@ -20,12 +23,12 @@ The point is to compare choices, rather than race to fill the sample bars:
 - The grey basalt wall to the right is a possible shortcut, but needs much
   more work. Dark layered bedrock below it stops the starter drill entirely.
 - The open winding passage above bypasses the basalt. Follow the torch,
-  using short flights and resting on ledges.
+  using rope swings and resting on ledges.
 - Collect cyan from the shelf in the next gallery. Sweep the drill across
   a surface to open enough room for the explorer; it is a narrow tool.
 - Break the soft floor near the gallery's right torch to reach the violet
-  pocket below. Plan the climb back out; the pack only holds 1.8 seconds
-  of thrust. There are shelves inside the shaft.
+  pocket below. Plan your rope anchor for the climb back out. There are
+  shelves inside the shaft.
 - Return to the amber camp ring with 16 cells of each colour to finish.
 
 Rock now fractures before breaking. The aiming ring sits on the first

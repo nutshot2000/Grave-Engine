@@ -27,10 +27,11 @@ The games and labs open from the [`Play`](../Play) folder.
 
 ## Games and levels (they show what the engine can do, and what it needs next)
 
+- [Cave kit](CAVE-KIT.md): rigged diver, elastic grappling rope, game HUD, hand-mounted tools and gas collection.
 - [Cave creatures](CAVE-CREATURES.md): surface crawlers, resource guards, elemental deaths and a combat gallery.
 - [Cave storage and workshops](CAVE-WORKSHOPS.md): exact mining inventory, tool recipes, fuel and real fire/acid tools.
 - [Mining trial](MINING-TRIAL.md): compare soft ground, hard shortcuts and a winding route in editor Play.
-- [DEEPWARD](DEEPWARD.md): playable cave expedition, explorer, jetpack, drilling, samples, map and saves.
+- [DEEPWARD](DEEPWARD.md): playable cave expedition, diver, rope, drilling, samples, map and saves.
 - [Cave generation](CAVE-GENERATION.md): varied natural passages, landmark rooms, rock textures and endless-map checks.
 
 - Stunt Yard: [Wreck Run](WRECK-RUN.md) and [what it taught the engine](STUNT-YARD-FEEDBACK.md).

@@ -78,7 +78,7 @@ sun off
 light 78 247 84 strength 0.9 color #ffce99
 light 190 139 58 strength 0.65 color #c4d4e9
 light 370 326 60 strength 0.5 color #a6b6da
-player 75 272 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 jet_capacity 1.8 headlamp 110 zoom 4
+player 75 272 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 110 zoom 4
 mission 75 264 20
 sample crystal_cyan 16 0
 sample crystal_violet 16 0

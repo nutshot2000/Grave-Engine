@@ -1,0 +1,53 @@
+# THE LANTERN CUT — rope, mining, workshops, gas and elemental enemies.
+size 600 380
+seed 72
+fill rock
+backwall shale 0 0 600 380
+circle air 110 210 92
+circle air 260 195 118
+circle air 430 213 105
+rect air 45 178 490 100
+rect rock 25 280 110 80
+rect rock 245 305 52 60
+rect rock 440 280 100 80
+poly rock 206 88 214 151 223 89
+poly rock 323 92 330 169 342 96
+rect shale 176 225 28 7
+rect shale 333 254 25 7
+rect basalt 374 272 28 55
+rect crystal_cyan 191 216 8 9
+rect crystal_violet 450 266 10 14
+rect sandstone 134 260 21 34
+rect iron_ore 99 252 8 28
+rect wood 110 264 10 16
+# Roof pocket holds finite fuel gas until breached or collected.
+rect rock 455 124 47 35
+rect air 459 128 39 26
+rect volatile_gas 460 130 36 24
+rect sandstone 459 154 39 5
+rect torch_glow 59 258 3 5
+rect wood 60 263 2 17
+rect torch_glow 270 287 3 5
+rect torch_glow 491 260 3 5
+rect iron 66 274 22 3
+workshop mechanic 77 270 26
+rect iron 465 274 22 3
+workshop chemistry 475 270 26
+lighting 0.27 #9fbfd8
+sun off
+light 75 255 88 strength 1.0 color #ffc88d
+light 274 281 75 strength 0.8 color #ffc88d
+light 483 255 83 strength 0.9 color #ffc88d
+light 310 122 65 strength 0.35 color #6ea5bc
+player 55 280 look cave-diver moves climb 0.65 reach 8 rope rope_range 220 headlamp 115 zoom 4
+mission 55 272 20
+sample crystal_cyan 16 0
+sample crystal_violet 16 0
+storage on
+# Enough starter scrap to try a collector; mine more for the weapon upgrade.
+stock iron_ore 24
+stock sandstone 32
+stock crystal_cyan 4
+creature skitter 520 278 element oil burst 96
+creature shellback 375 267 element fire burst 72
+anchor 0 0 600 380

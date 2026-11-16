@@ -3220,13 +3220,13 @@ Click to mute. The volume is in the View menu.")
                 if n>0.1 {self.drill_aim=(dx/n,dy/n);}
             }
             if let Some(m)=&self.sim.mission {
-                painter.circle_stroke(to_screen(m.home),m.radius*scale,Stroke::new(1.5,Color32::from_rgb(255,205,110)));
-                painter.text(to_screen((m.home.0,m.home.1-m.radius-4.0)),egui::Align2::CENTER_BOTTOM,"RETURN CAMP",egui::FontId::proportional(13.0),Color32::from_rgb(255,205,110));
+                painter.circle_stroke(to_screen((m.home.0,m.home.1-17.)),9.,Stroke::new(1.5,Color32::from_rgb(255,205,110)));
+                painter.text(to_screen((m.home.0,m.home.1-17.))-Vec2::new(0.,14.),egui::Align2::CENTER_BOTTOM,"RETURN CAMP",egui::FontId::proportional(13.0),Color32::from_rgb(255,205,110));
             }
             for b in &self.sim.supplies.stations {
                 let near=(b.x-actor.x).hypot(b.y-actor.y)<=b.radius;
-                painter.circle_stroke(to_screen((b.x,b.y)),5.0*scale,Stroke::new(if near {2.0}else{1.0},Color32::from_rgb(115,235,195)));
-                painter.text(to_screen((b.x,b.y-12.0)),egui::Align2::CENTER_BOTTOM,format!("{} workshop{}",b.kind,if near {" — B to craft"}else{""}),egui::FontId::proportional(13.0),Color32::from_rgb(140,245,210));
+                painter.circle_stroke(to_screen((b.x,b.y)),7.0,Stroke::new(if near {2.0}else{1.0},Color32::from_rgb(115,235,195)));
+                painter.text(to_screen((b.x,b.y))-Vec2::new(0.,18.),egui::Align2::CENTER_BOTTOM,format!("{} workshop{}",b.kind,if near {" — B to craft"}else{""}),egui::FontId::proportional(13.0),Color32::from_rgb(140,245,210));
             }
             grave_engine::cave_ui::equipment(&painter,&self.sim,&self.mats,&self.supply_catalog,self.drill_aim,self.drill_held,scale,to_screen);
             self.draw_hud(&painter,outer);

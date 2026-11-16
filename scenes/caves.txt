@@ -11,7 +11,7 @@ generate 0 0 960 480 seed 21 tiles tiles/caves
 rect air 24 392 96 70                      # a start chamber...
 rect rock 24 462 96 8                      # ...with a floor
 anchor 24 462 96 8
-player 60 462 look explorer moves climb 0.65 reach 8 jetpack flight_speed 6.5 jet_capacity 6 headlamp 125 zoom 4
+player 60 462 look cave-diver moves climb 0.65 reach 8 rope rope_range 160 rope_elasticity 0.06 headlamp 125 zoom 4
 
 # Atmospheric cave light; edit in the Lights panel.
 lighting 0.32 #c8d6f0

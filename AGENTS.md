@@ -591,3 +591,32 @@ corners, support removal, gaps, saved pose/crop equality), elemental_creatures.r
 (finite bursts, affinities, acid scenery erosion, oil ignition, no save/rewind
 duplication), and editor mouse firing/reaction/Reset. Docs: CAVE-CREATURES.md.
 No automatic endless-region creature population is included yet.
+
+### Cave kit polish, rig links, rope and gases
+
+Cave scenes now use `look cave-diver` and `rope` rather than starter jetpacks.
+`look.link` is a generic character alias: source folder, graph override, fallback.
+The installed imported rig/art/sockets stay local; public checkouts use explorer.
+`Look::hands` optionally loads clip/frame/image-pixel pairs from `hand.sockets`;
+`tools/export_character_sockets.py` exports actual rig wrists. Shared
+`tool_pose` drives tools/emission with obstruction checks. Cave-specific graph
+aiming preserves locomotion and the animation lab graph.
+
+`physics/actor/grapple.rs` stores Rope in ActorSpec (snapshot/rewind), saved via
+player rope settings/path and shifted with the actor. Elastic velocity constraint
+uses normal terrain collisions, preserves release momentum and bounded nearby
+corner wrapping/unwrapping. Q/right mouse/R3 toggles; Space/S or D-pad reels.
+`cave_ui` shares the game HUD and exact exposed-pixel mining preview between
+editor and standalone. Rope-equipped editor Play hides panels; P restores them.
+Keep mining preview candidates shared with the actual strike.
+
+Gas collector is data-defined `vacuum REACH RADIUS CAPACITY`; exact gas counters
+in Supplies are separate from mined stock. Air/occluded gas are excluded.
+Cargo shows tank counters; V/RT vents finite real cells; chemistry recipes can
+spend gas to refine fuel. Save command `gas_stock MATERIAL N`. Counts preserve
+material identity, not heat/lifetime. Guide: docs/CAVE-KIT.md; test scene/launcher
+Cave-Kit-Trial; tests/cave_kit.rs plus editor click-through tests.
+
+Overhead rubble crack-site jitter is spatial/frame-seeded, independent of runtime
+material IDs. Material IDs still separate fragment groups. This prevents adding
+a cave material from changing other games' rubble geometry and combat routes.

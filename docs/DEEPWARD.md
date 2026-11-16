@@ -14,7 +14,8 @@ Health, swimming, heat, collisions and the material simulation still apply.
 | --- | --- | --- |
 | Walk | A / D, arrows | Left stick / d-pad |
 | Jump / grab / climb | W / Up | A |
-| Jetpack | Hold Space | RT |
+| Attach / release rope | Q / right click | Right-stick click |
+| Reel in / out | Space / S | D-pad up/down |
 | Fast descent / release ledge | S / Down | B |
 | Crouch / roll | C / X | X / RB |
 | Aim drill | Mouse, or I/J/K/L | Right stick |
@@ -24,16 +25,23 @@ Health, swimming, heat, collisions and the material simulation still apply.
 | Save | F5 | Y |
 | New expedition (title, paused or won) | R | LB |
 
-Release thrust to recharge. Landing recharges faster; the pack limits
-passive descent, so you can glide and recharge in large shafts. The helmet
-lamp follows the explorer. Every connected crystal patch lights the scene,
+Attach to rock, jump and swing, then reel to reach a shelf. Release the rope
+to keep your momentum. The headlamp follows aim. Every connected crystal patch lights the scene,
 and the pillars and shelves cast real shadows.
 
-Your drilled terrain, sample inventory, explorer position/fuel and surveyed
+Your drilled terrain, sample inventory, diver position, rope and surveyed
 map are saved in `saves/cave-explorer/run.txt`. Saving happens every 30 seconds,
 on pause, F5/Y and normal window close. Scene loading currently restores the
 suit's health/breath; it is not a full survival-state save. Death returns you
 to camp after a short delay, retaining the run's terrain and sample count.
+
+## Current starter kit
+
+New expeditions use the full local rig when installed and a grappling rope,
+with a shared game HUD, hand-mounted tools, bright mining preview and a
+craftable gas collector. **Q/right click** attaches/releases the rope;
+**Space/S** reels in/out. See [Cave kit](CAVE-KIT.md) for the current controls
+and the Lantern Cut editor playtest. The jetpack remains an optional later loadout and is preserved in old saves.
 
 ## Everything to edit
 
@@ -49,12 +57,11 @@ to camp after a short delay, retaining the run's terrain and sample count.
   suit, utility pack and drill from the engine's existing editable hero rig.
   It also writes a local `.blend` for sculpting; that file is not distributed.
 - The original `caves.txt` and `endless-caves.txt` now use the same explorer,
-  pack and headlamp in editor Play mode. **P** pauses; Space flies.
+  rope and headlamp in editor Play mode. **P** pauses; Space/S reels.
 
-The engine additions are reusable: `player ... jetpack flight_speed 6.5
-jet_capacity 6 headlamp 125`, plus `Sim::dig_circle`, which reports real
-removed material and preserves owned cells/liquids. They are not special
-cases tied to this game or to a particular rock.
+The starter traversal is reusable: `player ... rope rope_range 160
+rope_elasticity 0.06 headlamp 125`. Focused surface mining, inventories and
+material tools are shared by editor Play and the standalone game.
 
 ## Verification
 
@@ -62,21 +69,19 @@ cases tied to this game or to a particular rock.
 fuel/recharge, safe descent, snapshots, headlamp and excavation protection.
 The input test covers a complete press/release arriving in one render frame.
 
-`cargo run --release --bin cave-explorer -- --verify` runs an automatic
-expedition using flight and drilling controls (no position warps), mines both
-sample types, and returns to camp. It writes screenshots in `shots/` and
-reports whether the expedition was won. It does not write the player's save.
-The first verified route crossed over 40 metres from camp, mined thousands
-of real cells, collected both sample types and returned at full health.
-Native window checks also covered the title/start, HUD, map, pause and save.
-This does not establish long-term balance or every possible generated seed.
+`cargo test --release --test cave_kit` covers the new starter rope, gas tank
+and hand attachments. The editor tests exercise actual pointer input, mining,
+crafting, mission return and reset. Native checks cover the game HUD, mining
+highlight, weapon pose, rope attachment and workshop screen. Earlier flight
+autopilot results do not validate a winning route with the new rope kit;
+human playtesting and balance remain to be done.
 
 ## Mining in editor Play mode
 
 Open any scene with a player and press Play. Leave **Player tools** checked
 in the toolbar. Aim inside the level canvas and hold **left mouse / E** to
 drill; I/J/K/L or the controller right stick can aim too, with LT drilling.
-Space flies with the explorer loadout, P pauses, and Reset restores the
+Q/right click attaches the rope, Space/S reels, P pauses, and Reset restores the
 pre-play terrain. A ring shows the drill's fixed reach: clicking a distant
 wall does not mine it remotely. Mining uses the same focused surface drilling and material hardness rules
 as DEEPWARD, and feeds the scene's crystal mission inventory. See the
