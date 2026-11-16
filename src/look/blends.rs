@@ -52,7 +52,7 @@ mod tests {
         let graph=Arc::new(Graph::parse("initial idle\nstate idle clip idle loop speed 1\nstate walk clip walk loop speed 1\nblend idle walk 0.2\n").unwrap());
         let frame=|value,scale|Frame{w:2,h:2,rgba:vec![value;16],mask:vec![false;320],scale};
         let bank=BlendBank{key:"test-bank".into(),seconds:0.2,source_fps:2.0,target_speed:1.0,frames:vec![vec![frame(10,2.0),frame(11,2.0),frame(12,2.0)],vec![frame(20,2.0),frame(21,2.0),frame(22,2.0)]]};
-        let look=Look{graph:graph.clone(),name:"test".into(),dir:Default::default(),figure:4.0,feet:4.0,faces_right:true,anims:[("idle".into(),Anim{frames:vec![frame(1,1.0),frame(2,1.0)],fps:2.0,looping:true}),("walk".into(),Anim{frames:vec![frame(3,1.0),frame(4,1.0)],fps:2.0,looping:true})].into(),blends:[(("idle".into(),"walk".into()),bank)].into()};
+        let look=Look{hands:Default::default(),graph:graph.clone(),name:"test".into(),dir:Default::default(),figure:4.0,feet:4.0,faces_right:true,anims:[("idle".into(),Anim{frames:vec![frame(1,1.0),frame(2,1.0)],fps:2.0,looping:true}),("walk".into(),Anim{frames:vec![frame(3,1.0),frame(4,1.0)],fps:2.0,looping:true})].into(),blends:[(("idle".into(),"walk".into()),bank)].into()};
         look.validate_blends(&graph).unwrap();
         let mut blend=ActiveBlend{from_clip:"idle".into(),source_time:0.75,elapsed:0.1,seconds:0.2};
         let(f,key,index)=look.sample("walk",0.1,Some(&blend));assert_eq!((f.rgba[0],index),(21,4));assert_eq!(key,"test-bank");assert_eq!(f.scale,2.0);

@@ -20,3 +20,8 @@ tool_next = key F, pad LB
 recipe_next = key ArrowDown, pad Down
 recipe_prev = key ArrowUp, pad Up
 craft = key Enter, pad Y
+
+# Grapple toggle, then reel in/out; independent from the later jetpack.
+grapple = mouse Secondary, key Q, pad RStick
+reel = keys Space S, pads Up Down
+vent = key V, pad RT

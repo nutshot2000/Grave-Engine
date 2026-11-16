@@ -48,3 +48,6 @@ transition fly fall priority 94 after 0 when boosting == 0 & airborne > 0
 transition fly idle priority 94 after 0 when boosting == 0 & airborne == 0
 transition * drill priority 92 after 0 when drilling > 0 & boosting == 0 & dead == 0 & airborne == 0
 transition drill idle priority 91 after 0 when drilling == 0
+
+param aim_x 1
+param aim_y 0

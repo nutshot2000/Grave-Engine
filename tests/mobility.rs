@@ -91,7 +91,7 @@ fn capsule_waits_for_the_visible_tuck_before_entering_a_low_beam() {
         for y in 16-height..16 { for x in 8..12 { mask[y*MASK_W+x]=true; } }
         Frame{scale:1.0,w:20,h:16,rgba:vec![0;20*16*4],mask}
     };
-    let look=Arc::new(Look{graph,name:"test-tuck".into(),dir:Default::default(),figure:16.0,feet:16.0,faces_right:true,blends:Default::default(),anims:[
+    let look=Arc::new(Look{hands:Default::default(),graph,name:"test-tuck".into(),dir:Default::default(),figure:16.0,feet:16.0,faces_right:true,blends:Default::default(),anims:[
         ("idle".into(),Anim{fps:10.0,looping:true,frames:vec![frame(16)]}),
         ("roll".into(),Anim{fps:10.0,looping:false,frames:vec![frame(16),frame(8),frame(8),frame(8)]}),
     ].into()});

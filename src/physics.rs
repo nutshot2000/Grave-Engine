@@ -76,7 +76,7 @@ mod actor;
 mod shift;
 mod bend;
 mod vehicle;
-pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold, MobilitySettings, Posture, Soak, Jetpack, SurfaceWalker, surface_advance, surface_rotate, surface_tangent};
+pub use actor::{ActorSpec, ActorStatus, Controls, ClimbSettings, LedgeHold, MobilitySettings, Posture, Soak, Jetpack, Rope, SurfaceWalker, surface_advance, surface_rotate, surface_tangent};
 pub use vehicle::{Balance, WheelContact};
 
 /// How tall a character's body is, in cells.
@@ -795,6 +795,7 @@ impl Physics {
         }
         let blasts = world.blasts.clone();
         self.actors_think(world, mats, &blasts);
+        self.ropes_think(world,mats);
         // Welded vehicle parts must not fight each other through internal collisions.
         // Recompute each frame so released parts collide normally on the next step.
         let mut roots: HashMap<u64, u64> = self.bodies.iter().map(|b| (b.id, b.id)).collect();

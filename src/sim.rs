@@ -347,12 +347,13 @@ impl Sim {
     /// Where the lamps are right now (lamps on objects move with them).
     pub fn lamps(&self) -> Vec<crate::light::Placed> {
         let mut lamps = self.lighting.place(self.world.frame, |id| self.physics.pose_of(id));
-        for a in self.physics.actor_status() {
+        for (index,a) in self.physics.actor_status().into_iter().enumerate() {
             if a.headlamp > 0.0 && !a.dead {
-                lamps.push(crate::light::Placed { shadows: true, x: a.x + a.facing * 4.0, y: a.y - 4.0, radius: a.headlamp, strength: 1.25, color: [235, 241, 220], cone: Some((if a.facing < 0.0 { std::f32::consts::PI } else { 0.0 }, 0.9)) });
-                lamps.push(crate::light::Placed { shadows: true, x: a.x, y: a.y - 3.0, radius: 28.0, strength: 0.5, color: [220, 230, 240], cone: None });
+                lamps.push(crate::light::Placed { shadows: true, x: a.x + a.facing * 4.0, y: a.y - 4.0, radius: a.headlamp, strength: 1.25, color: [215, 236, 247], cone: Some((self.physics.actor_animation_parameter(index,"aim_y").unwrap_or(0.).atan2(self.physics.actor_animation_parameter(index,"aim_x").unwrap_or(a.facing)), 0.9)) });
+                lamps.push(crate::light::Placed { shadows: true, x: a.x, y: a.y - 3.0, radius: 46.0, strength: 0.68, color: [220, 230, 240], cone: None });
             }
         }
+        if let Some(hit)=self.mining.impact.as_ref().filter(|h|self.world.frame.saturating_sub(h.frame)<7){lamps.push(crate::light::Placed{shadows:true,x:hit.x-hit.aim.0*2.,y:hit.y-hit.aim.1*2.,radius:24.,strength:0.6,color:[110,224,235],cone:None});}
         lamps
     }
 

@@ -15,6 +15,7 @@ pub struct Station {
 pub struct Supplies {
     pub tracking: bool,
     pub stock: BTreeMap<MatId, u64>,
+    pub gas: BTreeMap<MatId,u64>,
     pub tools: BTreeSet<String>,
     pub equipped: String,
     pub stations: Vec<Station>,
@@ -23,7 +24,7 @@ impl Default for Supplies {
     fn default() -> Self {
         Self {
             tracking: false,
-            stock: BTreeMap::new(),
+            stock: BTreeMap::new(), gas: BTreeMap::new(),
             tools: BTreeSet::from(["drill".into()]),
             equipped: "drill".into(),
             stations: Vec::new(),
@@ -32,10 +33,12 @@ impl Default for Supplies {
 }
 impl Supplies {
     pub fn count(&self, id: MatId) -> u64 {
-        self.stock.get(&id).copied().unwrap_or(0)
+        self.stock.get(&id).copied().unwrap_or(0).saturating_add(self.gas.get(&id).copied().unwrap_or(0))
     }
+    pub fn gas_total(&self)->u64 {self.gas.values().fold(0u64,|n,v|n.saturating_add(*v))}
+    pub fn spend(&mut self,id:MatId,n:u64) {let solid=self.stock.entry(id).or_default();let used=(*solid).min(n);*solid-=used;if n>used{let gas=self.gas.entry(id).or_default();*gas=gas.saturating_sub(n-used);}}
     pub fn total(&self) -> u64 {
-        self.stock.values().fold(0u64, |n, v| n.saturating_add(*v))
+        self.stock.values().chain(self.gas.values()).fold(0u64, |n, v| n.saturating_add(*v))
     }
     pub fn nearby(&self, p: (f32, f32), kind: &str) -> bool {
         self.stations
@@ -69,6 +72,7 @@ impl Supplies {
 #[derive(Clone)]
 pub enum Mode {
     Drill(Drill),
+    Vacuum {reach:f32,radius:f32,capacity:u64},
     Spray {
         material: MatId,
         speed: f32,
@@ -138,6 +142,7 @@ impl Catalog {
                         power: number(3)?.clamp(0.1, 10.),
                         grade: number(4)?.clamp(0.1, 100.),
                     }),
+                    "vacuum" if w.len()==4 => Mode::Vacuum{reach:number(1)?.clamp(8.,48.),radius:number(2)?.clamp(2.,10.),capacity:w[3].parse::<u64>().ok()?.clamp(16,10000)},
                     "spray" if w.len() == 4 => Mode::Spray {
                         material: m.id(w[1])?,
                         speed: number(2)?.clamp(0.1, 4.),
@@ -245,7 +250,7 @@ impl Recipe {
     pub fn craft(&self, s: &mut Supplies, p: (f32, f32)) -> Result<(), String> {
         self.check(s, p)?;
         for (&id, &n) in &self.costs {
-            *s.stock.entry(id).or_default() -= n;
+            s.spend(id,n);
         }
         match &self.product {
             Product::Tool(id) => {
@@ -318,6 +323,28 @@ impl Sim {
             return empty;
         };
         match t.mode {
+            Mode::Vacuum{reach,radius,capacity} => {
+                if self.world.frame%3!=0 {return empty;}
+                let n=aim.0.hypot(aim.1);if n<0.01{return empty;}
+                let mut removed=0;
+                'scan: for step in 4..=(reach*2.) as usize {
+                    let d=step as f32*0.5;let center=(from.0+aim.0/n*d,from.1+aim.1/n*d);
+                    for off in -(radius as i32)..=radius as i32 {
+                        if self.supplies.gas_total()>=capacity||removed>=8 {break 'scan;}
+                        let (x,y)=((center.0-aim.1/n*off as f32).floor() as i32,(center.1+aim.0/n*off as f32).floor() as i32);
+                        if !self.world.in_bounds(x,y){continue;}
+                        let i=self.world.idx(x as usize,y as usize);let id=self.world.mat[i];
+                        if id==0||self.world.is_owned(i)||m.get(id).state!=crate::material::State::Gas {continue;}
+                        // Visibility from the nozzle blocks suction through rock, liquid and bodies.
+                        if crate::mining::surface(&self.world,m,from,(x as f32-from.0,y as f32-from.1),(d-1.).max(4.)).is_some(){continue;}
+                        let steps=((x as f32-from.0).hypot(y as f32-from.1)*2.).ceil() as usize;
+                        let blocked=(1..steps).any(|k| {let t=k as f32/steps as f32;let (sx,sy)=((from.0+(x as f32-from.0)*t) as i32,(from.1+(y as f32-from.1)*t) as i32);if !self.world.in_bounds(sx,sy){return true;}let j=self.world.idx(sx as usize,sy as usize);!self.world.is_owned(j)&&m.get(self.world.mat[j]).state!=crate::material::State::Gas});
+                        if blocked{continue;}
+                        self.world.make_air(i);*self.supplies.gas.entry(id).or_default()+=1;removed+=1;self.supplies.tracking=true;
+                    }
+                }
+                if removed>0 {crate::creatures::noise(&mut self.physics,from);}empty
+            }
             Mode::Drill(tool) => {
                 if self.world.frame % 6 != 0 {
                     return empty;
@@ -377,7 +404,7 @@ impl Sim {
                         (ay + ax * spread) * speed,
                     ) {
                         crate::creatures::noise(&mut self.physics,from);
-                        *self.supplies.stock.get_mut(&ammo).unwrap() -= 1;
+                        self.supplies.spend(ammo,1);
                         self.sync_carried_samples();
                     }
                 }
@@ -428,34 +455,47 @@ impl Panel {
         if !open {
             return None;
         }
-        egui::Window::new("Storage & workshops").open(&mut open).default_width(540.).show(ctx,|ui|{
-            ui.label("One mined pixel = one stored cell. Crafting spends the exact amounts below.");
-            ui.small("World paused while this panel is open. B / left-stick click closes it.");
-            ui.heading(format!("Storage — {} cells",s.supplies.total()));
-            egui::ScrollArea::vertical().id_salt("stored_materials").max_height(145.).show(ui,|ui|{
-                if s.supplies.total()==0 {ui.label("Empty — mine any material to collect it.");}
-                let mut stock:Vec<_>=s.supplies.stock.iter().filter(|(_,n)|**n>0).collect();stock.sort_by_key(|(id,_)|&m.get(**id).name);
-                for (&id,&n) in stock {ui.horizontal(|ui|{ui.colored_label(Color32::from_rgb(m.get(id).color[0],m.get(id).color[1],m.get(id).color[2]),"■");ui.label(m.get(id).name.replace('_'," "));ui.monospace(n.to_string());});}
-            });
-            ui.separator();ui.heading("Tools");ui.horizontal_wrapped(|ui|{for t in &cat.tools {if s.supplies.tools.contains(&t.id)&&ui.selectable_label(s.supplies.equipped==t.id,&t.title).clicked(){action=Some(Action::Equip(t.id.clone()));}}});
-            if let Some(t)=cat.tool(&s.supplies.equipped) {if let Mode::Spray{ammo,..}=t.mode {ui.label(format!("{}: {} ammunition cells",m.get(ammo).name,s.supplies.count(ammo)));}}
-            ui.separator();ui.heading("Workshop recipes");
-            let player=s.physics.player_status().filter(|p|!p.dead);let p=player.as_ref().map(|p|(p.x,p.y));
-            let near:Vec<_>=s.supplies.stations.iter().filter(|b|p.is_some_and(|p|(b.x-p.0).hypot(b.y-p.1)<=b.radius)).map(|b|b.kind.replace('_'," ")).collect();
-            ui.label(if near.is_empty(){"Find a workshop in the cave to build tools or make supplies.".into()}else{format!("In reach: {} workshop",near.join(", "))});
-            egui::ScrollArea::vertical().id_salt("workshop_recipes").max_height(265.).show(ui,|ui|{
-                for (i,r) in cat.recipes.iter().enumerate() {
-                    let check=p.ok_or_else(||"A living player is required".into()).and_then(|p|r.check(&s.supplies,p));
-                    ui.group(|ui|{ui.horizontal(|ui|{if ui.selectable_label(self.selected==i,&r.title).clicked(){self.selected=i;}let response=ui.add_enabled(check.is_ok(),egui::Button::new("Craft"));if response.clicked()||(self.craft_pressed&&self.selected==i&&check.is_ok()) {action=Some(Action::Craft(r.id.clone()));}});
-                        ui.horizontal_wrapped(|ui|{for (&id,&n) in &r.costs {ui.colored_label(if s.supplies.count(id)>=n {Color32::LIGHT_GREEN}else{Color32::from_rgb(245,155,120)},format!("{} {}/{}",m.get(id).name.replace('_'," "),s.supplies.count(id),n));}});
-                        if let Err(reason)=check {ui.small(reason);}
+        let screen=ctx.viewport_rect();
+        egui::Window::new("FIELD KIT  /  Inventory & workshops").open(&mut open)
+            .anchor(egui::Align2::CENTER_CENTER,egui::Vec2::ZERO).fixed_size(egui::vec2((screen.width()-40.).clamp(300.,790.),(screen.height()-80.).clamp(280.,630.))).max_width((screen.width()-40.).max(260.))
+            .max_height((screen.height()-65.).max(250.)).collapsible(false)
+            .frame(egui::Frame::NONE.fill(Color32::from_rgb(12,23,33)).inner_margin(18.))
+            .show(ctx,|ui|{
+                ui.horizontal(|ui|{ui.heading("FIELD KIT");ui.separator();ui.colored_label(Color32::from_rgb(104,225,209),"WORLD PAUSED");ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{ui.small("B / L3 closes");});});
+                ui.label("Every mined pixel is yours. Build equipment at a nearby workshop.");
+                ui.add_space(10.);
+                ui.horizontal_wrapped(|ui|{for t in &cat.tools {let owned=s.supplies.tools.contains(&t.id);let selected=s.supplies.equipped==t.id;let title=if owned {t.title.clone()}else{format!("{} · locked",t.title)};if ui.add_enabled(owned,egui::Button::new(title).selected(selected).min_size(egui::vec2(110.,34.))).clicked(){action=Some(Action::Equip(t.id.clone()));}}});
+                ui.add_space(12.);ui.separator();
+                let player=s.physics.player_status().filter(|p|!p.dead);let p=player.as_ref().map(|p|(p.x,p.y));
+                let near:Vec<_>=s.supplies.stations.iter().filter(|b|p.is_some_and(|p|(b.x-p.0).hypot(b.y-p.1)<=b.radius)).map(|b|b.kind.replace('_'," ")).collect();
+                ui.colored_label(Color32::from_rgb(255,207,130),if near.is_empty(){"WORKSHOP OFFLINE — find a mechanic or chemistry station".into()}else{format!("WORKSHOP CONNECTED / {}",near.join(" + ").to_uppercase())});
+                ui.add_space(8.);
+                ui.columns(2,|columns|{
+                    let ui=&mut columns[0];ui.heading("Cargo");ui.small(format!("{} cells stored · exact material counts",s.supplies.total()));
+                    egui::ScrollArea::vertical().id_salt("stored_materials").max_height(310.).show(ui,|ui|{
+                        if s.supplies.total()==0 {ui.label("Empty — mine rock to begin collecting.");}
+                        let ids:std::collections::BTreeSet<_>=s.supplies.stock.keys().chain(s.supplies.gas.keys()).copied().collect();
+                        let mut ids:Vec<_>=ids.into_iter().filter(|id|s.supplies.count(*id)>0).collect();ids.sort_by_key(|id|&m.get(*id).name);
+                        egui::Grid::new("cargo_counts").num_columns(2).spacing([20.,9.]).striped(true).show(ui,|ui|{for id in ids {let mat=m.get(id);let gas=s.supplies.gas.get(&id).copied().unwrap_or(0)>0;ui.colored_label(Color32::from_rgb(mat.color[0].saturating_add(35),mat.color[1].saturating_add(35),mat.color[2].saturating_add(35)),format!("{}{}",mat.name.replace('_'," "),if gas{" [tank]"}else{""}));ui.monospace(s.supplies.count(id).to_string());ui.end_row();}});
                     });
-                }
+                    if let Some(t)=cat.tools.iter().find(|t|s.supplies.tools.contains(&t.id)&&matches!(t.mode,Mode::Vacuum{..})){if let Mode::Vacuum{capacity,..}=t.mode {ui.add_space(10.);ui.label(format!("Gas tank  {} / {}",s.supplies.gas_total(),capacity));ui.add(egui::ProgressBar::new(s.supplies.gas_total() as f32/capacity as f32));ui.small("Equip collector: click to draw gas in; V / RT to vent. Chemistry workshops condense fuel gas into oil.");}}
+                    let ui=&mut columns[1];ui.heading("Build & refine");ui.small("Choose a recipe · green counts are ready");
+                    egui::ScrollArea::vertical().id_salt("workshop_recipes").max_height(355.).show(ui,|ui|{
+                        for (i,r) in cat.recipes.iter().enumerate() {
+                            let check=p.ok_or_else(||"A living player is required".into()).and_then(|p|r.check(&s.supplies,p));
+                            egui::Frame::group(ui.style()).fill(if self.selected==i {Color32::from_rgb(23,48,57)}else{Color32::from_rgb(17,31,43)}).inner_margin(10.).show(ui,|ui|{
+                                ui.horizontal_wrapped(|ui|{if ui.selectable_label(self.selected==i,&r.title).clicked(){self.selected=i;}if ui.add_enabled(check.is_ok(),egui::Button::new("Craft")).clicked()||(self.craft_pressed&&self.selected==i&&check.is_ok()){action=Some(Action::Craft(r.id.clone()));}});
+                                ui.horizontal_wrapped(|ui|{for (&id,&n) in &r.costs {ui.colored_label(if s.supplies.count(id)>=n {Color32::from_rgb(128,225,181)}else{Color32::from_rgb(245,155,120)},format!("{} {}/{}",m.get(id).name.replace('_'," "),s.supplies.count(id),n));}});
+                                if let Err(reason)=check {ui.small(reason);}else{ui.colored_label(Color32::from_rgb(128,225,181),"Ready to craft");}
+                            });ui.add_space(5.);
+                        }
+                    });
+                });
+                ui.separator();
+                if !self.message.is_empty(){ui.colored_label(Color32::from_rgb(255,210,130),&self.message);}
+                for problem in &cat.problems {ui.colored_label(Color32::LIGHT_RED,problem);}
+                ui.small("↑/↓ / D-pad: recipe    Enter / Y: craft    F / LB: change equipped tool");
             });
-            if !self.message.is_empty(){ui.colored_label(Color32::from_rgb(255,210,130),&self.message);}
-            for problem in &cat.problems {ui.colored_label(Color32::LIGHT_RED,problem);}
-            ui.small("↑/↓ or controller D-pad: choose recipe • Enter / Y: craft • F / LB: cycle equipped tool");
-        });
         self.open = open;
         self.craft_pressed = false;
         action

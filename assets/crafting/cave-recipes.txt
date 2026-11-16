@@ -4,3 +4,6 @@ flamethrower | Flame projector | mechanic | tool flamethrower | iron_ore 24, san
 fuel | Refine fuel (96 cells) | mechanic | stock oil 96 | wood 8, sandstone 8
 acid_shooter | Acid sprayer | chemistry | tool acid_shooter | iron_ore 24, sandstone 24, crystal_violet 6
 acid_charge | Mix acid (48 cells) | chemistry | stock acid 48 | sandstone 24, crystal_violet 2
+
+vacuum | Gas collector & 512-cell tank | mechanic | tool vacuum | iron_ore 24, sandstone 32, crystal_cyan 4
+gas_fuel | Condense gas fuel (96 cells) | chemistry | stock oil 96 | volatile_gas 48

@@ -130,6 +130,50 @@ impl Mining {
         let (x, y) = ((hit % w.w) as f32, (hit / w.w) as f32);
         let material = w.mat[hit];
         let blocked = hardness(m.get(material)) > tool.grade;
+        let candidates = candidates(w,m,from,hit,tool);
+        for (i, weight) in candidates {
+            let id = w.mat[i];
+            let f = self.fractures.entry(i).or_insert(Fracture {
+                material: id,
+                work: 0.0,
+            });
+            f.work += 0.1 * tool.power.max(0.0) * weight;
+            if f.work >= hardness(m.get(id)) {
+                self.fractures.remove(&i);
+                w.make_air(i);
+                *removed.entry(id).or_default() += 1;
+            }
+        }
+        // Bound old marks during very long runs; no simulation random numbers.
+        while self.fractures.len() > 8192 {
+            self.fractures.pop_first();
+        }
+        let broken = !removed.is_empty();
+        self.impact = Some(Impact {
+            x,
+            y,
+            material,
+            frame: w.frame,
+            blocked,
+            broken,
+            aim,
+        });
+        w.sound(Sound {
+            kind: if broken { Kind::Break } else { Kind::Hit },
+            x,
+            y,
+            mat: material,
+            other: material,
+            loud: if broken { 0.55 } else { 0.18 },
+            size: if broken { 3.0 } else { 1.0 },
+        });
+        removed
+    }
+}
+
+/// The exact exposed pixels that the next strike will work. Shared with aiming UI.
+pub fn candidates(w:&World,m:&Materials,from:(f32,f32),hit:usize,tool:Drill)->Vec<(usize,f32)> {
+    let (x,y)=((hit%w.w) as f32,(hit/w.w) as f32);
         let mut candidates = Vec::new();
         let r = tool.radius.clamp(2.0, 8.0);
         for cy in (y - r).floor().max(1.0) as usize..=((y + r).ceil() as usize).min(w.h - 2) {
@@ -194,42 +238,5 @@ impl Mining {
                 }
             }
         }
-        for (i, weight) in candidates {
-            let id = w.mat[i];
-            let f = self.fractures.entry(i).or_insert(Fracture {
-                material: id,
-                work: 0.0,
-            });
-            f.work += 0.1 * tool.power.max(0.0) * weight;
-            if f.work >= hardness(m.get(id)) {
-                self.fractures.remove(&i);
-                w.make_air(i);
-                *removed.entry(id).or_default() += 1;
-            }
-        }
-        // Bound old marks during very long runs; no simulation random numbers.
-        while self.fractures.len() > 8192 {
-            self.fractures.pop_first();
-        }
-        let broken = !removed.is_empty();
-        self.impact = Some(Impact {
-            x,
-            y,
-            material,
-            frame: w.frame,
-            blocked,
-            broken,
-            aim,
-        });
-        w.sound(Sound {
-            kind: if broken { Kind::Break } else { Kind::Hit },
-            x,
-            y,
-            mat: material,
-            other: material,
-            loud: if broken { 0.55 } else { 0.18 },
-            size: if broken { 3.0 } else { 1.0 },
-        });
-        removed
-    }
+    candidates
 }

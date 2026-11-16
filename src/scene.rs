@@ -437,7 +437,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
 
         match cmd.as_str() {
             "size" => match nums(1, 2) {
-                Ok(v) => {
+                Ok(v) if v.iter().all(|v|v.is_finite()) => {
                     let (w, h) = (v[0].clamp(8.0, 8192.0) as usize, v[1].clamp(8.0, 8192.0) as usize);
                     let mut nw = World::new(w, h);
                     nw.fill(mats, AIR);
@@ -446,6 +446,7 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                     }
                     world = Some(nw);
                 }
+                Ok(_) => err("size needs finite width and height".into()),
                 Err(e) => err(e),
             },
             "seed" => match nums(1, 1) {
@@ -488,6 +489,9 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                 backdrop.dir = base.map(|b| b.to_path_buf());
             }
             "storage" => supplies.tracking=words.get(1)==Some(&"on"),
+            "gas_stock" => match (words.get(1).and_then(|n|mats.id(n)).filter(|id|*id!=0&&mats.get(*id).state==crate::material::State::Gas),words.get(2).and_then(|n|n.parse::<u64>().ok())) {
+                (Some(id),Some(n))=>{supplies.gas.insert(id,n);supplies.tracking=true;},_=>err("use gas_stock GAS COUNT".into()),
+            },
             "stock" => match (words.get(1).and_then(|n|mats.id(n)),words.get(2).and_then(|n|n.parse::<u64>().ok())) {
                 (Some(id),Some(n))=>{supplies.stock.insert(id,n);supplies.tracking=true;},_=>err("use stock MATERIAL COUNT".into()),
             },
@@ -1064,6 +1068,14 @@ fn load_depth(text: &str, mats: &Materials, base: Option<&Path>, allow_place: bo
                             if seconds.is_finite() && (0.25..=8.0).contains(&seconds) && reach.is_finite() && (1.0..=10.0).contains(&reach) {
                                 a.climb = Some(crate::physics::ClimbSettings { seconds, reach });
                             } else { err("climb needs 0.25..8 seconds and reach 1..10 cells".into()); }
+                        }
+                        if words.iter().any(|w| *w == "rope") {
+                            let mut r=crate::physics::Rope::default();
+                            r.range=opt("rope_range").and_then(|v|v.parse::<f32>().ok()).filter(|v|v.is_finite()).unwrap_or(r.range).clamp(20.,240.);
+                            r.length=opt("rope_length").and_then(|v|v.parse::<f32>().ok()).filter(|v|v.is_finite()).unwrap_or(r.length).clamp(8.,r.range);
+                            r.elasticity=opt("rope_elasticity").and_then(|v|v.parse::<f32>().ok()).filter(|v|v.is_finite()).unwrap_or(r.elasticity).clamp(0.,0.5);
+                            if let Some(v)=opt("rope_path"){for point in v.split(';').take(24){if let Some((x,y))=point.split_once(','){if let (Ok(x),Ok(y))=(x.parse::<f32>(),y.parse::<f32>()){if x.is_finite()&&y.is_finite(){r.pins.push((x,y));}}}}}
+                            a.rope=Some(r);
                         }
                         if words.iter().any(|w| *w == "jetpack") {
                             let mut jet = crate::physics::Jetpack::default();
@@ -1685,6 +1697,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
     out.push_str(&snap.weather.to_lines());
     if snap.supplies.tracking {out.push_str("storage on\n");}
     for (&id,&n) in &snap.supplies.stock {if n>0 {out.push_str(&format!("stock {} {}\n",mats.get(id).name,n));}}
+    for (&id,&n) in &snap.supplies.gas {if n>0 {out.push_str(&format!("gas_stock {} {}\n",mats.get(id).name,n));}}
     for id in &snap.supplies.tools {if id!="drill" {out.push_str(&format!("owned_tool {id}\n"));}}
     if snap.supplies.equipped!="drill" {out.push_str(&format!("equipped_tool {}\n",snap.supplies.equipped));}
     for b in &snap.supplies.stations {out.push_str(&format!("workshop {} {} {} {}\n",b.kind,b.x,b.y,b.radius));}
@@ -1715,6 +1728,7 @@ pub fn save(snap: &Snapshot, mats: &Materials) -> String {
             line += &format!(" moves crouch_height {} roll_height {} crouch_speed {} roll_speed {} roll_seconds {}", c.crouch_height, c.roll_height, c.crouch_speed, c.roll_speed, c.roll_seconds);
         }
         if let Some(c) = a.climb { line += &format!(" climb {} reach {}", c.seconds, c.reach); }
+        if let Some(r)=&a.rope {line+=&format!(" rope rope_range {} rope_length {} rope_elasticity {}",r.range,r.length,r.elasticity);if !r.pins.is_empty(){line+=" rope_path ";line+=&r.pins.iter().map(|p|format!("{},{}",p.0,p.1)).collect::<Vec<_>>().join(";");}}
         if let Some(j) = a.jetpack { line += &format!(" jetpack flight_speed {} jet_capacity {} jet_fuel {}", j.speed, j.capacity, j.fuel); }
         if a.headlamp > 0.0 { line += &format!(" headlamp {}", a.headlamp); }
         if snap.follow.is_none() && snap.zoom > 0.0 {

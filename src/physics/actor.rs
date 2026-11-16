@@ -15,6 +15,8 @@ use std::sync::Arc;
 mod ledge;
 mod posture;
 mod surface;
+mod grapple;
+pub use grapple::Rope;
 pub use surface::{SurfaceWalker,advance as surface_advance,rotate as surface_rotate,tangent as surface_tangent};
 mod soak;
 pub use soak::Soak;
@@ -77,6 +79,7 @@ pub struct Controls {
 pub struct ActorSpec {
     pub creature: Option<crate::creatures::Creature>,
     pub surface: Option<SurfaceWalker>,
+    pub rope: Option<Rope>,
     /// Optional reusable flight assist; fuel and active state are rewindable.
     pub jetpack: Option<Jetpack>,
     /// Radius of a personal warm headlamp (zero = none).
@@ -126,7 +129,7 @@ impl ActorSpec {
     pub fn standing_at(mat: MatId, x: f32, feet: f32) -> Self {
         let y = feet - H as f32 / 2.0;
         ActorSpec {
-            surface: None,
+            surface: None, rope: None,
             creature: None,
             jetpack: None, headlamp: 0.0,
             control_override: None, respawn: true,
@@ -199,6 +202,7 @@ pub struct ActorStatus {
     pub surface: Option<SurfaceWalker>,
     pub creature: Option<crate::creatures::Creature>,
     pub dead_for: u32,
+    pub rope: Option<Rope>,
     pub jet_fuel: Option<(f32, f32)>,
     pub boosting: bool,
     pub headlamp: f32,
@@ -363,6 +367,7 @@ impl Physics {
             a.stamped = a.stamped.iter().filter_map(|&(wi, li)| Some((moved(wi)?, li))).collect();
             a.spec.spawn = (a.spec.spawn.0 + dx as f32, a.spec.spawn.1 + dy as f32);
             if let Some(c)=a.spec.creature.as_mut(){c.shift(dx,dy); }
+            if let Some(r)=a.spec.rope.as_mut(){for p in &mut r.pins{p.0+=dx as f32;p.1+=dy as f32;}}
             if let Some(hold) = a.spec.ledge.as_mut() {
                 hold.edge = (hold.edge.0 + dx, hold.edge.1 + dy);
             }
@@ -397,6 +402,8 @@ impl Physics {
         a.spec.control_override = controls;
         true
     }
+
+    pub fn actor_animation_parameter(&self,index:usize,name:&str)->Option<f32>{self.actors.get(index)?.spec.animation.as_ref()?.parameters.get(name).copied()}
 
     /// Queue game damage through the same health/death path as physical impacts.
     pub fn damage_actor(&mut self, index: usize, amount: f32, cause: &'static str) -> bool {
@@ -495,7 +502,7 @@ impl Physics {
             .map(|a| {
                 let t = self.set[a.handle].translation();
                 ActorStatus {
-                    surface:a.spec.surface,creature:a.spec.creature.clone(),dead_for:a.spec.dead_for,
+                    rope:a.spec.rope.clone(),surface:a.spec.surface,creature:a.spec.creature.clone(),dead_for:a.spec.dead_for,
                     jet_fuel: a.spec.jetpack.map(|j| (j.fuel, j.capacity)),
                     boosting: a.spec.jetpack.is_some_and(|j| j.active),
                     headlamp: a.spec.headlamp,
@@ -782,6 +789,7 @@ impl Physics {
             let accel = if a.since_ground == 0 { ACCEL_GROUND } else { ACCEL_AIR } * DT;
             let target = walk * top_speed;
             let mut vx = v.x + (target - v.x).clamp(-accel, accel);
+            if a.since_ground>0&&a.spec.rope.as_ref().is_some_and(|r|!r.pins.is_empty()) {vx=(v.x+walk*7.*DT).clamp(-12.,12.);}
             if a.spec.posture.roll_left > 0.0 { vx = a.spec.posture.direction * a.spec.mobility.unwrap().roll_speed; }
             let mut vy = v.y;
             a.jump_wait = a.jump_wait.saturating_sub(1);

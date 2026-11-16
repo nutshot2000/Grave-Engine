@@ -29,7 +29,7 @@ pub struct Expedition {
     pub sim: Sim, pub mats: Materials, pub renderer: Renderer, pub tuning: Tuning,
     pub samples: [usize; 2], pub won: bool, pub frames: u32, pub toast: String,
     pub catalog:grave_engine::supplies::Catalog,
-    pub aim: (f32,f32), pub drilling: bool, pub mined: usize,
+    pub aim: (f32,f32), pub drilling: bool, pub venting:bool, pub mined: usize,
     pub signal: Option<(f32,f32)>, pub explored: Vec<bool>, pub map_w: usize,
     ids: [u16;2], toast_until: u32,
 }
@@ -41,7 +41,7 @@ impl Expedition {
         let saved = resume.then(||std::fs::read_to_string(SAVE).ok()).flatten();
         let parse = |text: &str| grave_engine::scene::load(text,&mats,Some(Path::new("scenes"))).into_sim(&mats);
         let (mut sim, problems) = parse(saved.as_deref().unwrap_or(&base));
-        let valid = problems.is_empty() && sim.physics.actor_count() == 1;
+        let valid = problems.is_empty() && sim.physics.player_count() == 1;
         if !valid { (sim, _) = parse(&base); }
         let mut samples = [0,0];
         if valid { if let Some(text) = &saved {
@@ -61,7 +61,7 @@ impl Expedition {
         sim.mission=Some(mission);
         let map_w=sim.world.w.div_ceil(16);let map_h=sim.world.h.div_ceil(16);
         let catalog=grave_engine::supplies::Catalog::load(&mats);
-        let mut g=Self {catalog,sim,mats,renderer:Renderer::default(),tuning,samples,won:false,frames:0,toast:"Recover cyan and violet samples, then return to the lift.".into(),aim:(1.,0.),drilling:false,mined:0,signal:None,explored:vec![false;map_w*map_h],map_w,ids,toast_until:900};
+        let mut g=Self {catalog,sim,mats,renderer:Renderer::default(),tuning,samples,won:false,frames:0,toast:"Recover cyan and violet samples, then return to the lift.".into(),aim:(1.,0.),drilling:false,venting:false,mined:0,signal:None,explored:vec![false;map_w*map_h],map_w,ids,toast_until:900};
         if valid { if let Some(text)=&saved {
             if let Some(hex)=text.lines().find_map(|l|l.strip_prefix("# surveyed ")) {
                 for (i,c) in hex.chars().enumerate() {if let Some(bits)=c.to_digit(16) {for bit in 0..4 {let n=i*4+bit;if n<g.explored.len(){g.explored[n]=bits&(1<<bit)!=0;}}}}
@@ -82,9 +82,10 @@ impl Expedition {
         if self.won{return;}let p=self.player();self.frames+=1;
         if aim.0.hypot(aim.1)>0.1 {let d=aim.0.hypot(aim.1);self.aim=(aim.0/d,aim.1/d);}
         self.drilling=drill&&!p.dead;
-        self.sim.physics.set_actor_animation_parameter(0,"drilling",self.drilling as u8 as f32);
+        self.sim.aim_tool(self.aim,!p.dead,self.drilling);
+        if self.venting&&!p.dead{self.sim.vent_gas(&self.mats,&self.catalog,self.aim);}
         if self.drilling {
-            let removed=self.sim.use_tool(&self.mats,&self.catalog,(p.x,p.y),self.aim);
+            let removed=self.sim.use_player_tool(&self.mats,&self.catalog,self.aim);
             self.award(removed);
         }
         if self.drilling&&controls.walk.abs()<0.1&&self.aim.0.abs()>0.1{let facing=self.aim.0.signum();self.sim.physics.edit_actor(0,|a|a.facing=facing);}

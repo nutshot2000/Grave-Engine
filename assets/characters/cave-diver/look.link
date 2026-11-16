@@ -1,0 +1,4 @@
+# Prefer the owner's full local rig; public checkouts use the original explorer.
+source = mixamo-fbx-local
+graph = ../../animations/cave-diver.graph
+fallback = explorer

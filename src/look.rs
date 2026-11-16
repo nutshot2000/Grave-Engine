@@ -50,6 +50,8 @@ pub struct Anim {
 }
 
 pub struct Look {
+    /// Optional per-clip animated hand anchors, in source image pixels.
+    pub hands: BTreeMap<(String, usize), (f32,f32)>,
     pub blends: BTreeMap<(String,String),BlendBank>,
     /// Editable animation graph loaded alongside the rendered clips.
     pub graph: Arc<crate::animation::Graph>,
@@ -147,7 +149,8 @@ impl Look {
             }
         }
         let blends=blends::load(dir,figure,feet,body_h,&anims)?;
-        let look=Look { blends, graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims };
+        let hands = std::fs::read_to_string(dir.join("hand.sockets")).unwrap_or_default().lines().filter_map(|l| { let v:Vec<_>=l.split_whitespace().collect(); if v.len()!=4 { return None; } Some(((v[0].to_string(),v[1].parse().ok()?),(v[2].parse().ok()?,v[3].parse().ok()?))) }).collect();
+        let look=Look { hands, blends, graph: Arc::new(graph), name, dir: dir.to_path_buf(), figure, feet, faces_right, anims };
         look.validate_blends(&look.graph)?;
         Ok(look)
     }
@@ -246,8 +249,27 @@ pub fn find(name: &str, base: Option<&Path>, body_h: usize) -> Result<Arc<Look>,
     tries.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/characters").join(name));
     let dir = tries
         .into_iter()
-        .find(|d| d.join("character.txt").is_file())
+        .find(|d| d.join("character.txt").is_file()||d.join("look.link").is_file())
         .ok_or(format!("no character called `{name}` (looked for assets/characters/{name}/character.txt)"))?;
+    // A text link selects an installed local character without publishing its art.
+    // Graph overrides belong to this alias; other scenes retain the original graph.
+    if dir.join("look.link").is_file() {
+        let link=std::fs::read_to_string(dir.join("look.link")).map_err(|e|e.to_string())?;
+        let fields:BTreeMap<_,_>=link.lines().filter_map(|l|l.split('#').next()?.split_once('=')).map(|(k,v)|(k.trim(),v.trim())).collect();
+        let source=fields.get("source").ok_or("look.link needs source = NAME")?;
+        if *source==name {return Err("look.link cannot refer to itself".into());}
+        let source_dir=dir.parent().unwrap_or(&dir).join(source);
+        if !source_dir.join("character.txt").is_file() {let fallback=fields.get("fallback").ok_or("linked local look is not installed")?;if *fallback==name {return Err("look.link fallback cannot refer to itself".into());}return find(fallback,base,body_h);}
+        let key=dir.canonicalize().unwrap_or(dir.clone());
+        let graph_file=dir.join(fields.get("graph").ok_or("look.link needs graph = FILE")?);
+        let graph=crate::animation::Graph::parse(&std::fs::read_to_string(&graph_file).map_err(|e|e.to_string())?)?;
+        let mut cache=CACHE.lock().unwrap();
+        if let Some(l)=cache.get(&key) {if graph==*l.graph{return Ok(l.clone());}}
+        let mut look=Look::load(&source_dir,body_h)?;
+        for state in &graph.states {if !look.anims.contains_key(&state.clip){return Err(format!("linked look missing clip {}",state.clip));}}
+        look.validate_blends(&graph)?;look.name=name.into();look.graph=Arc::new(graph);
+        let look=Arc::new(look);cache.insert(key,look.clone());return Ok(look);
+    }
     let key = dir.canonicalize().unwrap_or(dir.clone());
     if let Some(l) = CACHE.lock().unwrap().get(&key) {
         // Frames stay cached; graph edits must be visible on scene reload too.

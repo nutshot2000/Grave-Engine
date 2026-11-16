@@ -51,3 +51,7 @@ pub mod supplies;
 
 /// Territorial material creatures and their shared native art.
 pub mod creatures;
+
+/// Shared hand attachments and cave presentation.
+pub mod tool_pose;
+pub mod cave_ui;
