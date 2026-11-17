@@ -1,0 +1,15 @@
+# The lift workshop
+size 208 142
+fill bedrock
+backwall basalt 0 0 208 142
+rect air 12 22 184 97
+rect air 32 13 144 13
+rect iron 25 113 158 6
+rect crystal_cyan 25 92 4 21
+rect crystal_violet 179 92 4 21
+anchor 0 0 208 142
+lighting 0.53 #b8b2e8
+sun off
+light 30 98 65 strength 1 color #77dfa8
+light 178 99 66 strength 1 color #c097ff
+player 104 113 jetpack flight_speed 5 jet_capacity 2.8 headlamp 65

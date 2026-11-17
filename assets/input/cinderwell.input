@@ -7,3 +7,6 @@ aim_x = keys L J, stick RightX
 aim_y = keys K I, stick RightY
 restart = key R, pad Back
 pause = key Escape, pad Start
+
+choose_acid = key Num1, pad X
+choose_reach = key Num2, pad Y

@@ -17,4 +17,15 @@ sandstone under the hanging lava reservoir breaks when hit by Burst. In the
 last pool, Frost Burst can freeze enough water to give you a place to land.
 
 Edit the layout in **scenes/cinderwell.txt** and restart the run to reload it.
-The lift ends this prototype run.
+The first lift stops at a safe workshop and refills health and lift. Pick one
+upgrade with the mouse, **1/2**, or **X/Y** on a controller. Choosing starts
+the Glassworks with the upgrade equipped.
+
+- **Acid** adds a third spell to the element cycle. It leaves a corrosive pool,
+  and Burst spreads it farther. Keep clear of your own spills.
+- **Reach** extends Ember and Frost, including their Burst forms. Cast into the
+  lower gallery from farther back to set off the powder cache.
+
+Reach the green lift in the Glassworks to complete the run. The workshop and
+second cave are editable in **scenes/cinderwell-workshop.txt** and
+**scenes/cinderwell-glassworks.txt**.
