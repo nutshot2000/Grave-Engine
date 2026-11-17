@@ -1,6 +1,6 @@
 # Cinderwell
 
-Open **Play/Cinderwell.cmd**. Reach the green lift at the far right. You can
+In the editor, choose **File → Games & levels → Cinderwell (play game)**. You can also open **Play/Cinderwell.cmd**. Reach the green lift at the far right. You can
 fight, use the cave against its inhabitants, or fly past them.
 
 - **A/D** move, **Space** levitates. Release Space to recover lift, especially on the ground.

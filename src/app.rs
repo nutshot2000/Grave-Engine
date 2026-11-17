@@ -262,7 +262,7 @@ const SCENE_GROUPS: [&str; 4] = ["Games & levels", "Showcases", "Labs & tests", 
 fn scene_group(path: &Path) -> &'static str {
     let name = path.file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    if name == "cave-expedition" || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
+    if matches!(name.as_ref(), "cave-expedition" | "cinderwell" | "cinderwell-workshop" | "cinderwell-glassworks") || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
         "Games & levels"
     } else if has(&["lab", "test", "trial", "elemental-creatures", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
         "Labs & tests"
@@ -1877,14 +1877,15 @@ impl Sandbox {
         }
     }
 
-    /// Overhead scenes use their own altitude-aware viewport, without replacing
+    /// Standalone games open their own window without replacing
     /// the current side-view scene or any unsaved workshop draft.
-    fn open_overhead_game(&mut self, binary: &str) {
+    fn open_standalone_game(&mut self, binary: &str) {
         let name = if cfg!(windows) { format!("{binary}.exe") } else { binary.to_string() };
-        let sibling = std::env::current_exe().ok().and_then(|p| p.parent().map(|p|p.join(name))).filter(|p|p.exists());
+        let editor = self.original_exe.as_ref().map(|(path, _)| path.clone()).or_else(|| std::env::current_exe().ok());
+        let sibling = editor.and_then(|path| path.parent().map(|dir| dir.join(name))).filter(|path| path.exists());
         let mut command = match sibling {Some(p)=>std::process::Command::new(p),None=>{let mut c=std::process::Command::new("cargo");c.args(["run","--release","--bin",binary]);c}};
         #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
-        match command.spawn(){Ok(_)=>self.say(format!("Opening {binary}")),Err(e)=>self.say(format!("Couldn't open flight lab: {e}"))}
+        match command.spawn(){Ok(_)=>self.say(format!("Opening {binary}")),Err(e)=>self.say(format!("Couldn't start {binary}: {e}"))}
     }
 
     fn load_scene_inner(&mut self) {
@@ -2499,14 +2500,21 @@ Click to mute. The volume is in the View menu.")
         for group in SCENE_GROUPS {
             ui.menu_button(group, |ui| {
                 if group == "Games & levels" {
-                    if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked() { self.open_overhead_game("dust-hawk"); ui.close(); }
-                    if ui.button("Flight & destruction lab (2.5D)").clicked() { self.open_overhead_game("flight-test"); ui.close(); }
+                    if ui.button("Cinderwell (play game)").clicked() { self.open_standalone_game("cinderwell"); ui.close(); }
+                    if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked() { self.open_standalone_game("dust-hawk"); ui.close(); }
+                    if ui.button("Flight & destruction lab (2.5D)").clicked() { self.open_standalone_game("flight-test"); ui.close(); }
                     ui.separator();
                 }
                 egui::ScrollArea::vertical().max_height(420.).show(ui, |ui| {
                     for f in files.iter().filter(|f| scene_group(f) == group) {
                         let stem=f.file_stem().unwrap_or_default().to_string_lossy();
-                        let name=if stem=="cave-expedition" {"DEEPWARD — Cave Expedition".to_string()}else{stem.replace('-'," ")};
+                        let name = match stem.as_ref() {
+                            "cave-expedition" => "DEEPWARD — Cave Expedition".to_string(),
+                            "cinderwell" => "Cinderwell — First cave".to_string(),
+                            "cinderwell-workshop" => "Cinderwell — Lift Workshop".to_string(),
+                            "cinderwell-glassworks" => "Cinderwell — Glassworks".to_string(),
+                            _ => stem.replace('-', " "),
+                        };
                         if ui.button(name).on_hover_text(f.display().to_string()).clicked() {
                             self.scene_path = f.display().to_string();
                             self.load_scene();
