@@ -22,9 +22,9 @@ upgrade with the mouse, **1/2**, or **X/Y** on a controller. Choosing starts
 the Glassworks with the upgrade equipped.
 
 - **Acid** adds a third spell to the element cycle. It leaves a corrosive pool,
-  and Burst spreads it farther. Keep clear of your own spills.
+  and Burst spreads it farther. Drop it into the dry gallery to cover the floor, and switch to Frost at the pool where water dilutes Acid.
 - **Reach** extends Ember and Frost, including their Burst forms. Cast into the
-  lower gallery from farther back to set off the powder cache.
+  lower gallery from the starting ledge with Ember Bolt to set off the powder cache. Switch to Frost for the crossing so you can keep fighting without adding more fire.
 
 Reach the green lift in the Glassworks to complete the run. The workshop and
 second cave are editable in **scenes/cinderwell-workshop.txt** and

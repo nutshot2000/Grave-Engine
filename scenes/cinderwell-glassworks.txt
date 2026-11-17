@@ -14,10 +14,10 @@ rect basalt 213 165 47 80
 rect basalt 260 193 86 52
 rect basalt 346 154 38 91
 rect basalt 384 123 66 122
-rect basalt 139 169 30 5
+rect basalt 128 183 17 5
 rect basalt 298 150 23 5
-rect wood 171 177 34 4
-rect gunpowder 184 173 11 4
+rect wood 151 176 26 4
+rect gunpowder 157 172 12 4
 rect water 270 182 65 11
 rect glass 229 125 4 40
 rect sandstone 347 113 6 41
@@ -32,8 +32,8 @@ light 247 141 60 strength 0.8 color #95fff0
 light 313 165 72 strength 1 color #83b4ff
 light 402 105 66 strength 1 color #69f5b0
 player 49 175 jetpack flight_speed 5 jet_capacity 2.8 headlamp 72
-creature skitter 155 197 element oil burst 26
-creature shellback 201 196 element fire burst 24
+creature skitter 150 197 element oil burst 26
+creature shellback 181 196 element fire burst 24
 creature skitter 307 178 element water burst 28
-creature shellback 366 152 element acid burst 24
+creature shellback 366 152 element oil burst 24
 trigger 389 94 37 32 by player repeat : finish

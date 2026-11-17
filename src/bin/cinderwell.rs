@@ -114,7 +114,7 @@ impl Wand {
                 sim.world.heat_circle(x as i32, y as i32, radius, -140.);
                 None
             }
-            Element::Acid => Some(("acid", if self.burst { 6 } else { 3 })),
+            Element::Acid => Some(("acid", if self.burst { 8 } else { 4 })),
         };
         if let Some((material, spread)) = deposit {
             let material = mats.id(material).unwrap();
@@ -137,8 +137,16 @@ impl Wand {
                 && !a.dead
             {
                 if self.burst || direct_hit == Some(n) {
-                    sim.physics
-                        .damage_actor(n, if self.burst { 30. } else { 17. }, "wand strike");
+                    sim.physics.damage_actor(
+                        n,
+                        match (self.element, self.burst) {
+                            (Element::Acid, true) => 22.,
+                            (Element::Acid, false) => 12.,
+                            (_, true) => 30.,
+                            (_, false) => 17.,
+                        },
+                        "wand strike",
+                    );
                 }
             }
         }
@@ -479,7 +487,13 @@ impl Game {
         let hint = if self.stage == Stage::Workshop {
             "Choose one upgrade to descend."
         } else if self.stage == Stage::Glassworks {
-            "Use the ledges to cross. The powder cache can clear the lower gallery."
+            if p.x < 125. && self.wand.upgrade == Some(Upgrade::Reach) {
+                "From this ledge, use Ember Bolt on the powder cache across the gap."
+            } else if p.x < 125. {
+                "Try Acid Burst on the dry floor where the creatures are gathering."
+            } else {
+                "Acid dilutes in water. Frost can give you a foothold across the pool."
+            }
         } else if p.x < 104. {
             "Reach the lift to the right. Try Ember on the oil below."
         } else if p.x < 279. {
@@ -612,47 +626,120 @@ mod tests {
             let mut game = Game::new();
             game.sound = Player::silent();
             game.wand.burst = true;
-            fly_right(&mut game, |p| if p.x > 330. { 117. } else { 115. });
+            let first = fly_right(&mut game, |p| if p.x > 330. { 117. } else { 115. });
             assert!(game.stage == Stage::Workshop && !game.won);
             game.choose(upgrade);
             assert!(game.stage == Stage::Glassworks);
             assert_eq!(game.wand.upgrade, Some(upgrade));
             assert!(game.wand.burst);
-            let acid = game.mats.id("acid").unwrap();
-            match upgrade {
-                Upgrade::Acid => {
-                    assert!(game.wand.element == Element::Acid);
-                    game.wand
-                        .cast(&mut game.sim, &game.mats, (55., 140.), Vec2::X);
-                    assert!(game.sim.world.mat.contains(&acid));
+            if upgrade == Upgrade::Reach {
+                game.wand.burst = false;
+                let p = game.sim.physics.player_status().unwrap();
+                game.aim = Vec2::new(162. - p.x, 173. - p.y).normalized();
+                game.pending_cast = true;
+                game.tick(Controls::default());
+                let (_, impact, _) = game.trail.unwrap();
+                assert!(impact.0 - p.x > 88. && (impact.0 - 162.).abs() < 8.);
+                let powder = game.mats.id("gunpowder").unwrap();
+                for _ in 0..12 {
+                    game.tick(Controls::default());
                 }
-                Upgrade::Reach => {
-                    let origin = (103., 132.);
-                    let end = game.wand.cast(&mut game.sim, &game.mats, origin, Vec2::X);
-                    assert!(end.0 - origin.0 > 88.);
-                }
+                let remaining = game
+                    .sim
+                    .world
+                    .mat
+                    .iter()
+                    .filter(|&&id| id == powder)
+                    .count();
+                assert!(
+                    remaining < 12,
+                    "cache did not ignite: {remaining} powder cells, impact {impact:?}"
+                );
             }
-            fly_right(&mut game, |p| if p.x > 333. { 102. } else { 112. });
+            if upgrade == Upgrade::Reach {
+                game.wand.element = Element::Frost;
+                game.wand.burst = true;
+            }
+            let second = fly_right(&mut game, |p| if p.x > 333. { 102. } else { 119. });
+            println!(
+                "{upgrade:?}: first {first:?}, Glassworks {second:?} (health, enemies defeated, casts)"
+            );
+            assert!(first.1 >= 2 && second.1 >= 2);
+            assert!(second.0 >= 60., "{upgrade:?} route took too much damage");
             assert!(game.won);
         }
     }
 
-    fn fly_right(game: &mut Game, altitude: impl Fn(&grave_engine::physics::ActorStatus) -> f32) {
+    fn fly_right(
+        game: &mut Game,
+        altitude: impl Fn(&grave_engine::physics::ActorStatus) -> f32,
+    ) -> (f32, usize, usize) {
         let stage = game.stage;
+        let enemies = game.sim.physics.actor_count() - 1;
+        let mut casts = 0;
         for _ in 0..720 {
             let p = game.sim.physics.player_status().unwrap();
             assert!(!p.dead, "died at ({:.0}, {:.0}): {:?}", p.x, p.y, p.hurt_by);
+            let actors = game.sim.physics.actor_status();
+            let target = actors
+                .iter()
+                .filter(|a| a.creature.is_some() && !a.dead)
+                .map(|a| Vec2::new(a.x - p.x, a.y - p.y))
+                .filter(|d| {
+                    d.x > -12.
+                        && d.length()
+                            < if game.wand.upgrade == Some(Upgrade::Reach) {
+                                127.
+                            } else {
+                                83.
+                            }
+                })
+                .min_by(|a, b| a.length_sq().total_cmp(&b.length_sq()));
+            if let Some(target) = target {
+                game.aim = target.normalized();
+                game.pending_cast = game.cooldown <= 1;
+                casts += usize::from(game.pending_cast);
+            }
+            let alive = actors
+                .iter()
+                .filter(|a| a.creature.is_some() && !a.dead)
+                .count();
             game.tick(Controls {
                 walk: 1.,
                 thrust: p.y > altitude(&p),
                 ..Default::default()
             });
             if stage != game.stage || game.won {
-                return;
+                return (p.health, enemies.saturating_sub(alive), casts);
             }
         }
         let p = game.sim.physics.player_status().unwrap();
         panic!("lift not reached at ({:.0}, {:.0})", p.x, p.y);
+    }
+
+    #[test]
+    fn acid_burst_carries_down_into_the_gallery_without_a_direct_hit() {
+        let mats = Materials::load_dir("materials");
+        let mut sim = load(&mats, Stage::Glassworks);
+        let acid = mats.id("acid").unwrap();
+        let wand = Wand {
+            element: Element::Acid,
+            burst: true,
+            upgrade: Some(Upgrade::Acid),
+        };
+        let (_, impact_y) = wand.cast(&mut sim, &mats, (109., 93.), Vec2::Y);
+        assert!(impact_y < 186.);
+        for _ in 0..24 {
+            sim.step(&mats);
+        }
+        let pooled = (187..199)
+            .flat_map(|y| (105..129).map(move |x| (x, y)))
+            .filter(|&(x, y)| sim.world.mat[sim.world.idx(x, y)] == acid)
+            .count();
+        assert!(
+            pooled >= 8,
+            "only {pooled} acid cells reached the lower floor"
+        );
     }
 
     #[test]
