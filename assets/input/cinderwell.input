@@ -1,0 +1,9 @@
+walk = keys D A, keys ArrowRight ArrowLeft, stick LeftX, pads Right Left
+thrust = key Space, key W, pad A
+cast = mouse Primary, key E, pad RT
+element = key Q, pad LB
+burst = mouse Secondary, key F, pad RB
+aim_x = keys L J, stick RightX
+aim_y = keys K I, stick RightY
+restart = key R, pad Back
+pause = key Escape, pad Start

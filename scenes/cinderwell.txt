@@ -1,0 +1,42 @@
+# Cinderwell: three encounters on the way to the lift.
+size 416 220
+seed 91
+fill bedrock
+backwall shale 0 0 416 220
+circle air 62 121 58
+circle air 156 115 70
+circle air 257 123 76
+circle air 350 108 60
+rect air 25 102 365 56
+rect basalt 14 156 88 64
+rect basalt 102 170 64 50
+rect basalt 166 157 44 63
+rect basalt 210 176 77 44
+rect basalt 287 155 33 65
+rect basalt 320 169 55 51
+rect basalt 375 137 41 83
+rect basalt 341 143 21 5
+rect oil 106 164 54 6
+rect water 322 160 51 9
+# Break the sandstone lip to drain the hanging reservoir towards the shellback.
+rect basalt 218 87 16 5
+rect sandstone 234 87 28 5
+rect basalt 262 87 10 5
+rect basalt 218 67 5 20
+rect basalt 267 67 5 20
+rect lava 223 76 44 11
+rect crystal_cyan 385 123 4 14
+rect crystal_violet 32 150 5 6
+anchor 0 0 416 220
+lighting 0.47 #a5b4df
+sun off
+light 47 139 64 strength 1 color #91d2ff
+light 134 152 66 strength 0.9 color #ffb06b
+light 260 103 78 strength 0.9 color #fb8760
+light 341 131 55 strength 0.8 color #799dff
+light 388 121 49 strength 1 color #68f5d1
+player 43 156 jetpack flight_speed 5 jet_capacity 2.8 headlamp 72
+creature skitter 141 164 element water burst 35
+creature shellback 252 174 element oil burst 32
+creature skitter 354 158 element water burst 36
+trigger 376 108 28 32 by player repeat : finish

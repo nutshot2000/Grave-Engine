@@ -13,6 +13,9 @@ can both read and change it.
 jetpack, headlamp, drilling, crystal samples and a return-to-camp objective.
 Open **Play/Cave-Explorer.cmd**. [Controls and editing guide](docs/DEEPWARD.md).
 
+**Cinderwell** is a short spellcraft run with levitation and reactive terrain.
+Open **Play/Cinderwell.cmd**. [Controls and editing guide](docs/CINDERWELL.md).
+
 ## Try it
 
 ```bash
