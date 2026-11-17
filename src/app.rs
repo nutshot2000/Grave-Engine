@@ -2138,6 +2138,10 @@ impl Sandbox {
     }
 
     fn play(&mut self) {
+        if is_cinderwell_scene(Path::new(&self.scene_path)) {
+            self.open_standalone_game("cinderwell");
+            return;
+        }
         self.history.commit(&mut self.sim);
         self.continue_from_here();
         self.snapshot = self.sim.snapshot();
@@ -2423,9 +2427,10 @@ impl Sandbox {
         ui.horizontal_wrapped(|ui| {
             let testing = self.studio.tab == Tab::Tests;
             let running = if testing { self.studio.test_running } else { self.playing };
+            let cinderwell = !testing && !running && is_cinderwell_scene(Path::new(&self.scene_path));
             if ui
-                .add(egui::Button::new(RichText::new(if running { "⏸ Pause" } else { "▶ Play" }).strong()).fill(Color32::from_rgb(35, 105, 94)).min_size(Vec2::new(96., 28.)))
-                .on_hover_text("Play/Pause: P or controller Start. Space starts play. Caves: Space jumps. Hold right mouse for rope; scroll to climb; release to let go.")
+                .add(egui::Button::new(RichText::new(if running { "⏸ Pause" } else if cinderwell { "▶ Play Cinderwell" } else { "▶ Play" }).strong()).fill(Color32::from_rgb(35, 105, 94)).min_size(Vec2::new(96., 28.)))
+                .on_hover_text(if cinderwell { "Start the full Cinderwell run in its own window. Space or P also starts it." } else { "Play/Pause: P or controller Start. Space starts play. Caves: Space jumps. Hold right mouse for rope; scroll to climb; release to let go." })
                 .clicked()
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
