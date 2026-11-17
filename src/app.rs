@@ -258,11 +258,18 @@ fn editor_sound() -> grave_engine::sound::Player {
 /// How the File menu groups the scenes.
 const SCENE_GROUPS: [&str; 4] = ["Games & levels", "Showcases", "Labs & tests", "Other"];
 
+fn is_cinderwell_scene(path: &Path) -> bool {
+    matches!(
+        path.file_stem().and_then(|name| name.to_str()),
+        Some("cinderwell" | "cinderwell-workshop" | "cinderwell-glassworks")
+    )
+}
+
 /// Which group a scene file belongs in (by name; new ones land in "Other").
 fn scene_group(path: &Path) -> &'static str {
     let name = path.file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    if matches!(name.as_ref(), "cave-expedition" | "cinderwell" | "cinderwell-workshop" | "cinderwell-glassworks") || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
+    if name == "cave-expedition" || is_cinderwell_scene(path) || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
         "Games & levels"
     } else if has(&["lab", "test", "trial", "elemental-creatures", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
         "Labs & tests"
@@ -2153,7 +2160,7 @@ impl Sandbox {
     }
 
     fn explorer_play(&self) -> bool {
-        self.playing && self.player_tools && self.sim.physics.player_count() > 0 && self.studio.tab != Tab::Tests
+        self.playing && self.player_tools && !is_cinderwell_scene(Path::new(&self.scene_path)) && self.sim.physics.player_count() > 0 && self.studio.tab != Tab::Tests
     }
 
     fn step_once(&mut self) {
@@ -2423,7 +2430,7 @@ impl Sandbox {
             {
                 if testing { self.studio.test_running = !running; } else if running { self.playing = false; } else { self.play(); }
             }
-            if self.sim.physics.player_count() > 0 {
+            if self.sim.physics.player_count() > 0 && !is_cinderwell_scene(Path::new(&self.scene_path)) {
                 if ui.button(format!("Storage ({})",self.sim.supplies.total())).on_hover_text("B during Play: inventory, tools and nearby cave workshops").clicked(){self.supply_panel.open=!self.supply_panel.open;}
                 ui.checkbox(&mut self.player_tools,"Player tools").on_hover_text("During Play: aim and hold left-click/E to drill, Space flies. Turn off to use editor tools while running.");
                 let mut mission_on=self.sim.mission.is_some();
