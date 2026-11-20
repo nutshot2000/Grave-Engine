@@ -11,3 +11,4 @@ pause = key Escape, pad Start
 
 choose_acid = key Num1, pad X
 choose_reach = key Num2, pad Y
+start_run = key Enter, pad A

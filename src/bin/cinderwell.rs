@@ -9,7 +9,7 @@ use grave_engine::{
     scene,
     sim::Sim,
     sound::Player,
-    trigger::Event,
+    trigger::{Action, Event},
 };
 use std::{path::Path, time::Instant};
 
@@ -20,6 +20,7 @@ enum Stage {
     First,
     Workshop,
     Glassworks,
+    Heartkiln,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +165,10 @@ fn load(mats: &Materials, stage: Stage) -> Sim {
             "scenes/cinderwell-workshop.txt",
             include_str!("../../scenes/cinderwell-workshop.txt"),
         ),
+        Stage::Heartkiln => (
+            "scenes/cinderwell-heartkiln.txt",
+            include_str!("../../scenes/cinderwell-heartkiln.txt"),
+        ),
         Stage::Glassworks => (
             "scenes/cinderwell-glassworks.txt",
             include_str!("../../scenes/cinderwell-glassworks.txt"),
@@ -191,6 +196,7 @@ struct Game {
     aim: Vec2,
     paused: bool,
     won: bool,
+    title: bool,
     stage: Stage,
 }
 
@@ -214,6 +220,7 @@ impl Game {
             aim: Vec2::X,
             paused: false,
             won: false,
+            title: true,
             stage: Stage::First,
         }
     }
@@ -241,10 +248,30 @@ impl Game {
         if reached_lift && !self.sim.physics.player_status().unwrap().dead {
             match self.stage {
                 Stage::First => self.enter(Stage::Workshop),
-                Stage::Glassworks => self.won = true,
+                Stage::Glassworks => self.enter(Stage::Heartkiln),
+                Stage::Heartkiln => {}
                 Stage::Workshop => {}
             }
         }
+        if self.stage == Stage::Heartkiln
+            && !self.sim.physics.player_status().unwrap().dead
+            && self
+                .sim
+                .triggers
+                .iter()
+                .any(|t| t.occupied && t.actions.iter().any(|a| matches!(a, Action::Finish)))
+            && !self.guardian_alive()
+        {
+            self.won = true;
+        }
+    }
+
+    fn guardian_alive(&self) -> bool {
+        self.sim
+            .physics
+            .actor_status()
+            .iter()
+            .any(|a| a.creature.is_some() && !a.dead)
     }
 
     fn enter(&mut self, stage: Stage) {
@@ -259,11 +286,11 @@ impl Game {
     fn restart(&mut self, fresh_run: bool) {
         self.won = false;
         self.paused = false;
-        if fresh_run || self.stage != Stage::Glassworks {
+        if fresh_run || matches!(self.stage, Stage::First | Stage::Workshop) {
             self.wand = Wand::default();
             self.enter(Stage::First);
         } else {
-            self.enter(Stage::Glassworks);
+            self.enter(self.stage);
         }
     }
 
@@ -341,7 +368,7 @@ impl Game {
             self.aim = direction.normalized();
         }
 
-        if self.stage != Stage::Workshop && !self.paused && !self.won && !p.dead {
+        if !self.title && self.stage != Stage::Workshop && !self.paused && !self.won && !p.dead {
             self.pending_cast |= self.input.pressed("cast");
             self.clock += dt;
             while self.clock >= 1. / 60. {
@@ -361,7 +388,7 @@ impl Game {
             &mut self.sim,
             &self.mats,
             (left as f32, top as f32, w as f32, h as f32),
-            if self.paused || self.won || p.dead {
+            if self.title || self.paused || self.won || p.dead {
                 0.
             } else {
                 1.
@@ -454,7 +481,9 @@ impl Game {
             );
         }
         let active = self.wand.label();
-        let name = if self.stage == Stage::Glassworks {
+        let name = if self.stage == Stage::Heartkiln {
+            "HEARTKILN"
+        } else if self.stage == Stage::Glassworks {
             "GLASSWORKS"
         } else {
             "CINDERWELL"
@@ -495,7 +524,13 @@ impl Game {
             FontId::proportional(14.),
             Color32::LIGHT_GRAY,
         );
-        let hint = if self.stage == Stage::Workshop {
+        let hint = if self.stage == Stage::Heartkiln {
+            if self.guardian_alive() {
+                "Defeat the Kiln Guardian to unlock the lift. The oil and powder can help."
+            } else {
+                "The Kiln Guardian has fallen. The final lift is open."
+            }
+        } else if self.stage == Stage::Workshop {
             "Choose one upgrade to descend."
         } else if self.stage == Stage::Glassworks {
             if p.x < 125. && self.wand.upgrade == Some(Upgrade::Reach) {
@@ -527,7 +562,7 @@ impl Game {
         if self.won || p.dead || self.paused {
             painter.rect_filled(rect, 0., Color32::from_black_alpha(185));
             let label = if self.won {
-                "Glassworks cleared"
+                "Cinderwell complete"
             } else if p.dead {
                 p.hurt_by.unwrap_or("You fell in Cinderwell")
             } else {
@@ -540,7 +575,9 @@ impl Game {
                 FontId::proportional(32.),
                 Color32::WHITE,
             );
-            let retry = if self.stage == Stage::Glassworks {
+            let retry = if self.stage == Stage::Heartkiln {
+                "R / Back to retry Heartkiln   •   N / D-pad Down for a new run"
+            } else if self.stage == Stage::Glassworks {
                 "R / Back to retry Glassworks   •   N / D-pad Down for a new run"
             } else {
                 "R / Back to restart"
@@ -566,6 +603,37 @@ impl eframe::App for Game {
         self.input.update(&ctx);
         let dt = self.last.elapsed().as_secs_f32().min(0.1);
         self.last = Instant::now();
+        if self.title {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| {
+                    self.draw(ui, 0.);
+                    ui.painter()
+                        .rect_filled(ui.max_rect(), 0., Color32::from_black_alpha(155));
+                });
+            let mut start = self.input.pressed("start_run");
+            egui::Window::new("Cinderwell")
+                .title_bar(false)
+                .resizable(false)
+                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                .show(&ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.heading("Cinderwell");
+                        ui.add_space(8.);
+                        ui.label("Descend through the Glassworks and defeat the Kiln Guardian.");
+                        ui.add_space(12.);
+                        let hint = if self.input.controller().is_some() {
+                            "A"
+                        } else {
+                            "Enter"
+                        };
+                        start |= ui.button(format!("Start campaign [{hint}]")).clicked();
+                    });
+                });
+            self.title = !start;
+            ctx.request_repaint();
+            return;
+        }
         if self.input.pressed("new_run") {
             self.restart(true);
         } else if self.input.pressed("restart") {
@@ -599,6 +667,7 @@ fn main() -> eframe::Result {
     if let Some((stage, filename)) = std::env::args().find_map(|arg| match arg.as_str() {
         "--shot" => Some((Stage::First, "shots/cinderwell.png")),
         "--shot-workshop" => Some((Stage::Workshop, "shots/cinderwell-workshop.png")),
+        "--shot-heartkiln" => Some((Stage::Heartkiln, "shots/cinderwell-heartkiln.png")),
         "--shot-glassworks" => Some((Stage::Glassworks, "shots/cinderwell-glassworks.png")),
         _ => None,
     }) {
@@ -636,7 +705,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_upgrades_carry_into_a_completable_second_cave() {
+    fn both_upgrades_can_complete_the_campaign() {
         for upgrade in [Upgrade::Acid, Upgrade::Reach] {
             let mut game = Game::new();
             game.sound = Player::silent();
@@ -681,9 +750,12 @@ mod tests {
             );
             assert!(first.1 >= 2 && second.1 >= 2);
             assert!(second.0 >= 60., "{upgrade:?} route took too much damage");
+            assert!(game.stage == Stage::Heartkiln && !game.won);
+            let finale = fly_right(&mut game, |p| if p.x > 190. { 114. } else { 148. });
+            println!("{upgrade:?} Heartkiln {finale:?}");
             assert!(game.won);
             game.restart(false);
-            assert!(game.stage == Stage::Glassworks && !game.won);
+            assert!(game.stage == Stage::Heartkiln && !game.won);
             assert_eq!(game.wand.upgrade, Some(upgrade));
             assert_eq!(game.sim.physics.player_status().unwrap().health, 100.);
             game.restart(true);
@@ -726,7 +798,11 @@ mod tests {
                 .filter(|a| a.creature.is_some() && !a.dead)
                 .count();
             game.tick(Controls {
-                walk: 1.,
+                walk: if stage == Stage::Heartkiln && alive > 0 && p.x > 150. {
+                    0.
+                } else {
+                    1.
+                },
                 thrust: p.y > altitude(&p),
                 ..Default::default()
             });
@@ -736,6 +812,20 @@ mod tests {
         }
         let p = game.sim.physics.player_status().unwrap();
         panic!("lift not reached at ({:.0}, {:.0})", p.x, p.y);
+    }
+
+    #[test]
+    fn final_lift_waits_for_the_guardian() {
+        let mut game = Game::new();
+        game.sound = Player::silent();
+        game.enter(Stage::Heartkiln);
+        game.sim.physics.move_actor(0, 302., 125.);
+        game.tick(Controls::default());
+        assert!(game.sim.triggers.iter().any(|t| t.occupied));
+        assert!(!game.won);
+        game.sim.physics.damage_actor(1, 200., "test");
+        game.tick(Controls::default());
+        assert!(game.won);
     }
 
     #[test]

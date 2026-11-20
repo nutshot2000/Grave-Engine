@@ -261,7 +261,7 @@ const SCENE_GROUPS: [&str; 4] = ["Games & levels", "Showcases", "Labs & tests", 
 fn is_cinderwell_scene(path: &Path) -> bool {
     matches!(
         path.file_stem().and_then(|name| name.to_str()),
-        Some("cinderwell" | "cinderwell-workshop" | "cinderwell-glassworks")
+        Some("cinderwell" | "cinderwell-workshop" | "cinderwell-glassworks" | "cinderwell-heartkiln")
     )
 }
 
@@ -2547,6 +2547,7 @@ Click to mute. The volume is in the View menu.")
                             "cinderwell" => "Cinderwell — First cave".to_string(),
                             "cinderwell-workshop" => "Cinderwell — Lift Workshop".to_string(),
                             "cinderwell-glassworks" => "Cinderwell — Glassworks".to_string(),
+                            "cinderwell-heartkiln" => "Cinderwell — Heartkiln".to_string(),
                             _ => stem.replace('-', " "),
                         };
                         if ui.button(name).on_hover_text(f.display().to_string()).clicked() {

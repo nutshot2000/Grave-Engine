@@ -6,7 +6,7 @@ fight, use the cave against its inhabitants, or fly past them.
 - **A/D** move, **Space** levitates. Release Space to recover lift, especially on the ground.
 - Aim with the mouse and hold **left click** to cast. **Q** switches between Ember and Frost.
 - **Right click** toggles Burst. It increases the area, breaks weak ground, and takes longer to recharge.
-- **R** retries the current cave and keeps your upgrade in the Glassworks. **N** starts a fresh run. **Esc** pauses.
+- **R** retries the current cave and keeps your upgrade in the Glassworks and Heartkiln. **N** starts a fresh run. **Esc** pauses.
 
 On a controller, use the left stick and A to move, the right stick to aim,
 RT to cast, LB to switch elements, and RB to toggle Burst. Start pauses and
@@ -26,6 +26,10 @@ the Glassworks with the upgrade equipped.
 - **Reach** extends Ember and Frost, including their Burst forms. Cast into the
   lower gallery from the starting ledge with Ember Bolt to set off the powder cache. Switch to Frost for the crossing so you can keep fighting without adding more fire.
 
-Reach the green lift in the Glassworks to complete the run. The workshop and
-second cave are editable in **scenes/cinderwell-workshop.txt** and
-**scenes/cinderwell-glassworks.txt**.
+The Glassworks lift takes you to the Heartkiln. Defeat the Kiln Guardian to
+unlock the final lift and complete the campaign. The oil and suspended powder
+cache give you ways to hurt the guardian from the ledges. **R** retries either
+later cave with your upgrade.
+
+The workshop, Glassworks and Heartkiln are editable in the editor's Games &
+levels menu.
