@@ -1,0 +1,78 @@
+# NEON UNDERTOW / SIGNAL CORE
+size 192 112
+seed 829
+fill air
+backwall basalt 0 0 192 112
+lighting 0.46 #9687bc
+rect bedrock 0 0 192 8
+rect bedrock 0 104 192 8
+rect bedrock 0 8 8 96
+rect bedrock 184 8 8 96
+rect concrete 56 8 8 16
+rect steel 56 8 8 1
+rect concrete 56 40 8 32
+rect steel 56 40 8 1
+rect concrete 56 88 8 16
+rect steel 56 88 8 1
+rect concrete 128 8 8 24
+rect steel 128 8 8 1
+rect concrete 128 48 8 16
+rect steel 128 48 8 1
+rect concrete 128 80 8 24
+rect steel 128 80 8 1
+rect concrete 149 27 25 7
+rect steel 149 27 25 1
+rect concrete 149 78 25 7
+rect steel 149 78 25 1
+rect concrete 32 40 8 16
+rect steel 32 40 8 1
+rect concrete 32 72 8 16
+rect steel 32 72 8 1
+rect glass 58 24 4 16
+rect glass 58 72 4 8
+rect glass 130 32 4 16
+rect glass 130 64 4 8
+rect glass 146 36 4 13
+rect glass 146 63 4 13
+rect glass 173 36 4 13
+rect glass 173 63 4 13
+backwall shale 64 12 64 88
+backwall steel 137 32 45 48
+rect steel 80 28 32 56
+rect air 83 31 26 50
+backwall basalt 83 31 26 50
+rect glass 83 41 3 25
+rect glass 106 41 3 25
+rect crystal_violet 90 39 12 28
+rect crystal_cyan 94 46 4 15
+rect copper 86 35 20 2
+rect copper 86 75 20 2
+rect wood 114 49 8 6
+rect gunpowder 115 46 6 3
+rect wood 153 88 8 6
+rect gunpowder 154 85 6 3
+backwall brass 143 54 7 3
+backwall brass 172 54 7 3
+backwall brass 42 52 13 1
+backwall brass 42 68 13 1
+backwall copper 73 17 2 78
+backwall copper 117 18 2 80
+backwall brass 76 20 40 2
+backwall brass 76 92 40 2
+backwall crystal_cyan 150 48 22 1
+backwall crystal_cyan 150 63 22 1
+light 115 44 11 strength 0.8 color #ff7745
+anchor 0 0 192 112
+light 20 56 43 strength 1.0 color #ab61ff
+light 58 51 47 strength 1.0 color #5d4bff
+light 96 55 50 strength 1.0 color #9b51ff
+light 135 55 42 strength 1.0 color #ff4478
+light 171 56 48 strength 1.0 color #54ffc6
+trigger 19 59 2 2 by player : message undertow spawn
+trigger 43 19 2 2 by player : message undertow gunner
+trigger 67 83 2 2 by player : message undertow runner
+trigger 115 19 2 2 by player : message undertow gunner
+trigger 115 83 2 2 by player : message undertow runner
+trigger 155 43 2 2 by player : message undertow gunner
+trigger 177 57 2 2 by player : message undertow gunner
+trigger 163 55 2 2 by player : message undertow exit

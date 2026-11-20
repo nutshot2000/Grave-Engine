@@ -18,12 +18,22 @@ Open **Play/Cinderwell.cmd**. [Controls and editing guide](docs/CINDERWELL.md).
 
 ## Neon Undertow
 
-An original twin-stick shooter through three relay stations. Clear each station,
-shoot through glass cover, and reach the green exit. Open **Play/Neon-Undertow.cmd**
-and press Enter or A to begin. Use WASD and left click with mouse aim, or move
-with the left stick and aim and fire with the right stick. Press R or Y to retry
-the current station. Controls are editable in [neon-undertow.input](assets/input/neon-undertow.input).
+A twin-stick shooter set across three industrial relay stations. Shoot through
+glass at Tidal Intake, ignite powder charges and spilled oil at the Cracking
+Plant, then fight through the Signal Core. Fire and explosions affect the
+shooter and guards, and the same material grid renders the scenery and blocks
+shots and movement.
 
+Open **Play/Neon-Undertow.cmd** and press Enter or A to begin. Use WASD and left
+click with mouse aim, or move with the left stick and aim and fire with the right
+stick. Press R or Y to retry. [Remap controls](assets/input/neon-undertow.input).
+
+Open [Tidal Intake](scenes/neon-undertow-intake.txt),
+[Cracking Plant](scenes/neon-undertow-filter.txt), or
+[Signal Core](scenes/neon-undertow-core.txt) in the editor. Save your changes,
+then use **Play Neon Undertow** to test that station. The spawn, exit and guard
+positions are the centers of the trigger boxes whose messages start with
+`undertow`. Each station is 192 by 112 cells.
 ## Try it
 
 ```bash

@@ -1,0 +1,65 @@
+# NEON UNDERTOW / TIDAL INTAKE
+size 192 112
+seed 501
+fill air
+backwall shale 0 0 192 112
+lighting 0.46 #82bece
+rect bedrock 0 0 192 8
+rect bedrock 0 104 192 8
+rect bedrock 0 8 8 96
+rect bedrock 184 8 8 96
+rect concrete 56 8 8 24
+rect steel 56 8 8 1
+rect concrete 56 56 8 16
+rect steel 56 56 8 1
+rect concrete 56 88 8 16
+rect steel 56 88 8 1
+rect concrete 96 8 8 32
+rect steel 96 8 8 1
+rect concrete 96 64 8 16
+rect steel 96 64 8 1
+rect concrete 96 96 8 8
+rect steel 96 96 8 1
+rect concrete 144 52 13 12
+rect steel 144 52 13 1
+rect glass 58 32 4 24
+rect glass 58 72 4 8
+rect glass 98 40 4 16
+rect glass 98 80 4 16
+backwall basalt 64 9 32 94
+backwall concrete 104 48 80 23
+rect steel 128 27 48 19
+rect steel 128 74 48 20
+rect air 131 30 42 13
+rect air 131 77 42 14
+backwall steel 131 30 42 13
+backwall steel 131 77 42 14
+rect water 132 35 40 7
+rect water 132 83 40 7
+rect steel 144 30 2 13
+rect steel 160 30 2 13
+rect steel 144 77 2 14
+rect steel 160 77 2 14
+rect brick 22 17 18 8
+rect wood 26 31 10 5
+backwall steel 10 42 44 2
+backwall steel 10 76 44 2
+backwall steel 67 10 2 90
+backwall copper 71 10 1 22
+backwall copper 71 74 1 25
+backwall brass 106 50 30 1
+backwall brass 106 69 30 1
+backwall brass 158 50 20 1
+backwall brass 158 69 20 1
+anchor 0 0 192 112
+light 24 58 45 strength 1.0 color #57ffcb
+light 79 28 40 strength 1.0 color #60caff
+light 108 88 41 strength 1.0 color #7068ff
+light 150 54 49 strength 1.0 color #54ddff
+light 180 56 30 strength 1.0 color #51ffa4
+trigger 19 59 2 2 by player : message undertow spawn
+trigger 35 83 2 2 by player : message undertow runner
+trigger 115 59 2 2 by player : message undertow runner
+trigger 115 19 2 2 by player : message undertow gunner
+trigger 177 67 2 2 by player : message undertow gunner
+trigger 177 51 2 2 by player : message undertow exit

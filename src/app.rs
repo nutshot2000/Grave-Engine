@@ -266,10 +266,16 @@ fn is_cinderwell_scene(path: &Path) -> bool {
 }
 
 /// Which group a scene file belongs in (by name; new ones land in "Other").
+fn is_undertow_scene(path: &Path) -> bool {
+    matches!(
+        path.file_stem().and_then(|name| name.to_str()),
+        Some("neon-undertow-intake" | "neon-undertow-filter" | "neon-undertow-core")
+    )
+}
 fn scene_group(path: &Path) -> &'static str {
     let name = path.file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    if name == "cave-expedition" || is_cinderwell_scene(path) || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
+    if name == "cave-expedition" || is_cinderwell_scene(path) || is_undertow_scene(path) || has(&["stunt-yard", "mountain-run", "ember-rise", "racer", "red-mesa"]) {
         "Games & levels"
     } else if has(&["lab", "test", "trial", "elemental-creatures", "kimodo", "player", "forces", "objects", "elements", "templates", "imports", "imported", "machine", "studio", "workshop", "props"]) {
         "Labs & tests"
@@ -1887,11 +1893,17 @@ impl Sandbox {
     /// Standalone games open their own window without replacing
     /// the current side-view scene or any unsaved workshop draft.
     fn open_standalone_game(&mut self, binary: &str) {
+        self.open_standalone_game_with_args(binary, &[]);
+    }
+
+    fn open_standalone_game_with_args(&mut self, binary: &str, args: &[&str]) {
         let name = if cfg!(windows) { format!("{binary}.exe") } else { binary.to_string() };
         let editor = self.original_exe.as_ref().map(|(path, _)| path.clone()).or_else(|| std::env::current_exe().ok());
         let sibling = editor.and_then(|path| path.parent().map(|dir| dir.join(name))).filter(|path| path.exists());
         let mut command = match sibling {Some(p)=>std::process::Command::new(p),None=>{let mut c=std::process::Command::new("cargo");c.args(["run","--release","--bin",binary]);c}};
         #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
+        if !args.is_empty() && command.get_program() == "cargo" { command.arg("--"); }
+        command.args(args);
         match command.spawn(){Ok(_)=>self.say(format!("Opening {binary}")),Err(e)=>self.say(format!("Couldn't start {binary}: {e}"))}
     }
 
@@ -2408,6 +2420,12 @@ impl Sandbox {
                 self.animation_editor.select(&self.sim, 0);
                 self.animation_editor.open = true;
             }
+            if is_undertow_scene(Path::new(&self.scene_path))
+                && ui.button("Play Neon Undertow").on_hover_text("Open the saved station in the shooter").clicked()
+            {
+                let station = format!("--station={}", self.scene_path);
+                self.open_standalone_game_with_args("neon-undertow", &[&station]);
+            }
             if let Some(level) = game_level(&self.scene_path)
                 && ui.button("🎮 Play as game").on_hover_text("Open this course in its game, with controls and score (plays the saved file)").clicked()
             {
@@ -2512,6 +2530,7 @@ Click to mute. The volume is in the View menu.")
         for group in SCENE_GROUPS {
             ui.menu_button(group, |ui| {
                 if group == "Games & levels" {
+                    if ui.button("Neon Undertow (play game)").clicked() { self.open_standalone_game("neon-undertow"); ui.close(); }
                     if ui.button("Cinderwell (play game)").clicked() { self.open_standalone_game("cinderwell"); ui.close(); }
                     if ui.button("Dust Hawk — Operation Red Mesa (2.5D)").clicked() { self.open_standalone_game("dust-hawk"); ui.close(); }
                     if ui.button("Flight & destruction lab (2.5D)").clicked() { self.open_standalone_game("flight-test"); ui.close(); }
@@ -2521,6 +2540,9 @@ Click to mute. The volume is in the View menu.")
                     for f in files.iter().filter(|f| scene_group(f) == group) {
                         let stem=f.file_stem().unwrap_or_default().to_string_lossy();
                         let name = match stem.as_ref() {
+                            "neon-undertow-intake" => "Neon Undertow 1 - Tidal Intake".to_string(),
+                            "neon-undertow-filter" => "Neon Undertow 2 - Cracking Plant".to_string(),
+                            "neon-undertow-core" => "Neon Undertow 3 - Signal Core".to_string(),
                             "cave-expedition" => "DEEPWARD — Cave Expedition".to_string(),
                             "cinderwell" => "Cinderwell — First cave".to_string(),
                             "cinderwell-workshop" => "Cinderwell — Lift Workshop".to_string(),

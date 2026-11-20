@@ -1,0 +1,68 @@
+# NEON UNDERTOW / CRACKING PLANT
+size 192 112
+seed 617
+fill air
+backwall cobblestone 0 0 192 112
+lighting 0.46 #c39a81
+rect bedrock 0 0 192 8
+rect bedrock 0 104 192 8
+rect bedrock 0 8 8 96
+rect bedrock 184 8 8 96
+rect concrete 56 8 8 24
+rect steel 56 8 8 1
+rect concrete 56 48 8 16
+rect steel 56 48 8 1
+rect concrete 56 88 8 16
+rect steel 56 88 8 1
+rect concrete 120 8 8 16
+rect steel 120 8 8 1
+rect concrete 120 48 8 16
+rect steel 120 48 8 1
+rect concrete 120 88 8 16
+rect steel 120 88 8 1
+rect concrete 150 25 18 18
+rect steel 150 25 18 1
+rect concrete 154 68 18 14
+rect steel 154 68 18 1
+rect glass 58 32 4 16
+rect glass 58 76 4 12
+rect glass 122 32 4 16
+rect glass 122 72 4 16
+backwall brick 64 8 56 96
+backwall steel 128 12 56 80
+rect steel 76 27 33 49
+rect air 79 30 27 43
+backwall basalt 79 30 27 43
+rect oil 81 46 22 24
+rect glass 76 49 3 15
+rect glass 106 49 3 15
+rect wood 136 60 8 6
+rect gunpowder 137 57 6 3
+rect wood 49 43 7 5
+rect gunpowder 50 41 5 2
+rect wood 136 45 5 5
+rect gunpowder 137 42 3 3
+rect brass 151 27 16 2
+rect brick 156 69 14 10
+backwall copper 10 56 43 2
+backwall copper 10 72 43 2
+backwall copper 65 10 2 41
+backwall copper 111 62 2 41
+backwall brass 71 22 44 2
+backwall brass 71 79 44 2
+backwall copper 131 52 24 2
+backwall steel 131 84 27 3
+light 50 40 10 strength 0.8 color #ff762d
+anchor 0 0 192 112
+light 24 60 47 strength 1.0 color #ffc56a
+light 90 21 40 strength 1.0 color #ff4731
+light 96 62 49 strength 1.0 color #ffa842
+light 137 92 50 strength 1.0 color #bc5dff
+light 179 45 40 strength 1.0 color #5affb6
+trigger 19 59 2 2 by player : message undertow spawn
+trigger 35 19 2 2 by player : message undertow gunner
+trigger 67 83 2 2 by player : message undertow runner
+trigger 107 91 2 2 by player : message undertow gunner
+trigger 139 35 2 2 by player : message undertow runner
+trigger 177 67 2 2 by player : message undertow gunner
+trigger 177 51 2 2 by player : message undertow exit

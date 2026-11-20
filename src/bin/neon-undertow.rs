@@ -1,13 +1,17 @@
-//! Neon Undertow, a top-down relay-station shooter using Grave Engine's remappable input.
+//! Neon Undertow, a top-down shooter in native Grave Engine material scenes.
 
 use eframe::egui::{self, Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
-use grave_engine::input::Input;
+#[path = "neon-undertow/arena.rs"]
+mod arena;
+use arena::{Arena, HEIGHT, PIXELS, WIDTH};
+use grave_engine::{input::Input, render::Renderer, sound};
+use std::path::Path;
 use std::{collections::VecDeque, time::Instant};
 
-const CELL: f32 = 32.;
-const COLS: usize = 24;
-const ROWS: usize = 14;
-const SIZE: Vec2 = Vec2::new(COLS as f32 * CELL, ROWS as f32 * CELL);
+const CELL: f32 = 16.;
+const COLS: usize = (WIDTH as f32 * PIXELS / CELL) as usize;
+const ROWS: usize = (HEIGHT as f32 * PIXELS / CELL) as usize;
+const SIZE: Vec2 = Vec2::new(WIDTH as f32 * PIXELS, HEIGHT as f32 * PIXELS);
 const DT: f32 = 1. / 120.;
 const INK: Color32 = Color32::from_rgb(8, 12, 22);
 const MINT: Color32 = Color32::from_rgb(91, 255, 202);
@@ -15,32 +19,38 @@ const CORAL: Color32 = Color32::from_rgb(255, 104, 117);
 const GOLD: Color32 = Color32::from_rgb(255, 198, 103);
 const DIM: Color32 = Color32::from_rgb(145, 163, 188);
 
-const MAPS: [(&str, &str); 3] = [
-    (
-        "INTAKE",
-        include_str!("../../assets/neon-undertow/intake.txt"),
-    ),
-    (
-        "FILTER HALL",
-        include_str!("../../assets/neon-undertow/filter.txt"),
-    ),
-    (
-        "SIGNAL CORE",
-        include_str!("../../assets/neon-undertow/core.txt"),
-    ),
-];
-
-#[derive(Clone, Copy, PartialEq)]
-enum Tile {
-    Floor,
-    Wall,
-    Glass,
+struct Station {
+    name: &'static str,
+    path: &'static str,
+    scene: &'static str,
+    hint: &'static str,
 }
 
+const MAPS: [Station; 3] = [
+    Station {
+        name: "TIDAL INTAKE",
+        path: "scenes/neon-undertow-intake.txt",
+        scene: include_str!("../../scenes/neon-undertow-intake.txt"),
+        hint: "Shoot through glass to open new sightlines.",
+    },
+    Station {
+        name: "CRACKING PLANT",
+        path: "scenes/neon-undertow-filter.txt",
+        scene: include_str!("../../scenes/neon-undertow-filter.txt"),
+        hint: "Use the powder charges. Give spilled fuel room to burn.",
+    },
+    Station {
+        name: "SIGNAL CORE",
+        path: "scenes/neon-undertow-core.txt",
+        scene: include_str!("../../scenes/neon-undertow-core.txt"),
+        hint: "Flank the core and use the glass screens as cover.",
+    },
+];
 struct Guard {
     pos: Pos2,
     aim: Vec2,
     gunner: bool,
+    heat: f32,
     warning: f32,
     cooldown: f32,
 }
@@ -87,7 +97,8 @@ enum Cue {
 
 struct Run {
     room: usize,
-    tiles: [[Tile; COLS]; ROWS],
+    arena: Arena,
+    heat: f32,
     guards: Vec<Guard>,
     bullets: Vec<Bullet>,
     sparks: Vec<Spark>,
@@ -98,6 +109,7 @@ struct Run {
     mode: Mode,
     reload: f32,
     seconds: f32,
+    advance_materials: bool,
     carry: f32,
     attempts: u32,
     shake: f32,
@@ -114,36 +126,19 @@ fn index(pos: Pos2) -> (usize, usize) {
     )
 }
 
-fn tile(tiles: &[[Tile; COLS]; ROWS], pos: Pos2) -> Tile {
-    if !Rect::from_min_size(Pos2::ZERO, SIZE).contains(pos) {
-        return Tile::Wall;
-    }
-    let (x, y) = index(pos);
-    tiles
-        .get(y)
-        .and_then(|row| row.get(x))
-        .copied()
-        .unwrap_or(Tile::Wall)
-}
-
-fn slide(tiles: &[[Tile; COLS]; ROWS], mut pos: Pos2, delta: Vec2) -> Pos2 {
-    let clear = |p: Pos2| {
-        [[-9., -9.], [9., -9.], [-9., 9.], [9., 9.]]
-            .into_iter()
-            .all(|[x, y]| tile(tiles, p + Vec2::new(x, y)) == Tile::Floor)
-    };
+fn slide(arena: &Arena, mut pos: Pos2, delta: Vec2) -> Pos2 {
     let horizontal = pos + Vec2::new(delta.x, 0.);
-    if clear(horizontal) {
+    if arena.clear(horizontal) {
         pos = horizontal;
     }
     let vertical = pos + Vec2::new(0., delta.y);
-    if clear(vertical) {
+    if arena.clear(vertical) {
         pos = vertical;
     }
     pos
 }
 
-fn visible(tiles: &[[Tile; COLS]; ROWS], from: Pos2, to: Pos2) -> bool {
+fn visible(arena: &Arena, from: Pos2, to: Pos2) -> bool {
     let delta = to - from;
     let steps = (delta.length() / 2.).ceil() as usize;
     let edge = delta.normalized().rot90() * 1.5;
@@ -151,18 +146,22 @@ fn visible(tiles: &[[Tile; COLS]; ROWS], from: Pos2, to: Pos2) -> bool {
         let p = from.lerp(to, i as f32 / steps as f32);
         [p, p + edge, p - edge]
             .into_iter()
-            .all(|sample| tile(tiles, sample) == Tile::Floor)
+            .all(|sample| !arena.wall(sample))
     })
 }
 /// Distance to the player through walkable tiles, shared by every guard.
-fn routes(tiles: &[[Tile; COLS]; ROWS], player: Pos2) -> [[u16; COLS]; ROWS] {
+fn routes(arena: &Arena, player: Pos2) -> [[u16; COLS]; ROWS] {
     let mut distance = [[u16::MAX; COLS]; ROWS];
     let (x, y) = index(player);
     let mut queue = VecDeque::from([(x, y)]);
     distance[y][x] = 0;
     while let Some((x, y)) = queue.pop_front() {
         for (nx, ny) in neighbors(x, y) {
-            if tiles[ny][nx] == Tile::Floor && distance[ny][nx] == u16::MAX {
+            if distance[ny][nx] == u16::MAX
+                && !arena.heat(center(nx, ny))
+                && arena.clear(center(nx, ny))
+                && arena.clear(center(x, y).lerp(center(nx, ny), 0.5))
+            {
                 distance[ny][nx] = distance[y][x] + 1;
                 queue.push_back((nx, ny));
             }
@@ -171,15 +170,25 @@ fn routes(tiles: &[[Tile; COLS]; ROWS], player: Pos2) -> [[u16; COLS]; ROWS] {
     distance
 }
 
-fn neighbors(x: usize, y: usize) -> [(usize, usize); 4] {
-    [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
+fn neighbors(x: usize, y: usize) -> impl Iterator<Item = (usize, usize)> {
+    [
+        (x.wrapping_sub(1), y),
+        (x + 1, y),
+        (x, y.wrapping_sub(1)),
+        (x, y + 1),
+    ]
+    .into_iter()
+    .filter(|&(x, y)| x < COLS && y < ROWS)
 }
 
 impl Run {
     fn load(room: usize, carry: f32, attempts: u32) -> Self {
+        let station = &MAPS[room];
+        let (arena, markers) = Arena::load(Path::new(station.path), station.scene);
         let mut run = Self {
             room,
-            tiles: [[Tile::Floor; COLS]; ROWS],
+            arena,
+            heat: 0.,
             guards: Vec::new(),
             bullets: Vec::new(),
             sparks: Vec::new(),
@@ -190,27 +199,24 @@ impl Run {
             mode: Mode::Play,
             reload: 0.,
             seconds: 0.,
+            advance_materials: false,
             carry,
             attempts,
             shake: 0.,
         };
-        for (y, line) in MAPS[room].1.lines().enumerate() {
-            for (x, mark) in line.bytes().enumerate() {
-                let pos = center(x, y);
-                match mark {
-                    b'#' => run.tiles[y][x] = Tile::Wall,
-                    b'+' => run.tiles[y][x] = Tile::Glass,
-                    b'@' => run.player = pos,
-                    b'E' => run.exit = pos,
-                    b'g' | b'r' => run.guards.push(Guard {
-                        pos,
-                        aim: -Vec2::X,
-                        gunner: mark == b'g',
-                        warning: 0.,
-                        cooldown: 0.28 + (x % 4) as f32 * 0.13,
-                    }),
-                    _ => {}
-                }
+        for (marker, pos) in markers {
+            match marker.as_str() {
+                "spawn" => run.player = pos,
+                "exit" => run.exit = pos,
+                "gunner" | "runner" => run.guards.push(Guard {
+                    pos,
+                    aim: -Vec2::X,
+                    gunner: marker == "gunner",
+                    heat: 0.,
+                    warning: 0.,
+                    cooldown: 0.36 + (pos.x as usize % 7) as f32 * 0.04,
+                }),
+                _ => {}
             }
         }
         run
@@ -218,7 +224,8 @@ impl Run {
 
     fn restart(&mut self) {
         *self = match self.mode {
-            Mode::Title | Mode::Won => Self::load(0, 0., 1),
+            Mode::Title => Self::load(self.room, 0., 1),
+            Mode::Won => Self::load(0, 0., 1),
             _ => Self::load(self.room, self.carry, self.attempts + 1),
         };
     }
@@ -235,7 +242,16 @@ impl Run {
             return;
         }
         self.seconds += DT;
-        self.player = slide(&self.tiles, self.player, controls.movement * (218. * DT));
+        let slowdown = if self.arena.wet(self.player) {
+            0.67
+        } else {
+            1.
+        };
+        self.player = slide(
+            &self.arena,
+            self.player,
+            controls.movement * (218. * DT * slowdown),
+        );
         if controls.aim.length_sq() > 0.001 {
             self.aim = controls.aim.normalized();
         }
@@ -251,10 +267,10 @@ impl Run {
             self.cues.push(Cue::Shot);
         }
 
-        let distance = routes(&self.tiles, self.player);
+        let distance = routes(&self.arena, self.player);
         for guard in &mut self.guards {
             let delta = self.player - guard.pos;
-            let sight = visible(&self.tiles, guard.pos, self.player);
+            let sight = visible(&self.arena, guard.pos, self.player);
             guard.cooldown -= DT;
             if guard.warning > 0. {
                 guard.warning -= DT;
@@ -293,10 +309,25 @@ impl Run {
             };
             guard.aim = (goal - guard.pos).normalized();
             let speed = if guard.gunner { 79. } else { 137. };
-            guard.pos = slide(&self.tiles, guard.pos, guard.aim * (speed * DT));
+            guard.pos = slide(&self.arena, guard.pos, guard.aim * (speed * DT));
         }
 
         self.step_bullets();
+        self.advance_materials = !self.advance_materials;
+        if self.advance_materials {
+            let before = self.arena.sim.world.sounds.len();
+            self.arena.sim.step(&self.arena.materials);
+            let blasts: Vec<_> = self.arena.sim.world.sounds[before..]
+                .iter()
+                .filter(|cue| cue.kind == sound::Kind::Blast)
+                .map(|cue| Pos2::new(cue.x, cue.y) * PIXELS)
+                .collect();
+            for blast in blasts {
+                self.burst(blast, GOLD, 27);
+                self.shake = 8.;
+            }
+            self.hazards();
+        }
         if self.mode == Mode::Play
             && self
                 .guards
@@ -324,19 +355,19 @@ impl Run {
             let delta = bullet.velocity * DT / 4.;
             for _ in 0..4 {
                 bullet.pos += delta;
-                match tile(&self.tiles, bullet.pos) {
-                    Tile::Wall => {
-                        self.burst(bullet.pos, DIM, 4);
-                        return false;
-                    }
-                    Tile::Glass => {
-                        let (x, y) = index(bullet.pos);
-                        self.tiles[y][x] = Tile::Floor;
-                        self.burst(bullet.pos, MINT, 16);
+                let brittle = self.arena.material(bullet.pos).is_some_and(|material| {
+                    material.toughness.is_some_and(|toughness| toughness < 250.)
+                });
+                if self.arena.strike(bullet.pos, bullet.velocity) {
+                    self.burst(
+                        bullet.pos,
+                        if brittle { MINT } else { DIM },
+                        if brittle { 10 } else { 4 },
+                    );
+                    if brittle {
                         self.cues.push(Cue::Glass);
-                        return false;
                     }
-                    Tile::Floor => {}
+                    return false;
                 }
                 if bullet.friendly {
                     if let Some(index) = self
@@ -358,6 +389,23 @@ impl Run {
             true
         });
         self.bullets = bullets;
+    }
+
+    fn hazards(&mut self) {
+        let exposure = |heat: &mut f32, position| {
+            if self.arena.heat(position) {
+                *heat += DT * 2.;
+            } else {
+                *heat = (*heat - DT * 4.).max(0.);
+            }
+            *heat >= 0.18
+        };
+        let burning = exposure(&mut self.heat, self.player);
+        self.guards
+            .retain_mut(|guard| !exposure(&mut guard.heat, guard.pos));
+        if burning {
+            self.down();
+        }
     }
 
     fn down(&mut self) {
@@ -448,76 +496,6 @@ impl View<'_> {
 
 fn draw_board(view: &View<'_>, run: &Run) {
     let p = view.painter;
-    let wall_top = Color32::from_rgb(38, 58, 76);
-    for (y, row) in run.tiles.iter().enumerate() {
-        for (x, t) in row.iter().enumerate() {
-            let left = x as f32 * CELL;
-            let top = y as f32 * CELL;
-            let base = match (x * 17 + y * 7 + x * y) % 5 {
-                0 => Color32::from_rgb(21, 39, 55),
-                1 => Color32::from_rgb(17, 32, 48),
-                _ => Color32::from_rgb(19, 35, 51),
-            };
-            p.rect_filled(view.rect(left, top, CELL, CELL), 0., INK);
-            p.rect_filled(
-                view.rect(left + 0.5, top + 0.5, CELL - 1., CELL - 1.),
-                0.,
-                base,
-            );
-            let drain = (x * 11 + y * 9) % 29 == 3;
-            if *t == Tile::Wall {
-                p.rect_filled(
-                    view.rect(left, top, CELL, CELL),
-                    0.,
-                    Color32::from_rgb(15, 24, 36),
-                );
-                p.rect_filled(
-                    view.rect(left + 1., top + 1., CELL - 2., CELL - 8.),
-                    0.,
-                    wall_top,
-                );
-                p.rect_filled(
-                    view.rect(left + 1., top + 1., CELL - 2., 2.),
-                    0.,
-                    Color32::from_rgb(78, 111, 130),
-                );
-                if drain {
-                    p.rect_filled(
-                        view.rect(left + 5., top + 9., 22., 4.),
-                        0.,
-                        MINT.gamma_multiply(0.6),
-                    );
-                }
-            } else if *t == Tile::Glass {
-                p.rect_filled(
-                    view.rect(left + 2., top + 2., CELL - 4., CELL - 4.),
-                    0.,
-                    MINT.gamma_multiply(0.15),
-                );
-                p.rect_stroke(
-                    view.rect(left + 3., top + 3., CELL - 6., CELL - 6.),
-                    0.,
-                    Stroke::new(view.scale, MINT),
-                    StrokeKind::Inside,
-                );
-                view.line(
-                    Pos2::new(left + 8., top + 23.),
-                    Pos2::new(left + 23., top + 8.),
-                    2.,
-                    MINT.gamma_multiply(0.6),
-                );
-            } else if drain {
-                for i in 0..4 {
-                    p.rect_filled(
-                        view.rect(left + 8., top + 10. + i as f32 * 3., 16., 1.),
-                        0.,
-                        INK,
-                    );
-                }
-            }
-        }
-    }
-
     let unlocked = run.guards.is_empty();
     let exit_color = if unlocked { MINT } else { CORAL };
     let exit = view.rect(run.exit.x - 13., run.exit.y - 13., 26., 26.);
@@ -544,7 +522,7 @@ fn draw_board(view: &View<'_>, run: &Run) {
         if guard.warning > 0. {
             let length = (1..=110)
                 .map(|step| step as f32 * 4.)
-                .find(|length| tile(&run.tiles, guard.pos + guard.aim * *length) != Tile::Floor)
+                .find(|length| run.arena.wall(guard.pos + guard.aim * *length))
                 .unwrap_or(440.);
             for step in (15..length as usize).step_by(12) {
                 let a = guard.pos + guard.aim * step as f32;
@@ -576,6 +554,9 @@ fn draw_board(view: &View<'_>, run: &Run) {
         );
     }
     if run.mode != Mode::Down {
+        if run.heat > 0. {
+            view.disc(run.player, 20., CORAL.gamma_multiply(0.35 + run.heat));
+        }
         view.actor(run.player, run.aim, MINT, true);
         let reticle = run.player + run.aim * 30.;
         p.circle_stroke(
@@ -594,13 +575,16 @@ struct Game {
     fire_tapped: bool,
     stick_aim: bool,
     audio: Option<rodio::OutputStream>,
+    material_audio: sound::Player,
+    renderer: Renderer,
+    background: Option<egui::TextureHandle>,
     shot: bool,
     shot_requested: bool,
 }
 
 impl Game {
-    fn new(shot: bool) -> Self {
-        let mut run = Run::load(0, 0., 1);
+    fn new(room: usize, shot: bool) -> Self {
+        let mut run = Run::load(room, 0., 1);
         if !shot {
             run.mode = Mode::Title;
         }
@@ -628,6 +612,13 @@ impl Game {
                 rodio::OutputStreamBuilder::open_default_stream().ok()
             },
             shot,
+            material_audio: if shot {
+                sound::Player::silent()
+            } else {
+                sound::Player::new()
+            },
+            renderer: Renderer::default(),
+            background: None,
             shot_requested: false,
         }
     }
@@ -690,10 +681,33 @@ impl Game {
         }
     }
 
-    fn draw(&self, painter: &Painter, origin: Pos2, scale: f32) {
+    fn draw(&mut self, painter: &Painter, origin: Pos2, scale: f32) {
         let board = Rect::from_min_size(origin, SIZE * scale);
         let clipped = painter.with_clip_rect(board);
         let shake = Vec2::angled(self.run.seconds * 91. + self.run.shake) * self.run.shake * scale;
+        let sim = &self.run.arena.sim;
+        self.renderer.light(sim);
+        let rgba = self
+            .renderer
+            .draw(&sim.world, &self.run.arena.materials, Default::default());
+        let image = egui::ColorImage::from_rgba_unmultiplied([WIDTH, HEIGHT], rgba);
+        let texture = match &mut self.background {
+            Some(texture) => {
+                texture.set(image, egui::TextureOptions::NEAREST);
+                texture
+            }
+            None => self.background.insert(painter.ctx().load_texture(
+                "undertow station",
+                image,
+                egui::TextureOptions::NEAREST,
+            )),
+        };
+        clipped.image(
+            texture.id(),
+            board.translate(shake),
+            Rect::from_min_max(Pos2::ZERO, Pos2::new(1., 1.)),
+            Color32::WHITE,
+        );
         draw_board(
             &View {
                 painter: &clipped,
@@ -725,7 +739,7 @@ impl Game {
                 "{:02} / {:02}   {}",
                 self.run.room + 1,
                 MAPS.len(),
-                MAPS[self.run.room].0
+                MAPS[self.run.room].name
             ),
             18.,
             Color32::WHITE,
@@ -769,6 +783,14 @@ impl Game {
             DIM,
         );
 
+        view.text(
+            0.,
+            SIZE.y + 43.,
+            Align2::LEFT_CENTER,
+            MAPS[self.run.room].hint,
+            12.,
+            GOLD,
+        );
         let (title, detail, prompt, color) = match self.run.mode {
             Mode::Title => (
                 "NEON UNDERTOW",
@@ -785,7 +807,7 @@ impl Game {
             ),
             Mode::Clear => (
                 "RELAY SECURED",
-                MAPS[self.run.room + 1].0,
+                MAPS[self.run.room + 1].name,
                 format!("{confirm}  NEXT STATION"),
                 MINT,
             ),
@@ -865,9 +887,9 @@ impl eframe::App for Game {
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 let scale = ((area.width() - 30.) / SIZE.x)
-                    .min((area.height() - 20.) / (SIZE.y + 112.))
+                    .min((area.height() - 20.) / (SIZE.y + 134.))
                     .max(0.15);
-                let origin = area.center() - Vec2::new(SIZE.x / 2., SIZE.y / 2. - 12.) * scale;
+                let origin = area.center() - Vec2::new(SIZE.x / 2., SIZE.y / 2. - 4.) * scale;
                 if !self.shot && self.run.mode != Mode::Paused {
                     self.fire_tapped |= self.run.mode == Mode::Play && self.input.pressed("fire");
                     self.accumulator += elapsed;
@@ -881,14 +903,21 @@ impl eframe::App for Game {
                 self.draw(ui.painter(), origin, scale);
             });
         self.sound();
+        self.material_audio.listen(
+            &mut self.run.arena.sim,
+            &self.run.arena.materials,
+            (0., 0., WIDTH as f32, HEIGHT as f32),
+            if self.run.mode == Mode::Play { 1. } else { 0. },
+        );
 
         if self.shot && !self.shot_requested {
             self.shot_requested = true;
             let ctx = ctx.clone();
+            let path = format!("shots/neon-undertow-{}.png", self.run.room + 1);
             ui.ctx().request_screenshot(move |image| {
                 std::fs::create_dir_all("shots").expect("screenshot directory");
                 image::save_buffer(
-                    "shots/neon-undertow.png",
+                    path,
                     image.as_raw(),
                     image.width() as u32,
                     image.height() as u32,
@@ -904,7 +933,17 @@ impl eframe::App for Game {
 
 fn main() -> eframe::Result {
     std::env::set_current_dir(env!("CARGO_MANIFEST_DIR")).expect("project directory");
-    let shot = std::env::args().any(|arg| arg == "--shot");
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    let shot = args.iter().any(|arg| arg == "--shot");
+    let room = args
+        .iter()
+        .find_map(|arg| {
+            let path = arg.strip_prefix("--station=")?;
+            let filename = Path::new(path).file_name()?;
+            MAPS.iter()
+                .position(|station| Path::new(station.path).file_name() == Some(filename))
+        })
+        .unwrap_or(0);
     eframe::run_native(
         "Neon Undertow",
         eframe::NativeOptions {
@@ -913,7 +952,7 @@ fn main() -> eframe::Result {
                 .with_min_inner_size([700., 500.]),
             ..Default::default()
         },
-        Box::new(move |_| Ok(Box::new(Game::new(shot)))),
+        Box::new(move |_| Ok(Box::new(Game::new(room, shot)))),
     )
 }
 
@@ -922,77 +961,113 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_station_has_a_walkable_route_to_each_guard_and_exit() {
-        for (room, (_, map)) in MAPS.iter().enumerate() {
-            let lines: Vec<_> = map.lines().collect();
-            assert_eq!(lines.len(), ROWS);
-            for (y, line) in lines.iter().enumerate() {
-                assert_eq!(line.len(), COLS);
-                for (x, mark) in line.bytes().enumerate() {
-                    assert!(b"#.+@Egr".contains(&mark));
-                    if x == 0 || y == 0 || x == COLS - 1 || y == ROWS - 1 {
-                        assert_eq!(mark, b'#');
-                    }
-                }
-            }
-            assert_eq!(map.matches('@').count(), 1);
-            assert_eq!(map.matches('E').count(), 1);
+    fn stations_load_in_grave_and_have_routes_to_all_objectives() {
+        for (room, station) in MAPS.iter().enumerate() {
+            let materials = grave_engine::Materials::load_dir("materials");
+            let (_, problems) = grave_engine::scene::load(
+                station.scene,
+                &materials,
+                Path::new(station.path).parent(),
+            )
+            .into_sim(&materials);
+            assert!(problems.is_empty(), "{}: {problems:?}", station.name);
             let run = Run::load(room, 0., 1);
-            let distance = routes(&run.tiles, run.player);
+            let distance = routes(&run.arena, run.player);
             for pos in run.guards.iter().map(|g| g.pos).chain([run.exit]) {
                 let (x, y) = index(pos);
-                assert_ne!(distance[y][x], u16::MAX);
+                assert_ne!(
+                    distance[y][x],
+                    u16::MAX,
+                    "{} cannot reach {pos:?}",
+                    station.name
+                );
             }
         }
     }
 
     #[test]
-    fn shots_break_glass_before_hitting_a_guard_and_enemy_hits_allow_a_retry() {
+    fn shots_fracture_native_glass_but_not_concrete() {
         let mut run = Run::load(0, 0., 1);
-        let glass = center(11, 3);
-        run.player = glass - Vec2::X * 52.;
-        run.guards.truncate(1);
-        run.guards[0].pos = glass + Vec2::X * 50.;
-        let fire = Controls {
-            aim: Vec2::X,
-            fire: true,
-            ..Controls::default()
-        };
-
+        let glass = Pos2::new(58.5, 45.5) * PIXELS;
+        let concrete = Pos2::new(56.5, 63.5) * PIXELS;
+        assert!(run.arena.wall(glass) && run.arena.wall(concrete));
+        assert!(run.arena.strike(glass, Vec2::X));
         for _ in 0..12 {
-            run.step(fire);
+            run.arena.sim.step(&run.arena.materials);
         }
-        assert_eq!(run.guards.len(), 1);
-        assert!(tile(&run.tiles, glass) == Tile::Floor);
-        for _ in 0..30 {
-            run.step(fire);
-        }
-        assert!(run.guards.is_empty());
-        run.bullets.push(Bullet {
-            pos: run.player + Vec2::X * 20.,
-            velocity: -Vec2::X * 414.,
-            friendly: false,
-        });
-        for _ in 0..10 {
-            run.step(Controls::default());
-        }
-        assert!(run.mode == Mode::Down);
+        assert!(
+            !run.arena.wall(glass),
+            "glass survived as {:?}, body count {}",
+            run.arena.material(glass).map(|m| &m.name),
+            run.arena.sim.physics.body_count()
+        );
+        assert!(run.arena.strike(concrete, Vec2::X));
+        assert!(run.arena.wall(concrete));
+        run.mode = Mode::Down;
         run.restart();
-        assert!(run.mode == Mode::Play);
-        assert_eq!((run.room, run.attempts, run.guards.len()), (0, 2, 3));
-        assert!(tile(&run.tiles, glass) == Tile::Glass);
+        assert!(run.arena.wall(glass));
+        assert_eq!(run.attempts, 2);
     }
 
+    #[test]
+    fn powder_ignites_and_engine_heat_can_kill_a_guard() {
+        let mut run = Run::load(1, 0., 1);
+        let charge = Pos2::new(52.5, 41.5) * PIXELS;
+        assert!(run.arena.material(charge).unwrap().explosion_size > 0.);
+        assert!(run.arena.strike(charge, Vec2::X));
+        run.arena.sim.step(&run.arena.materials);
+        assert!(
+            run.arena
+                .sim
+                .world
+                .sounds
+                .iter()
+                .any(|cue| cue.kind == sound::Kind::Blast)
+        );
+        let guard = run.guards[0].pos / PIXELS;
+        let count = run.guards.len();
+        run.arena
+            .sim
+            .world
+            .heat_circle(guard.x as i32, guard.y as i32, 3, 900.);
+        for _ in 0..12 {
+            run.hazards();
+        }
+        assert_eq!(run.guards.len(), count - 1);
+    }
+
+    #[test]
+    fn fuel_ignites_in_the_tank_and_a_charge_breaks_adjacent_cover() {
+        let mut run = Run::load(1, 0., 1);
+        let fuel = Pos2::new(90.5, 65.5) * PIXELS;
+        assert!(run.arena.material(fuel).unwrap().catches_fire_at.is_some());
+        assert!(run.arena.strike(fuel, Vec2::X));
+        let glass = Pos2::new(59.5, 40.5) * PIXELS;
+        assert!(run.arena.wall(glass));
+        assert!(run.arena.strike(Pos2::new(52.5, 41.5) * PIXELS, Vec2::X));
+        for _ in 0..6 {
+            run.arena.sim.step(&run.arena.materials);
+        }
+        assert!(
+            run.arena
+                .sim
+                .world
+                .flags
+                .iter()
+                .any(|flag| flag & grave_engine::world::BURNING != 0)
+        );
+        assert!(!run.arena.wall(glass));
+    }
     #[test]
     fn a_scripted_run_clears_all_three_stations() {
         let mut run = Run::load(0, 0., 1);
         for room in 0..MAPS.len() {
-            let mut waypoint = None;
+            let mut waypoint: Option<Pos2> = None;
             for _ in 0..(120 * 35) {
                 let target = run
                     .guards
                     .iter()
-                    .filter(|g| visible(&run.tiles, run.player, g.pos))
+                    .filter(|g| visible(&run.arena, run.player, g.pos))
                     .min_by(|a, b| {
                         a.pos
                             .distance_sq(run.player)
@@ -1000,33 +1075,34 @@ mod tests {
                     });
                 let controls = if let Some(guard) = target {
                     waypoint = None;
-                    let delta = guard.pos - run.player;
                     Controls {
-                        aim: delta,
+                        aim: guard.pos - run.player,
                         fire: true,
-                        movement: Vec2::ZERO,
+                        ..Controls::default()
                     }
                 } else {
                     let destination = run.guards.first().map_or(run.exit, |g| g.pos);
                     let next = waypoint
-                        .filter(|p: &Pos2| p.distance(run.player) > 1.8)
+                        .filter(|p| p.distance(run.player) > 1.4 && !run.arena.heat(*p))
                         .unwrap_or_else(|| {
                             let (x, y) = index(run.player);
-                            let distance = routes(&run.tiles, destination);
                             if index(destination) == (x, y) {
                                 return destination;
                             }
-                            let (nx, ny) = neighbors(x, y)
-                                .into_iter()
-                                .min_by_key(|&(x, y)| distance[y][x])
-                                .unwrap();
-                            center(nx, ny)
+                            let distance = routes(&run.arena, destination);
+                            neighbors(x, y)
+                                .filter(|&(nx, ny)| {
+                                    !run.arena.heat(center(nx, ny))
+                                        && run.arena.clear(center(nx, ny))
+                                        && run.arena.clear(center(x, y).lerp(center(nx, ny), 0.5))
+                                })
+                                .min_by_key(|&(nx, ny)| distance[ny][nx])
+                                .map_or(center(x, y), |(nx, ny)| center(nx, ny))
                         });
                     waypoint = Some(next);
                     let delta = next - run.player;
-                    let movement = delta / delta.length().max(218. * DT);
                     Controls {
-                        movement,
+                        movement: delta / delta.length().max(218. * DT),
                         ..Controls::default()
                     }
                 };
@@ -1035,18 +1111,19 @@ mod tests {
                     break;
                 }
             }
+            let expected = if room + 1 == MAPS.len() {
+                Mode::Won
+            } else {
+                Mode::Clear
+            };
             assert!(
-                run.mode
-                    == if room + 1 == MAPS.len() {
-                        Mode::Won
-                    } else {
-                        Mode::Clear
-                    },
-                "station {room} ended after {:.2}s with {} hostiles and player at {:?}; waypoint {:?}, guards {:?}",
+                run.mode == expected,
+                "{} ended after {:.2}s with {} hostiles and player at {:?}, waypoint {waypoint:?}, heat {}, guards {:?}",
+                MAPS[room].name,
                 run.seconds,
                 run.guards.len(),
                 run.player,
-                waypoint,
+                run.heat,
                 run.guards.iter().map(|g| g.pos).collect::<Vec<_>>()
             );
             if run.mode == Mode::Clear {
