@@ -1,0 +1,9 @@
+# Movement, aim, and run controls
+move_x = keys D A, stick LeftX
+move_y = keys S W, stick LeftY
+aim_x = stick RightX
+aim_y = stick RightY
+fire = mouse Primary, pad RT, pad RB
+start = key Enter, pad A
+restart = key R, pad Y
+pause = key Escape, pad Start

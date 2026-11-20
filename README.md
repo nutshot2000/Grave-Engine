@@ -16,6 +16,14 @@ Open **Play/Cave-Explorer.cmd**. [Controls and editing guide](docs/DEEPWARD.md).
 **Cinderwell** is a short spellcraft run with levitation and reactive terrain.
 Open **Play/Cinderwell.cmd**. [Controls and editing guide](docs/CINDERWELL.md).
 
+## Neon Undertow
+
+An original twin-stick shooter through three relay stations. Clear each station,
+shoot through glass cover, and reach the green exit. Open **Play/Neon-Undertow.cmd**
+and press Enter or A to begin. Use WASD and left click with mouse aim, or move
+with the left stick and aim and fire with the right stick. Press R or Y to retry
+the current station. Controls are editable in [neon-undertow.input](assets/input/neon-undertow.input).
+
 ## Try it
 
 ```bash
