@@ -6,6 +6,7 @@ burst = mouse Secondary, key F, pad RB
 aim_x = keys L J, stick RightX
 aim_y = keys K I, stick RightY
 restart = key R, pad Back
+new_run = key N, pad Down
 pause = key Escape, pad Start
 
 choose_acid = key Num1, pad X

@@ -256,6 +256,17 @@ impl Game {
         self.clock = 0.;
     }
 
+    fn restart(&mut self, fresh_run: bool) {
+        self.won = false;
+        self.paused = false;
+        if fresh_run || self.stage != Stage::Glassworks {
+            self.wand = Wand::default();
+            self.enter(Stage::First);
+        } else {
+            self.enter(Stage::Glassworks);
+        }
+    }
+
     fn choose(&mut self, upgrade: Upgrade) {
         if self.stage != Stage::Workshop {
             return;
@@ -529,13 +540,18 @@ impl Game {
                 FontId::proportional(32.),
                 Color32::WHITE,
             );
+            let retry = if self.stage == Stage::Glassworks {
+                "R / Back to retry Glassworks   •   N / D-pad Down for a new run"
+            } else {
+                "R / Back to restart"
+            };
             painter.text(
                 rect.center() + Vec2::new(0., 45.),
                 Align2::CENTER_CENTER,
                 if self.paused {
-                    "Esc / Start to resume   •   R / Back to restart"
+                    format!("Esc / Start to resume\n{retry}")
                 } else {
-                    "R / Back to try again"
+                    retry.to_string()
                 },
                 FontId::proportional(18.),
                 Color32::LIGHT_GRAY,
@@ -550,11 +566,10 @@ impl eframe::App for Game {
         self.input.update(&ctx);
         let dt = self.last.elapsed().as_secs_f32().min(0.1);
         self.last = Instant::now();
-        if self.input.pressed("restart") {
-            self.enter(Stage::First);
-            self.won = false;
-            self.paused = false;
-            self.wand = Wand::default();
+        if self.input.pressed("new_run") {
+            self.restart(true);
+        } else if self.input.pressed("restart") {
+            self.restart(false);
         }
         if self.stage != Stage::Workshop
             && self.input.pressed("pause")
@@ -667,6 +682,12 @@ mod tests {
             assert!(first.1 >= 2 && second.1 >= 2);
             assert!(second.0 >= 60., "{upgrade:?} route took too much damage");
             assert!(game.won);
+            game.restart(false);
+            assert!(game.stage == Stage::Glassworks && !game.won);
+            assert_eq!(game.wand.upgrade, Some(upgrade));
+            assert_eq!(game.sim.physics.player_status().unwrap().health, 100.);
+            game.restart(true);
+            assert!(game.stage == Stage::First && game.wand.upgrade.is_none());
         }
     }
 
