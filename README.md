@@ -32,7 +32,8 @@ side. Use the blue catwalk while the breach indicators read HOT.
 
 Open **Play/Neon-Undertow.cmd** and press Enter or A to begin. Use WASD and left
 click with mouse aim, or move with the left stick and aim and fire with the right
-stick. Press R or Y to retry. [Remap controls](assets/input/neon-undertow.input).
+stick. You start each station with three health points and get a brief grace
+period after each hit. Press R or Y to retry. [Remap controls](assets/input/neon-undertow.input).
 
 Open [Tidal Intake](scenes/neon-undertow-intake.txt),
 [Cracking Plant](scenes/neon-undertow-filter.txt), or

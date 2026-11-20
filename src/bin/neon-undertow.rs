@@ -13,6 +13,9 @@ const COLS: usize = (WIDTH as f32 * PIXELS / CELL) as usize;
 const ROWS: usize = (HEIGHT as f32 * PIXELS / CELL) as usize;
 const SIZE: Vec2 = Vec2::new(WIDTH as f32 * PIXELS, HEIGHT as f32 * PIXELS);
 const DT: f32 = 1. / 120.;
+const PLAYER_HEALTH: u8 = 3;
+const HIT_GRACE: f32 = 0.8;
+const HEAT_GRACE: f32 = 0.35;
 const INK: Color32 = Color32::from_rgb(8, 12, 22);
 const MINT: Color32 = Color32::from_rgb(91, 255, 202);
 const CORAL: Color32 = Color32::from_rgb(255, 104, 117);
@@ -91,6 +94,7 @@ enum Cue {
     Threat,
     Impact,
     Glass,
+    Hurt,
     Down,
     Clear,
 }
@@ -98,6 +102,8 @@ enum Cue {
 struct Run {
     room: usize,
     arena: Arena,
+    health: u8,
+    hit_grace: f32,
     heat: f32,
     guards: Vec<Guard>,
     bullets: Vec<Bullet>,
@@ -188,6 +194,8 @@ impl Run {
         let mut run = Self {
             room,
             arena,
+            health: PLAYER_HEALTH,
+            hit_grace: 0.,
             heat: 0.,
             guards: Vec::new(),
             bullets: Vec::new(),
@@ -242,6 +250,7 @@ impl Run {
             return;
         }
         self.seconds += DT;
+        self.hit_grace = (self.hit_grace - DT).max(0.);
         let slowdown = if self.arena.wet(self.player) {
             0.67
         } else {
@@ -339,7 +348,7 @@ impl Run {
                 .iter()
                 .any(|g| g.pos.distance(self.player) < 17.)
         {
-            self.down();
+            self.hurt();
         }
         if self.mode == Mode::Play
             && self.guards.is_empty()
@@ -387,7 +396,7 @@ impl Run {
                         return false;
                     }
                 } else if bullet.pos.distance(self.player) < 9. {
-                    self.down();
+                    self.hurt();
                     return false;
                 }
             }
@@ -403,25 +412,34 @@ impl Run {
             } else {
                 *heat = (*heat - DT * 4.).max(0.);
             }
-            *heat >= 0.18
         };
-        let burning = exposure(&mut self.heat, self.player);
-        self.guards
-            .retain_mut(|guard| !exposure(&mut guard.heat, guard.pos));
-        if burning {
-            self.down();
+        exposure(&mut self.heat, self.player);
+        self.guards.retain_mut(|guard| {
+            exposure(&mut guard.heat, guard.pos);
+            guard.heat < 0.18
+        });
+        if self.heat >= HEAT_GRACE && self.hit_grace == 0. {
+            self.heat = 0.;
+            self.hurt();
         }
     }
 
-    fn down(&mut self) {
-        if self.mode == Mode::Play {
+    fn hurt(&mut self) {
+        if self.mode != Mode::Play || self.hit_grace > 0. {
+            return;
+        }
+        self.health -= 1;
+        self.shake = 6.;
+        if self.health == 0 {
             self.mode = Mode::Down;
-            self.shake = 6.;
             self.burst(self.player, MINT, 22);
             self.cues.push(Cue::Down);
+        } else {
+            self.hit_grace = HIT_GRACE;
+            self.burst(self.player, CORAL, 12);
+            self.cues.push(Cue::Hurt);
         }
     }
-
     fn burst(&mut self, pos: Pos2, color: Color32, count: usize) {
         for i in 0..count {
             let angle = i as f32 * 2.4 + self.seconds * 8.;
@@ -576,6 +594,14 @@ fn draw_board(view: &View<'_>, run: &Run) {
         if run.heat > 0. {
             view.disc(run.player, 20., CORAL.gamma_multiply(0.35 + run.heat));
         }
+        if run.hit_grace > 0. {
+            let alpha = 0.35 + 0.45 * (run.hit_grace * 22.).sin().abs();
+            p.circle_stroke(
+                view.point(run.player),
+                18. * view.scale,
+                Stroke::new(1.5 * view.scale, CORAL.gamma_multiply(alpha)),
+            );
+        }
         view.actor(run.player, run.aim, MINT, true);
         let reticle = run.player + run.aim * 30.;
         p.circle_stroke(
@@ -650,6 +676,7 @@ impl Game {
                 Cue::Threat => (320., 82., 0.10, 0.43),
                 Cue::Impact => (105., 38., 0.14, 0.35),
                 Cue::Glass => (1850., 820., 0.21, 0.72),
+                Cue::Hurt => (240., 75., 0.17, 0.25),
                 Cue::Down => (150., 30., 0.38, 0.28),
                 Cue::Clear => (430., 790., 0.42, 0.00),
             };
@@ -780,6 +807,20 @@ impl Game {
                 CORAL
             },
         );
+        view.text(150., -17., Align2::LEFT_CENTER, "HEALTH", 13., DIM);
+        for point in 0..PLAYER_HEALTH {
+            let segment = view.rect(210. + point as f32 * 17., -22., 13., 10.);
+            let color = if self.run.health <= 1 { CORAL } else { MINT };
+            painter.rect_filled(
+                segment,
+                1.,
+                if point < self.run.health {
+                    color
+                } else {
+                    DIM.gamma_multiply(0.22)
+                },
+            );
+        }
         view.text(
             SIZE.x,
             -17.,
@@ -839,7 +880,7 @@ impl Game {
             Mode::Paused => ("PAUSED", "", format!("{pause}  RESUME"), MINT),
             Mode::Down => (
                 "SIGNAL LOST",
-                "Player and hostiles go down in one hit.",
+                "Health depleted. Retry with full health.",
                 format!("{retry} / {confirm}  RETRY ROOM"),
                 CORAL,
             ),
@@ -1047,6 +1088,61 @@ mod tests {
         assert_eq!(run.attempts, 2);
     }
 
+    #[test]
+    fn player_survives_two_separate_hits_and_ignores_a_quick_follow_up() {
+        let mut run = Run::load(1, 0., 1);
+        run.guards.clear();
+        let hit = |run: &mut Run| {
+            run.bullets.push(Bullet {
+                pos: run.player - Vec2::X * 9.,
+                velocity: Vec2::X * 414.,
+                friendly: false,
+            });
+            run.step_bullets();
+        };
+        hit(&mut run);
+        assert_eq!(run.health, 2);
+        assert!(run.mode == Mode::Play);
+        hit(&mut run);
+        assert_eq!(run.health, 2);
+        for expected in [1, 0] {
+            for _ in 0..((HIT_GRACE / DT).ceil() as usize + 1) {
+                run.step(Controls::default());
+            }
+            hit(&mut run);
+            assert_eq!(run.health, expected);
+            assert!(
+                run.mode
+                    == if expected == 0 {
+                        Mode::Down
+                    } else {
+                        Mode::Play
+                    }
+            );
+        }
+        run.restart();
+        assert_eq!(run.health, PLAYER_HEALTH);
+        assert_eq!(run.hit_grace, 0.);
+    }
+
+    #[test]
+    fn brief_heat_exposure_is_survivable() {
+        let mut run = Run::load(1, 0., 1);
+        let pos = run.player / PIXELS;
+        run.arena
+            .sim
+            .world
+            .heat_circle(pos.x as i32, pos.y as i32, 3, 900.);
+        for _ in 0..15 {
+            run.hazards();
+        }
+        assert_eq!(run.health, PLAYER_HEALTH);
+        for _ in 0..15 {
+            run.hazards();
+        }
+        assert_eq!(run.health, PLAYER_HEALTH - 1);
+        assert!(run.mode == Mode::Play);
+    }
     #[test]
     fn powder_ignites_and_engine_heat_can_kill_a_guard() {
         let mut run = Run::load(1, 0., 1);
