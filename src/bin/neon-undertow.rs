@@ -3,7 +3,7 @@
 use eframe::egui::{self, Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2};
 #[path = "neon-undertow/arena.rs"]
 mod arena;
-use arena::{Arena, HEIGHT, PIXELS, WIDTH};
+use arena::{Arena, CrossingState, HEIGHT, PIXELS, WIDTH};
 use grave_engine::{input::Input, render::Renderer, sound};
 use std::path::Path;
 use std::{collections::VecDeque, time::Instant};
@@ -37,7 +37,7 @@ const MAPS: [Station; 3] = [
         name: "CRACKING PLANT",
         path: "scenes/neon-undertow-filter.txt",
         scene: include_str!("../../scenes/neon-undertow-filter.txt"),
-        hint: "Use the powder charges. Give spilled fuel room to burn.",
+        hint: "Shoot the upper charge, or break the lower glass and ignite the fuel.",
     },
     Station {
         name: "SIGNAL CORE",
@@ -317,13 +317,18 @@ impl Run {
         if self.advance_materials {
             let before = self.arena.sim.world.sounds.len();
             self.arena.sim.step(&self.arena.materials);
-            let blasts: Vec<_> = self.arena.sim.world.sounds[before..]
-                .iter()
-                .filter(|cue| cue.kind == sound::Kind::Blast)
-                .map(|cue| Pos2::new(cue.x, cue.y) * PIXELS)
-                .collect();
-            for blast in blasts {
-                self.burst(blast, GOLD, 27);
+            let mut groups = std::collections::BTreeMap::new();
+            for cue in &self.arena.sim.world.sounds[before..] {
+                if cue.kind == sound::Kind::Blast {
+                    let key = (cue.x as i32 / 12, cue.y as i32 / 12);
+                    let (sum, count) = groups.entry(key).or_insert((Vec2::ZERO, 0));
+                    *sum += Vec2::new(cue.x, cue.y);
+                    *count += 1;
+                }
+            }
+            for (sum, count) in groups.into_values() {
+                let blast = Pos2::ZERO + sum * (PIXELS / count as f32);
+                self.burst(blast, GOLD, 18 + count.min(18));
                 self.shake = 8.;
             }
             self.hazards();
@@ -496,6 +501,20 @@ impl View<'_> {
 
 fn draw_board(view: &View<'_>, run: &Run) {
     let p = view.painter;
+    for crossing in &run.arena.crossings {
+        let (label, color) = match run.arena.crossing_state(crossing) {
+            CrossingState::Sealed => (crossing.name.as_str(), DIM),
+            CrossingState::Hot => ("HOT", GOLD),
+            CrossingState::Open => (crossing.name.as_str(), MINT),
+        };
+        let sign = crossing.sign_position();
+        let plate = Rect::from_center_size(
+            view.point(sign),
+            Vec2::new(label.len() as f32 * 6. + 12., 16.) * view.scale,
+        );
+        p.rect_filled(plate, 2., INK.gamma_multiply(0.9));
+        view.text(sign.x, sign.y, Align2::CENTER_CENTER, label, 10., color);
+    }
     let unlocked = run.guards.is_empty();
     let exit_color = if unlocked { MINT } else { CORAL };
     let exit = view.rect(run.exit.x - 13., run.exit.y - 13., 26., 26.);
@@ -783,6 +802,21 @@ impl Game {
             DIM,
         );
 
+        for (i, crossing) in self.run.arena.crossings.iter().enumerate() {
+            let (status, color) = match self.run.arena.crossing_state(crossing) {
+                CrossingState::Sealed => ("SEALED", DIM),
+                CrossingState::Hot => ("HOT", GOLD),
+                CrossingState::Open => ("OPEN", MINT),
+            };
+            view.text(
+                248. * i as f32,
+                SIZE.y + 62.,
+                Align2::LEFT_CENTER,
+                &format!("{}  {status}", crossing.name),
+                13.,
+                color,
+            );
+        }
         view.text(
             0.,
             SIZE.y + 43.,
@@ -794,7 +828,11 @@ impl Game {
         let (title, detail, prompt, color) = match self.run.mode {
             Mode::Title => (
                 "NEON UNDERTOW",
-                "Clear three relay stations and reach the green hatch.",
+                if self.run.room == 0 {
+                    "Clear three relay stations and reach the green hatch."
+                } else {
+                    "Clear this station and reach the green hatch."
+                },
                 format!("{confirm}  BEGIN"),
                 MINT,
             ),
@@ -887,9 +925,9 @@ impl eframe::App for Game {
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 let scale = ((area.width() - 30.) / SIZE.x)
-                    .min((area.height() - 20.) / (SIZE.y + 134.))
+                    .min((area.height() - 20.) / (SIZE.y + 157.))
                     .max(0.15);
-                let origin = area.center() - Vec2::new(SIZE.x / 2., SIZE.y / 2. - 4.) * scale;
+                let origin = area.center() - Vec2::new(SIZE.x / 2., SIZE.y / 2. - 12.) * scale;
                 if !self.shot && self.run.mode != Mode::Paused {
                     self.fire_tapped |= self.run.mode == Mode::Play && self.input.pressed("fire");
                     self.accumulator += elapsed;
@@ -1012,7 +1050,7 @@ mod tests {
     #[test]
     fn powder_ignites_and_engine_heat_can_kill_a_guard() {
         let mut run = Run::load(1, 0., 1);
-        let charge = Pos2::new(52.5, 41.5) * PIXELS;
+        let charge = Pos2::new(81.5, 29.5) * PIXELS;
         assert!(run.arena.material(charge).unwrap().explosion_size > 0.);
         assert!(run.arena.strike(charge, Vec2::X));
         run.arena.sim.step(&run.arena.materials);
@@ -1036,27 +1074,120 @@ mod tests {
         assert_eq!(run.guards.len(), count - 1);
     }
 
-    #[test]
-    fn fuel_ignites_in_the_tank_and_a_charge_breaks_adjacent_cover() {
-        let mut run = Run::load(1, 0., 1);
-        let fuel = Pos2::new(90.5, 65.5) * PIXELS;
-        assert!(run.arena.material(fuel).unwrap().catches_fire_at.is_some());
-        assert!(run.arena.strike(fuel, Vec2::X));
-        let glass = Pos2::new(59.5, 40.5) * PIXELS;
-        assert!(run.arena.wall(glass));
-        assert!(run.arena.strike(Pos2::new(52.5, 41.5) * PIXELS, Vec2::X));
-        for _ in 0..6 {
-            run.arena.sim.step(&run.arena.materials);
+    fn states(run: &Run) -> Vec<CrossingState> {
+        run.arena
+            .crossings
+            .iter()
+            .map(|route| run.arena.crossing_state(route))
+            .collect()
+    }
+    fn crosses_bulkhead(arena: &Arena, y: f32) -> bool {
+        (73..=104).all(|x| arena.clear(Pos2::new(x as f32, y) * PIXELS))
+    }
+
+    fn shoot_east(run: &mut Run, x: f32, y: f32) {
+        run.bullets.push(Bullet {
+            pos: Pos2::new(x, y) * PIXELS,
+            velocity: Vec2::X * 950.,
+            friendly: true,
+        });
+        for _ in 0..50 {
+            run.step_bullets();
+            if run.bullets.is_empty() {
+                return;
+            }
         }
-        assert!(
-            run.arena
+    }
+
+    fn advance_plant(run: &mut Run, frames: usize) -> (bool, Vec<(u32, f32, f32)>) {
+        let mut fire = false;
+        let mut blasts = Vec::new();
+        for frame in 0..frames {
+            run.arena.sim.step(&run.arena.materials);
+            fire |= run
+                .arena
                 .sim
                 .world
                 .flags
                 .iter()
-                .any(|flag| flag & grave_engine::world::BURNING != 0)
+                .any(|flag| flag & grave_engine::world::BURNING != 0);
+            blasts.extend(run.arena.sim.world.sounds.drain(..).filter_map(|cue| {
+                (cue.kind == sound::Kind::Blast).then_some((frame as u32, cue.x, cue.y))
+            }));
+        }
+        (fire, blasts)
+    }
+
+    #[test]
+    fn primer_triggers_the_booster_and_opens_a_flank() {
+        let mut run = Run::load(1, 0., 1);
+        advance_plant(&mut run, 120);
+        assert_eq!(
+            states(&run),
+            [
+                CrossingState::Sealed,
+                CrossingState::Sealed,
+                CrossingState::Open
+            ]
         );
-        assert!(!run.arena.wall(glass));
+        assert!(!visible(
+            &run.arena,
+            Pos2::new(74., 26.) * PIXELS,
+            Pos2::new(105., 26.) * PIXELS
+        ));
+        shoot_east(&mut run, 73., 29.5);
+        let (_, mut blasts) = advance_plant(&mut run, 12);
+        let first_state = states(&run);
+        assert_eq!(first_state[0], CrossingState::Hot);
+        assert_eq!(first_state[1], CrossingState::Sealed);
+        let (_, cascade) = advance_plant(&mut run, 168);
+        blasts.extend(cascade.into_iter().map(|(frame, x, y)| (frame + 12, x, y)));
+        assert!(blasts.iter().any(|&(frame, x, _)| frame == 0 && x < 85.));
+        assert!(
+            blasts.iter().any(|&(frame, x, _)| frame > 0 && x >= 89.),
+            "{blasts:?}"
+        );
+        assert!(
+            (23..30).any(|y| crosses_bulkhead(&run.arena, y as f32)
+                && visible(
+                    &run.arena,
+                    Pos2::new(74., y as f32) * PIXELS,
+                    Pos2::new(105., y as f32) * PIXELS
+                )),
+            "{blasts:?}"
+        );
+        assert!(blasts.iter().any(|&(frame, _, y)| frame > 12 && y > 52.));
+        advance_plant(&mut run, 360);
+        assert_eq!(states(&run), [CrossingState::Open; 3]);
+    }
+
+    #[test]
+    fn rupturing_the_oil_cup_ignites_the_hopper_and_opens_the_middle() {
+        let mut run = Run::load(1, 0., 1);
+        advance_plant(&mut run, 120);
+        assert!(!crosses_bulkhead(&run.arena, 57.));
+        shoot_east(&mut run, 73., 59.5);
+        let (_, first) = advance_plant(&mut run, 10);
+        assert!(first.is_empty());
+        shoot_east(&mut run, 73., 59.5);
+        let (fire, mut blasts) = advance_plant(&mut run, 85);
+        let first_state = states(&run);
+        assert_eq!(first_state[0], CrossingState::Sealed);
+        assert_eq!(first_state[1], CrossingState::Hot);
+        let (_, cascade) = advance_plant(&mut run, 155);
+        blasts.extend(cascade.into_iter().map(|(frame, x, y)| (frame + 85, x, y)));
+        assert!(fire, "{blasts:?}");
+        assert!(
+            blasts.iter().any(|&(frame, x, _)| frame > 0 && x >= 90.),
+            "{blasts:?}"
+        );
+        assert!(
+            (55..62).any(|y| crosses_bulkhead(&run.arena, y as f32)),
+            "{blasts:?}"
+        );
+        assert!(blasts.iter().any(|&(frame, _, y)| frame > 85 && y < 34.));
+        advance_plant(&mut run, 360);
+        assert_eq!(states(&run), [CrossingState::Open; 3]);
     }
     #[test]
     fn a_scripted_run_clears_all_three_stations() {

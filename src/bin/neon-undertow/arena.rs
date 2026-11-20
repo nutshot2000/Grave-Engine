@@ -10,7 +10,26 @@ pub const PIXELS: f32 = 4.;
 pub const WIDTH: usize = 192;
 pub const HEIGHT: usize = 112;
 
+pub struct Crossing {
+    pub name: String,
+    min: Pos2,
+    max: Pos2,
+}
+
+impl Crossing {
+    pub fn sign_position(&self) -> Pos2 {
+        self.min - Vec2::new(19., 12.)
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CrossingState {
+    Sealed,
+    Hot,
+    Open,
+}
+
 pub struct Arena {
+    pub crossings: Vec<Crossing>,
     pub sim: Sim,
     pub materials: Materials,
 }
@@ -29,11 +48,20 @@ impl Arena {
             if (sim.world.w, sim.world.h) != (WIDTH, HEIGHT) {
                 return Err(format!("Expected a {WIDTH} x {HEIGHT} station"));
             }
+            let mut crossings = Vec::new();
             sim.triggers.retain(|zone| {
                 for action in &zone.actions {
                     if let Action::Message(message) = action
                         && let Some(marker) = message.strip_prefix("undertow ")
                     {
+                        if let Some(name) = marker.strip_prefix("route ") {
+                            crossings.push(Crossing {
+                                name: name.to_owned(),
+                                min: Pos2::new(zone.x, zone.y) * PIXELS,
+                                max: Pos2::new(zone.x + zone.w, zone.y + zone.h) * PIXELS,
+                            });
+                            return false;
+                        }
                         markers.push((
                             marker.to_owned(),
                             Pos2::new(zone.x + zone.w / 2., zone.y + zone.h / 2.) * PIXELS,
@@ -44,6 +72,7 @@ impl Arena {
                 true
             });
             let arena = Self {
+                crossings,
                 sim,
                 materials: materials.clone(),
             };
@@ -73,6 +102,33 @@ impl Arena {
         (arena, markers)
     }
 
+    /// A route opens when the player's footprint fits through at least one
+    /// lane across the marked gate. Report hot openings separately.
+    pub fn crossing_state(&self, crossing: &Crossing) -> CrossingState {
+        let left = ((crossing.min.x / PIXELS).floor() as i32).clamp(0, WIDTH as i32);
+        let right = ((crossing.max.x / PIXELS).ceil() as i32).clamp(0, WIDTH as i32);
+        let top = ((crossing.min.y / PIXELS).floor() as i32).clamp(0, HEIGHT as i32);
+        let bottom = ((crossing.max.y / PIXELS).ceil() as i32).clamp(0, HEIGHT as i32);
+        if left >= right || top >= bottom {
+            return CrossingState::Sealed;
+        }
+        let mut open_hot = false;
+        for row in top..bottom {
+            let lane =
+                || (left..right).map(|col| Pos2::new(col as f32 + 0.5, row as f32 + 0.5) * PIXELS);
+            if lane().all(|pos| self.clear(pos)) {
+                if !lane().any(|pos| self.heat(pos)) {
+                    return CrossingState::Open;
+                }
+                open_hot = true;
+            }
+        }
+        if open_hot {
+            CrossingState::Hot
+        } else {
+            CrossingState::Sealed
+        }
+    }
     fn index(&self, p: Pos2) -> Option<usize> {
         let x = (p.x / PIXELS).floor() as i32;
         let y = (p.y / PIXELS).floor() as i32;

@@ -1,68 +1,93 @@
 # NEON UNDERTOW / CRACKING PLANT
+# Three crossings through the bulkhead: relay at the top, fuel line in the
+# middle, open service catwalk at the bottom. The breaches are real materials.
 size 192 112
 seed 617
 fill air
-backwall cobblestone 0 0 192 112
-lighting 0.46 #c39a81
+backwall concrete 0 0 192 112
+lighting 0.56 #c9a89b
 rect bedrock 0 0 192 8
 rect bedrock 0 104 192 8
 rect bedrock 0 8 8 96
 rect bedrock 184 8 8 96
-rect concrete 56 8 8 24
-rect steel 56 8 8 1
-rect concrete 56 48 8 16
-rect steel 56 48 8 1
-rect concrete 56 88 8 16
-rect steel 56 88 8 1
-rect concrete 120 8 8 16
-rect steel 120 8 8 1
-rect concrete 120 48 8 16
-rect steel 120 48 8 1
-rect concrete 120 88 8 16
-rect steel 120 88 8 1
-rect concrete 150 25 18 18
-rect steel 150 25 18 1
-rect concrete 154 68 18 14
-rect steel 154 68 18 1
-rect glass 58 32 4 16
-rect glass 58 76 4 12
-rect glass 122 32 4 16
-rect glass 122 72 4 16
-backwall brick 64 8 56 96
-backwall steel 128 12 56 80
-rect steel 76 27 33 49
-rect air 79 30 27 43
-backwall basalt 79 30 27 43
-rect oil 81 46 22 24
-rect glass 76 49 3 15
-rect glass 106 49 3 15
-rect wood 136 60 8 6
-rect gunpowder 137 57 6 3
-rect wood 49 43 7 5
-rect gunpowder 50 41 5 2
-rect wood 136 45 5 5
-rect gunpowder 137 42 3 3
-rect brass 151 27 16 2
-rect brick 156 69 14 10
-backwall copper 10 56 43 2
-backwall copper 10 72 43 2
-backwall copper 65 10 2 41
-backwall copper 111 62 2 41
-backwall brass 71 22 44 2
-backwall brass 71 79 44 2
-backwall copper 131 52 24 2
-backwall steel 131 84 27 3
-light 50 40 10 strength 0.8 color #ff762d
+
+# Divider with framed, masonry infill. The steel stays after a breach.
+rect steel 94 8 8 11
+rect brick 94 19 4 15
+rect steel 94 34 8 18
+rect brick 94 52 4 18
+rect steel 94 70 8 19
+rect steel 94 102 8 2
+
+# Upper circuit: primer and booster on the blast ledge. The primer can be
+# hit from the west. The booster sits behind the screen and next to the gate.
+rect steel 78 31 16 3
+rect gunpowder 79 28 5 3
+rect gunpowder 89 27 5 4
+rect glass 86 23 2 8
+backwall brass 76 20 21 1
+backwall brass 76 34 21 1
+
+# Midway circuit: break into the oil cup and shoot the exposed fuel. Hot
+# oil and fire are contained beside the powder hopper at the masonry gate.
+rect steel 79 46 13 3
+rect steel 79 63 15 3
+rect glass 79 52 2 11
+rect oil 81 54 9 9
+rect gunpowder 90 57 4 6
+backwall copper 70 48 24 2
+backwall copper 70 67 24 2
+
+# West-side control booths, sightline baffles and lower approach.
+rect concrete 31 14 19 7
+rect steel 31 14 19 1
+rect brick 46 38 12 5
+rect concrete 36 68 15 9
+rect steel 36 68 15 1
+rect steel 63 81 12 7
+rect brass 63 81 12 1
+backwall copper 11 53 58 1
+backwall copper 11 66 58 1
+
+# East-side loading floor. Upper crossing is a flank into the control
+# galleries. Middle crossing enters the yard across from the exit.
+rect concrete 126 28 27 6
+rect steel 126 28 27 1
+rect brick 147 15 9 4
+rect concrete 149 48 17 6
+rect steel 149 48 17 1
+rect brick 127 65 19 6
+rect steel 127 65 19 1
+rect concrete 115 88 17 6
+rect brass 115 88 17 1
+rect concrete 151 87 18 6
+rect steel 151 87 18 1
+backwall brick 104 14 74 21
+backwall basalt 105 43 72 35
+backwall steel 55 89 123 13
+backwall brass 55 89 123 1
+backwall brass 55 101 123 1
+backwall copper 104 57 72 1
+backwall copper 104 61 72 1
+
 anchor 0 0 192 112
-light 24 60 47 strength 1.0 color #ffc56a
-light 90 21 40 strength 1.0 color #ff4731
-light 96 62 49 strength 1.0 color #ffa842
-light 137 92 50 strength 1.0 color #bc5dff
-light 179 45 40 strength 1.0 color #5affb6
+light 22 60 45 strength 1.0 color #ffbd72
+light 79 25 22 strength 1.2 color #ff4d36
+light 85 56 21 strength 1.2 color #ff9b36
+light 117 22 31 strength 1.0 color #a97cff
+light 146 58 36 strength 0.9 color #f47f4c
+light 84 97 31 strength 1.2 color #57aaff
+light 150 97 31 strength 0.9 color #66c5ff
+light 177 59 32 strength 1.1 color #49ffbd
+
 trigger 19 59 2 2 by player : message undertow spawn
-trigger 35 19 2 2 by player : message undertow gunner
-trigger 67 83 2 2 by player : message undertow runner
-trigger 107 91 2 2 by player : message undertow gunner
-trigger 139 35 2 2 by player : message undertow runner
-trigger 177 67 2 2 by player : message undertow gunner
-trigger 177 51 2 2 by player : message undertow exit
+trigger 59 19 2 2 by player : message undertow gunner
+trigger 67 71 2 2 by player : message undertow runner
+trigger 135 19 2 2 by player : message undertow gunner
+trigger 127 55 2 2 by player : message undertow gunner
+trigger 151 77 2 2 by player : message undertow runner
+trigger 175 37 2 2 by player : message undertow gunner
+trigger 175 57 2 2 by player : message undertow exit
+trigger 73 23 32 7 by player : message undertow route RELAY
+trigger 73 55 32 7 by player : message undertow route FUEL LINE
+trigger 76 92 29 9 by player : message undertow route CATWALK
